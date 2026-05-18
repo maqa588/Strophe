@@ -1,0 +1,67 @@
+# Xcode
+#
+# gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
+
+## User settings
+xcuserdata/
+
+# Xcode Personal Data
+xcuserdata/
+*.xcuserstate
+*.xcuserdatad
+
+## Build results
+build/
+DerivedData/
+
+## Schemes
+## build/
+## DerivedData/
+## *.moved-aside
+## *.xcuserstate
+
+## Common artifacts
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+## Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+# Swift Package Manager
+#
+# Add this line if you want to avoid checking in source code from RFCs.
+# .build/
+
+# CocoaPods
+#
+# We recommend against adding the Pods directory to your .gitignore. However
+# you should do so if you are using 'pod lib' or want to maintain your own
+# source control for dependencies.
+# Pods/
+# *.xcworkspace
+
+# Carthage
+#
+# Add this line to avoid checking in source code from Carthage dependencies.
+# Carthage/Build
+
+# AccuRev
+.accurev/
+
+# Fastlane
+#
+# It is recommended to not store the packages in the repository. 
+# Instead, they should be downloaded during the build process.
+# fastlane/report.xml
+# fastlane/Preview.html
+# fastlane/screenshots
+# fastlane/package_release_notes.txt
+# fastlane/package_metadata.json
+
+# Code Injection
+iOSInjectionProject/
+
+# macOS
+.DS_Store
