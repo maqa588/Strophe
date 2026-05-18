@@ -7,6 +7,7 @@
 
 import Foundation
 import Combine
+import CoreGraphics
 
 @MainActor
 class SubtitleProject: ObservableObject {
@@ -51,11 +52,11 @@ class SubtitleProject: ObservableObject {
                 }
                 
                 do {
-                    try FileManager.default.copyItem(at: url, to: tempURL)
+                    try FileManager.default.createSymbolicLink(at: tempURL, withDestinationURL: url)
                     self.videoURL = tempURL
                 } catch {
-                    print("Failed to copy media to temp URL: \(error.localizedDescription)")
-                    // Fallback to original URL if copy fails
+                    print("Failed to create symlink to temp URL: \(error.localizedDescription)")
+                    // Fallback to original URL if symlink fails
                     WaveformProcessor.shared.process(url: url) { data in
                         self.waveformData = data
                     }
@@ -66,11 +67,24 @@ class SubtitleProject: ObservableObject {
     @Published var waveformData: WaveformData?
     @Published var videoFrameRate: Double = 30.0
     @Published var isAudioOnly: Bool = false
+    @Published var videoSize: CGSize = .zero
     
     func snapToFrame(_ time: Double) -> Double {
         guard videoFrameRate > 0 else { return time }
         let frameDuration = 1.0 / videoFrameRate
         return (time / frameDuration).rounded() * frameDuration
+    }
+
+    func resnapAllItems() {
+        for index in items.indices {
+            if let start = items[index].startTime {
+                items[index].startTime = snapToFrame(start)
+            }
+            if let end = items[index].endTime {
+                items[index].endTime = snapToFrame(end)
+            }
+        }
+        sortItemsStable()
     }
     
     @Published var currentTime: Double = 0 {
@@ -86,19 +100,22 @@ class SubtitleProject: ObservableObject {
     @Published var referenceTime: Double = 0
     @Published var referenceDate: Date = .now
     
+    @Published var activeDragDelta: Double = 0
+    @Published var activeDragItemID: UUID? = nil
+    
     // MARK: - JK Slapping State
     @Published var activeSlapKey: String? = nil
     @Published var activeSlapSubtitleID: UUID? = nil
     
     func importScript(_ text: String) {
         let (hasTimeline, blocks) = SubtitleEngine.parseAnyText(text)
-        
+
         self.items = blocks.enumerated().map { index, block in
             SubtitleItem(
                 id: block.id,
                 text: block.text,
-                startTime: hasTimeline ? block.startTime : nil,
-                endTime: hasTimeline ? block.endTime : nil,
+                startTime: hasTimeline ? snapToFrame(block.startTime) : nil,
+                endTime: hasTimeline ? snapToFrame(block.endTime) : nil,
                 originalIndex: index
             )
         }
@@ -154,6 +171,22 @@ class SubtitleProject: ObservableObject {
             items[index].endTime = snappedEnd
             sortItemsStable()
         }
+    }
+
+    func moveSelectedBlocks(by delta: TimeInterval) {
+        guard !selectedIDs.isEmpty else { return }
+        for id in selectedIDs {
+            if let index = items.firstIndex(where: { $0.id == id }),
+               let start = items[index].startTime,
+               let end = items[index].endTime {
+                let newStart = snapToFrame(max(0, start + delta))
+                let minDuration = videoFrameRate > 0 ? (1.0 / videoFrameRate) : 0.1
+                let newEnd = snapToFrame(max(newStart + minDuration, end + delta))
+                items[index].startTime = newStart
+                items[index].endTime = newEnd
+            }
+        }
+        sortItemsStable()
     }
     
     // MARK: - J/K Slapping Mode Handlers

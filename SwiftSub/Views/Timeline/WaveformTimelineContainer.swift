@@ -124,6 +124,7 @@ struct WaveformTimelineContainer: View {
                     WaveformCanvas(data: data, pixelsPerSecond: renderedPPS)
                         .frame(width: renderedWidth, height: waveHeight)
                         .scaleEffect(x: scaleX, y: 1, anchor: .leading)
+                        .clipped()
                         .frame(width: totalWidth, height: waveHeight, alignment: .leading)
                     
                     SubtitleBlocksLayer(project: project, pixelsPerSecond: pixelsPerSecond, smoothTime: smoothTime)

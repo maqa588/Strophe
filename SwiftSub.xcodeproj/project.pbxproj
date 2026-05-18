@@ -8,10 +8,22 @@
 
 /* Begin PBXBuildFile section */
 		4C280D722FBAB0980096A4D3 /* AsyncAlgorithms in Frameworks */ = {isa = PBXBuildFile; productRef = 4C280D712FBAB0980096A4D3 /* AsyncAlgorithms */; };
+		4C88C9072FBB72E300142A61 /* Libswscale.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88C9012FBB72E300142A61 /* Libswscale.xcframework */; };
+		4C88C9092FBB72E300142A61 /* Libavcodec.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88C9022FBB72E300142A61 /* Libavcodec.xcframework */; };
+		4C88C90B2FBB72E300142A61 /* Libavformat.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88C9032FBB72E300142A61 /* Libavformat.xcframework */; };
+		4C88C90D2FBB72E300142A61 /* Libswresample.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88C9042FBB72E300142A61 /* Libswresample.xcframework */; };
+		4C88C90F2FBB72E300142A61 /* Libdav1d.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88C9052FBB72E300142A61 /* Libdav1d.xcframework */; };
+		4C88C9112FBB72E300142A61 /* Libavutil.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88C9062FBB72E300142A61 /* Libavutil.xcframework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		4C3566352FB81D160046E36C /* SwiftSub.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SwiftSub.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4C88C9012FBB72E300142A61 /* Libswscale.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libswscale.xcframework; path = ../FFmpegBuild/Sources/Libswscale.xcframework; sourceTree = "<group>"; };
+		4C88C9022FBB72E300142A61 /* Libavcodec.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libavcodec.xcframework; path = ../FFmpegBuild/Sources/Libavcodec.xcframework; sourceTree = "<group>"; };
+		4C88C9032FBB72E300142A61 /* Libavformat.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libavformat.xcframework; path = ../FFmpegBuild/Sources/Libavformat.xcframework; sourceTree = "<group>"; };
+		4C88C9042FBB72E300142A61 /* Libswresample.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libswresample.xcframework; path = ../FFmpegBuild/Sources/Libswresample.xcframework; sourceTree = "<group>"; };
+		4C88C9052FBB72E300142A61 /* Libdav1d.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libdav1d.xcframework; path = ../FFmpegBuild/Sources/Libdav1d.xcframework; sourceTree = "<group>"; };
+		4C88C9062FBB72E300142A61 /* Libavutil.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libavutil.xcframework; path = ../FFmpegBuild/Sources/Libavutil.xcframework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -27,6 +39,12 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4C88C90D2FBB72E300142A61 /* Libswresample.xcframework in Frameworks */,
+				4C88C9092FBB72E300142A61 /* Libavcodec.xcframework in Frameworks */,
+				4C88C90B2FBB72E300142A61 /* Libavformat.xcframework in Frameworks */,
+				4C88C9072FBB72E300142A61 /* Libswscale.xcframework in Frameworks */,
+				4C88C9112FBB72E300142A61 /* Libavutil.xcframework in Frameworks */,
+				4C88C90F2FBB72E300142A61 /* Libdav1d.xcframework in Frameworks */,
 				4C280D722FBAB0980096A4D3 /* AsyncAlgorithms in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -38,6 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				4C3566372FB81D160046E36C /* SwiftSub */,
+				4C88C8FC2FBB71E500142A61 /* Frameworks */,
 				4C3566362FB81D160046E36C /* Products */,
 			);
 			sourceTree = "<group>";
@@ -48,6 +67,19 @@
 				4C3566352FB81D160046E36C /* SwiftSub.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		4C88C8FC2FBB71E500142A61 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				4C88C9022FBB72E300142A61 /* Libavcodec.xcframework */,
+				4C88C9032FBB72E300142A61 /* Libavformat.xcframework */,
+				4C88C9062FBB72E300142A61 /* Libavutil.xcframework */,
+				4C88C9052FBB72E300142A61 /* Libdav1d.xcframework */,
+				4C88C9042FBB72E300142A61 /* Libswresample.xcframework */,
+				4C88C9012FBB72E300142A61 /* Libswscale.xcframework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */

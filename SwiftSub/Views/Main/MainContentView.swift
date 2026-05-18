@@ -118,7 +118,7 @@ struct MainContentView: View {
         }
         .fileImporter(
             isPresented: $isShowingImportMedia,
-            allowedContentTypes: [.movie, .video, .quickTimeMovie, .mpeg4Movie, .audio, .mp3],
+            allowedContentTypes: [.movie, .video, .quickTimeMovie, .mpeg4Movie, .audio, .mp3, .item],
             allowsMultipleSelection: false
         ) { result in
             DispatchQueue.main.async {

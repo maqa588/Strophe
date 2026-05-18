@@ -46,6 +46,7 @@ struct WaveformTimelineView: View {
         VStack(alignment: .leading, spacing: 0) {
             // MARK: - Extracted Timeline Toolbar
             TimelineToolbarView(project: project)
+                .fixedSize(horizontal: false, vertical: true)
 
             // MARK: - Timeline Core
             if let data = project.waveformData {
@@ -124,6 +125,7 @@ struct WaveformTimelineView: View {
                     }
                     #endif
                 }
+                .frame(height: rulerHeight + waveHeight + 6)
 
             } else {
                 emptyPlaceholder

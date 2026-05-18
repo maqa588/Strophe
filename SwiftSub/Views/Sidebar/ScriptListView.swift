@@ -75,30 +75,25 @@ struct ScriptListView: View {
                 }
                 editingItem = nil
             }
-            Button("取消", role: .cancel) {
+            Button(String(localized: "Cancel"), role: .cancel) {
                 editingItem = nil
             }
         }
         .onChange(of: isEditingText) { _, newValue in
             project.isEditingText = newValue
         }
-        .confirmationDialog("Import Script", isPresented: $isShowingImportOptions, titleVisibility: .visible) {
-            Button("Paste Script Text") {
+        .confirmationDialog(String(localized: "Import Script"), isPresented: $isShowingImportOptions, titleVisibility: .visible) {
+            Button(String(localized: "Paste Script Text")) {
                 isShowingInput = true
             }
-            Button("Import File…") {
+            Button(String(localized: "Import File…")) {
                 isShowingFileImporter = true
             }
-            Button("Cancel", role: .cancel) {}
+            Button(String(localized: "Cancel"), role: .cancel) {}
         }
         .fileImporter(
             isPresented: $isShowingFileImporter,
-            allowedContentTypes: [
-                .plainText,
-                UTType(filenameExtension: "srt", conformingTo: .text)!,
-                UTType(filenameExtension: "lrc", conformingTo: .text)!,
-                UTType(filenameExtension: "ass", conformingTo: .text)!
-            ],
+            allowedContentTypes: UTType.allSubtitleTypes,
             allowsMultipleSelection: false
         ) { result in
             switch result {

@@ -38,13 +38,38 @@ struct InteractiveSubtitleBlock: View {
         generator.impactOccurred()
         #endif
     }
+
+    private func handleTapSelection() {
+        DispatchQueue.main.async {
+            #if os(macOS)
+            if NSEvent.modifierFlags.contains(.command) {
+                if self.project.selectedIDs.contains(self.item.id) {
+                    self.project.selectedIDs.remove(self.item.id)
+                } else {
+                    self.project.selectedIDs.insert(self.item.id)
+                }
+            } else {
+                self.project.selectedIDs = [self.item.id]
+            }
+            #else
+            self.project.selectedIDs = [self.item.id]
+            #endif
+        }
+    }
     
     var body: some View {
         let baseWidth = CGFloat((end - start) * pixelsPerSecond)
         let baseX = CGFloat(start * pixelsPerSecond)
         
         let currentWidth = max(4, baseWidth + (draggingEdge == .right ? edgeDragOffset : (draggingEdge == .left ? -edgeDragOffset : 0)))
-        let currentX = baseX + (draggingEdge == .left ? edgeDragOffset : 0) + (draggingEdge == nil ? dragOffset : 0)
+        
+        let effectiveDragOffset: CGFloat = draggingEdge == nil ? (
+            project.activeDragItemID == item.id ? dragOffset :
+            (project.selectedIDs.contains(item.id) && project.activeDragItemID != nil ?
+             CGFloat(project.activeDragDelta * pixelsPerSecond) : dragOffset)
+        ) : 0
+        
+        let currentX = baseX + (draggingEdge == .left ? edgeDragOffset : 0) + effectiveDragOffset
         
         let isSelected = project.selectedIDs.contains(item.id)
         
@@ -225,9 +250,8 @@ struct InteractiveSubtitleBlock: View {
             }
         }
         .offset(x: currentX, y: 35)
-        // 选中与点击手势
         .onTapGesture {
-            project.selectedIDs = [item.id]
+            handleTapSelection()
         }
         // 双击字幕块自动进入编辑界面
         .simultaneousGesture(
@@ -330,16 +354,27 @@ struct InteractiveSubtitleBlock: View {
                         } else {
                             dragOffset = value.translation.width
                         }
+
+                        if project.selectedIDs.count > 1 && project.selectedIDs.contains(item.id) {
+                            project.activeDragItemID = item.id
+                            project.activeDragDelta = Double(dragOffset / pixelsPerSecond)
+                        }
                     }
                 }
                 .onEnded { value in
                     guard project.editingMode == .selection else { return }
                     if draggingEdge == nil {
                         let delta = dragOffset / pixelsPerSecond
-                        project.updateSubtitleTime(id: item.id, newStartTime: start + delta, newEndTime: end + delta)
+                        if project.selectedIDs.count > 1 && project.selectedIDs.contains(item.id) {
+                            project.moveSelectedBlocks(by: delta)
+                        } else {
+                            project.updateSubtitleTime(id: item.id, newStartTime: start + delta, newEndTime: end + delta)
+                        }
                         dragOffset = 0
                         isSnappedCenter = false
                         snappedTime = nil
+                        project.activeDragDelta = 0
+                        project.activeDragItemID = nil
                     }
                 }
         )
