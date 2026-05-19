@@ -961,9 +961,11 @@
         }
       }
     },
+    "您的设备对 %@ 格式兼容性欠佳，在播放过程中可能会遇到一些性能问题。\n\n建议尽量使用 MP4、MOV、M4V、MP3、FLAC、M4A、AAC、ALAC 等推荐的视频、音频格式以获得最流畅的体验。" : {
+
+    },
     "我知道了" : {
       "comment" : "Tip Action Button Title",
-      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1002,6 +1004,9 @@
           }
         }
       }
+    },
+    "放弃导入" : {
+
     },
     "文稿" : {
       "localizations" : {
@@ -1042,6 +1047,9 @@
           }
         }
       }
+    },
+    "格式兼容性提示" : {
+
     },
     "确定" : {
       "localizations" : {

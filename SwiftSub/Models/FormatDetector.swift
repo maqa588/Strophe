@@ -29,13 +29,27 @@ final class FormatDetector {
 
     func detect(url: URL) async -> FormatDetectionResult {
         if let cached = cache[url] {
-            print("🔍 Format detection result (cached): \(cached.isAVFoundationCompatible) for \(url.lastPathComponent) (engine: \(cached.isAVFoundationCompatible ? "AVFoundation" : "MPV"))")
+            print("🔍 Format detection result (cached): \(cached.isAVFoundationCompatible) for \(url.lastPathComponent) (engine: \(cached.isAVFoundationCompatible ? "AVFoundation" : "FFmpeg"))")
             return cached
+        }
+
+        let ext = url.pathExtension.lowercased()
+        let incompatibleExtensions = ["mkv", "webm", "rmvb", "avi", "flv"]
+        if incompatibleExtensions.contains(ext) {
+            let result = FormatDetectionResult(
+                isAVFoundationCompatible: false,
+                errorMessage: "Container not supported natively by AVFoundation",
+                hasVideoTrack: true,
+                detectedFPS: nil
+            )
+            cache[url] = result
+            print("🔍 Format detection result: false for \(url.lastPathComponent) (engine: FFmpeg)")
+            return result
         }
 
         let result = await probe(url: url)
         cache[url] = result
-        print("🔍 Format detection result: \(result.isAVFoundationCompatible) for \(url.lastPathComponent) (engine: \(result.isAVFoundationCompatible ? "AVFoundation" : "MPV"))")
+        print("🔍 Format detection result: \(result.isAVFoundationCompatible) for \(url.lastPathComponent) (engine: \(result.isAVFoundationCompatible ? "AVFoundation" : "FFmpeg"))")
         return result
     }
 

@@ -14,11 +14,13 @@ protocol PlayerEngine: AnyObject {
     var rate: Double { get set }
     var fps: Double { get async }
     var videoSize: CGSize { get async }
+    var isRenderingAndPlaying: Bool { get }
 
     func load(url: URL) async
     func play()
     func pause()
     func seek(to time: Double) async
+    func seekVideoFrameOnly(to time: Double) async
     func stop()
 }
 
@@ -110,6 +112,10 @@ final class AVFoundationEngine: PlayerEngine {
 
     var currentTime: Double { player.currentTime().seconds }
 
+    var isRenderingAndPlaying: Bool {
+        return true
+    }
+
     var duration: Double {
         guard let item = player.currentItem else { return 0 }
         let d = item.duration.seconds
@@ -172,7 +178,13 @@ final class AVFoundationEngine: PlayerEngine {
 
     func seek(to time: Double) async {
         await MainActor.run {
-            player.seek(to: CMTime(seconds: time, preferredTimescale: 600))
+            player.seek(to: CMTime(seconds: time, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+        }
+    }
+
+    func seekVideoFrameOnly(to time: Double) async {
+        await MainActor.run {
+            player.seek(to: CMTime(seconds: time, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
         }
     }
 

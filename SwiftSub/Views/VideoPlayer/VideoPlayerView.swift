@@ -8,11 +8,15 @@ struct VideoPlayerView: View {
     @ObservedObject var project: SubtitleProject
     @State private var timeObserverPlayer: AVPlayer?
     @State private var timeObserverToken: Any?
+    @State private var timeObserverTask: Task<Void, Never>? = nil
     @State private var isSeeking = false
     @State private var scrubContinuation: AsyncStream<Double>.Continuation?
     @State private var scrubTask: Task<Void, Never>?
     @State private var engine: PlayerEngine?
     @State private var currentURL: URL? = nil
+    @State private var showingCompatibilityAlert = false
+    @State private var pendingCompatibilityURL: URL? = nil
+    @State private var incompatibleFormatName: String = ""
 
     var onImportMedia: () -> Void
 
@@ -39,17 +43,10 @@ struct VideoPlayerView: View {
                         let aspect = project.videoSize == .zero
                             ? 16.0 / 9.0
                             : project.videoSize.width / project.videoSize.height
-                        #if os(macOS)
                         NativePlayerView(engine: engine)
                             .aspectRatio(aspect, contentMode: .fit)
-                        #else
-                        if let avEngine = engine as? AVFoundationEngine {
-                            CustomAVPlayerView(player: avEngine.playerRef)
-                                .aspectRatio(aspect, contentMode: .fit)
-                                .contentShape(Rectangle())
-                                .onTapGesture(count: 2) { togglePlay() }
-                        }
-                        #endif
+                            .contentShape(Rectangle())
+                            .onTapGesture(count: 2) { togglePlay() }
                     }
 
                     // Subtitle overlay pinned to bottom of the video area
@@ -84,7 +81,7 @@ struct VideoPlayerView: View {
                     project.markCurrentTime(currentEngineTime)
                 }
                 .onChange(of: project.currentTime) { _, newTime in
-                    guard !project.isSeeking && !project.isScrubbing else { return }
+                    guard !project.isSeeking else { return }
                     guard project.isUserSeekingTimeline || project.isScrubbing else { return }
 
                     if project.isScrubbing {
@@ -119,6 +116,8 @@ struct VideoPlayerView: View {
         .onDisappear {
             scrubTask?.cancel()
             scrubTask = nil
+            timeObserverTask?.cancel()
+            timeObserverTask = nil
         }
         .onDrop(of: [.movie, .video, .fileURL], isTargeted: nil) { providers in
             guard let provider = providers.first else { return false }
@@ -130,6 +129,32 @@ struct VideoPlayerView: View {
                 }
             }
             return true
+        }
+        .alert("格式兼容性提示", isPresented: $showingCompatibilityAlert, presenting: incompatibleFormatName) { format in
+            Button("我知道了", role: .none) {
+                if let url = pendingCompatibilityURL {
+                    // Approved incompatible format — proceed to load FFmpeg engine
+                    currentURL = url
+                    let ffmpegEngine = FFmpegEngine()
+                    engine = ffmpegEngine
+                    print("🎬 Using engine: FFmpegEngine (\(type(of: ffmpegEngine))) for \(url.lastPathComponent)")
+                    Task {
+                        await ffmpegEngine.load(url: url)
+                        setupFrameRateDetection(url: url, engine: ffmpegEngine)
+                        #if os(macOS)
+                        VideoProperties.shared.adjustWindowForVideo(url: url, isAudioOnly: project.isAudioOnly)
+                        #endif
+                    }
+                }
+                pendingCompatibilityURL = nil
+            }
+            Button("放弃导入", role: .cancel) {
+                // Restore previous valid URL, or nil if none was active
+                project.videoURL = currentURL
+                pendingCompatibilityURL = nil
+            }
+        } message: { format in
+            Text("您的设备对 \(format) 格式兼容性欠佳，在播放过程中可能会遇到一些性能问题。\n\n建议尽量使用 MP4、MOV、M4V、MP3、FLAC、M4A、AAC、ALAC 等推荐的视频、音频格式以获得最流畅的体验。")
         }
     }
 
@@ -175,100 +200,160 @@ struct VideoPlayerView: View {
 
     private func setupPlayer(url: URL?) {
         guard let url = url else {
+            // Stop old engine when clearing
+            engine?.stop()
+            engine = nil
             currentURL = nil
             return
         }
 
         // Guard against duplicate/re-entrant setup for the same URL
         if currentURL == url { return }
-        currentURL = url
+        
+        // Guard if we are currently prompting compatibility check for this exact URL
+        if pendingCompatibilityURL == url { return }
+        
+        // *** CRITICAL: Stop the old engine before creating a new one! ***
+        // Without this, old FFmpegEngine instances keep their decode loops,
+        // display links, timers, and audio engines running as zombies,
+        // consuming CPU/GPU/memory and degrading FPS with each switch.
+        engine?.stop()
+        engine = nil
 
         if let token = timeObserverToken {
             timeObserverPlayer?.removeTimeObserver(token)
             timeObserverToken = nil
             timeObserverPlayer = nil
         }
+        timeObserverTask?.cancel()
+        timeObserverTask = nil
         project.videoSize = .zero  // reset so aspectRatio updates once new size is detected
 
         Task { @MainActor in
             let result = await FormatDetector.shared.detect(url: url)
 
             if result.isAVFoundationCompatible {
+                currentURL = url
                 let avEngine = AVFoundationEngine()
                 engine = avEngine
                 print("🎬 Using engine: AVFoundationEngine (\(type(of: avEngine))) for \(url.lastPathComponent)")
                 await avEngine.load(url: url)
 
-                setupTimeObserver(avEngine: avEngine)
-                setupFrameRateDetection(url: url, avEngine: avEngine)
+                setupFrameRateDetection(url: url, engine: avEngine)
+                
+                #if os(macOS)
+                VideoProperties.shared.adjustWindowForVideo(url: url, isAudioOnly: project.isAudioOnly)
+                #endif
+            } else {
+                // Not native AVFoundation compatible (MKV, WebM, RMVB, AVI, FLV etc.)
+                // Show compatibility check alert before loading!
+                self.incompatibleFormatName = url.pathExtension.uppercased()
+                self.pendingCompatibilityURL = url
+                self.showingCompatibilityAlert = true
             }
-
-            #if os(macOS)
-            VideoProperties.shared.adjustWindowForVideo(url: url, isAudioOnly: project.isAudioOnly)
-            #endif
         }
     }
 
-    private func setupTimeObserver(avEngine: AVFoundationEngine) {
-        let playerRef = avEngine.playerRef
-        if let oldToken = timeObserverToken {
-            timeObserverPlayer?.removeTimeObserver(oldToken)
+    private func setupTimeObserver() {
+        if let token = timeObserverToken {
+            timeObserverPlayer?.removeTimeObserver(token)
             timeObserverToken = nil
             timeObserverPlayer = nil
         }
+        timeObserverTask?.cancel()
+        timeObserverTask = nil
 
-        let fps = Int(min(60, max(24, project.videoFrameRate.rounded())))
-        timeObserverPlayer = playerRef
-        timeObserverToken = playerRef.addPeriodicTimeObserver(
-            forInterval: CMTime(value: 1, timescale: CMTimeScale(fps)),
-            queue: .main
-        ) { [weak project, weak playerRef] time in
-            guard let project, let playerRef else { return }
-            let seconds = time.seconds
-            let rate = Double(playerRef.rate)
-            MainActor.assumeIsolated {
-                guard !project.isSeeking && !project.isScrubbing else { return }
-                withAnimation(.none) {
-                    project.currentTime = seconds
-                    project.referenceTime = seconds
-                    project.referenceDate = .now
-                    project.playbackRate = rate
+        if let avEngine = engine as? AVFoundationEngine {
+            let playerRef = avEngine.playerRef
+            let fps = Int(min(60, max(24, project.videoFrameRate.rounded())))
+            timeObserverPlayer = playerRef
+            timeObserverToken = playerRef.addPeriodicTimeObserver(
+                forInterval: CMTime(value: 1, timescale: CMTimeScale(fps)),
+                queue: .main
+            ) { [weak project, weak playerRef] time in
+                guard let project, let playerRef else { return }
+                let seconds = time.seconds
+                let rate = Double(playerRef.rate)
+                MainActor.assumeIsolated {
+                    guard !project.isSeeking && !project.isScrubbing else { return }
+                    withAnimation(.none) {
+                        project.currentTime = seconds
+                        project.referenceTime = seconds
+                        project.referenceDate = .now
+                        project.playbackRate = rate
+                    }
+                }
+            }
+        } else if let ffmpegEngine = engine as? FFmpegEngine {
+            timeObserverTask = Task { @MainActor in
+                while !Task.isCancelled {
+                    let rate = ffmpegEngine.rate
+                    if rate > 0 {
+                        let seconds = ffmpegEngine.currentTime
+                        guard !project.isSeeking && !project.isScrubbing else {
+                            try? await Task.sleep(nanoseconds: 16_000_000)
+                            continue
+                        }
+                        
+                        // Wait until the audio engine is actually rendering frames to hardware to set playbackRate
+                        let isRendering = ffmpegEngine.isRenderingAndPlaying
+                        
+                        withAnimation(.none) {
+                            project.currentTime = seconds
+                            project.referenceTime = seconds
+                            project.referenceDate = .now
+                            project.playbackRate = isRendering ? rate : 0.0
+                        }
+                    }
+                    try? await Task.sleep(nanoseconds: 16_000_000) // ~60 FPS polling for ultra-responsive timing
                 }
             }
         }
     }
 
-    private func setupFrameRateDetection(url: URL, avEngine: AVFoundationEngine) {
+    private func setupFrameRateDetection(url: URL, engine: PlayerEngine) {
         Task {
-            let asset = AVURLAsset(url: url)
-            var fps: Float = 30.0
-            var naturalSize: CGSize = .zero
-            var isAudio = false
-            do {
-                let videoTracks = try await asset.loadTracks(withMediaType: .video)
-                if let videoTrack = videoTracks.first {
-                    fps = try await videoTrack.load(.nominalFrameRate)
-                    naturalSize = (try? await videoTrack.load(.naturalSize)) ?? .zero
-                } else {
+            if engine is AVFoundationEngine {
+                let asset = AVURLAsset(url: url)
+                var fps: Float = 30.0
+                var naturalSize: CGSize = .zero
+                var isAudio = false
+                do {
+                    let videoTracks = try await asset.loadTracks(withMediaType: .video)
+                    if let videoTrack = videoTracks.first {
+                        fps = try await videoTrack.load(.nominalFrameRate)
+                        naturalSize = (try? await videoTrack.load(.naturalSize)) ?? .zero
+                    } else {
+                        isAudio = true
+                    }
+                } catch {
                     isAudio = true
                 }
-            } catch {
-                isAudio = true
-            }
 
-            let roundedFPS: Double
-            if isAudio { roundedFPS = 50.0 }
-            else if abs(fps - 23.976) < 0.01 { roundedFPS = 23.976 }
-            else if abs(fps - 29.97) < 0.01 { roundedFPS = 29.97 }
-            else if abs(fps - 59.94) < 0.01 { roundedFPS = 59.94 }
-            else { roundedFPS = Double(fps) }
+                let roundedFPS: Double
+                if isAudio { roundedFPS = 50.0 }
+                else if abs(fps - 23.976) < 0.01 { roundedFPS = 23.976 }
+                else if abs(fps - 29.97) < 0.01 { roundedFPS = 29.97 }
+                else if abs(fps - 59.94) < 0.01 { roundedFPS = 59.94 }
+                else { roundedFPS = Double(fps) }
 
-            await MainActor.run {
-                project.isAudioOnly = isAudio
-                project.videoFrameRate = roundedFPS
-                if naturalSize != .zero { project.videoSize = naturalSize }
-                project.resnapAllItems()
-                setupTimeObserver(avEngine: avEngine)
+                await MainActor.run {
+                    project.isAudioOnly = isAudio
+                    project.videoFrameRate = roundedFPS
+                    if naturalSize != .zero { project.videoSize = naturalSize }
+                    project.resnapAllItems()
+                    setupTimeObserver()
+                }
+            } else {
+                let size = await engine.videoSize
+                let frameRate = await engine.fps
+                await MainActor.run {
+                    project.isAudioOnly = (size == .zero)
+                    project.videoFrameRate = frameRate
+                    if size != .zero { project.videoSize = size }
+                    project.resnapAllItems()
+                    setupTimeObserver()
+                }
             }
         }
     }
@@ -291,7 +376,7 @@ struct VideoPlayerView: View {
                 await MainActor.run {
                     guard project.isScrubbing else { return }
                 }
-                await eng.seek(to: time)
+                await eng.seekVideoFrameOnly(to: time)
             }
         }
     }
@@ -302,16 +387,23 @@ struct VideoPlayerView: View {
         guard let eng = engine else { return }
         if eng.rate == 0 {
             eng.rate = project.targetSpeed
+            // Keep playbackRate as 0.0 initially; the time observers will set it to the targetSpeed
+            // once the audio/video engine actually starts rendering and produces its first tick!
+            project.playbackRate = 0.0
+            project.referenceTime = eng.currentTime
+            project.referenceDate = .now
         } else {
             eng.rate = 0.0
+            project.playbackRate = 0.0
+            project.referenceTime = eng.currentTime
+            project.referenceDate = .now
         }
-        project.playbackRate = eng.rate
-        project.referenceTime = eng.currentTime
-        project.referenceDate = .now
     }
 
     private func seekDelta(_ delta: Double) {
         guard let eng = engine else { return }
+        guard !isSeeking else { return } // Prevent concurrent keyboard/delta seeks from overlapping!
+        
         let currentTime = eng.currentTime
         let duration = eng.duration
         let targetTime = max(0, (duration.isNaN || duration <= 0) ? currentTime + delta : min(duration, currentTime + delta))
@@ -349,5 +441,15 @@ struct NativePlayerView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {}
+}
+#else
+struct NativePlayerView: UIViewRepresentable {
+    let engine: PlayerEngine
+
+    func makeUIView(context: Context) -> UIView {
+        return engine.playerView
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {}
 }
 #endif
