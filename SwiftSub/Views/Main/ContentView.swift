@@ -70,7 +70,7 @@ struct ContentView: View {
             if isKeyDown {
                 switch event.charactersIgnoringModifiers {
                 case " ":
-                    NotificationCenter.default.post(name: .togglePlayback, object: nil)
+                    project.togglePlayback()
                     return nil
                 case "\u{7F}", "\u{08}": // Backspace / Delete 按键
                     if !project.selectedIDs.isEmpty {

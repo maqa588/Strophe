@@ -6,7 +6,7 @@ import AVFoundation
 final class AudioPlayer {
     private let audioEngine = AVAudioEngine()
     private let playerNode = AVAudioPlayerNode()
-    private let varispeedNode = AVAudioUnitVarispeed()
+    private let timePitchNode = AVAudioUnitTimePitch()
     
     private var isEngineRunning = false
     private var baseTime: Double = 0.0
@@ -28,15 +28,16 @@ final class AudioPlayer {
     
     private func setupAudioEngine() {
         audioEngine.attach(playerNode)
-        audioEngine.attach(varispeedNode)
+        audioEngine.attach(timePitchNode)
         
         let format = AVAudioFormat(commonFormat: .pcmFormatFloat32,
                                    sampleRate: sampleRate,
                                    channels: 2,
                                    interleaved: false)!
         
-        audioEngine.connect(playerNode, to: varispeedNode, format: format)
-        audioEngine.connect(varispeedNode, to: audioEngine.mainMixerNode, format: format)
+        audioEngine.connect(playerNode, to: timePitchNode, format: format)
+        audioEngine.connect(timePitchNode, to: audioEngine.mainMixerNode, format: format)
+        timePitchNode.bypass = true
         audioEngine.prepare()
     }
     
@@ -114,7 +115,15 @@ final class AudioPlayer {
     func setRate(_ rate: Double) {
         lock.lock()
         defer { lock.unlock() }
-        varispeedNode.rate = Float(rate)
+        
+        let safeRate = Float(max(1.0/32.0, min(rate, 32.0)))
+        timePitchNode.rate = safeRate
+        
+        if abs(safeRate - 1.0) < 0.001 {
+            timePitchNode.bypass = true
+        } else {
+            timePitchNode.bypass = false
+        }
     }
     
     // Convert PCM data into AVAudioPCMBuffer and schedule it on the player node

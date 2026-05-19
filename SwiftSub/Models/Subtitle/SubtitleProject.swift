@@ -26,6 +26,9 @@ class SubtitleProject: ObservableObject {
                 let parentDir = oldURL.deletingLastPathComponent()
                 try? FileManager.default.removeItem(at: parentDir)
             }
+            // Stop and release the active engine when URL is about to change or clear
+            activeEngine?.stop()
+            activeEngine = nil
         }
         didSet {
             currentTime = 0 // Reset time on new video
@@ -68,6 +71,9 @@ class SubtitleProject: ObservableObject {
     @Published var videoFrameRate: Double = 30.0
     @Published var isAudioOnly: Bool = false
     @Published var videoSize: CGSize = .zero
+    
+    // Persistent player engine reference to survive SwiftUI layout identity resets
+    var activeEngine: (any PlayerEngine)? = nil
     
     func snapToFrame(_ time: Double) -> Double {
         guard videoFrameRate > 0 else { return time }
@@ -421,5 +427,51 @@ class SubtitleProject: ObservableObject {
         }
         merged.append(current)
         return merged
+    }
+    
+    // MARK: - Direct Playback Control Actions
+    
+    func togglePlayback() {
+        guard let eng = activeEngine else { return }
+        if eng.rate == 0 {
+            eng.rate = targetSpeed
+            playbackRate = 0.0
+            referenceTime = eng.currentTime
+            referenceDate = .now
+        } else {
+            eng.rate = 0.0
+            playbackRate = 0.0
+            referenceTime = eng.currentTime
+            referenceDate = .now
+        }
+    }
+    
+    func seekDelta(_ delta: Double) {
+        guard let eng = activeEngine else { return }
+        guard !isSeeking else { return }
+        
+        let currentTimeVal = eng.currentTime
+        let durationVal = eng.duration
+        let targetTime = max(0, (durationVal.isNaN || durationVal <= 0) ? currentTimeVal + delta : min(durationVal, currentTimeVal + delta))
+
+        isSeeking = true
+        Task { @MainActor in
+            await eng.seek(to: targetTime)
+            isSeeking = false
+            self.currentTime = targetTime
+            self.referenceTime = targetTime
+            self.referenceDate = .now
+        }
+    }
+    
+    func changePlaybackSpeed(_ speed: Double) {
+        targetSpeed = speed
+        let isPlaying = activeEngine?.rate != 0 || playbackRate != 0
+        if isPlaying {
+            activeEngine?.rate = speed
+        }
+        playbackRate = isPlaying ? speed : 0.0
+        referenceTime = activeEngine?.currentTime ?? 0
+        referenceDate = .now
     }
 }

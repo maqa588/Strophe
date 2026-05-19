@@ -11,7 +11,7 @@ import UIKit
 
 // MARK: - FFmpegEngine
 // High-performance, `@MainActor`-isolated engine conforming perfectly to `PlayerEngine`.
-@MainActor final class FFmpegEngine: PlayerEngine {
+@MainActor final class FFmpegEngine: NSObject, PlayerEngine {
     let playerView: NativeView
     private let metalRenderer: MetalVideoRenderer
     private let audioPlayer: AudioPlayer
@@ -28,18 +28,17 @@ import UIKit
     private var cachedAudioStreamIndex: Int32 = -1
     private var isPlaybackStartedPending: Bool = false
     
+    // State conservation for scrubbing
+    private var isScrubbingActive = false
+    private var wasPlayingBeforeScrub = false
+    private var rateBeforeScrub: Double = 0.0
+    
     private var videoFrameQueue: [VideoFrame] = []
     private var diagTimer: Timer? = nil
     
-    #if os(macOS)
-    private var displayLink: CVDisplayLink? = nil
-    #else
     private var displayLink: CADisplayLink? = nil
-    #endif
     
-    private let isTickPending = ThreadSafeAtomicBool()
-    
-    init() {
+    override init() {
         let renderer = MetalVideoRenderer()
         self.metalRenderer = renderer
         self.playerView = renderer
@@ -49,6 +48,8 @@ import UIKit
         
         let ap = AudioPlayer()
         self.audioPlayer = ap
+        
+        super.init()
         
         // Register callbacks safely on FFmpegDecoderCore actor asynchronously
         Task {
@@ -83,42 +84,18 @@ import UIKit
                     self.cachedVideoSize = size
                     self.cachedStartPlaybackTime = startPlaybackTime
                     self.cachedAudioStreamIndex = audioIndex
+                    self.updateDisplayLinkPreferredFrameRate()
                 }
             )
         }
         
-        // Temporary diagnosis: print displayLink and renderer states every second
-        let timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
-            guard let self = self else {
-                timer.invalidate()
-                return
-            }
-            Task { @MainActor in
-                #if os(macOS)
-                if let dl = self.displayLink {
-                    print("🔗 DisplayLink running: \(CVDisplayLinkIsRunning(dl)), rate: \(self.cachedRate)")
-                } else {
-                    print("🔗 DisplayLink: nil")
-                }
-                #endif
-                print("🎯 MTKView isPaused: \(self.metalRenderer.isPaused), needsDisplay: \(self.metalRenderer.needsDisplay)")
-                print("📦 videoFrameQueue count: \(self.videoFrameQueue.count)")
-            }
-        }
-        self.diagTimer = timer
     }
     
     deinit {
         diagTimer?.invalidate()
         diagTimer = nil
-        #if os(macOS)
-        if let dl = displayLink {
-            if CVDisplayLinkIsRunning(dl) {
-                CVDisplayLinkStop(dl)
-            }
-        }
+        displayLink?.invalidate()
         displayLink = nil
-        #endif
     }
     
     // MARK: - PlayerEngine Protocol
@@ -141,6 +118,10 @@ import UIKit
                     await coreInstance.setStartPlaybackTime(capturePlaybackTime)
                 }
             }
+            // Use system clock during pending phase to avoid circular deadlocks
+            if isPlaybackStartedPending {
+                return systemClockTime
+            }
             return apTime
         }
         return systemClockTime
@@ -148,9 +129,6 @@ import UIKit
     
     private var systemClockTime: Double {
         guard cachedIsPlaying else { return cachedStartPlaybackTime }
-        if isPlaybackStartedPending {
-            return cachedStartPlaybackTime
-        }
         let elapsed = CACurrentMediaTime() - cachedStartSystemTime
         return cachedStartPlaybackTime + elapsed * cachedRate
     }
@@ -253,8 +231,15 @@ import UIKit
     func seek(to time: Double) async {
         // Capture playing state BEFORE any async calls that might trigger
         // state callbacks that could overwrite our cached values
-        let wasPlaying = cachedIsPlaying
+        let wasPlaying = cachedIsPlaying || wasPlayingBeforeScrub
+        let targetRate = wasPlaying ? (rateBeforeScrub > 0 ? rateBeforeScrub : 1.0) : 0.0
         
+        // Reset scrub state
+        isScrubbingActive = false
+        wasPlayingBeforeScrub = false
+        rateBeforeScrub = 0.0
+        
+        print("🔍 Seek triggered: frameQueue.count before clear = \(videoFrameQueue.count)")
         videoFrameQueue.removeAll()
         await core.clearFrameQueueCount()
         await core.setIsPlaying(false)
@@ -278,33 +263,23 @@ import UIKit
         await core.setIsPlaying(wasPlaying)
         
         if wasPlaying {
-            isPlaybackStartedPending = true // 🚀 Set to pending until actual physical playback starts!
-        } else {
-            isPlaybackStartedPending = false
-        }
-        
-        let hasAudio = cachedAudioStreamIndex >= 0
-        if hasAudio {
-            // Give Metal a brief 80ms cushion to receive and render the target video frame
-            try? await Task.sleep(nanoseconds: 80_000_000)
-            
-            if wasPlaying {
-                // Reset system master clock exactly when the audio starts physical playback
-                cachedStartSystemTime = CACurrentMediaTime()
-                audioPlayer.play()
-            }
-        } else {
-            try? await Task.sleep(nanoseconds: 80_000_000)
-            if wasPlaying {
-                cachedStartSystemTime = CACurrentMediaTime()
-            }
+            cachedStartSystemTime = CACurrentMediaTime()
+            self.rate = targetRate
         }
     }
     
     func seekVideoFrameOnly(to time: Double) async {
+        // Capture playback state before starting scrub sequence
+        if !isScrubbingActive {
+            isScrubbingActive = true
+            wasPlayingBeforeScrub = cachedIsPlaying
+            rateBeforeScrub = cachedRate
+        }
+        
         // Pause playback rate and halt decode loop during scrubbing to prevent frame accumulation
         rate = 0.0
         
+        print("🔍 SeekVideoFrameOnly triggered: frameQueue.count before clear = \(videoFrameQueue.count)")
         videoFrameQueue.removeAll()
         await core.clearFrameQueueCount()
         
@@ -327,15 +302,8 @@ import UIKit
         rate = 0.0
         stopDisplayLink()
         
-        // Destroy display link completely
-        #if os(macOS)
-        if let dl = displayLink {
-            if CVDisplayLinkIsRunning(dl) {
-                CVDisplayLinkStop(dl)
-            }
-        }
+        displayLink?.invalidate()
         displayLink = nil
-        #endif
         
         Task {
             await core.stopDecodeLoop()
@@ -350,45 +318,42 @@ import UIKit
     // MARK: - Display Link
     
     private func startDisplayLink() {
-        #if os(macOS)
         if displayLink == nil {
-            let status = CVDisplayLinkCreateWithActiveCGDisplays(&displayLink)
-            guard status == kCVReturnSuccess, let dl = displayLink else { return }
-            
-            let callback: CVDisplayLinkOutputCallback = { (_, _, _, _, _, refcon) -> CVReturn in
-                guard let ref = refcon else { return kCVReturnSuccess }
-                let engine = Unmanaged<FFmpegEngine>.fromOpaque(ref).takeUnretainedValue()
-                
-                // Backpressure throttle: only dispatch to MainActor if the previous renderTick finished!
-                if engine.isTickPending.testAndSet(to: true) {
-                    return kCVReturnSuccess
-                }
-                
-                // Dispatch safely back to the MainActor
-                DispatchQueue.main.async {
-                    engine.renderTick()
-                    engine.isTickPending.set(false)
-                }
-                return kCVReturnSuccess
-            }
-            
-            CVDisplayLinkSetOutputCallback(dl, callback, Unmanaged.passUnretained(self).toOpaque())
+            #if os(macOS)
+            let dl = metalRenderer.displayLink(target: self, selector: #selector(displayLinkFired(_:)))
+            #else
+            let dl = CADisplayLink(target: self, selector: #selector(displayLinkFired(_:)))
+            #endif
+            dl.add(to: .main, forMode: .common)
+            displayLink = dl
         }
-        
-        if let dl = displayLink, !CVDisplayLinkIsRunning(dl) {
-            CVDisplayLinkStart(dl)
-        }
-        #endif
+        updateDisplayLinkPreferredFrameRate()
+        displayLink?.isPaused = false
     }
     
     private func stopDisplayLink() {
-        #if os(macOS)
-        if let dl = displayLink, CVDisplayLinkIsRunning(dl) {
-            CVDisplayLinkStop(dl)
+        displayLink?.isPaused = true
+    }
+    
+    private func updateDisplayLinkPreferredFrameRate() {
+        #if os(iOS)
+        guard let dl = displayLink else { return }
+        let fps = cachedFPS > 0 ? cachedFPS : 30.0
+        
+        if #available(iOS 15.0, *) {
+            let range = CAFrameRateRange(minimum: Float(fps * 0.9),
+                                         maximum: Float(fps * 1.1),
+                                         preferred: Float(fps))
+            dl.preferredFrameRateRange = range
+        } else {
+            dl.preferredFramesPerSecond = Int(fps)
         }
         #endif
     }
     
+    @objc private func displayLinkFired(_ sender: CADisplayLink) {
+        renderTick()
+    }
     private func renderTick() {
         guard rate > 0 else {
             stopDisplayLink()
@@ -397,28 +362,32 @@ import UIKit
         let currentClock = currentTime
         
         var frameToRender: VideoFrame? = nil
-        var droppedFramesCount = 0
+        var consumed = 0
         
         while !videoFrameQueue.isEmpty {
             let nextFrame = videoFrameQueue.first!
+            let delta = nextFrame.pts - currentClock
             
-            if nextFrame.pts < currentClock - 0.01 {
+            if delta < -0.1 {
+                // Video is more than 100ms behind audio, drop it to catch up
                 videoFrameQueue.removeFirst()
-                droppedFramesCount += 1
-            } else if nextFrame.pts > currentClock + 0.04 {
+                consumed += 1
+            } else if delta > 0.015 {
+                // Video is more than 15ms ahead of audio, wait for next tick
                 break
             } else {
+                // Video is in the sync window (-100ms <= delta <= 15ms), render it
                 frameToRender = nextFrame
                 videoFrameQueue.removeFirst()
-                droppedFramesCount += 1
+                consumed += 1
                 break
             }
         }
         
-        // Notify the actor of all consumed frames synchronously
-        if droppedFramesCount > 0 {
+        if consumed > 0 {
+            let n = consumed
             Task {
-                for _ in 0..<droppedFramesCount {
+                for _ in 0..<n {
                     await core.decrementFrameQueueCount()
                 }
             }
@@ -426,43 +395,7 @@ import UIKit
         
         if let frame = frameToRender {
             metalRenderer.update(with: frame.pixelBuffer)
-            
-            if isPlaybackStartedPending {
-                // First video frame successfully rendered for video-only files (or as fallback)!
-                // Align the clock precisely to this frame's actual PTS.
-                cachedStartSystemTime = CACurrentMediaTime()
-                cachedStartPlaybackTime = frame.pts
-                isPlaybackStartedPending = false
-                
-                let captureSystemTime = cachedStartSystemTime
-                let capturePlaybackTime = frame.pts
-                let coreInstance = core
-                Task {
-                    await coreInstance.setStartSystemTime(captureSystemTime)
-                    await coreInstance.setStartPlaybackTime(capturePlaybackTime)
-                }
-            }
         }
     }
 }
 
-// MARK: - ThreadSafeAtomicBool
-// Lightweight, thread-safe synchronization tool to prevent main queue flooding from high-frequency DisplayLink callbacks.
-final class ThreadSafeAtomicBool: @unchecked Sendable {
-    private let lock = NSLock()
-    private var value = false
-    
-    func testAndSet(to newValue: Bool) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        let oldValue = value
-        value = newValue
-        return oldValue
-    }
-    
-    func set(_ newValue: Bool) {
-        lock.lock()
-        defer { lock.unlock() }
-        value = newValue
-    }
-}

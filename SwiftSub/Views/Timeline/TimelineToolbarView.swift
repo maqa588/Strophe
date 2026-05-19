@@ -209,7 +209,7 @@ struct TimelineToolbarView: View {
             
             // Play / Pause toggle
             Button(action: {
-                NotificationCenter.default.post(name: .togglePlayback, object: nil)
+                project.togglePlayback()
             }) {
                 Image(systemName: playbackRate > 0 ? "pause.fill" : "play.fill")
                     .font(.body.weight(.bold))
@@ -227,7 +227,7 @@ struct TimelineToolbarView: View {
             Menu {
                 ForEach([0.5, 1.0, 1.25, 1.5, 2.0], id: \.self) { speed in
                     Button(action: {
-                        NotificationCenter.default.post(name: .changePlaybackSpeed, object: speed)
+                        project.changePlaybackSpeed(speed)
                     }) {
                         HStack {
                             Text(String(format: "%.2fx", speed))
@@ -491,7 +491,7 @@ struct ScanButton: View {
             try? await Task.sleep(nanoseconds: 350_000_000)
             guard !Task.isCancelled else {
                 // Triggered single tap!
-                NotificationCenter.default.post(name: .seekDelta, object: isForward ? 5.0 : -5.0)
+                project.seekDelta(isForward ? 5.0 : -5.0)
                 return
             }
             
@@ -504,7 +504,7 @@ struct ScanButton: View {
             
             while !Task.isCancelled {
                 // Skip by 1.0s every 100ms
-                NotificationCenter.default.post(name: .seekDelta, object: isForward ? 1.0 : -1.0)
+                project.seekDelta(isForward ? 1.0 : -1.0)
                 try? await Task.sleep(nanoseconds: 100_000_000)
             }
         }

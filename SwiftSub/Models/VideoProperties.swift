@@ -50,20 +50,47 @@ final class VideoProperties {
     }
 
     #if os(macOS)
-    func adjustWindowForVideo(
-        url: URL,
+    func adjustWindowForVideoSize(
+        _ size: CGSize,
         isAudioOnly: Bool,
         minWindowSize: CGSize = CGSize(width: 640, height: 480),
         heightMarginFactor: CGFloat = 0.88
     ) {
-        guard !isAudioOnly else { return }
+        guard !isAudioOnly, size.width > 0, size.height > 0 else { return }
+        
+        let ratio = size.width / size.height
+        applyAspectRatio(ratio, minWindowSize: minWindowSize, heightMarginFactor: heightMarginFactor)
+    }
 
-        Task { @MainActor in
-            let (_, ratio, hasVideo) = await detectVideoSize(from: url)
-            guard hasVideo, let r = ratio else { return }
-
-            applyAspectRatio(r, minWindowSize: minWindowSize, heightMarginFactor: heightMarginFactor)
+    // 🌟 核心修复 1：安全的边栏宽度检测，防止拿到“主视图宽度”导致窗口爆炸
+    private func getSafeSidebarWidth(in view: NSView) -> CGFloat {
+        let fallbackWidth: CGFloat = 260.0 // macOS 默认边栏宽度
+        
+        guard let splitView = findFirstSplitView(in: view),
+              splitView.subviews.count >= 2 else {
+            return fallbackWidth
         }
+        
+        let sidebar = splitView.subviews[0]
+        let w = sidebar.frame.width
+        
+        // 如果宽度合理（50~450），返回实际宽度
+        if w > 50 && w < 450 {
+            return w
+        } else if splitView.isSubviewCollapsed(sidebar) || w < 10 {
+            return 0.0 // 确认被折叠了
+        }
+        
+        // 抓到了异常值（比如 1000px 的主视图），强行使用默认值
+        return fallbackWidth
+    }
+
+    private func findFirstSplitView(in view: NSView) -> NSSplitView? {
+        if let split = view as? NSSplitView { return split }
+        for subview in view.subviews {
+            if let split = findFirstSplitView(in: subview) { return split }
+        }
+        return nil
     }
 
     private func applyAspectRatio(
@@ -75,28 +102,36 @@ final class VideoProperties {
         guard let screen = window.screen ?? NSScreen.main else { return }
 
         let visibleFrame = screen.visibleFrame
+        let effectiveRatio = max(rawRatio, 1.0)
 
-        let effectiveRatio: CGFloat
-        if rawRatio < 1.0 {
-            effectiveRatio = 1.0
-        } else {
-            effectiveRatio = rawRatio
+        guard let contentView = window.contentView else { return }
+
+        // 1. 获取安全的边栏宽度
+        let sidebarWidth = getSafeSidebarWidth(in: contentView)
+
+        let topToolbarHeight: CGFloat = 52.0 // macOS 顶部工具栏的安全高度
+        let timelineHeight: CGFloat = 235.0 // 这个是没有黑边的keypoint
+        let nonVideoHeight = timelineHeight + topToolbarHeight
+        
+        let maxVideoHeight = (visibleFrame.height * heightMarginFactor) - nonVideoHeight
+        
+        var videoHeight = maxVideoHeight
+        var videoWidth = videoHeight * effectiveRatio
+        
+        // 2. 限制窗口最大宽度
+        if (videoWidth + sidebarWidth) > visibleFrame.width {
+            videoWidth = visibleFrame.width - sidebarWidth
+            videoHeight = videoWidth / effectiveRatio
         }
+        
+        videoWidth = max(videoWidth, minWindowSize.width)
+        videoHeight = videoWidth / effectiveRatio
+        
+        let targetWidth = videoWidth + sidebarWidth
+        // contentRect 通常不含原生TitleBar，只需加上底部的 Timeline 高度
+        let targetHeight = videoHeight + timelineHeight 
 
-        let maxAvailableHeight = visibleFrame.height * heightMarginFactor
-        let targetHeight = max(minWindowSize.height, maxAvailableHeight)
-        var targetWidth = targetHeight * effectiveRatio
-
-        if targetWidth > visibleFrame.width {
-            targetWidth = visibleFrame.width
-        }
-
-        targetWidth = max(targetWidth, minWindowSize.width)
-
-        let finalHeight = targetWidth / effectiveRatio
-
-        let contentRect = NSRect(x: 0, y: 0, width: targetWidth, height: finalHeight)
-
+        let contentRect = NSRect(x: 0, y: 0, width: targetWidth, height: targetHeight)
         var frameRect = window.frameRect(forContentRect: contentRect)
 
         let centeredX = visibleFrame.midX - frameRect.width / 2.0

@@ -53,6 +53,7 @@ actor FFmpegDecoderCore {
     
     var decodeTask: Task<Void, Never>? = nil
     var seekTargetTime: Double? = nil
+    var activeSeekId: Int = 0
     
     // MARK: - Safe State Accessors
     
@@ -112,9 +113,13 @@ actor FFmpegDecoderCore {
         let success = openInput(url: url)
         print("🔄 openInput result: \(success), videoStream: \(videoStreamIndex), audioStream: \(audioStreamIndex), duration: \(videoDuration), size: \(videoFrameSize)")
         if success {
+            self.activeSeekId += 1
+            let seekId = self.activeSeekId
             self.isSeekingSessionActive = true
-            await seekAndQueueSingleFrame(to: 0.0)
-            self.isSeekingSessionActive = false
+            await seekAndQueueSingleFrame(to: 0.0, seekId: seekId)
+            if seekId == self.activeSeekId {
+                self.isSeekingSessionActive = false
+            }
             print("🔄 seekAndQueueSingleFrame done")
         }
         notifyStateChanged()
@@ -123,9 +128,15 @@ actor FFmpegDecoderCore {
     
     // Performs seek session entirely off the MainActor
     func seekSession(to time: Double) async -> Double {
+        activeSeekId += 1
+        let seekId = activeSeekId
+        
         self.isSeekingSessionActive = true
-        defer {
-            self.isSeekingSessionActive = false
+        
+        // Yield to allow any other pending seeks to execute and update activeSeekId
+        await Task.yield()
+        if seekId != activeSeekId {
+            return time
         }
         
         self.seekTargetTime = time
@@ -145,15 +156,22 @@ actor FFmpegDecoderCore {
             }
         }
         
+        if seekId != activeSeekId {
+            return time
+        }
+        
         self.startPlaybackTime = time
         self.startSystemTime = CACurrentMediaTime()
         
         notifyStateChanged()
         
-        let actualPTS = await self.seekAndQueueSingleFrame(to: time)
-        self.startPlaybackTime = actualPTS
+        let actualPTS = await self.seekAndQueueSingleFrame(to: time, seekId: seekId)
         
-        notifyStateChanged()
+        if seekId == activeSeekId {
+            self.startPlaybackTime = actualPTS
+            self.isSeekingSessionActive = false
+            notifyStateChanged()
+        }
         
         return actualPTS
     }
@@ -363,7 +381,7 @@ actor FFmpegDecoderCore {
                 }
                 
                 let count = await self.getVideoFrameQueueCount()
-                if count >= 12 {
+                if count >= 8 {
                     // Video queue is full, sleep 5ms to let the player render enqueued frames.
                     // This stops background H.264/HEVC 4K decoding to save CPU/GPU and keeps
                     // the UI/Metal rendering incredibly smooth at 60fps/120fps.
@@ -382,7 +400,7 @@ actor FFmpegDecoderCore {
         // Try to receive any pending video frames first to drain the decoder's internal buffer
         if !skipVideo {
             while avcodec_receive_frame(vCtx, frame) >= 0 {
-                if self.videoFrameQueueCount >= 12 {
+                if self.videoFrameQueueCount >= 8 {
                     return
                 }
                 
@@ -416,7 +434,7 @@ actor FFmpegDecoderCore {
                 let sendStatus = avcodec_send_packet(vCtx, packet)
                 if sendStatus >= 0 && !skipVideo {
                     while avcodec_receive_frame(vCtx, frame) >= 0 {
-                        if self.videoFrameQueueCount >= 12 {
+                        if self.videoFrameQueueCount >= 8 {
                             return
                         }
                         
@@ -452,7 +470,7 @@ actor FFmpegDecoderCore {
         }
     }
     @discardableResult
-    func seekAndQueueSingleFrame(to seconds: Double) async -> Double {
+    func seekAndQueueSingleFrame(to seconds: Double, seekId: Int) async -> Double {
         guard let ctx = formatContext, let vCtx = videoCodecContext,
               let frame = av_frame_alloc(), let packet = av_packet_alloc(),
               let fallbackFrame = av_frame_alloc() else { return seconds }
@@ -472,14 +490,16 @@ actor FFmpegDecoderCore {
         var fallbackPTS: Double = seconds
         
         while count < 300 {
-            // Check if a newer seek request has superseded this one
-            if self.seekTargetTime != seconds {
-                print("⏭️ Aborting obsolete seek (target: \(seconds), new target: \(String(describing: self.seekTargetTime)))")
+            if seekId != self.activeSeekId {
+                print("⏭️ Aborting obsolete seek (target: \(seconds), new target ID: \(self.activeSeekId))")
                 break
             }
             
-            // Yield the actor context so a new seekSession call can execute and update self.seekTargetTime!
+            // Yield the actor context so a new seekSession call can execute and update self.activeSeekId!
             await Task.yield()
+            if seekId != self.activeSeekId {
+                break
+            }
             
             av_packet_unref(packet)
             if av_read_frame(ctx, packet) < 0 { break }
@@ -494,21 +514,26 @@ actor FFmpegDecoderCore {
                 continue
             }
             
+            var found = false
             while avcodec_receive_frame(vCtx, frame) >= 0 {
                 let pts = Double(frame.pointee.best_effort_timestamp) * Double(timeBase.num) / Double(timeBase.den)
                 
                 // Once we reach or pass the exact target timestamp, render this frame and exit
                 if pts >= seconds - 0.001 {
-                    if let pb = convertFrameToPixelBuffer(frame) {
-                        self.startPlaybackTime = pts
-                        let sendableBuffer = SendablePixelBuffer(buffer: pb)
-                        let callback = self.onFrameReady
-                        let capturePTS = pts
-                        Task { @MainActor in
-                            callback?(sendableBuffer, capturePTS)
+                    if seekId == self.activeSeekId {
+                        if let pb = convertFrameToPixelBuffer(frame) {
+                            self.startPlaybackTime = pts
+                            let sendableBuffer = SendablePixelBuffer(buffer: pb)
+                            let callback = self.onFrameReady
+                            let capturePTS = pts
+                            Task { @MainActor in
+                                callback?(sendableBuffer, capturePTS)
+                            }
                         }
                     }
-                    return pts
+                    fallbackPTS = pts
+                    found = true
+                    break
                 }
                 
                 // Otherwise, store this frame reference as the latest fallback (in case we reach EOF before target)
@@ -517,11 +542,15 @@ actor FFmpegDecoderCore {
                 fallbackPTS = pts
                 hasFallback = true
             }
+            
+            if found {
+                return fallbackPTS
+            }
             count += 1
         }
         
         // Fallback: If exact frame not reached or EOF, render the last decoded frame
-        if hasFallback {
+        if hasFallback && seekId == self.activeSeekId {
             if let pb = convertFrameToPixelBuffer(fallbackFrame) {
                 self.startPlaybackTime = fallbackPTS
                 let sendableBuffer = SendablePixelBuffer(buffer: pb)

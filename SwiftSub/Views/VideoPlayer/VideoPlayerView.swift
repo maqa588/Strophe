@@ -46,7 +46,7 @@ struct VideoPlayerView: View {
                         NativePlayerView(engine: engine)
                             .aspectRatio(aspect, contentMode: .fit)
                             .contentShape(Rectangle())
-                            .onTapGesture(count: 2) { togglePlay() }
+                            .onTapGesture(count: 2) { project.togglePlayback() }
                     }
 
                     // Subtitle overlay pinned to bottom of the video area
@@ -70,13 +70,6 @@ struct VideoPlayerView: View {
                 }
                 .onAppear { setupPlayer(url: project.videoURL) }
                 .onChange(of: project.videoURL) { _, newURL in setupPlayer(url: newURL) }
-                .onReceive(NotificationCenter.default.publisher(for: .togglePlayback)) { _ in togglePlay() }
-                .onReceive(NotificationCenter.default.publisher(for: .seekDelta)) { notification in
-                    if let delta = notification.object as? Double { seekDelta(delta) }
-                }
-                .onReceive(NotificationCenter.default.publisher(for: .changePlaybackSpeed)) { notification in
-                    if let speed = notification.object as? Double { changeSpeed(speed) }
-                }
                 .onReceive(NotificationCenter.default.publisher(for: .requestCurrentTime)) { _ in
                     project.markCurrentTime(currentEngineTime)
                 }
@@ -137,13 +130,12 @@ struct VideoPlayerView: View {
                     currentURL = url
                     let ffmpegEngine = FFmpegEngine()
                     engine = ffmpegEngine
+                    project.activeEngine = ffmpegEngine
                     print("🎬 Using engine: FFmpegEngine (\(type(of: ffmpegEngine))) for \(url.lastPathComponent)")
                     Task {
                         await ffmpegEngine.load(url: url)
                         setupFrameRateDetection(url: url, engine: ffmpegEngine)
-                        #if os(macOS)
-                        VideoProperties.shared.adjustWindowForVideo(url: url, isAudioOnly: project.isAudioOnly)
-                        #endif
+                        // Window adjustment will happen automatically in setupFrameRateDetection after size is fetched
                     }
                 }
                 pendingCompatibilityURL = nil
@@ -213,6 +205,17 @@ struct VideoPlayerView: View {
         // Guard if we are currently prompting compatibility check for this exact URL
         if pendingCompatibilityURL == url { return }
         
+        // 🌟 Check if there is already an active engine for this video in the project context.
+        // This occurs when SwiftUI transitions between horizontal size classes (compact/regular)
+        // or layout orientations, which recreates the VideoPlayerView struct.
+        if let existingEngine = project.activeEngine {
+            self.engine = existingEngine
+            self.currentURL = url
+            setupTimeObserver()
+            setupScrubTask()
+            return
+        }
+        
         // *** CRITICAL: Stop the old engine before creating a new one! ***
         // Without this, old FFmpegEngine instances keep their decode loops,
         // display links, timers, and audio engines running as zombies,
@@ -236,14 +239,13 @@ struct VideoPlayerView: View {
                 currentURL = url
                 let avEngine = AVFoundationEngine()
                 engine = avEngine
+                project.activeEngine = avEngine
                 print("🎬 Using engine: AVFoundationEngine (\(type(of: avEngine))) for \(url.lastPathComponent)")
                 await avEngine.load(url: url)
 
                 setupFrameRateDetection(url: url, engine: avEngine)
                 
-                #if os(macOS)
-                VideoProperties.shared.adjustWindowForVideo(url: url, isAudioOnly: project.isAudioOnly)
-                #endif
+                // Window adjustment will happen automatically in setupFrameRateDetection after size is fetched
             } else {
                 // Not native AVFoundation compatible (MKV, WebM, RMVB, AVI, FLV etc.)
                 // Show compatibility check alert before loading!
@@ -340,7 +342,12 @@ struct VideoPlayerView: View {
                 await MainActor.run {
                     project.isAudioOnly = isAudio
                     project.videoFrameRate = roundedFPS
-                    if naturalSize != .zero { project.videoSize = naturalSize }
+                    if naturalSize != .zero {
+                        project.videoSize = naturalSize
+                        #if os(macOS)
+                        VideoProperties.shared.adjustWindowForVideoSize(naturalSize, isAudioOnly: isAudio)
+                        #endif
+                    }
                     project.resnapAllItems()
                     setupTimeObserver()
                 }
@@ -350,7 +357,12 @@ struct VideoPlayerView: View {
                 await MainActor.run {
                     project.isAudioOnly = (size == .zero)
                     project.videoFrameRate = frameRate
-                    if size != .zero { project.videoSize = size }
+                    if size != .zero {
+                        project.videoSize = size
+                        #if os(macOS)
+                        VideoProperties.shared.adjustWindowForVideoSize(size, isAudioOnly: project.isAudioOnly)
+                        #endif
+                    }
                     project.resnapAllItems()
                     setupTimeObserver()
                 }
@@ -381,55 +393,6 @@ struct VideoPlayerView: View {
         }
     }
 
-    // MARK: - Playback Controls
-
-    private func togglePlay() {
-        guard let eng = engine else { return }
-        if eng.rate == 0 {
-            eng.rate = project.targetSpeed
-            // Keep playbackRate as 0.0 initially; the time observers will set it to the targetSpeed
-            // once the audio/video engine actually starts rendering and produces its first tick!
-            project.playbackRate = 0.0
-            project.referenceTime = eng.currentTime
-            project.referenceDate = .now
-        } else {
-            eng.rate = 0.0
-            project.playbackRate = 0.0
-            project.referenceTime = eng.currentTime
-            project.referenceDate = .now
-        }
-    }
-
-    private func seekDelta(_ delta: Double) {
-        guard let eng = engine else { return }
-        guard !isSeeking else { return } // Prevent concurrent keyboard/delta seeks from overlapping!
-        
-        let currentTime = eng.currentTime
-        let duration = eng.duration
-        let targetTime = max(0, (duration.isNaN || duration <= 0) ? currentTime + delta : min(duration, currentTime + delta))
-
-        isSeeking = true
-        project.isSeeking = true
-        Task { @MainActor in
-            await eng.seek(to: targetTime)
-            isSeeking = false
-            project.isSeeking = false
-            project.currentTime = targetTime
-            project.referenceTime = targetTime
-            project.referenceDate = .now
-        }
-    }
-
-    private func changeSpeed(_ speed: Double) {
-        project.targetSpeed = speed
-        let isPlaying = engine?.rate != 0 || project.playbackRate != 0
-        if isPlaying {
-            engine?.rate = speed
-        }
-        project.playbackRate = isPlaying ? speed : 0.0
-        project.referenceTime = engine?.currentTime ?? 0
-        project.referenceDate = .now
-    }
 }
 
 #if os(macOS)

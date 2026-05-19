@@ -12,6 +12,7 @@ final class MetalVideoRenderer: MTKView {
     private var vertexBuffer: MTLBuffer?
     
     private var currentPixelBuffer: CVPixelBuffer?
+    private var lastPixelFormat: OSType = 0
     private let lock = NSLock()
     
     // Vertex data representing a full screen quad
@@ -114,50 +115,102 @@ final class MetalVideoRenderer: MTKView {
         self.currentPixelBuffer = pixelBuffer
         lock.unlock()
         
-        #if os(macOS)
-        self.needsDisplay = true
-        #else
-        self.setNeedsDisplay()
-        #endif
+        if Thread.isMainThread {
+            self.draw()
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.draw()
+            }
+        }
     }
     
     override func draw(_ rect: CGRect) {
         lock.lock()
-        guard let pixelBuffer = currentPixelBuffer,
-              let cache    = textureCache,
-              let pipeline = pipelineState,
-              let vBuffer  = vertexBuffer,
-              let cmdQueue = commandQueue,
-              let renderPass = currentRenderPassDescriptor,
-              let drawable   = currentDrawable else { 
+        guard let pixelBuffer = currentPixelBuffer else {
             lock.unlock()
-            return 
+            print("❌ draw: no pixelBuffer")
+            return
         }
+        guard let cache = textureCache else {
+            lock.unlock()
+            print("❌ draw: no textureCache")
+            return
+        }
+        guard let pipeline = pipelineState else {
+            lock.unlock()
+            print("❌ draw: no pipelineState")
+            return
+        }
+        guard let vBuffer = vertexBuffer else {
+            lock.unlock()
+            print("❌ draw: no vertexBuffer")
+            return
+        }
+        guard let cmdQueue = commandQueue else {
+            lock.unlock()
+            print("❌ draw: no commandQueue")
+            return
+        }
+        guard let renderPass = currentRenderPassDescriptor else {
+            lock.unlock()
+            print("❌ draw: no currentRenderPassDescriptor")
+            return
+        }
+        guard let drawable = currentDrawable else {
+            lock.unlock()
+            print("❌ draw: no currentDrawable")
+            return
+        }
+        
 
+        
         let width  = CVPixelBufferGetWidth(pixelBuffer)
         let height = CVPixelBufferGetHeight(pixelBuffer)
+        let pixelFormat = CVPixelBufferGetPixelFormatType(pixelBuffer)
 
-        // plane 0: Y (R8Unorm)
+        if pixelFormat != lastPixelFormat {
+            lastPixelFormat = pixelFormat
+            let bytes = [
+                UInt8((pixelFormat >> 24) & 0xff),
+                UInt8((pixelFormat >> 16) & 0xff),
+                UInt8((pixelFormat >> 8) & 0xff),
+                UInt8(pixelFormat & 0xff)
+            ]
+            let formatStr = String(bytes: bytes, encoding: .ascii) ?? String(pixelFormat)
+            print("🎬 Video Format Changed: \(formatStr.trimmingCharacters(in: .controlCharacters)) (\(pixelFormat)), Size: \(width)x\(height)")
+        }
+
+        let is10Bit = (pixelFormat == kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange ||
+                       pixelFormat == kCVPixelFormatType_420YpCbCr10BiPlanarFullRange)
+
+        let yMtlFormat: MTLPixelFormat = is10Bit ? .r16Unorm : .r8Unorm
+        let uvMtlFormat: MTLPixelFormat = is10Bit ? .rg16Unorm : .rg8Unorm
+
+        // plane 0: Y
         var cvY: CVMetalTexture?
-        CVMetalTextureCacheCreateTextureFromImage(
+        _ = CVMetalTextureCacheCreateTextureFromImage(
             kCFAllocatorDefault, cache, pixelBuffer, nil,
-            .r8Unorm, width, height, 0, &cvY)
+            yMtlFormat, width, height, 0, &cvY)
 
-        // plane 1: CbCr (RG8Unorm)，尺寸是 1/2
+        // plane 1: CbCr
         var cvUV: CVMetalTexture?
-        CVMetalTextureCacheCreateTextureFromImage(
+        _ = CVMetalTextureCacheCreateTextureFromImage(
             kCFAllocatorDefault, cache, pixelBuffer, nil,
-            .rg8Unorm, width / 2, height / 2, 1, &cvUV)
+            uvMtlFormat, width / 2, height / 2, 1, &cvUV)
 
         guard let yTex  = cvY.flatMap(CVMetalTextureGetTexture),
               let uvTex = cvUV.flatMap(CVMetalTextureGetTexture) else {
             lock.unlock()
+            print("❌ draw: failed to create textures from YUV planes. Y: \(cvY != nil), UV: \(cvUV != nil)")
             return
         }
         lock.unlock()
 
         guard let cmdBuffer = cmdQueue.makeCommandBuffer(),
-              let encoder   = cmdBuffer.makeRenderCommandEncoder(descriptor: renderPass) else { return }
+              let encoder   = cmdBuffer.makeRenderCommandEncoder(descriptor: renderPass) else {
+            print("❌ draw: failed to make command buffer or encoder")
+            return
+        }
 
         encoder.setRenderPipelineState(pipeline)
         encoder.setVertexBuffer(vBuffer, offset: 0, index: 0)
@@ -170,10 +223,6 @@ final class MetalVideoRenderer: MTKView {
         cmdBuffer.commit()
         
         CVMetalTextureCacheFlush(cache, 0)
-        
-        lock.lock()
-        currentPixelBuffer = nil
-        lock.unlock()
     }
 }
 
