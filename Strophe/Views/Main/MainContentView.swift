@@ -31,7 +31,7 @@ struct MainContentView: View {
             WaveformTimelineView(project: project)
                 .frame(maxWidth: .infinity)
         }
-        .navigationTitle("SwiftSub")
+        .navigationTitle("Strophe")
         #if os(macOS)
         .navigationSubtitle(project.videoURL?.lastPathComponent ?? "")
         #endif
@@ -58,7 +58,7 @@ struct MainContentView: View {
             #if os(iOS)
             // iPadOS: centred filename / app name via .principal
             ToolbarItem(placement: .principal) {
-                Text(project.videoURL?.lastPathComponent ?? "SwiftSub")
+                Text(project.videoURL?.lastPathComponent ?? "Strophe")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(project.videoURL != nil ? .primary : .secondary)
                     .lineLimit(1)

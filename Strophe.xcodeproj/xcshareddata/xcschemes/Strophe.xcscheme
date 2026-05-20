@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "4C3566342FB81D160046E36C"
-               BuildableName = "SwiftSub.app"
-               BlueprintName = "SwiftSub"
-               ReferencedContainer = "container:SwiftSub.xcodeproj">
+               BuildableName = "Strophe.app"
+               BlueprintName = "Strophe"
+               ReferencedContainer = "container:Strophe.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -46,9 +46,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "4C3566342FB81D160046E36C"
-            BuildableName = "SwiftSub.app"
-            BlueprintName = "SwiftSub"
-            ReferencedContainer = "container:SwiftSub.xcodeproj">
+            BuildableName = "Strophe.app"
+            BlueprintName = "Strophe"
+            ReferencedContainer = "container:Strophe.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -63,9 +63,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "4C3566342FB81D160046E36C"
-            BuildableName = "SwiftSub.app"
-            BlueprintName = "SwiftSub"
-            ReferencedContainer = "container:SwiftSub.xcodeproj">
+            BuildableName = "Strophe.app"
+            BlueprintName = "Strophe"
+            ReferencedContainer = "container:Strophe.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

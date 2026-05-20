@@ -2,7 +2,7 @@ import SwiftUI
 import AVFoundation
 
 @main
-struct SwiftSubApp: App {
+struct StropheApp: App {
     init() {
         #if os(iOS)
         do {
@@ -12,6 +12,11 @@ struct SwiftSubApp: App {
             print("Failed to set audio session category: \(error)")
         }
         #endif
+        
+        // Clean up any files left over from previous runs (e.g. crashes or forced quits)
+        TempCleanupHelper.cleanupTempDirectory()
+        // Register to clean up files when gracefully exiting (including Command+Q)
+        TempCleanupHelper.registerForTerminationCleanup()
     }
     
     var body: some Scene {
