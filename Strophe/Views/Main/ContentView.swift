@@ -13,33 +13,36 @@ struct ContentView: View {
     @State private var navigationPath = NavigationPath()
 
     var body: some View {
-        if sizeClass == .compact {
-            // iPhone/手机端: 极简主界面导航流，主界面直接为 [播放器+时间轴]
-            NavigationStack(path: $navigationPath) {
-                MainContentView(project: project, isCompact: true, path: $navigationPath)
-                    .navigationDestination(for: String.self) { value in
-                        if value == "script" {
-                            ScriptListView(project: project, isCompact: true, path: $navigationPath)
+        Group {
+            if sizeClass == .compact {
+                // iPhone/手机端: 极简主界面导航流，主界面直接为 [播放器+时间轴]
+                NavigationStack(path: $navigationPath) {
+                    MainContentView(project: project, isCompact: true, path: $navigationPath)
+                        .navigationDestination(for: String.self) { value in
+                            if value == "script" {
+                                ScriptListView(project: project, isCompact: true, path: $navigationPath)
+                            }
                         }
-                    }
-            }
-            .onAppear {
-                setupKeyboardMonitor()
-            }
-        } else {
-            // iPad/Mac端: 经典左右分栏工作台
-            NavigationSplitView {
-                // MARK: - Right Sidebar: Script List
-                ScriptListView(project: project, isCompact: false, path: .constant(NavigationPath()))
-                    .navigationSplitViewColumnWidth(min: 280, ideal: 320, max: 400)
-            } detail: {
-                // MARK: - Main Content: Video + Timeline
-                MainContentView(project: project, isCompact: false, path: .constant(NavigationPath()))
-            }
-            .onAppear {
-                setupKeyboardMonitor()
+                }
+                .onAppear {
+                    setupKeyboardMonitor()
+                }
+            } else {
+                // iPad/Mac端: 经典左右分栏工作台
+                NavigationSplitView {
+                    // MARK: - Right Sidebar: Script List
+                    ScriptListView(project: project, isCompact: false, path: .constant(NavigationPath()))
+                        .navigationSplitViewColumnWidth(min: 280, ideal: 320, max: 400)
+                } detail: {
+                    // MARK: - Main Content: Video + Timeline
+                    MainContentView(project: project, isCompact: false, path: .constant(NavigationPath()))
+                }
+                .onAppear {
+                    setupKeyboardMonitor()
+                }
             }
         }
+        .tint(Color.stropheAccent)
     }
 
     // MARK: - Keyboard Monitor

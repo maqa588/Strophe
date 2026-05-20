@@ -98,7 +98,6 @@ struct TimelineToolbarView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
-        .background(Color.primary.opacity(0.02))
         .background(
             GeometryReader { geo in
                 Color.clear
@@ -203,186 +202,253 @@ struct TimelineToolbarView: View {
     
     @ViewBuilder
     private var playbackControls: some View {
-        HStack(spacing: 12) {
-            // Rewind 5s / Hold to scan
-            ScanButton(icon: "gobackward.5", isForward: false, project: project)
-            
-            // Play / Pause toggle
-            Button(action: {
-                project.togglePlayback()
-            }) {
-                Image(systemName: playbackRate > 0 ? "pause.fill" : "play.fill")
-                    .font(.body.weight(.bold))
-                    .frame(width: 36, height: 28)
-                    .foregroundColor(.white)
-                    .background(Color.accentColor)
-                    .cornerRadius(6)
+        if #available(macOS 26.0, iOS 26.0, *) {
+            // macOS 26+ / iOS 26+: Liquid Glass
+            GlassEffectContainer(spacing: 12) {
+                HStack(spacing: 0) {
+                    ScanButton(icon: "gobackward.5", isForward: false, project: project)
+                        .glassEffect(.regular.interactive())
+
+                    Button(action: { project.togglePlayback() }) {
+                        Image(systemName: playbackRate > 0 ? "pause.fill" : "play.fill")
+                            .font(.body.weight(.bold))
+                            .foregroundStyle(Color.stropheAccent)
+                            .frame(width: 36, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.interactive())
+
+                    ScanButton(icon: "goforward.5", isForward: true, project: project)
+                        .glassEffect(.regular.interactive())
+
+                    Menu {
+                        ForEach([0.5, 1.0, 1.25, 1.5, 2.0], id: \.self) { speed in
+                            Button(action: { project.changePlaybackSpeed(speed) }) {
+                                HStack {
+                                    Text(String(format: "%.2fx", speed))
+                                    if targetSpeed == speed { Image(systemName: "checkmark") }
+                                }
+                            }
+                        }
+                    } label: {
+                        Text(String(format: "%.1fx", targetSpeed))
+                            .font(.system(size: 11, weight: .bold, design: .rounded).monospacedDigit())
+                            .frame(width: 44, height: 28)
+                    }
+                    .menuStyle(.button)
+                    .glassEffect(.regular.interactive(), in: .capsule)
+                }
             }
-            .buttonStyle(.plain)
-            
-            // Fast Forward 5s / Hold to scan
-            ScanButton(icon: "goforward.5", isForward: true, project: project)
-            
-            // Playback Speed Adjustment Menu (0.5x, 1.0x, 1.25x, 1.5x, 2.0x)
-            Menu {
-                ForEach([0.5, 1.0, 1.25, 1.5, 2.0], id: \.self) { speed in
-                    Button(action: {
-                        project.changePlaybackSpeed(speed)
-                    }) {
-                        HStack {
-                            Text(String(format: "%.2fx", speed))
-                            if targetSpeed == speed {
-                                Image(systemName: "checkmark")
+        } else {
+            // Fallback: plain background style for older OS
+            HStack(spacing: 12) {
+                ScanButton(icon: "gobackward.5", isForward: false, project: project)
+
+                Button(action: { project.togglePlayback() }) {
+                    Image(systemName: playbackRate > 0 ? "pause.fill" : "play.fill")
+                        .font(.body.weight(.bold))
+                        .frame(width: 36, height: 28)
+                        .foregroundColor(.white)
+                        .background(Color.stropheAccent)
+                        .cornerRadius(6)
+                }
+                .buttonStyle(.plain)
+
+                ScanButton(icon: "goforward.5", isForward: true, project: project)
+
+                Menu {
+                    ForEach([0.5, 1.0, 1.25, 1.5, 2.0], id: \.self) { speed in
+                        Button(action: { project.changePlaybackSpeed(speed) }) {
+                            HStack {
+                                Text(String(format: "%.2fx", speed))
+                                if targetSpeed == speed { Image(systemName: "checkmark") }
                             }
                         }
                     }
+                } label: {
+                    Text(String(format: "%.1fx", targetSpeed))
+                        .font(.system(size: 11, weight: .bold, design: .rounded).monospacedDigit())
+                        .frame(width: 44, height: 28)
+                        .background(Color.primary.opacity(0.05))
+                        .foregroundColor(.primary)
+                        .cornerRadius(6)
                 }
-            } label: {
-                Text(String(format: "%.1fx", targetSpeed))
-                    .font(.system(size: 11, weight: .bold, design: .rounded).monospacedDigit())
-                    .frame(width: 44, height: 28)
-                    .background(Color.primary.opacity(0.05))
-                    .foregroundColor(.primary)
-                    .cornerRadius(6)
+                .menuStyle(.button)
             }
-            .menuStyle(.button)
+            .padding(2)
+            .background(Color.primary.opacity(0.03))
+            .cornerRadius(8)
         }
-        .padding(2)
-        .background(Color.primary.opacity(0.03))
-        .cornerRadius(8)
     }
     
     @ViewBuilder
     private var editingModeControls: some View {
-        HStack(spacing: 4) {
-            // 0. Soft Subtitle Preview Toggle (CC)
-            Button(action: { project.showSoftSubtitles.toggle() }) {
-                Image(systemName: showSoftSubtitles ? "captions.bubble.fill" : "captions.bubble")
-                    .font(.body.weight(.medium))
-                    .frame(width: 32, height: 28)
-                    .background(showSoftSubtitles ? Color.accentColor.opacity(0.2) : Color.clear)
-                    .foregroundColor(showSoftSubtitles ? .accentColor : .primary)
-                    .cornerRadius(6)
-            }
-            .buttonStyle(.plain)
-            .popover(isPresented: $showSoftSubtitlesTip, arrowEdge: .top) {
-                RichTooltipView(
-                    icon: "captions.bubble",
-                    title: String(localized: "软字幕预览"),
-                    message: String(localized: "软字幕预览提示信息")
-                )
-            }
-            .highPriorityGesture(
-                LongPressGesture(minimumDuration: 0.3)
-                    .onEnded { _ in
+        if #available(macOS 26.0, iOS 26.0, *) {
+            // macOS 26+ / iOS 26+: Liquid Glass
+            GlassEffectContainer(spacing: 12) {
+                HStack(spacing: 0) {
+                    Button(action: { project.showSoftSubtitles.toggle() }) {
+                        Image(systemName: showSoftSubtitles ? "captions.bubble.fill" : "captions.bubble")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(showSoftSubtitles ? Color.stropheAccent : .primary)
+                            .frame(width: 32, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcutIf(!isEditingText, "s", modifiers: [.command])
+                    .glassEffect(.regular.interactive())
+                    .popover(isPresented: $showSoftSubtitlesTip, arrowEdge: .top) {
+                        RichTooltipView(icon: "captions.bubble", title: String(localized: "软字幕预览"), message: String(localized: "软字幕预览提示信息"))
+                    }
+                    .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
                         #if os(iOS)
-                        let impact = UIImpactFeedbackGenerator(style: .medium)
-                        impact.impactOccurred()
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                         #endif
                         showSoftSubtitlesTip = true
+                    })
+                    .onHover { hovering in
+                        softSubtitlesHoverTask?.cancel()
+                        if hovering {
+                            softSubtitlesHoverTask = Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 500_000_000)
+                                if !Task.isCancelled { showSoftSubtitlesTip = true }
+                            }
+                        } else { showSoftSubtitlesTip = false }
                     }
-            )
-            .onHover { hovering in
-                softSubtitlesHoverTask?.cancel()
-                if hovering {
-                    softSubtitlesHoverTask = Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 秒延迟
-                        if !Task.isCancelled {
-                            showSoftSubtitlesTip = true
-                        }
+
+                    // 中间按钮：纯 glass，active 只改图标色
+                    Button(action: { project.editingMode = .selection }) {
+                        Image(systemName: "cursorarrow")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(editingMode == .selection ? Color.stropheAccent : .primary)
+                            .frame(width: 32, height: 28)
                     }
-                } else {
-                    showSoftSubtitlesTip = false
-                }
-            }
-            
-            // 1. Selection Mode (V)
-            Button(action: { project.editingMode = .selection }) {
-                Image(systemName: "cursorarrow")
-                    .font(.body.weight(.medium))
-                    .frame(width: 32, height: 28)
-                    .background(editingMode == .selection ? Color.accentColor.opacity(0.2) : Color.clear)
-                    .foregroundColor(editingMode == .selection ? .accentColor : .primary)
-                    .cornerRadius(6)
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcutIf(!isEditingText, "v", modifiers: [])
-            .popover(isPresented: $showSelectionTip, arrowEdge: .top) {
-                RichTooltipView(
-                    icon: "cursorarrow",
-                    title: String(localized: "选择工具"),
-                    message: String(localized: "选择工具提示信息")
-                )
-            }
-            .highPriorityGesture(
-                LongPressGesture(minimumDuration: 0.3)
-                    .onEnded { _ in
+                    .buttonStyle(.plain)
+                    .keyboardShortcutIf(!isEditingText, "v", modifiers: [])
+                    .glassEffect(.regular.interactive())
+                    .popover(isPresented: $showSelectionTip, arrowEdge: .top) {
+                        RichTooltipView(icon: "cursorarrow", title: String(localized: "选择工具"), message: String(localized: "选择工具提示信息"))
+                    }
+                    .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
                         #if os(iOS)
-                        let impact = UIImpactFeedbackGenerator(style: .medium)
-                        impact.impactOccurred()
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                         #endif
                         showSelectionTip = true
+                    })
+                    .onHover { hovering in
+                        selectionHoverTask?.cancel()
+                        if hovering {
+                            selectionHoverTask = Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 500_000_000)
+                                if !Task.isCancelled { showSelectionTip = true }
+                            }
+                        } else { showSelectionTip = false }
                     }
-            )
-            .onHover { hovering in
-                selectionHoverTask?.cancel()
-                if hovering {
-                    selectionHoverTask = Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 秒延迟
-                        if !Task.isCancelled {
-                            showSelectionTip = true
-                        }
+
+                    // 右侧按钮：纯 glass，active 只改图标色
+                    Button(action: { project.editingMode = .creation }) {
+                        Image(systemName: "hand.draw")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(editingMode == .creation ? Color.stropheAccent : .primary)
+                            .frame(width: 32, height: 28)
                     }
-                } else {
-                    showSelectionTip = false
-                }
-            }
-            
-            // 2. Drag/JK Creation Mode (D)
-            Button(action: { project.editingMode = .creation }) {
-                Image(systemName: "hand.draw")
-                    .font(.body.weight(.medium))
-                    .frame(width: 32, height: 28)
-                    .background(editingMode == .creation ? Color.accentColor.opacity(0.2) : Color.clear)
-                    .foregroundColor(editingMode == .creation ? .accentColor : .primary)
-                    .cornerRadius(6)
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcutIf(!isEditingText, "d", modifiers: [])
-            .popover(isPresented: $showCreationTip, arrowEdge: .top) {
-                RichTooltipView(
-                    icon: "hand.draw",
-                    title: String(localized: "快速创建与拍打工具"),
-                    message: String(localized: "快速创建与拍打工具提示信息")
-                )
-            }
-            .highPriorityGesture(
-                LongPressGesture(minimumDuration: 0.3)
-                    .onEnded { _ in
+                    .buttonStyle(.plain)
+                    .keyboardShortcutIf(!isEditingText, "d", modifiers: [])
+                    .glassEffect(.regular.interactive())
+                    .popover(isPresented: $showCreationTip, arrowEdge: .top) {
+                        RichTooltipView(icon: "hand.draw", title: String(localized: "快速创建与拍打工具"), message: String(localized: "快速创建与拍打工具提示信息"))
+                    }
+                    .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
                         #if os(iOS)
-                        let impact = UIImpactFeedbackGenerator(style: .medium)
-                        impact.impactOccurred()
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                         #endif
                         showCreationTip = true
+                    })
+                    .onHover { hovering in
+                        creationHoverTask?.cancel()
+                        if hovering {
+                            creationHoverTask = Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 500_000_000)
+                                if !Task.isCancelled { showCreationTip = true }
+                            }
+                        } else { showCreationTip = false }
                     }
-            )
-            .onHover { hovering in
-                creationHoverTask?.cancel()
-                if hovering {
-                    creationHoverTask = Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 秒延迟
-                        if !Task.isCancelled {
-                            showCreationTip = true
-                        }
-                    }
-                } else {
-                    showCreationTip = false
                 }
             }
+        } else {
+            // Fallback for older OS
+            HStack(spacing: 4) {
+                Button(action: { project.showSoftSubtitles.toggle() }) {
+                    Image(systemName: showSoftSubtitles ? "captions.bubble.fill" : "captions.bubble")
+                        .font(.body.weight(.medium))
+                        .frame(width: 32, height: 28)
+                        .background(showSoftSubtitles ? Color.accentColor.opacity(0.2) : Color.clear)
+                        .foregroundColor(showSoftSubtitles ? .accentColor : .primary)
+                        .cornerRadius(6)
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showSoftSubtitlesTip, arrowEdge: .top) {
+                    RichTooltipView(icon: "captions.bubble", title: String(localized: "软字幕预览"), message: String(localized: "软字幕预览提示信息"))
+                }
+                .onHover { hovering in
+                    softSubtitlesHoverTask?.cancel()
+                    if hovering {
+                        softSubtitlesHoverTask = Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 500_000_000)
+                            if !Task.isCancelled { showSoftSubtitlesTip = true }
+                        }
+                    } else { showSoftSubtitlesTip = false }
+                }
+
+                Button(action: { project.editingMode = .selection }) {
+                    Image(systemName: "cursorarrow")
+                        .font(.body.weight(.medium))
+                        .frame(width: 32, height: 28)
+                        .background(editingMode == .selection ? Color.accentColor.opacity(0.2) : Color.clear)
+                        .foregroundColor(editingMode == .selection ? .accentColor : .primary)
+                        .cornerRadius(6)
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcutIf(!isEditingText, "v", modifiers: [])
+                .popover(isPresented: $showSelectionTip, arrowEdge: .top) {
+                    RichTooltipView(icon: "cursorarrow", title: String(localized: "选择工具"), message: String(localized: "选择工具提示信息"))
+                }
+                .onHover { hovering in
+                    selectionHoverTask?.cancel()
+                    if hovering {
+                        selectionHoverTask = Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 500_000_000)
+                            if !Task.isCancelled { showSelectionTip = true }
+                        }
+                    } else { showSelectionTip = false }
+                }
+
+                Button(action: { project.editingMode = .creation }) {
+                    Image(systemName: "hand.draw")
+                        .font(.body.weight(.medium))
+                        .frame(width: 32, height: 28)
+                        .background(editingMode == .creation ? Color.accentColor.opacity(0.2) : Color.clear)
+                        .foregroundColor(editingMode == .creation ? .accentColor : .primary)
+                        .cornerRadius(6)
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcutIf(!isEditingText, "d", modifiers: [])
+                .popover(isPresented: $showCreationTip, arrowEdge: .top) {
+                    RichTooltipView(icon: "hand.draw", title: String(localized: "快速创建与拍打工具"), message: String(localized: "快速创建与拍打工具提示信息"))
+                }
+                .onHover { hovering in
+                    creationHoverTask?.cancel()
+                    if hovering {
+                        creationHoverTask = Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 500_000_000)
+                            if !Task.isCancelled { showCreationTip = true }
+                        }
+                    } else { showCreationTip = false }
+                }
+            }
+            .padding(2)
+            .background(Color.primary.opacity(0.05))
+            .cornerRadius(8)
         }
-        .padding(2)
-        .background(Color.primary.opacity(0.05))
-        .cornerRadius(8)
     }
 }
 
@@ -396,7 +462,7 @@ struct RichTooltipView: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: icon)
                 .font(.body)
-                .foregroundColor(.blue)
+                .foregroundColor(Color.accentColor)
                 .padding(.top, 1)
             
             VStack(alignment: .leading, spacing: 4) {
@@ -467,8 +533,6 @@ struct ScanButton: View {
             .font(.body.weight(.medium))
             .frame(width: 32, height: 28)
             .foregroundColor(.primary)
-            .background(isHolding ? Color.primary.opacity(0.15) : Color.primary.opacity(0.04))
-            .cornerRadius(6)
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)

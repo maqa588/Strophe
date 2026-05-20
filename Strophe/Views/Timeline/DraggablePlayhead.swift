@@ -33,13 +33,13 @@ struct DraggablePlayhead: View {
         ZStack(alignment: .top) {
             // Vertical line
             Rectangle()
-                .fill(Color.red)
+                .fill(Color.stropheAccent)
                 .frame(width: 2.0)
 
             // Triangular head (Logic Pro style)
             Image(systemName: "arrowtriangle.down.fill")
                 .font(.system(size: 10))
-                .foregroundStyle(.red)
+                .foregroundStyle(Color.stropheAccent)
                 .offset(y: -12)
         }
         .frame(width: 2.0)

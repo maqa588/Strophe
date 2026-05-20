@@ -162,6 +162,8 @@ struct ScriptListView: View {
                 }
             }
             .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
+            .background(Color.stropheBackground)
             .onDeleteCommandIfSupported {
                 if !project.selectedIDs.isEmpty {
                     project.deleteSubtitles(ids: project.selectedIDs)

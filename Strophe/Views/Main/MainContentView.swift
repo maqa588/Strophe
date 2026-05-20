@@ -31,6 +31,7 @@ struct MainContentView: View {
             WaveformTimelineView(project: project)
                 .frame(maxWidth: .infinity)
         }
+        .background(Color.stropheSecondaryBackground)
         .navigationTitle("Strophe")
         #if os(macOS)
         .navigationSubtitle(project.videoURL?.lastPathComponent ?? "")

@@ -37,10 +37,10 @@ struct SubtitleRow: View {
                         }
                     }
                     .font(.caption2.monospaced())
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Color.accentColor)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(.blue.opacity(0.1), in: Capsule())
+                    .background(Color.accentColor.opacity(0.1), in: Capsule())
                     .environment(\.layoutDirection, .leftToRight)
                 }
             }
@@ -52,7 +52,7 @@ struct SubtitleRow: View {
         .background(
             isActive
                 ? RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(.blue.opacity(0.08))
+                    .fill(Color.accentColor.opacity(0.08))
                 : nil
         )
     }
@@ -70,7 +70,7 @@ struct SubtitleRow: View {
         } else if isActive {
             Image(systemName: "record.circle")
                 .font(.caption)
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.accentColor)
                 .symbolEffect(.pulse, isActive: isActive)
         } else {
             Image(systemName: "circle")

@@ -42,7 +42,7 @@ public final class SubtitleEngine {
     public static func importSubtitle(from url: URL) throws -> (format: SubtitleFormat, blocks: [SubtitleBlock]) {
         let pathExtension = url.pathExtension.lowercased()
         guard let format = SubtitleFormat(rawValue: pathExtension) else {
-            throw NSError(domain: "FormatError", code: -2, userInfo: [NSLocalizedDescriptionKey: "暂不支持该多媒体文件后缀格式"])
+            throw NSError(domain: "FormatError", code: -2, userInfo: [NSLocalizedDescriptionKey: String(localized: "暂不支持该多媒体文件后缀格式")])
         }
         
         let rawText = try loadRawText(from: url)

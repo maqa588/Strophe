@@ -83,17 +83,17 @@ struct WaveformChunkCanvas: View {
             // 笔触宽度稍微窄于 binWidth 能够产生精美的像素间隔线，防止连在一片
             let drawWidth = max(1.0, binWidth * 0.75)
             
-            // 绘制精细的 Peak 外轮廓 (高亮深蓝色，透明度 80%)
+            // 绘制精细的 Peak 外轮廓
             context.stroke(
                 peakPath,
-                with: .color(Color(red: 0.0, green: 0.45, blue: 0.85).opacity(0.8)),
+                with: .color(.stropheWaveformPeak),
                 lineWidth: drawWidth
             )
             
-            // 绘制 RMS 能量内核 (更亮更暖的浅蓝色，透明度 60%)
+            // 绘制 RMS 能量内核
             context.stroke(
                 rmsPath,
-                with: .color(Color(red: 0.35, green: 0.75, blue: 1.0).opacity(0.65)),
+                with: .color(.stropheWaveformRMS),
                 lineWidth: drawWidth
             )
         }

@@ -44,6 +44,10 @@ struct WaveformTimelineView: View {
         let maxPPS = viewWidth / 5.0
 
         VStack(alignment: .leading, spacing: 0) {
+            Rectangle()
+                .fill(Color.stropheTimelineDivider)
+                .frame(height: 1)
+            
             // MARK: - Extracted Timeline Toolbar
             TimelineToolbarView(project: project)
                 .fixedSize(horizontal: false, vertical: true)
@@ -157,6 +161,7 @@ struct WaveformTimelineView: View {
         }
         .frame(height: isCompact ? 236 : 200)
         .frame(maxWidth: .infinity)
+        .background(Color.stropheSecondaryBackground)
         .background(
             GeometryReader { geo in
                 Color.clear
