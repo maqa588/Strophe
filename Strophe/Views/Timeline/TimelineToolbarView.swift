@@ -205,9 +205,19 @@ struct TimelineToolbarView: View {
         if #available(macOS 26.0, iOS 26.0, *) {
             GlassEffectContainer(spacing: 12) {
                 HStack(spacing: 0) {
+                    Button(action: { project.undo() }) {
+                        Image(systemName: "arrow.uturn.backward")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(Color.stropheAccent)
+                            .frame(width: 32, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.interactive())
+                    .help(String(localized: "撤销"))
+
                     ScanButton(icon: "gobackward.5", isForward: false, project: project)
                         .glassEffect(.regular.interactive())
-
+                    
                     Button(action: { project.togglePlayback() }) {
                         Image(systemName: playbackRate > 0 ? "pause.fill" : "play.fill")
                             .font(.body.weight(.bold))
@@ -219,6 +229,16 @@ struct TimelineToolbarView: View {
 
                     ScanButton(icon: "goforward.5", isForward: true, project: project)
                         .glassEffect(.regular.interactive())
+
+                    Button(action: { project.redo() }) {
+                        Image(systemName: "arrow.uturn.forward")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(Color.stropheAccent)
+                            .frame(width: 32, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.interactive())
+                    .help(String(localized: "重做"))
 
                     Menu {
                         ForEach([0.5, 1.0, 1.25, 1.5, 2.0], id: \.self) { speed in

@@ -95,15 +95,25 @@ struct ContentView: View {
             }
             
             if isKeyDown {
+                let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                
+                if modifiers == .command, event.charactersIgnoringModifiers == "z" {
+                    project.undo()
+                    return nil
+                }
+                
+                if modifiers == [.command, .shift], event.charactersIgnoringModifiers == "Z" {
+                    project.redo()
+                    return nil
+                }
+                
                 switch event.charactersIgnoringModifiers {
                 case " ":
                     project.togglePlayback()
                     return nil
                 case "\u{7F}", "\u{08}":
                     if !project.selectedIDs.isEmpty {
-                        for id in project.selectedIDs {
-                            project.deleteSubtitle(id: id)
-                        }
+                        project.deleteSubtitles(ids: project.selectedIDs)
                         project.selectedIDs.removeAll()
                         return nil
                     }

@@ -17,6 +17,17 @@ struct PlaybackControlsLegacy: View {
     
     var body: some View {
         HStack(spacing: 12) {
+            Button(action: { project.undo() }) {
+                Image(systemName: "arrow.uturn.backward")
+                    .font(.body.weight(.medium))
+                    .frame(width: 32, height: 28)
+                    .foregroundColor(.primary)
+                    .cornerRadius(6)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(String(localized: "撤销"))
+
             ScanButton(icon: "gobackward.5", isForward: false, project: project)
 
             Button(action: { project.togglePlayback() }) {
@@ -30,6 +41,17 @@ struct PlaybackControlsLegacy: View {
             .buttonStyle(.plain)
 
             ScanButton(icon: "goforward.5", isForward: true, project: project)
+
+            Button(action: { project.redo() }) {
+                Image(systemName: "arrow.uturn.forward")
+                    .font(.body.weight(.medium))
+                    .frame(width: 32, height: 28)
+                    .foregroundColor(.primary)
+                    .cornerRadius(6)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(String(localized: "重做"))
 
             Menu {
                 ForEach([0.5, 1.0, 1.25, 1.5, 2.0], id: \.self) { speed in
@@ -47,6 +69,7 @@ struct PlaybackControlsLegacy: View {
                     .background(Color.primary.opacity(0.05))
                     .foregroundColor(.primary)
                     .cornerRadius(6)
+                    .contentShape(Rectangle())
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
@@ -72,93 +95,97 @@ struct EditingModeControlsLegacy: View {
     @Binding var selectionHoverTask: Task<Void, Never>?
     @Binding var creationHoverTask: Task<Void, Never>?
     
+    private func legacyButton<Content: View>(
+        action: @escaping () -> Void,
+        isActive: Bool,
+        icon: String,
+        tipBinding: Binding<Bool>,
+        hoverTask: Binding<Task<Void, Never>?>,
+        tooltipIcon: String,
+        tooltipTitle: String,
+        tooltipMessage: String,
+        shortcut: KeyEquivalent?,
+        modifiers: EventModifiers = [],
+        @ViewBuilder label: () -> Content
+    ) -> some View {
+        Button(action: action) {
+            label()
+                .frame(width: 32, height: 28)
+                .background(isActive ? Color.accentColor.opacity(0.2) : Color.clear)
+                .foregroundColor(isActive ? .accentColor : .primary)
+                .cornerRadius(6)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcutIf(!isEditingText && shortcut != nil, shortcut!, modifiers: modifiers)
+        #if os(iOS)
+        .popover(isPresented: tipBinding, arrowEdge: .top) {
+            RichTooltipView(icon: tooltipIcon, title: tooltipTitle, message: tooltipMessage)
+        }
+        .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            tipBinding.wrappedValue = true
+        })
+        .onHover { hovering in
+            hoverTask.wrappedValue?.cancel()
+            if hovering {
+                hoverTask.wrappedValue = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    if !Task.isCancelled { tipBinding.wrappedValue = true }
+                }
+            } else { tipBinding.wrappedValue = false }
+        }
+        #else
+        .help("\(tooltipTitle)\n\(tooltipMessage)")
+        #endif
+    }
+    
     var body: some View {
         HStack(spacing: 4) {
-            Button(action: { project.showSoftSubtitles.toggle() }) {
+            legacyButton(
+                action: { project.showSoftSubtitles.toggle() },
+                isActive: showSoftSubtitles,
+                icon: showSoftSubtitles ? "captions.bubble.fill" : "captions.bubble",
+                tipBinding: $showSoftSubtitlesTip,
+                hoverTask: $softSubtitlesHoverTask,
+                tooltipIcon: "captions.bubble",
+                tooltipTitle: String(localized: "软字幕预览"),
+                tooltipMessage: String(localized: "软字幕预览提示信息"),
+                shortcut: "s",
+                modifiers: [.option]
+            ) {
                 Image(systemName: showSoftSubtitles ? "captions.bubble.fill" : "captions.bubble")
                     .font(.body.weight(.medium))
-                    .frame(width: 32, height: 28)
-                    .background(showSoftSubtitles ? Color.accentColor.opacity(0.2) : Color.clear)
-                    .foregroundColor(showSoftSubtitles ? .accentColor : .primary)
-                    .cornerRadius(6)
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcutIf(!isEditingText, "s", modifiers: [.option])
-            .popover(isPresented: $showSoftSubtitlesTip, arrowEdge: .top) {
-                RichTooltipView(icon: "captions.bubble", title: String(localized: "软字幕预览"), message: String(localized: "软字幕预览提示信息"))
-            }
-            .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
-                #if os(iOS)
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                #endif
-                showSoftSubtitlesTip = true
-            })
-            .onHover { hovering in
-                softSubtitlesHoverTask?.cancel()
-                if hovering {
-                    softSubtitlesHoverTask = Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 500_000_000)
-                        if !Task.isCancelled { showSoftSubtitlesTip = true }
-                    }
-                } else { showSoftSubtitlesTip = false }
             }
 
-            Button(action: { project.editingMode = .selection }) {
+            legacyButton(
+                action: { project.editingMode = .selection },
+                isActive: editingMode == .selection,
+                icon: "cursorarrow",
+                tipBinding: $showSelectionTip,
+                hoverTask: $selectionHoverTask,
+                tooltipIcon: "cursorarrow",
+                tooltipTitle: String(localized: "选择工具"),
+                tooltipMessage: String(localized: "选择工具提示信息"),
+                shortcut: "v"
+            ) {
                 Image(systemName: "cursorarrow")
                     .font(.body.weight(.medium))
-                    .frame(width: 32, height: 28)
-                    .background(editingMode == .selection ? Color.accentColor.opacity(0.2) : Color.clear)
-                    .foregroundColor(editingMode == .selection ? .accentColor : .primary)
-                    .cornerRadius(6)
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcutIf(!isEditingText, "v", modifiers: [])
-            .popover(isPresented: $showSelectionTip, arrowEdge: .top) {
-                RichTooltipView(icon: "cursorarrow", title: String(localized: "选择工具"), message: String(localized: "选择工具提示信息"))
-            }
-            .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
-                #if os(iOS)
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                #endif
-                showSelectionTip = true
-            })
-            .onHover { hovering in
-                selectionHoverTask?.cancel()
-                if hovering {
-                    selectionHoverTask = Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 500_000_000)
-                        if !Task.isCancelled { showSelectionTip = true }
-                    }
-                } else { showSelectionTip = false }
             }
 
-            Button(action: { project.editingMode = .creation }) {
+            legacyButton(
+                action: { project.editingMode = .creation },
+                isActive: editingMode == .creation,
+                icon: "hand.draw",
+                tipBinding: $showCreationTip,
+                hoverTask: $creationHoverTask,
+                tooltipIcon: "hand.draw",
+                tooltipTitle: String(localized: "快速创建与拍打工具"),
+                tooltipMessage: String(localized: "快速创建与拍打工具提示信息"),
+                shortcut: "d"
+            ) {
                 Image(systemName: "hand.draw")
                     .font(.body.weight(.medium))
-                    .frame(width: 32, height: 28)
-                    .background(editingMode == .creation ? Color.accentColor.opacity(0.2) : Color.clear)
-                    .foregroundColor(editingMode == .creation ? .accentColor : .primary)
-                    .cornerRadius(6)
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcutIf(!isEditingText, "d", modifiers: [])
-            .popover(isPresented: $showCreationTip, arrowEdge: .top) {
-                RichTooltipView(icon: "hand.draw", title: String(localized: "快速创建与拍打工具"), message: String(localized: "快速创建与拍打工具提示信息"))
-            }
-            .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
-                #if os(iOS)
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                #endif
-                showCreationTip = true
-            })
-            .onHover { hovering in
-                creationHoverTask?.cancel()
-                if hovering {
-                    creationHoverTask = Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 500_000_000)
-                        if !Task.isCancelled { showCreationTip = true }
-                    }
-                } else { showCreationTip = false }
             }
         }
         .padding(2)
