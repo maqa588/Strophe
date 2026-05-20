@@ -9,6 +9,10 @@ import Foundation
 import Combine
 import CoreGraphics
 
+extension Notification.Name {
+    static let subtitleProjectDidChange = Notification.Name("com.strophe.subtitleProjectDidChange")
+}
+
 @MainActor
 class SubtitleProject: ObservableObject {
     @Published var items: [SubtitleItem] = []
@@ -19,6 +23,41 @@ class SubtitleProject: ObservableObject {
     @Published var editingMode: TimelineEditingMode = .selection
     @Published var selectedIDs: Set<UUID> = []
     @Published var isEditingText: Bool = false
+    
+    @Published var projectURL: URL?
+    @Published private(set) var isDirty: Bool = false
+    @Published private(set) var documentName: String = ""
+    @Published var mediaLoadError: String? = nil
+    
+    private var autoSaveTimer: Timer?
+    private var dirtyObserver: Any?
+    private var mediaAccessURL: URL?
+    private var projectURLBookmark: Data?
+    
+    init() {
+        setupDirtyTracking()
+    }
+    
+    private func setupDirtyTracking() {
+        dirtyObserver = NotificationCenter.default.addObserver(
+            forName: .subtitleProjectDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.isDirty = true
+            }
+        }
+    }
+    
+    func notifyChange() {
+        NotificationCenter.default.post(name: .subtitleProjectDidChange, object: nil)
+    }
+    
+    func markClean() {
+        isDirty = false
+    }
+    
     @Published var videoURL: URL? {
         willSet {
             // Clean up the previous temporary directory/file if it was created by us
@@ -38,21 +77,26 @@ class SubtitleProject: ObservableObject {
                     WaveformProcessor.shared.process(url: url) { data in
                         self.waveformData = data
                     }
+                    notifyChange()
                     return
                 }
                 
-                // Copy to temp directory to guarantee read permissions for background threads in sandboxed environment
+                // If this URL already has security scope (restored from bookmark),
+                // use it directly without creating symlink
+                if mediaAccessURL == url {
+                    WaveformProcessor.shared.process(url: url) { data in
+                        self.waveformData = data
+                    }
+                    notifyChange()
+                    return
+                }
+                
+                // For regular file imports, create symlink to temp directory
+                // to guarantee read permissions for background threads in sandboxed environment
                 let tempDir = FileManager.default.temporaryDirectory
                 let uniqueSubdir = tempDir.appendingPathComponent(UUID().uuidString)
                 try? FileManager.default.createDirectory(at: uniqueSubdir, withIntermediateDirectories: true)
                 let tempURL = uniqueSubdir.appendingPathComponent(url.lastPathComponent)
-                
-                let isScoped = url.startAccessingSecurityScopedResource()
-                defer {
-                    if isScoped {
-                        url.stopAccessingSecurityScopedResource()
-                    }
-                }
                 
                 do {
                     try FileManager.default.createSymbolicLink(at: tempURL, withDestinationURL: url)
@@ -65,6 +109,7 @@ class SubtitleProject: ObservableObject {
                     }
                 }
             }
+            notifyChange()
         }
     }
     @Published var waveformData: WaveformData?
@@ -126,6 +171,7 @@ class SubtitleProject: ObservableObject {
             )
         }
         self.currentIndex = 0
+        notifyChange()
     }
     
     func markCurrentTime(_ time: TimeInterval) {
@@ -141,6 +187,7 @@ class SubtitleProject: ObservableObject {
         if currentIndex < items.count - 1 {
             currentIndex += 1
         }
+        notifyChange()
     }
     
     func stepBack() {
@@ -166,6 +213,7 @@ class SubtitleProject: ObservableObject {
         }
         
         sortItemsStable()
+        notifyChange()
     }
     
     func updateSubtitleTime(id: UUID, newStartTime: TimeInterval, newEndTime: TimeInterval) {
@@ -176,6 +224,7 @@ class SubtitleProject: ObservableObject {
             items[index].startTime = snappedStart
             items[index].endTime = snappedEnd
             sortItemsStable()
+            notifyChange()
         }
     }
 
@@ -193,6 +242,7 @@ class SubtitleProject: ObservableObject {
             }
         }
         sortItemsStable()
+        notifyChange()
     }
     
     // MARK: - J/K Slapping Mode Handlers
@@ -225,6 +275,7 @@ class SubtitleProject: ObservableObject {
         
         activeSlapKey = key
         sortItemsStable()
+        notifyChange()
     }
     
     func handleSlapKeyUp(key: String) {
@@ -244,6 +295,7 @@ class SubtitleProject: ObservableObject {
         activeSlapSubtitleID = nil
         
         sortItemsStable()
+        notifyChange()
     }
     
     private func updateActiveSlapBlock(currentTime: TimeInterval) {
@@ -309,14 +361,17 @@ class SubtitleProject: ObservableObject {
         if let index = items.firstIndex(where: { $0.id == id }) {
             items[index].text = text
         }
+        notifyChange()
     }
     
     func deleteSubtitle(id: UUID) {
         items.removeAll(where: { $0.id == id })
+        notifyChange()
     }
     
     func deleteSubtitles(ids: Set<UUID>) {
         items.removeAll(where: { ids.contains($0.id) })
+        notifyChange()
     }
     
     // MARK: - Persistence
@@ -335,6 +390,240 @@ class SubtitleProject: ObservableObject {
         self.items = decoded.items
         self.videoURL = decoded.videoURL
         self.currentIndex = 0
+    }
+    
+    // MARK: - .strophe Project Persistence
+    
+    func prepareMediaAccess(for url: URL) {
+        mediaAccessURL?.stopAccessingSecurityScopedResource()
+        if url.startAccessingSecurityScopedResource() {
+            mediaAccessURL = url
+        }
+    }
+    
+    func replaceMedia(with url: URL) {
+        mediaLoadError = nil
+        prepareMediaAccess(for: url)
+        videoURL = url
+    }
+    
+    func resetForNewMedia() {
+        items = []
+        currentIndex = 0
+        scrollTargetID = nil
+        selectedIDs = []
+        isEditingText = false
+        currentTime = 0
+        videoFrameRate = 30.0
+        videoSize = .zero
+        isAudioOnly = false
+        showSoftSubtitles = false
+        editingMode = .selection
+        projectURL = nil
+        documentName = ""
+        mediaLoadError = nil
+        projectURLBookmark = nil
+        markClean()
+    }
+    
+    var stropheDocument: StropheProjectDocument {
+        var media: StropheProjectData.StropheMedia? = nil
+        if let videoURL = videoURL {
+            let originalURL = resolveOriginalURL(videoURL)
+            let bookmark = createSecurityScopedBookmark(for: originalURL)
+            media = StropheProjectData.StropheMedia(originalURL: originalURL, bookmark: bookmark)
+        }
+        let metadata = StropheProjectData.StropheMetadata(
+            videoFrameRate: videoFrameRate,
+            videoSize: videoSize != .zero ? StropheProjectData.StropheVideoSize(width: videoSize.width, height: videoSize.height) : nil,
+            isAudioOnly: isAudioOnly,
+            showSoftSubtitles: showSoftSubtitles,
+            editingModeRaw: editingMode.rawValue,
+            currentTime: currentTime,
+            createdAt: Date(),
+            modifiedAt: Date()
+        )
+        let data = StropheProjectData(version: 1, metadata: metadata, media: media, items: items)
+        return StropheProjectDocument(data: data)
+    }
+    
+    func saveStrophe(to url: URL) async throws {
+        let data = stropheDocument.data
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        let encoded = try encoder.encode(data)
+        
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+        
+        try encoded.write(to: url)
+        projectURL = url
+        documentName = url.deletingPathExtension().lastPathComponent
+        projectURLBookmark = createProjectURLBookmark(url)
+        markClean()
+    }
+    
+    func loadStrophe(from url: URL) async throws {
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+        let rawData = try Data(contentsOf: url)
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(StropheProjectData.self, from: rawData)
+        
+        guard decoded.version == 1 else {
+            throw NSError(domain: "Strophe", code: 1, userInfo: [NSLocalizedDescriptionKey: "Unsupported project version"])
+        }
+        
+        items = decoded.items
+        videoFrameRate = decoded.metadata.videoFrameRate
+        if let sz = decoded.metadata.videoSize {
+            videoSize = CGSize(width: sz.width, height: sz.height)
+        }
+        isAudioOnly = decoded.metadata.isAudioOnly
+        showSoftSubtitles = decoded.metadata.showSoftSubtitles
+        editingMode = decoded.metadata.editingMode
+        currentTime = 0
+        currentIndex = 0
+        
+        projectURL = url
+        documentName = url.deletingPathExtension().lastPathComponent
+        projectURLBookmark = createProjectURLBookmark(url)
+        
+        mediaLoadError = nil
+        
+        if let media = decoded.media {
+            let mediaName = media.originalURL?.lastPathComponent ?? "media file"
+            if let resolvedURL = resolveMediaURL(media: media) {
+                videoURL = resolvedURL
+            } else {
+                mediaLoadError = mediaName
+            }
+        }
+        
+        markClean()
+    }
+    
+    private func resolveMediaURL(media: StropheProjectData.StropheMedia) -> URL? {
+        if let bookmark = media.bookmark, bookmark.count > 64 {
+            if let resolved = resolveSecurityScopedBookmark(bookmark) {
+                if resolved.startAccessingSecurityScopedResource() {
+                    mediaAccessURL?.stopAccessingSecurityScopedResource()
+                    mediaAccessURL = resolved
+                }
+                return resolved
+            }
+        }
+        if let originalURL = media.originalURL {
+            let resolved = originalURL.resolvingSymlinksInPath()
+            if FileManager.default.fileExists(atPath: resolved.path) {
+                return originalURL
+            }
+            print("⚠️ Original file not found at: \(resolved.path)")
+        }
+        return nil
+    }
+    
+    private func resolveOriginalURL(_ url: URL) -> URL {
+        if url.path.contains(NSTemporaryDirectory()) {
+            let resolved = url.resolvingSymlinksInPath()
+            if resolved != url {
+                return resolved
+            }
+        }
+        return url
+    }
+    
+    private func createSecurityScopedBookmark(for url: URL) -> Data? {
+        let resolvedURL = url.resolvingSymlinksInPath()
+        #if os(macOS)
+        guard let bookmark = try? resolvedURL.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) else {
+            print("⚠️ Failed to create bookmark for: \(resolvedURL.path)")
+            return nil
+        }
+        var isStale = false
+        guard (try? URL(resolvingBookmarkData: bookmark, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale)) != nil else {
+            print("⚠️ Created bookmark is invalid for: \(resolvedURL.path)")
+            return nil
+        }
+        return bookmark
+        #else
+        return nil
+        #endif
+    }
+    
+    private func resolveSecurityScopedBookmark(_ bookmark: Data) -> URL? {
+        #if os(macOS)
+        var isStale = false
+        if let resolved = try? URL(resolvingBookmarkData: bookmark, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale) {
+            if isStale {
+                print("⚠️ Bookmark is stale")
+            }
+            return resolved
+        }
+        #endif
+        return nil
+    }
+    
+    private func createProjectURLBookmark(_ url: URL) -> Data? {
+        #if os(macOS)
+        return try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+        #else
+        return nil
+        #endif
+    }
+    
+    // MARK: - Auto Save
+    
+    func startAutoSave() {
+        stopAutoSave()
+        autoSaveTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await self?.performAutoSave()
+            }
+        }
+    }
+    
+    func stopAutoSave() {
+        autoSaveTimer?.invalidate()
+        autoSaveTimer = nil
+    }
+    
+    func performAutoSave() async {
+        guard isDirty, let url = projectURL else { return }
+        
+        var resolvedURL: URL?
+        var didAccess = false
+        
+        if let bookmark = projectURLBookmark {
+            if let resolved = resolveSecurityScopedBookmark(bookmark) {
+                resolvedURL = resolved
+                didAccess = resolved.startAccessingSecurityScopedResource()
+            }
+        }
+        
+        defer {
+            if didAccess, let resolved = resolvedURL {
+                resolved.stopAccessingSecurityScopedResource()
+            }
+        }
+        
+        do {
+            let data = stropheDocument.data
+            let encoder = JSONEncoder()
+            let encoded = try encoder.encode(data)
+            try encoded.write(to: resolvedURL ?? url)
+            markClean()
+        } catch {
+            print("⚠️ Auto-save failed: \(error.localizedDescription)")
+        }
+    }
+    
+    var documentDisplayName: String {
+        if !documentName.isEmpty { return documentName }
+        if let videoURL = videoURL {
+            return videoURL.deletingPathExtension().lastPathComponent
+        }
+        return ""
     }
     
     // MARK: - Export
@@ -439,6 +728,16 @@ class SubtitleProject: ObservableObject {
             referenceTime = eng.currentTime
             referenceDate = .now
         } else {
+            eng.rate = 0.0
+            playbackRate = 0.0
+            referenceTime = eng.currentTime
+            referenceDate = .now
+        }
+    }
+    
+    func pause() {
+        guard let eng = activeEngine else { return }
+        if eng.rate != 0 {
             eng.rate = 0.0
             playbackRate = 0.0
             referenceTime = eng.currentTime

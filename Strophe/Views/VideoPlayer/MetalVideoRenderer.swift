@@ -14,6 +14,7 @@ final class MetalVideoRenderer: MTKView {
     private var currentPixelBuffer: CVPixelBuffer?
     private var lastPixelFormat: OSType = 0
     private let lock = NSLock()
+    private var frameCount: Int = 0
     
     // Vertex data representing a full screen quad
     private struct Vertex {
@@ -74,11 +75,13 @@ final class MetalVideoRenderer: MTKView {
             float  y  = yTex.sample(s,  in.texCoords).r;
             float2 uv = uvTex.sample(s, in.texCoords).rg;
 
-            // video range 偏移
-            y  = (y  - 16.0/255.0) * (255.0/219.0);
-            uv = (uv - 128.0/255.0) * (255.0/224.0);
+            constexpr float y_bias  = 16.0  / 255.0;
+            constexpr float y_scale = 255.0 / 219.0;
+            constexpr float uv_bias  = 128.0 / 255.0;
+            constexpr float uv_scale = 255.0 / 224.0;
+            y  = (y  - y_bias)  * y_scale;
+            uv = (uv - uv_bias) * uv_scale;
 
-            // BT.709 矩阵
             float r = y + 1.5748 * uv.y;
             float g = y - 0.1873 * uv.x - 0.4681 * uv.y;
             float b = y + 1.8556 * uv.x;
@@ -125,6 +128,12 @@ final class MetalVideoRenderer: MTKView {
     }
     
     override func draw(_ rect: CGRect) {
+        autoreleasepool {
+            self._draw(rect)
+        }
+    }
+    
+    private func _draw(_ rect: CGRect) {
         lock.lock()
         guard let pixelBuffer = currentPixelBuffer else {
             lock.unlock()
@@ -222,7 +231,10 @@ final class MetalVideoRenderer: MTKView {
         cmdBuffer.present(drawable)
         cmdBuffer.commit()
         
-        CVMetalTextureCacheFlush(cache, 0)
+        frameCount += 1
+        if frameCount % 60 == 0 {
+            CVMetalTextureCacheFlush(cache, 0)
+        }
     }
 }
 

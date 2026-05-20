@@ -17,6 +17,7 @@ struct VideoPlayerView: View {
     @State private var showingCompatibilityAlert = false
     @State private var pendingCompatibilityURL: URL? = nil
     @State private var incompatibleFormatName: String = ""
+    @State private var isShowingReplaceMedia = false
 
     var onImportMedia: () -> Void
 
@@ -36,7 +37,9 @@ struct VideoPlayerView: View {
 
     var body: some View {
         ZStack {
-            if project.videoURL != nil {
+            if let mediaError = project.mediaLoadError {
+                mediaErrorState(mediaError)
+            } else if project.videoURL != nil {
                 ZStack {
                     Color.black
                     if let engine = engine {
@@ -185,6 +188,41 @@ struct VideoPlayerView: View {
                 Button(action: onImportMedia) { Label("Import Media…", systemImage: "plus.circle") }.buttonStyle(.borderedProminent)
             }
             .padding(40)
+        }
+    }
+    
+    // MARK: - Media Error State
+    
+    private func mediaErrorState(_ mediaName: String) -> some View {
+        ZStack {
+            #if os(macOS)
+            VisualEffectView(material: .underPageBackground, blendingMode: .behindWindow)
+            #else
+            VisualEffectView(style: .systemMaterial)
+            #endif
+            VStack(spacing: 20) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 56, weight: .ultraLight))
+                    .foregroundStyle(.orange)
+                VStack(spacing: 6) {
+                    Text(String(localized: "Media Not Found")).font(.title3.bold())
+                    Text(String(localized: "\"\(mediaName)\" could not be opened.\nPlease replace the media file below."))
+                        .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                }
+                Button(action: { isShowingReplaceMedia = true }) {
+                    Label(String(localized: "Replace Media…"), systemImage: "arrow.triangle.2.circlepath")
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(40)
+        }
+        .fileImporter(
+            isPresented: $isShowingReplaceMedia,
+            allowedContentTypes: [.movie, .video, .quickTimeMovie, .mpeg4Movie, .audio, .mp3],
+            allowsMultipleSelection: false
+        ) { result in
+            guard case .success(let urls) = result, let url = urls.first else { return }
+            project.replaceMedia(with: url)
         }
     }
 

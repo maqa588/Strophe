@@ -56,4 +56,35 @@ final class TempCleanupHelper {
             cleanupTempDirectory()
         }
     }
+    
+    /// Performs cleanup at app startup if temporary directory contains leftover files.
+    /// This handles cases where the app crashed or was force-quit without proper cleanup.
+    static func performStartupCleanupIfNeeded() {
+        let tempDir = FileManager.default.temporaryDirectory
+        
+        // Check if temp directory has any content (excluding system directories)
+        guard let contents = try? FileManager.default.contentsOfDirectory(
+            at: tempDir,
+            includingPropertiesForKeys: nil,
+            options: [.skipsSubdirectoryDescendants]
+        ) else {
+            return
+        }
+        
+        // Filter out system directories that we should never touch
+        let userFiles = contents.filter { url in
+            let name = url.lastPathComponent
+            return name != "TemporaryItems" && 
+                   !name.hasPrefix(".") &&
+                   !name.hasPrefix("com.apple")
+        }
+        
+        guard !userFiles.isEmpty else {
+            print("🧹 TempCleanupHelper: No leftover temp files detected at startup.")
+            return
+        }
+        
+        print("🧹 TempCleanupHelper: Detected \(userFiles.count) leftover item(s) from previous session, cleaning up...")
+        cleanupTempDirectory()
+    }
 }

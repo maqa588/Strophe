@@ -203,7 +203,6 @@ struct TimelineToolbarView: View {
     @ViewBuilder
     private var playbackControls: some View {
         if #available(macOS 26.0, iOS 26.0, *) {
-            // macOS 26+ / iOS 26+: Liquid Glass
             GlassEffectContainer(spacing: 12) {
                 HStack(spacing: 0) {
                     ScanButton(icon: "gobackward.5", isForward: false, project: project)
@@ -240,51 +239,17 @@ struct TimelineToolbarView: View {
                 }
             }
         } else {
-            // Fallback: plain background style for older OS
-            HStack(spacing: 12) {
-                ScanButton(icon: "gobackward.5", isForward: false, project: project)
-
-                Button(action: { project.togglePlayback() }) {
-                    Image(systemName: playbackRate > 0 ? "pause.fill" : "play.fill")
-                        .font(.body.weight(.bold))
-                        .frame(width: 36, height: 28)
-                        .foregroundColor(.white)
-                        .background(Color.stropheAccent)
-                        .cornerRadius(6)
-                }
-                .buttonStyle(.plain)
-
-                ScanButton(icon: "goforward.5", isForward: true, project: project)
-
-                Menu {
-                    ForEach([0.5, 1.0, 1.25, 1.5, 2.0], id: \.self) { speed in
-                        Button(action: { project.changePlaybackSpeed(speed) }) {
-                            HStack {
-                                Text(String(format: "%.2fx", speed))
-                                if targetSpeed == speed { Image(systemName: "checkmark") }
-                            }
-                        }
-                    }
-                } label: {
-                    Text(String(format: "%.1fx", targetSpeed))
-                        .font(.system(size: 11, weight: .bold, design: .rounded).monospacedDigit())
-                        .frame(width: 44, height: 28)
-                        .background(Color.primary.opacity(0.05))
-                        .foregroundColor(.primary)
-                        .cornerRadius(6)
-                }
-                .menuStyle(.button)
-            }
-            .padding(2)
-            .background(Color.primary.opacity(0.03))
-            .cornerRadius(8)
+            PlaybackControlsLegacy(
+                project: project,
+                targetSpeed: targetSpeed,
+                playbackRate: playbackRate
+            )
         }
     }
     
     @ViewBuilder
     private var editingModeControls: some View {
         if #available(macOS 26.0, iOS 26.0, *) {
-            // macOS 26+ / iOS 26+: Liquid Glass
             GlassEffectContainer(spacing: 12) {
                 HStack(spacing: 0) {
                     Button(action: { project.showSoftSubtitles.toggle() }) {
@@ -294,7 +259,7 @@ struct TimelineToolbarView: View {
                             .frame(width: 32, height: 28)
                     }
                     .buttonStyle(.plain)
-                    .keyboardShortcutIf(!isEditingText, "s", modifiers: [.command])
+                    .keyboardShortcutIf(!isEditingText, "s", modifiers: [.option])
                     .glassEffect(.regular.interactive())
                     .popover(isPresented: $showSoftSubtitlesTip, arrowEdge: .top) {
                         RichTooltipView(icon: "captions.bubble", title: String(localized: "软字幕预览"), message: String(localized: "软字幕预览提示信息"))
@@ -315,7 +280,6 @@ struct TimelineToolbarView: View {
                         } else { showSoftSubtitlesTip = false }
                     }
 
-                    // 中间按钮：纯 glass，active 只改图标色
                     Button(action: { project.editingMode = .selection }) {
                         Image(systemName: "cursorarrow")
                             .font(.body.weight(.medium))
@@ -344,7 +308,6 @@ struct TimelineToolbarView: View {
                         } else { showSelectionTip = false }
                     }
 
-                    // 右侧按钮：纯 glass，active 只改图标色
                     Button(action: { project.editingMode = .creation }) {
                         Image(systemName: "hand.draw")
                             .font(.body.weight(.medium))
@@ -375,79 +338,18 @@ struct TimelineToolbarView: View {
                 }
             }
         } else {
-            // Fallback for older OS
-            HStack(spacing: 4) {
-                Button(action: { project.showSoftSubtitles.toggle() }) {
-                    Image(systemName: showSoftSubtitles ? "captions.bubble.fill" : "captions.bubble")
-                        .font(.body.weight(.medium))
-                        .frame(width: 32, height: 28)
-                        .background(showSoftSubtitles ? Color.accentColor.opacity(0.2) : Color.clear)
-                        .foregroundColor(showSoftSubtitles ? .accentColor : .primary)
-                        .cornerRadius(6)
-                }
-                .buttonStyle(.plain)
-                .popover(isPresented: $showSoftSubtitlesTip, arrowEdge: .top) {
-                    RichTooltipView(icon: "captions.bubble", title: String(localized: "软字幕预览"), message: String(localized: "软字幕预览提示信息"))
-                }
-                .onHover { hovering in
-                    softSubtitlesHoverTask?.cancel()
-                    if hovering {
-                        softSubtitlesHoverTask = Task { @MainActor in
-                            try? await Task.sleep(nanoseconds: 500_000_000)
-                            if !Task.isCancelled { showSoftSubtitlesTip = true }
-                        }
-                    } else { showSoftSubtitlesTip = false }
-                }
-
-                Button(action: { project.editingMode = .selection }) {
-                    Image(systemName: "cursorarrow")
-                        .font(.body.weight(.medium))
-                        .frame(width: 32, height: 28)
-                        .background(editingMode == .selection ? Color.accentColor.opacity(0.2) : Color.clear)
-                        .foregroundColor(editingMode == .selection ? .accentColor : .primary)
-                        .cornerRadius(6)
-                }
-                .buttonStyle(.plain)
-                .keyboardShortcutIf(!isEditingText, "v", modifiers: [])
-                .popover(isPresented: $showSelectionTip, arrowEdge: .top) {
-                    RichTooltipView(icon: "cursorarrow", title: String(localized: "选择工具"), message: String(localized: "选择工具提示信息"))
-                }
-                .onHover { hovering in
-                    selectionHoverTask?.cancel()
-                    if hovering {
-                        selectionHoverTask = Task { @MainActor in
-                            try? await Task.sleep(nanoseconds: 500_000_000)
-                            if !Task.isCancelled { showSelectionTip = true }
-                        }
-                    } else { showSelectionTip = false }
-                }
-
-                Button(action: { project.editingMode = .creation }) {
-                    Image(systemName: "hand.draw")
-                        .font(.body.weight(.medium))
-                        .frame(width: 32, height: 28)
-                        .background(editingMode == .creation ? Color.accentColor.opacity(0.2) : Color.clear)
-                        .foregroundColor(editingMode == .creation ? .accentColor : .primary)
-                        .cornerRadius(6)
-                }
-                .buttonStyle(.plain)
-                .keyboardShortcutIf(!isEditingText, "d", modifiers: [])
-                .popover(isPresented: $showCreationTip, arrowEdge: .top) {
-                    RichTooltipView(icon: "hand.draw", title: String(localized: "快速创建与拍打工具"), message: String(localized: "快速创建与拍打工具提示信息"))
-                }
-                .onHover { hovering in
-                    creationHoverTask?.cancel()
-                    if hovering {
-                        creationHoverTask = Task { @MainActor in
-                            try? await Task.sleep(nanoseconds: 500_000_000)
-                            if !Task.isCancelled { showCreationTip = true }
-                        }
-                    } else { showCreationTip = false }
-                }
-            }
-            .padding(2)
-            .background(Color.primary.opacity(0.05))
-            .cornerRadius(8)
+            EditingModeControlsLegacy(
+                project: project,
+                showSoftSubtitles: showSoftSubtitles,
+                editingMode: editingMode,
+                isEditingText: isEditingText,
+                showSoftSubtitlesTip: $showSoftSubtitlesTip,
+                showSelectionTip: $showSelectionTip,
+                showCreationTip: $showCreationTip,
+                softSubtitlesHoverTask: $softSubtitlesHoverTask,
+                selectionHoverTask: $selectionHoverTask,
+                creationHoverTask: $creationHoverTask
+            )
         }
     }
 }

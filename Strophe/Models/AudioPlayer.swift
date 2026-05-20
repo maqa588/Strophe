@@ -98,7 +98,7 @@ final class AudioPlayer {
     }
     
     func seek(to time: Double) {
-        playerNode.stop() // Clear all enqueued buffers (thread-safe, call outside lock to prevent callback deadlocks)
+        playerNode.stop()
         
         lock.lock()
         baseTime = time
@@ -108,6 +108,14 @@ final class AudioPlayer {
         lock.unlock()
         
         if isEngineRunning {
+            if !audioEngine.isRunning {
+                do {
+                    try audioEngine.start()
+                } catch {
+                    print("❌ AudioPlayer: Failed to restart audioEngine in seek: \(error)")
+                    return
+                }
+            }
             playerNode.play()
         }
     }

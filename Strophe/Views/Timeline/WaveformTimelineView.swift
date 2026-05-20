@@ -151,9 +151,9 @@ struct WaveformTimelineView: View {
         .onChange(of: project.videoURL) { _, _ in
             scrollPageStartTime = 0
         }
-        .onChange(of: project.waveformData == nil) { _, isNil in
-            if !isNil, let data = project.waveformData {
-                let newMinPPS = viewWidth / max(1, data.duration)
+        .onChange(of: project.waveformData?.duration) { _, duration in
+            if let duration = duration {
+                let newMinPPS = availableWidth / max(1, duration)
                 pixelsPerSecond = newMinPPS
                 renderedPPS = newMinPPS
                 scrollPageStartTime = 0

@@ -34,6 +34,7 @@ import UIKit
     private var rateBeforeScrub: Double = 0.0
     
     private var videoFrameQueue: [VideoFrame] = []
+    private var lastSeekTime: CFTimeInterval = 0
     private var diagTimer: Timer? = nil
     
     private var displayLink: CADisplayLink? = nil
@@ -58,7 +59,6 @@ import UIKit
                     guard let self = self else { return }
                     
                     if self.cachedRate == 0 {
-                        // If paused, render this frame immediately to avoid black screen and delay during seeking
                         self.metalRenderer.update(with: sendableBuffer.buffer)
                         self.videoFrameQueue.removeAll()
                         Task {
@@ -240,6 +240,9 @@ import UIKit
         rateBeforeScrub = 0.0
         
         print("🔍 Seek triggered: frameQueue.count before clear = \(videoFrameQueue.count)")
+        if let lastFrame = videoFrameQueue.last {
+            metalRenderer.update(with: lastFrame.pixelBuffer)
+        }
         videoFrameQueue.removeAll()
         await core.clearFrameQueueCount()
         await core.setIsPlaying(false)
@@ -254,6 +257,7 @@ import UIKit
         // Reset the system clock baseline AFTER seek completes
         cachedStartSystemTime = CACurrentMediaTime()
         cachedStartPlaybackTime = actualPTS
+        lastSeekTime = cachedStartSystemTime
         
         // Notify core of new reference points
         await core.setStartSystemTime(cachedStartSystemTime)
@@ -280,6 +284,9 @@ import UIKit
         rate = 0.0
         
         print("🔍 SeekVideoFrameOnly triggered: frameQueue.count before clear = \(videoFrameQueue.count)")
+        if let lastFrame = videoFrameQueue.last {
+            metalRenderer.update(with: lastFrame.pixelBuffer)
+        }
         videoFrameQueue.removeAll()
         await core.clearFrameQueueCount()
         
@@ -292,6 +299,7 @@ import UIKit
         // Instantly align master playback time so timeline ruler updates dynamically while dragging
         cachedStartPlaybackTime = actualTime
         cachedStartSystemTime = CACurrentMediaTime()
+        lastSeekTime = cachedStartSystemTime
     }
     
     func stop() {
@@ -338,15 +346,11 @@ import UIKit
     private func updateDisplayLinkPreferredFrameRate() {
         #if os(iOS)
         guard let dl = displayLink else { return }
-        let fps = cachedFPS > 0 ? cachedFPS : 30.0
-        
         if #available(iOS 15.0, *) {
-            let range = CAFrameRateRange(minimum: Float(fps * 0.9),
-                                         maximum: Float(fps * 1.1),
-                                         preferred: Float(fps))
+            let range = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 0)
             dl.preferredFrameRateRange = range
         } else {
-            dl.preferredFramesPerSecond = Int(fps)
+            dl.preferredFramesPerSecond = 60
         }
         #endif
     }
@@ -368,7 +372,11 @@ import UIKit
             let nextFrame = videoFrameQueue.first!
             let delta = nextFrame.pts - currentClock
             
-            if delta < -0.1 {
+            let seekRecoveryWindow: CFTimeInterval = 1.0
+            let isSeekRecovery = (CACurrentMediaTime() - lastSeekTime) < seekRecoveryWindow
+            let dropThreshold = isSeekRecovery ? -0.5 : -0.1
+            
+            if delta < dropThreshold {
                 // Video is more than 100ms behind audio, drop it to catch up
                 videoFrameQueue.removeFirst()
                 consumed += 1

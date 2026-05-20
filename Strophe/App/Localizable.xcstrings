@@ -1,1761 +1,2026 @@
 {
-  "sourceLanguage": "en",
-  "strings": {
-    "→": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "→"
+  "sourceLanguage" : "en",
+  "strings" : {
+    " — Edited" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — 已编辑"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "→"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "→"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "→"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "→"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "→"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — 已編輯"
           }
         }
       }
     },
-    "Advanced SubStation Alpha (.ass)": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Advanced SubStation Alpha (.ass)"
+    "\"%@\" could not be opened.\nPlease replace the media file below." : {
+
+    },
+    "→" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "→"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Advanced SubStation Alpha (.ass)"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "→"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Advanced SubStation Alpha (.ass)"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "→"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Advanced SubStation Alpha (.ass)"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "→"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Advanced SubStation Alpha (.ass)"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "→"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "→"
           }
         }
       }
     },
-    "Audio Stream (Coming Soon)": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "مجرى الصوت (قريباً)"
+    "Advanced SubStation Alpha (.ass)" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Advanced SubStation Alpha (.ass)"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "オーディオストリーム（近日公開）"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Advanced SubStation Alpha (.ass)"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "오디오 스트림 (준비 중)"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Advanced SubStation Alpha (.ass)"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "音频流 (即将推出)"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Advanced SubStation Alpha (.ass)"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "音訊流 (即將推出)"
-          }
-        }
-      }
-    },
-    "Cancel": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "إلغاء"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "キャンセル"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "취소"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "取消"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "取消"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Advanced SubStation Alpha (.ass)"
           }
         }
       }
     },
-    "Drop a video or audio file here, or click to import": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "قم بإسقاط ملف فيديو أو صوت هنا، أو انقر للاستيراد"
+    "Audio Stream (Coming Soon)" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مجرى الصوت (قريباً)"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ここにビデオまたはオーディオファイルをドロップするか、クリックしてインポートします"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オーディオストリーム（近日公開）"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "여기에 비디오 또는 오디오 파일을 드롭하거나 클릭하여 가져옵니다"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "오디오 스트림 (준비 중)"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "拖入视频或音频文件，或点击导入"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音频流 (即将推出)"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "拖放影片或音訊檔案至此，或點擊以匯入"
-          }
-        }
-      }
-    },
-    "Export": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "تصدير"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "書き出し"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "내보내기"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "导出"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "匯出"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音訊流 (即將推出)"
           }
         }
       }
     },
-    "Export SRT": {
-      "extractionState": "stale",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "تصدير SRT"
+    "Cancel" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إلغاء"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "SRT書き出し"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キャンセル"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "SRT 내보내기"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "취소"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "导出 SRT"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "匯出 SRT"
-          }
-        }
-      }
-    },
-    "Hard Subtitles (Coming Soon)": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ترجمة مدمجة (قريباً)"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ハード字幕（近日公開）"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "하드 자막 (준비 중)"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "硬字幕 (即将推出)"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "硬字幕 (即將推出)"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消"
           }
         }
       }
     },
-    "Import %lld Segments": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "استيراد %lld مقاطع"
+    "Drop a video or audio file here, or click to import" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "قم بإسقاط ملف فيديو أو صوت هنا، أو انقر للاستيراد"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld セグメントをインポート"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ここにビデオまたはオーディオファイルをドロップするか、クリックしてインポートします"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 세그먼트 가져오기"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "여기에 비디오 또는 오디오 파일을 드롭하거나 클릭하여 가져옵니다"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "导入 %lld 个片段"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖入视频或音频文件，或点击导入"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "匯入 %lld 個區段"
-          }
-        }
-      }
-    },
-    "Import File…": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "استيراد ملف…"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Import File…"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ファイルをインポート…"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "파일 가져오기…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "导入文件…"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "匯入檔案…"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖放影片或音訊檔案至此，或點擊以匯入"
           }
         }
       }
     },
-    "Import Media…": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "استيراد وسائط…"
+    "Export" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تصدير"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "メディアをインポート…"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き出し"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "미디어 가져오기…"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "내보내기"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "导入媒体…"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "匯入媒體…"
-          }
-        }
-      }
-    },
-    "Import Script": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "استيراد النص"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "スクリプトをインポート"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "스크립트 가져오기"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "导入文稿"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "匯入文稿"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯出"
           }
         }
       }
     },
-    "Import Script…": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "استيراد النص…"
+    "Export SRT" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تصدير SRT"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "スクリプトをインポート…"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SRT書き出し"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "스크립트 가져오기…"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SRT 내보내기"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "导入文稿…"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出 SRT"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "匯入文稿…"
-          }
-        }
-      }
-    },
-    "Lyrics (.lrc)": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "كلمات الأغاني (.lrc)"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "歌詞ファイル (.lrc)"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "가사 파일 (.lrc)"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "歌词文件 (.lrc)"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "歌詞檔案 (.lrc)"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯出 SRT"
           }
         }
       }
     },
-    "No Media": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "لا توجد وسائط"
+    "Hard Subtitles (Coming Soon)" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ترجمة مدمجة (قريباً)"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "メディアなし"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ハード字幕（近日公開）"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "미디어 없음"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "하드 자막 (준비 중)"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未加载媒体"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "硬字幕 (即将推出)"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未載入媒體"
-          }
-        }
-      }
-    },
-    "No Media Loaded": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "لم يتم تحميل وسائط"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "メディアが読み込まれていません"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "미디어가 로드되지 않았습니다"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未加载媒体"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未載入媒體"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "硬字幕 (即將推出)"
           }
         }
       }
     },
-    "No Script": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "لا يوجد نص"
+    "Import %lld Segments" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "استيراد %lld مقاطع"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "スクリプトなし"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld セグメントをインポート"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "스크립트 없음"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 세그먼트 가져오기"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未加载文稿"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入 %lld 个片段"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未載入文稿"
-          }
-        }
-      }
-    },
-    "Paste Script Text": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "لصق نص السيناريو"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Paste Script Text"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "スクリプトテキストを貼り付け"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "스크립트 텍스트 붙여넣기"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "粘贴文稿文本"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "貼上文稿文字"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入 %lld 個區段"
           }
         }
       }
     },
-    "Paste your script below. Each line becomes one subtitle segment.": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ألصق النص أدناه. كل سطر يصبح مقطع ترجمة واحد."
+    "Import File…" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "استيراد ملف…"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "以下にスクリプトを貼り付けてください。各行が1つの字幕セグメントになります。"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import File…"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "아래에 스크립트를 붙여넣으세요. 각 줄이 하나의 자막 세그먼트가 됩니다."
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルをインポート…"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在下方粘贴您的文稿。每一行将生成一段字幕。"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "파일 가져오기…"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在下方貼上您的文稿。每一行將生成一段字幕。"
-          }
-        }
-      }
-    },
-    "Paste your script to start marking timestamps.": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ألصق النص للبدء في وضع الطوابع الزمنية."
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入文件…"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "スクリプトを貼り付けてタイムスタンプの作成を開始します。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "스크립트를 붙여넣어 타임스탬프 표시를 시작하세요."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "粘贴您的文稿以开始标记时间轴。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "貼上您的文稿以開始標記時間軸。"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入檔案…"
           }
         }
       }
     },
-    "Save": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "حفظ"
+    "Import Media…" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "استيراد وسائط…"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "保存"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メディアをインポート…"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "저장"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "미디어 가져오기…"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "保存"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入媒体…"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "儲存"
-          }
-        }
-      }
-    },
-    "Soft Subtitles": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ترجمة نصية (ناعمة)"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ソフト字幕"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "소프트 자막"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "软字幕"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "軟字幕"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入媒體…"
           }
         }
       }
     },
-    "Strophe": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Strophe"
+    "Import Script" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "استيراد النص"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Strophe 活字"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプトをインポート"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Strophe"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크립트 가져오기"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Strophe 活字"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入文稿"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Strophe 活字"
-          }
-        }
-      }
-    },
-    "SubRip (.srt)": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "SubRip (.srt)"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "SubRip (.srt)"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "SubRip (.srt)"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "SubRip (.srt)"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "SubRip (.srt)"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入文稿"
           }
         }
       }
     },
-    "Video Stream (Coming Soon)": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "مجرى الفيديو (قريباً)"
+    "Import Script…" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "استيراد النص…"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ビデオストリーム（近日公開）"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプトをインポート…"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "비디오 스트림 (준비 중)"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크립트 가져오기…"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "视频流 (即将推出)"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入文稿…"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "影片流 (即將推出)"
-          }
-        }
-      }
-    },
-    "删除字幕": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "حذف الترجمة"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete Subtitle"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "字幕を削除"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "자막 삭제"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "删除字幕"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "刪除字幕"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入文稿…"
           }
         }
       }
     },
-    "取消": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "إلغاء"
+    "J 键打轴" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "توقيت بمفتاح J"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cancel"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slap J Key"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "キャンセル"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jキー打鍵"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "취소"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "J 키 비트"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "取消"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "J 键打轴"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "取消"
-          }
-        }
-      }
-    },
-    "待录入字幕": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ترجمة مسودة"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Draft Subtitle"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新規字幕"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "새 자막"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "待录入字幕"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "待輸入字幕"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "J 鍵打軸"
           }
         }
       }
     },
-    "快速创建与拍打工具": {
-      "comment": "Creation Tool Tip Title",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "أداة الإنشاء السريع والضرب"
+    "K 键打轴" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "توقيت بمفتاح K"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quick Creation & Slap Tool"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slap K Key"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "クイック作成・ビートツール"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kキー打鍵"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "빠른 생성 및 비트 도구"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "K 키 비트"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "快速创建与拍打工具"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "K 键打轴"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "快速建立與拍打工具"
-          }
-        }
-      }
-    },
-    "快速创建与拍打工具提示信息": {
-      "comment": "Creation Tool Tip Message Description",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· اسحب على المخطط الزمني لإنشاء مقاطع الترجمة\n· انقر نقرًا مزدوجًا لإنشاء كتلة مدتها ثانيتان\n· اضغط على مفاتيح J/K في الوقت الفعلي أثناء التشغيل"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· Drag timeline to create subtitle segments\n· Double-click empty area to create a 2s block\n· Slap J/K keys in real-time during playback"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· タイムラインをドラッグして字幕をすばやく作成\n· 空白部分をダブルクリックして2秒の字幕を作成\n· J/Kキーを押して再生中にリアルタイムで拍打打軸"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· 타임라인을 드래그하여 자막 세그먼트 빠른 생성\n· 빈 영역을 더블 클릭하여 2초 자막 블록 생성\n· 재생 중 J/K 키를 눌러 실시간 비트 타이밍"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· 在时间轴拖选区快速创建字幕\n· 双击时间轴空白新建 2 秒字幕块\n· 按住 J/K 键配合视频播放实时拍打定位"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· 在時間軸拖曳選區快速建立字幕\n· 按兩下時間軸空白處新建 2 秒字幕區塊\n· 按住 J/K 鍵配合影片播放即時拍打定位"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "K 鍵打軸"
           }
         }
       }
     },
-    "您的设备对 %@ 格式兼容性欠佳，在播放过程中可能会遇到一些性能问题。\n\n建议尽量使用 MP4、MOV、M4V、MP3、FLAC、M4A、AAC、ALAC 等推荐的视频、音频格式以获得最流畅的体验。": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "جهازك لا يتوافق بشكل جيد مع صيغة %@، قد تواجه بعض مشكلات الأداء أثناء التشغيل.\n\nيُوصى باستخدام التنسيقات الموصى بها مثل MP4 و MOV و M4V و MP3 و FLAC و M4A و AAC و ALAC للحصول على تجربة أسلس."
+    "Lyrics (.lrc)" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "كلمات الأغاني (.lrc)"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your device has poor compatibility with the %@ format, which may lead to some performance issues during playback.\n\nIt is recommended to use standard formats like MP4, MOV, M4V, MP3, FLAC, M4A, AAC, ALAC for a smoother experience."
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "歌詞ファイル (.lrc)"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "お使いのデバイスは %@ 形式との互換性が低いため、再生中にパフォーマンスの問題が発生する可能性があります。\n\nよりスムーズな再生のために、MP4、MOV、M4V、MP3、FLAC、M4A、AAC、ALAC などの推奨形式を使用することをお勧めします。"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "가사 파일 (.lrc)"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이 기기는 %@ 포맷과의 호환성이 낮아 재생 중 성능 저하가 발생할 수 있습니다.\n\n원활한 재생을 위해 MP4, MOV, M4V, MP3, FLAC, M4A, AAC, ALAC 등 권장 비디오/오디오 포맷을 사용하는 것을 권장합니다."
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "歌词文件 (.lrc)"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "您的设备对 %@ 格式兼容性欠佳，在播放过程中可能会遇到一些性能问题。\n\n建议尽量使用 MP4、MOV、M4V、MP3、FLAC、M4A、AAC、ALAC 等推荐的视频、音频格式以获得最流畅的体验。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "您的裝置對 %@ 格式相容性欠佳，在播放過程中可能會遇到一些效能問題。\n\n建議儘量使用 MP4、MOV、M4V、MP3、FLAC、M4A、AAC、ALAC 等推薦的影片、音訊格式以獲得最流暢的體驗。"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "歌詞檔案 (.lrc)"
           }
         }
       }
     },
-    "我知道了": {
-      "comment": "Tip Action Button Title",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "فهمت"
+    "Media Not Found" : {
+
+    },
+    "No Media" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لا توجد وسائط"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Got It"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メディアなし"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "了解"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "미디어 없음"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "확인"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未加载媒体"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "我知道了"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "我知道了"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未載入媒體"
           }
         }
       }
     },
-    "放弃导入": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "إلغاء الاستيراد"
+    "No Media Loaded" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لم يتم تحميل وسائط"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cancel Import"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メディアが読み込まれていません"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "インポートを中止"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "미디어가 로드되지 않았습니다"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "가져오기 취소"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未加载媒体"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "放弃导入"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "放棄匯入"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未載入媒體"
           }
         }
       }
     },
-    "文稿": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "النص"
+    "No Script" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لا يوجد نص"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Script"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプトなし"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "スクリプト"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크립트 없음"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "스크립트"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未加载文稿"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "文稿"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "文稿"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未載入文稿"
           }
         }
       }
     },
-    "格式兼容性提示": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "تنبيه توافق الصيغة"
+    "Open" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "فتح"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Format Compatibility Notice"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "形式互換性のヒント"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開く"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "포맷 호환성 안내"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "열기"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "格式兼容性提示"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "格式相容性提示"
-          }
-        }
-      }
-    },
-    "确定": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "موافق"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "OK"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "OK"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "확인"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "确定"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "確定"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟"
           }
         }
       }
     },
-    "编辑内容": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "تحرير المحتوى"
+    "Open Strophe Project..." : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "فتح مشروع Strophe..."
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Edit Content"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Strophe Project..."
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "内容を編集"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stropheプロジェクトを開く..."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "내용 편집"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strophe 프로젝트 열기..."
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "编辑内容"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 Strophe 工程..."
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "編輯內容"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開 Strophe 工程..."
           }
         }
       }
     },
-    "编辑字幕内容": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "تحرير محتوى الترجمة"
+    "Paste Script Text" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لصق نص السيناريو"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Edit Subtitle Content"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste Script Text"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "字幕内容を編集"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプトテキストを貼り付け"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "자막 내용 편집"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크립트 텍스트 붙여넣기"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "编辑字幕内容"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "粘贴文稿文本"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "編輯字幕內容"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "貼上文稿文字"
           }
         }
       }
     },
-    "软字幕预览": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "معاينة الترجمة البرمجية"
+    "Paste your script below. Each line becomes one subtitle segment." : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ألصق النص أدناه. كل سطر يصبح مقطع ترجمة واحد."
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Soft Subtitle Preview"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以下にスクリプトを貼り付けてください。各行が1つの字幕セグメントになります。"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ソフト字幕プレビュー"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아래에 스크립트를 붙여넣으세요. 각 줄이 하나의 자막 세그먼트가 됩니다."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "소프트 자막 미리보기"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在下方粘贴您的文稿。每一行将生成一段字幕。"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "软字幕预览"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "軟字幕預覽"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在下方貼上您的文稿。每一行將生成一段字幕。"
           }
         }
       }
     },
-    "软字幕预览提示信息": {
-      "comment": "Soft Subtitle Preview Tooltip Message",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· انقر لتبديل معاينة الترجمة البرمجية في الوقت الفعلي في المشغل"
+    "Paste your script to start marking timestamps." : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ألصق النص للبدء في وضع الطوابع الزمنية."
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· Click to toggle real-time soft subtitle preview in player"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプトを貼り付けてタイムスタンプの作成を開始します。"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· クリックしてプレイヤーでのリアルタイムなソフト字幕プレビューを切り替えます"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크립트를 붙여넣어 타임스탬프 표시를 시작하세요."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· 플레이어에서 실시간 소프트 자막 미리보기를 켜거나 끄려면 클릭하세요"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "粘贴您的文稿以开始标记时间轴。"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· 点击开启/关闭视频软字幕实时预览"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· 點擊以啟用/停用影片軟字幕即時預覽"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "貼上您的文稿以開始標記時間軸。"
           }
         }
       }
     },
-    "输入新字幕文本": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "أدخل نص الترجمة الجديد"
+    "Replace Media…" : {
+
+    },
+    "Save" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حفظ"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enter new subtitle text"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新しい字幕テキストを入力"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "새 자막 텍스트 입력"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "输入新字幕文本"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "輸入新字幕文字"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存"
           }
         }
       }
     },
-    "选择工具": {
-      "comment": "Selection Tool Tip Title",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "أداة الاختيار"
+    "Save As..." : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حفظ باسم..."
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Selection Tool"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save As..."
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "選択ツール"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前を付けて保存..."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "선택 도구"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다른 이름으로 저장..."
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "选择工具"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另存为..."
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "選取工具"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另存為..."
           }
         }
       }
     },
-    "选择工具提示信息": {
-      "comment": "Selection Tool Tip Message Description",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· تتيح تعديل نص السيناريو\n· تمكن من سحب مؤشر التشغيل للمخطط الزمني\n· اختيار الترجمة وتحريرها بشكل طبيعي"
+    "Soft Subtitles" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ترجمة نصية (ناعمة)"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· Edit script text\n· Drag timeline playhead\n· Select and edit subtitles normally"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ソフト字幕"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· 左側のスクリプトテキストを編集可能\n· タイムラインの再生ヘッドをドラッグ可能\n· 通常の字幕選択と編集"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "소프트 자막"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· 왼쪽 스크립트 수정 가능\n· 타임라인 재생 헤드 드래그 가능\n· 일반적인 자막 선택 및 편집"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "软字幕"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· 可以修改左侧文稿文字\n· 可以拖动时间轴标尺\n· 正常选择和编辑字幕"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "· 可以修改左側文稿文字\n· 可以拖曳時間軸尺規\n· 正常選取與編輯字幕"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "軟字幕"
           }
         }
       }
     },
-    "暂不支持该多媒体文件后缀格式": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "صيغة امتداد ملف الوسائط غير مدعومة"
+    "Strophe" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strophe"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unsupported media file extension"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strophe 活字"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "サポートされていないメディアファイルの拡張子です"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strophe"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "지원되지 않는 미디어 파일 확장자입니다"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strophe 活字"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暂不支持该多媒体文件后缀格式"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暫不支持該多媒體文件後綴格式"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strophe 活字"
           }
         }
       }
     },
-    "J 键打轴": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "توقيت بمفتاح J"
+    "Strophe Project (.strophe)" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مشروع Strophe (.strophe)"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Slap J Key"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strophe Project (.strophe)"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jキー打鍵"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strophe プロジェクト (.strophe)"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "J 키 비트"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strophe 프로젝트 (.strophe)"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "J 键打轴"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strophe 工程 (.strophe)"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "J 鍵打軸"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strophe 工程 (.strophe)"
           }
         }
       }
     },
-    "K 键打轴": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "توقيت بمفتاح K"
+    "SubRip (.srt)" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SubRip (.srt)"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Slap K Key"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SubRip (.srt)"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kキー打鍵"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SubRip (.srt)"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "K 키 비트"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SubRip (.srt)"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "K 键打轴"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "K 鍵打軸"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SubRip (.srt)"
           }
         }
       }
     },
-    "按住开始 / 松开结束": {
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "اضغط للبدء / افلت للإنهاء"
+    "Video Stream (Coming Soon)" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مجرى الفيديو (قريباً)"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hold: Start / Release: End"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ビデオストリーム（近日公開）"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "長押しで開始 / 離して終了"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "비디오 스트림 (준비 중)"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "누르고 있으면 시작 / 떼면 종료"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "视频流 (即将推出)"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "按住开始 / 松开结束"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "影片流 (即將推出)"
+          }
+        }
+      }
+    },
+    "删除字幕" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حذف الترجمة"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "按住開始 / 鬆開結束"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Subtitle"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "字幕を削除"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자막 삭제"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除字幕"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除字幕"
+          }
+        }
+      }
+    },
+    "取消" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إلغاء"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キャンセル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "취소"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消"
+          }
+        }
+      }
+    },
+    "当前工程未保存的更改将丢失。" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "سيتم فقدان التغييرات غير المحفوظة في المشروع الحالي."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unsaved changes in the current project will be lost."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のプロジェクトの保存されていない変更が失われます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 프로젝트의 저장되지 않은 변경 사항이 손실됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前工程未保存的更改将丢失。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "當前工程未儲存的更改將遺失。"
+          }
+        }
+      }
+    },
+    "待录入字幕" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ترجمة مسودة"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draft Subtitle"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新規字幕"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 자막"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待录入字幕"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待輸入字幕"
+          }
+        }
+      }
+    },
+    "快速创建与拍打工具" : {
+      "comment" : "Creation Tool Tip Title",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "أداة الإنشاء السريع والضرب"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quick Creation & Slap Tool"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイック作成・ビートツール"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "빠른 생성 및 비트 도구"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快速创建与拍打工具"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快速建立與拍打工具"
+          }
+        }
+      }
+    },
+    "快速创建与拍打工具提示信息" : {
+      "comment" : "Creation Tool Tip Message Description",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· اسحب على المخطط الزمني لإنشاء مقاطع الترجمة\n· انقر نقرًا مزدوجًا لإنشاء كتلة مدتها ثانيتان\n· اضغط على مفاتيح J/K في الوقت الفعلي أثناء التشغيل"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· Drag timeline to create subtitle segments\n· Double-click empty area to create a 2s block\n· Slap J/K keys in real-time during playback"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· タイムラインをドラッグして字幕をすばやく作成\n· 空白部分をダブルクリックして2秒の字幕を作成\n· J/Kキーを押して再生中にリアルタイムで拍打打軸"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· 타임라인을 드래그하여 자막 세그먼트 빠른 생성\n· 빈 영역을 더블 클릭하여 2초 자막 블록 생성\n· 재생 중 J/K 키를 눌러 실시간 비트 타이밍"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· 在时间轴拖选区快速创建字幕\n· 双击时间轴空白新建 2 秒字幕块\n· 按住 J/K 键配合视频播放实时拍打定位"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· 在時間軸拖曳選區快速建立字幕\n· 按兩下時間軸空白處新建 2 秒字幕區塊\n· 按住 J/K 鍵配合影片播放即時拍打定位"
+          }
+        }
+      }
+    },
+    "您的设备对 %@ 格式兼容性欠佳，在播放过程中可能会遇到一些性能问题。\n\n建议尽量使用 MP4、MOV、M4V、MP3、FLAC、M4A、AAC、ALAC 等推荐的视频、音频格式以获得最流畅的体验。" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "جهازك لا يتوافق بشكل جيد مع صيغة %@، قد تواجه بعض مشكلات الأداء أثناء التشغيل.\n\nيُوصى باستخدام التنسيقات الموصى بها مثل MP4 و MOV و M4V و MP3 و FLAC و M4A و AAC و ALAC للحصول على تجربة أسلس."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your device has poor compatibility with the %@ format, which may lead to some performance issues during playback.\n\nIt is recommended to use standard formats like MP4, MOV, M4V, MP3, FLAC, M4A, AAC, ALAC for a smoother experience."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "お使いのデバイスは %@ 形式との互換性が低いため、再生中にパフォーマンスの問題が発生する可能性があります。\n\nよりスムーズな再生のために、MP4、MOV、M4V、MP3、FLAC、M4A、AAC、ALAC などの推奨形式を使用することをお勧めします。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 기기는 %@ 포맷과의 호환성이 낮아 재생 중 성능 저하가 발생할 수 있습니다.\n\n원활한 재생을 위해 MP4, MOV, M4V, MP3, FLAC, M4A, AAC, ALAC 등 권장 비디오/오디오 포맷을 사용하는 것을 권장합니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "您的设备对 %@ 格式兼容性欠佳，在播放过程中可能会遇到一些性能问题。\n\n建议尽量使用 MP4、MOV、M4V、MP3、FLAC、M4A、AAC、ALAC 等推荐的视频、音频格式以获得最流畅的体验。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "您的裝置對 %@ 格式相容性欠佳，在播放過程中可能會遇到一些效能問題。\n\n建議儘量使用 MP4、MOV、M4V、MP3、FLAC、M4A、AAC、ALAC 等推薦的影片、音訊格式以獲得最流暢的體驗。"
+          }
+        }
+      }
+    },
+    "我知道了" : {
+      "comment" : "Tip Action Button Title",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "فهمت"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Got It"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "了解"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "확인"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我知道了"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我知道了"
+          }
+        }
+      }
+    },
+    "按住开始 / 松开结束" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "اضغط للبدء / افلت للإنهاء"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hold: Start / Release: End"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "長押しで開始 / 離して終了"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "누르고 있으면 시작 / 떼면 종료"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按住开始 / 松开结束"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按住開始 / 鬆開結束"
+          }
+        }
+      }
+    },
+    "放弃导入" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إلغاء الاستيراد"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel Import"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インポートを中止"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "가져오기 취소"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放弃导入"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放棄匯入"
+          }
+        }
+      }
+    },
+    "文稿" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "النص"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Script"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크립트"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文稿"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文稿"
+          }
+        }
+      }
+    },
+    "是否打开新工程？" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "فتح مشروع جديد؟"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open a new project?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいプロジェクトを開きますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 프로젝트를 엽니까?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "是否打开新工程？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "是否開啟新工程？"
+          }
+        }
+      }
+    },
+    "暂不支持该多媒体文件后缀格式" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "صيغة امتداد ملف الوسائط غير مدعومة"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unsupported media file extension"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サポートされていないメディアファイルの拡張子です"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지원되지 않는 미디어 파일 확장자입니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂不支持该多媒体文件后缀格式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫不支持該多媒體文件後綴格式"
+          }
+        }
+      }
+    },
+    "格式兼容性提示" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تنبيه توافق الصيغة"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format Compatibility Notice"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "形式互換性のヒント"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "포맷 호환성 안내"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "格式兼容性提示"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "格式相容性提示"
+          }
+        }
+      }
+    },
+    "确定" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "موافق"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "확인"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确定"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確定"
+          }
+        }
+      }
+    },
+    "编辑内容" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تحرير المحتوى"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Content"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内容を編集"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "내용 편집"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑内容"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編輯內容"
+          }
+        }
+      }
+    },
+    "编辑字幕内容" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تحرير محتوى الترجمة"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Subtitle Content"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "字幕内容を編集"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자막 내용 편집"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑字幕内容"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編輯字幕內容"
+          }
+        }
+      }
+    },
+    "软字幕预览" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "معاينة الترجمة البرمجية"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soft Subtitle Preview"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ソフト字幕プレビュー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "소프트 자막 미리보기"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "软字幕预览"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "軟字幕預覽"
+          }
+        }
+      }
+    },
+    "软字幕预览提示信息" : {
+      "comment" : "Soft Subtitle Preview Tooltip Message",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· انقر لتبديل معاينة الترجمة البرمجية في الوقت الفعلي في المشغل"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· Click to toggle real-time soft subtitle preview in player"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· クリックしてプレイヤーでのリアルタイムなソフト字幕プレビューを切り替えます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· 플레이어에서 실시간 소프트 자막 미리보기를 켜거나 끄려면 클릭하세요"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· 点击开启/关闭视频软字幕实时预览"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· 點擊以啟用/停用影片軟字幕即時預覽"
+          }
+        }
+      }
+    },
+    "输入新字幕文本" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "أدخل نص الترجمة الجديد"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter new subtitle text"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しい字幕テキストを入力"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 자막 텍스트 입력"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入新字幕文本"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸入新字幕文字"
+          }
+        }
+      }
+    },
+    "选择工具" : {
+      "comment" : "Selection Tool Tip Title",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "أداة الاختيار"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selection Tool"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択ツール"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택 도구"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择工具"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選取工具"
+          }
+        }
+      }
+    },
+    "选择工具提示信息" : {
+      "comment" : "Selection Tool Tip Message Description",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· تتيح تعديل نص السيناريو\n· تمكن من سحب مؤشر التشغيل للمخطط الزمني\n· اختيار الترجمة وتحريرها بشكل طبيعي"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· Edit script text\n· Drag timeline playhead\n· Select and edit subtitles normally"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· 左側のスクリプトテキストを編集可能\n· タイムラインの再生ヘッドをドラッグ可能\n· 通常の字幕選択と編集"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· 왼쪽 스크립트 수정 가능\n· 타임라인 재생 헤드 드래그 가능\n· 일반적인 자막 선택 및 편집"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· 可以修改左侧文稿文字\n· 可以拖动时间轴标尺\n· 正常选择和编辑字幕"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· 可以修改左側文稿文字\n· 可以拖曳時間軸尺規\n· 正常選取與編輯字幕"
           }
         }
       }
     }
   },
-  "version": "1.0"
+  "version" : "1.0"
 }

@@ -1,21 +1,23 @@
 //
 //  ContentView.swift
-//  SwiftSub
-//
-//  Created by maqa on 2026/5/16.
+//  Strophe
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ContentView: View {
-    @StateObject private var project = SubtitleProject()
+    @ObservedObject var project: SubtitleProject
     @Environment(\.horizontalSizeClass) var sizeClass
     @State private var navigationPath = NavigationPath()
+    @State private var isShowingSaveStrophe = false
+    @State private var saveStropheDefaultName = "project"
+    @State private var isShowingOpenProject = false
+    @State private var isShowingImportMedia = false
 
     var body: some View {
         Group {
             if sizeClass == .compact {
-                // iPhone/手机端: 极简主界面导航流，主界面直接为 [播放器+时间轴]
                 NavigationStack(path: $navigationPath) {
                     MainContentView(project: project, isCompact: true, path: $navigationPath)
                         .navigationDestination(for: String.self) { value in
@@ -26,30 +28,54 @@ struct ContentView: View {
                 }
                 .onAppear {
                     setupKeyboardMonitor()
+                    setupMenuNotifications()
                 }
             } else {
-                // iPad/Mac端: 经典左右分栏工作台
                 NavigationSplitView {
-                    // MARK: - Right Sidebar: Script List
                     ScriptListView(project: project, isCompact: false, path: .constant(NavigationPath()))
                         .navigationSplitViewColumnWidth(min: 280, ideal: 320, max: 400)
                 } detail: {
-                    // MARK: - Main Content: Video + Timeline
                     MainContentView(project: project, isCompact: false, path: .constant(NavigationPath()))
                 }
                 .onAppear {
                     setupKeyboardMonitor()
+                    setupMenuNotifications()
                 }
             }
         }
         .tint(Color.stropheAccent)
+        .fileImporter(
+            isPresented: $isShowingImportMedia,
+            allowedContentTypes: [.movie, .video, .quickTimeMovie, .mpeg4Movie, .audio, .mp3, .item, UTType(filenameExtension: "strophe") ?? .json],
+            allowsMultipleSelection: false
+        ) { result in
+            handleImportMedia(result)
+        }
+        .fileImporter(
+            isPresented: $isShowingOpenProject,
+            allowedContentTypes: [UTType(filenameExtension: "strophe") ?? .json],
+            allowsMultipleSelection: false
+        ) { result in
+            handleOpenProject(result)
+        }
+        .fileExporter(
+            isPresented: $isShowingSaveStrophe,
+            document: project.stropheDocument,
+            contentType: UTType(filenameExtension: "strophe") ?? .json,
+            defaultFilename: saveStropheDefaultName
+        ) { result in
+            if case .success(let url) = result {
+                Task {
+                    try? await project.saveStrophe(to: url)
+                    project.startAutoSave()
+                }
+            }
+        }
     }
 
-    // MARK: - Keyboard Monitor
     private func setupKeyboardMonitor() {
         #if os(macOS)
         NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { event in
-            // 💡 如果用户正在文字输入框/编辑界面中输入（isEditingText 为 true），直接透传，不做任何快捷键拦截！
             if project.isEditingText {
                 return event
             }
@@ -57,7 +83,6 @@ struct ContentView: View {
             let isKeyDown = event.type == .keyDown
             let isKeyUp = event.type == .keyUp
             
-            // J/K 键拍打打轴引擎（仅在 Creation 模式下且非编辑状态生效）
             if let chars = event.charactersIgnoringModifiers?.lowercased(), chars == "j" || chars == "k" {
                 if project.editingMode == .creation {
                     if isKeyDown {
@@ -65,17 +90,16 @@ struct ContentView: View {
                     } else if isKeyUp {
                         project.handleSlapKeyUp(key: chars)
                     }
-                    return nil // 拦截并消费事件，避免系统提示音或其它干扰
+                    return nil
                 }
             }
             
-            // 其它传统的键盘事件（仅在按下按键时触发）
             if isKeyDown {
                 switch event.charactersIgnoringModifiers {
                 case " ":
                     project.togglePlayback()
                     return nil
-                case "\u{7F}", "\u{08}": // Backspace / Delete 按键
+                case "\u{7F}", "\u{08}":
                     if !project.selectedIDs.isEmpty {
                         for id in project.selectedIDs {
                             project.deleteSubtitle(id: id)
@@ -93,9 +117,87 @@ struct ContentView: View {
         }
         #endif
     }
+    
+    private func setupMenuNotifications() {
+        NotificationCenter.default.addObserver(
+            forName: .stropheImportMedia,
+            object: nil,
+            queue: .main
+        ) { _ in
+            isShowingImportMedia = true
+        }
+        NotificationCenter.default.addObserver(
+            forName: .stropheOpenProject,
+            object: nil,
+            queue: .main
+        ) { _ in
+            isShowingOpenProject = true
+        }
+        NotificationCenter.default.addObserver(
+            forName: .stropheSaveProject,
+            object: nil,
+            queue: .main
+        ) { [weak project] _ in
+            Task { @MainActor [weak project] in
+                guard let project = project else { return }
+                let existingURL = project.projectURL
+                if let url = existingURL {
+                    try? await project.saveStrophe(to: url)
+                } else {
+                    let baseName = project.documentDisplayName
+                    saveStropheDefaultName = baseName.isEmpty ? "project" : baseName
+                    isShowingSaveStrophe = true
+                }
+            }
+        }
+        NotificationCenter.default.addObserver(
+            forName: .stropheSaveProjectAs,
+            object: nil,
+            queue: .main
+        ) { [weak project] _ in
+            Task { @MainActor [weak project] in
+                guard let project = project else { return }
+                let baseName = project.documentDisplayName
+                saveStropheDefaultName = baseName.isEmpty ? "project" : baseName
+                isShowingSaveStrophe = true
+            }
+        }
+    }
+    
+    private func handleImportMedia(_ result: Result<[URL], Error>) {
+        DispatchQueue.main.async {
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                if url.pathExtension.lowercased() == "strophe" {
+                    Task {
+                        try? await project.loadStrophe(from: url)
+                        project.startAutoSave()
+                    }
+                    return
+                }
+                project.pause()
+                TempCleanupHelper.cleanupTempDirectory()
+                project.resetForNewMedia()
+                project.prepareMediaAccess(for: url)
+                project.videoURL = url
+            case .failure(let error):
+                print("Import failed: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    private func handleOpenProject(_ result: Result<[URL], Error>) {
+        DispatchQueue.main.async {
+            guard case .success(let urls) = result, let url = urls.first else { return }
+            Task {
+                try? await project.loadStrophe(from: url)
+                project.startAutoSave()
+            }
+        }
+    }
 }
 
-// MARK: - Notifications
 extension Notification.Name {
     static let togglePlayback = Notification.Name("com.swiftsub.togglePlayback")
     static let requestCurrentTime = Notification.Name("com.swiftsub.requestCurrentTime")
@@ -104,5 +206,5 @@ extension Notification.Name {
 }
 
 #Preview {
-    ContentView()
+    ContentView(project: SubtitleProject())
 }

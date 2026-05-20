@@ -3,6 +3,8 @@ import AVFoundation
 
 @main
 struct StropheApp: App {
+    @StateObject private var project = SubtitleProject()
+    
     init() {
         #if os(iOS)
         do {
@@ -13,15 +15,13 @@ struct StropheApp: App {
         }
         #endif
         
-        // Clean up any files left over from previous runs (e.g. crashes or forced quits)
-        TempCleanupHelper.cleanupTempDirectory()
-        // Register to clean up files when gracefully exiting (including Command+Q)
+        TempCleanupHelper.performStartupCleanupIfNeeded()
         TempCleanupHelper.registerForTerminationCleanup()
     }
     
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(project: project)
         }
         #if os(macOS)
         .windowStyle(.titleBar)
@@ -29,9 +29,38 @@ struct StropheApp: App {
         .defaultSize(width: 1200, height: 750)
         .commands {
             CommandGroup(replacing: .newItem) {
-                // Custom file menu commands can go here
+                Button(String(localized: "Open")) {
+                    NotificationCenter.default.post(name: .stropheImportMedia, object: nil)
+                }
+                .keyboardShortcut("o", modifiers: .command)
+                
+                Button(String(localized: "Open Strophe Project...")) {
+                    NotificationCenter.default.post(name: .stropheOpenProject, object: nil)
+                }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
+            }
+            
+            CommandGroup(after: .newItem) {
+                Button(String(localized: "Save")) {
+                    NotificationCenter.default.post(name: .stropheSaveProject, object: nil)
+                }
+                .keyboardShortcut("s", modifiers: .command)
+                .disabled(project.videoURL == nil && project.items.isEmpty)
+                
+                Button(String(localized: "Save As...")) {
+                    NotificationCenter.default.post(name: .stropheSaveProjectAs, object: nil)
+                }
+                .keyboardShortcut("s", modifiers: [.command, .shift])
+                .disabled(project.videoURL == nil && project.items.isEmpty)
             }
         }
         #endif
     }
+}
+
+extension Notification.Name {
+    static let stropheOpenProject = Notification.Name("com.strophe.openProject")
+    static let stropheImportMedia = Notification.Name("com.strophe.importMedia")
+    static let stropheSaveProject = Notification.Name("com.strophe.saveProject")
+    static let stropheSaveProjectAs = Notification.Name("com.strophe.saveProjectAs")
 }

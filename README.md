@@ -1,33 +1,101 @@
-# Strophe 🌊
+# Strophe 活字
 
-**Strophe** 是一款专为 macOS 打造的高性能、专业级字幕制作工具。它结合了现代化的 **Liquid Glass** 设计美学与工业级的音频处理技术，旨在为创作者提供极致丝滑的打点与剪辑体验。
+[简体中文](README_zh-hans.md)
 
-## ✨ 核心特性
+**Strophe** is a high-performance, professional-grade subtitle authoring tool built natively for Apple platforms. It combines modern **Liquid Glass** design aesthetics with industrial-grade audio/video processing technology, delivering an ultra-smooth subtitling experience for creators.
 
-- **高性能波形引擎**：基于 `Accelerate` 框架与 `vDSP` 技术，实现 Peak（瞬态）与 RMS（能量包络）的双层实时渲染。
-- **ProMotion 全帧率同步**：采用插值算法与 `TimelineView` 驱动，支持 120Hz 刷新率，确保时间轴滚动丝滑顺畅。
-- **Logic Pro 级交互**：
-  - **智能缩放**：支持 `Option + 滚轮` 快速缩放，标尺刻度自动调整精度。
-  - **专业播放头**：可拖拽的磁吸式播放头，支持实时 Scrubbing。
-  - **自动随动**：播放时画面自动居中，确保创作焦点不丢失。
-- **现代 macOS 体验**：全原生 SwiftUI 开发，完美适配 macOS 材质与深色模式，支持文件拖拽导入。
+<img src="Strophe.icon/Assets/ChatGPT%20Image%202026年5月20日%2020_42_12.png" alt="Strophe Logo" width="300">
 
-## 🚀 快速开始
+## ✨ Core Features
 
-1. **导入媒体**：将视频或音频文件拖入应用窗口。
-2. **波形操作**：
-   - `Option + 滚轮`：缩放时间轴。
-   - `点击波形`：快速跳转进度。
-   - `拖拽播放头`：精细预览音频细节。
-3. **字幕编辑**：基于精准的波形能量图，快速定位话音起止点，进行高效打点。
+### Video Playback
 
-## 🛠️ 技术架构
+- **FFmpeg-Powered Engine**: Full support for formats not natively supported by AVFoundation, including MKV, WebM, FLV, AVI, and more
+- **VideoToolbox Hardware Acceleration**: Zero-copy GPU decoding for H.264/H.265 with minimal CPU usage
+- **Metal Rendering**: High-performance GPU-based BT.709 color conversion for accurate video display
+- **Cross-Platform**: Native support for both macOS and iOS
 
-- **语言**：Swift 6 (Strict Concurrency)
-- **框架**：SwiftUI, AVFoundation
-- **数学引擎**：Accelerate (vDSP)
-- **渲染方案**：Canvas + GPU DrawingGroup Cache
+### Waveform & Timeline
 
-## 📄 开源协议
+- **High-Performance Waveform Engine**: Real-time dual-layer rendering of Peak (transient) and RMS (energy envelope) using `Accelerate` framework and `vDSP`
+- **ProMotion Full Frame Rate**: Interpolation algorithms and `TimelineView`-driven rendering supporting 120Hz displays
+- **Logic Pro-Style Interactions**:
+  - **Smart Zoom**: `Option + Scroll` for rapid zooming with automatic ruler precision adjustment
+  - **Professional Playhead**: Draggable magnetic playhead with real-time scrubbing
+  - **Auto-Follow**: Automatic centering during playback to maintain creative focus
 
-本项目采用 [Functional Source License](LICENSE) 协议开源。
+### Subtitle Editing
+
+- **J/K Slapping Mode**: Professional rhythm-based subtitle timing using J and K keys
+- **Selection & Creation Tools**: Switch between selection mode and creation mode for efficient workflow
+- **Frame-Accurate Timing**: Automatic frame snapping based on video frame rate
+- **Overlap Detection**: Visual indicators for overlapping subtitle blocks
+- **Soft Subtitle Preview**: Real-time preview of embedded subtitles
+
+### Project Management
+
+- **.strophe Project Format**: Save and restore complete project state including media references
+- **Auto-Save**: Automatic project saving every 30 seconds
+- **Export**: Generate SRT subtitle files from your projects
+
+### Modern Design
+
+- **Liquid Glass UI** (macOS 26+ / iOS 26+): Beautiful translucent materials with vibrant depth effects
+- **Legacy Support**: Clean fallback styling for older macOS/iOS versions
+- **Dark Mode**: Full support for system appearance preferences
+- **Keyboard Shortcuts**: Comprehensive keyboard shortcuts for power users
+
+## 🚀 Quick Start
+
+1. **Import Media**: Drag and drop a video or audio file into the application window
+2. **Timeline Navigation**:
+   - `Option + Scroll`: Zoom timeline in/out
+   - `Click waveform`: Jump to position
+   - `Drag playhead`: Fine-grained audio preview
+3. **Subtitle Editing**:
+   - Use **Selection Tool** (V) to select and move subtitle blocks
+   - Use **Creation Tool** (D) to create new subtitle blocks
+   - Press **J/K** keys for rhythm-based timing (slapping mode)
+4. **Export**: Save your project or export to SRT format
+
+## ⌨️ Keyboard Shortcuts
+
+| Action                | Shortcut |
+| --------------------- | -------- |
+| Play/Pause            | Space    |
+| Selection Tool        | V        |
+| Creation Tool         | D        |
+| Soft Subtitle Preview | ⌥S       |
+| Skip Forward 5s       | ⌘→       |
+| Skip Backward 5s      | ⌘←       |
+| Save Project          | ⌘S       |
+| Save Project As       | ⇧⌘S      |
+
+## 🛠️ Technical Architecture
+
+- **Language**: Swift 6 (Strict Concurrency)
+- **Frameworks**: SwiftUI, AVFoundation, Metal, Accelerate
+- **Video Engine**: FFmpeg (via Libav\*) with VideoToolbox integration
+- **Audio Engine**: AVAudioEngine with real-time resampling
+- **Rendering**: Metal + Canvas with GPU DrawingGroup Cache
+- **Math Engine**: Accelerate (vDSP) for waveform processing
+
+## 📋 Supported Formats
+
+### Video Containers
+
+- MP4, MOV, M4V (via AVFoundation)
+- MKV, WebM, FLV, AVI, RMVB (via FFmpeg)
+
+### Audio Formats
+
+- AAC, MP3, WAV, FLAC, Opus, and more
+
+### Subtitle Formats
+
+- Import: Plain text, SRT
+- Export: SRT
+
+## 📄 License
+
+This project is open-sourced under the [Functional Source License](LICENSE).

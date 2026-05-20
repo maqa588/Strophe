@@ -1,8 +1,6 @@
 //
 //  MainContentView.swift
-//  SwiftSub
-//
-//  Created by maqa on 2026/5/18.
+//  Strophe
 //
 
 import SwiftUI
@@ -17,31 +15,45 @@ struct MainContentView: View {
     @State private var exportText = ""
     @State private var exportFormat: SubtitleFormat = .srt
     @State private var isShowingImportMedia = false
+    @State private var isShowingConfirmNewProject = false
     
     var isCompact: Bool = false
     var path: Binding<NavigationPath> = .constant(NavigationPath())
 
+    private var stropheUTType: UTType {
+        UTType(filenameExtension: "strophe") ?? .json
+    }
+    
+    private var navigationSubtitle: String {
+        var title = ""
+        if let docName = project.projectURL?.deletingPathExtension().lastPathComponent, !docName.isEmpty {
+            title = docName
+        } else if let videoName = project.videoURL?.deletingPathExtension().lastPathComponent, !videoName.isEmpty {
+            title = videoName
+        }
+        if project.isDirty {
+            title += " — Edited"
+        }
+        return title
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            // Video fills all remaining space
             VideoPlayerView(project: project, onImportMedia: { isShowingImportMedia = true })
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            // Timeline self-sizing at bottom
             WaveformTimelineView(project: project)
                 .frame(maxWidth: .infinity)
         }
         .background(Color.stropheSecondaryBackground)
         .navigationTitle("Strophe")
         #if os(macOS)
-        .navigationSubtitle(project.videoURL?.lastPathComponent ?? "")
+        .navigationSubtitle(navigationSubtitle)
         #endif
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
-        // MARK: - Native Toolbar
         .toolbar {
-            // Left: folder button and Document button (on iPhone)
             ToolbarItem(placement: .navigation) {
                 HStack(spacing: 16) {
                     if isCompact {
@@ -50,14 +62,22 @@ struct MainContentView: View {
                         }
                     }
                     
-                    Button(action: { isShowingOpenProject = true }) {
+                    Button(action: {
+                        if project.videoURL != nil || !project.items.isEmpty {
+                            if project.isDirty, project.projectURL != nil {
+                                Task { await project.performAutoSave() }
+                            }
+                            isShowingConfirmNewProject = true
+                        } else {
+                            isShowingImportMedia = true
+                        }
+                    }) {
                         Image(systemName: "folder")
                     }
                 }
             }
 
             #if os(iOS)
-            // iPadOS: centred filename / app name via .principal
             ToolbarItem(placement: .principal) {
                 Text(project.videoURL?.lastPathComponent ?? "Strophe")
                     .font(.subheadline.weight(.medium))
@@ -67,9 +87,10 @@ struct MainContentView: View {
             }
             #endif
 
-            // Right: Save / Export
             ToolbarItemGroup(placement: .primaryAction) {
-                Button(action: { isShowingSaveProject = true }) {
+                Button(action: {
+                    NotificationCenter.default.post(name: .stropheSaveProject, object: nil)
+                }) {
                     Label("Save", systemImage: "square.and.arrow.down")
                 }
                 
@@ -86,20 +107,17 @@ struct MainContentView: View {
                         }
                     }
                     
-                    Button("Hard Subtitles (Coming Soon)") {
-                        // Placeholder
-                    }
-                    .disabled(true)
+                    Divider()
                     
-                    Button("Video Stream (Coming Soon)") {
-                        // Placeholder
+                    Button("Strophe Project (.strophe)") {
+                        NotificationCenter.default.post(name: .stropheSaveProjectAs, object: nil)
                     }
-                    .disabled(true)
                     
-                    Button("Audio Stream (Coming Soon)") {
-                        // Placeholder
-                    }
-                    .disabled(true)
+                    Divider()
+                    
+                    Button("Hard Subtitles (Coming Soon)") {}.disabled(true)
+                    Button("Video Stream (Coming Soon)") {}.disabled(true)
+                    Button("Audio Stream (Coming Soon)") {}.disabled(true)
                 } label: {
                     Label("Export", systemImage: "square.and.arrow.up")
                 }
@@ -108,50 +126,75 @@ struct MainContentView: View {
         }
         .fileImporter(
             isPresented: $isShowingOpenProject,
-            allowedContentTypes: [UTType(filenameExtension: "subsub")!],
+            allowedContentTypes: [stropheUTType],
             allowsMultipleSelection: false
         ) { result in
-            DispatchQueue.main.async {
-                if case .success(let urls) = result, let url = urls.first {
-                    try? project.load(from: url)
-                }
-            }
+            handleOpenProject(result)
         }
         .fileImporter(
             isPresented: $isShowingImportMedia,
-            allowedContentTypes: [.movie, .video, .quickTimeMovie, .mpeg4Movie, .audio, .mp3, .item],
+            allowedContentTypes: [.movie, .video, .quickTimeMovie, .mpeg4Movie, .audio, .mp3, .item, stropheUTType],
             allowsMultipleSelection: false
         ) { result in
-            DispatchQueue.main.async {
-                switch result {
-                case .success(let urls):
-                    if let url = urls.first {
-                        if url.startAccessingSecurityScopedResource() {
-                            project.videoURL = url
-                        } else {
-                            project.videoURL = url
-                        }
-                    }
-                case .failure(let error):
-                    print("Import failed: \(error.localizedDescription)")
-                }
-            }
+            handleImportMedia(result)
         }
         .fileExporter(
             isPresented: $isShowingSaveProject,
             document: project.document,
             contentType: UTType(filenameExtension: "subsub")!,
             defaultFilename: "project.subsub"
-        ) { result in
-            // Handle save result
-        }
+        ) { _ in }
         .fileExporter(
             isPresented: $isShowingExport,
             document: SubtitleExportDocument(textString: exportText),
             contentType: UTType.fromFormat(exportFormat),
             defaultFilename: "subtitles.\(exportFormat.fileExtension)"
-        ) { result in
-            // Handle export result
+        ) { _ in }
+        .confirmationDialog(
+            String(localized: "是否打开新工程？"),
+            isPresented: $isShowingConfirmNewProject,
+            titleVisibility: .visible
+        ) {
+            Button(String(localized: "Open")) {
+                isShowingImportMedia = true
+            }
+            Button(String(localized: "取消"), role: .cancel) {}
+        } message: {
+            Text(String(localized: "当前工程未保存的更改将丢失。"))
+        }
+        .onAppear {}
+    }
+    
+    private func handleOpenProject(_ result: Result<[URL], Error>) {
+        DispatchQueue.main.async {
+            guard case .success(let urls) = result, let url = urls.first else { return }
+            Task {
+                try? await project.loadStrophe(from: url)
+                project.startAutoSave()
+            }
+        }
+    }
+    
+    private func handleImportMedia(_ result: Result<[URL], Error>) {
+        DispatchQueue.main.async {
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                if url.pathExtension.lowercased() == "strophe" {
+                    Task {
+                        try? await project.loadStrophe(from: url)
+                        project.startAutoSave()
+                    }
+                    return
+                }
+                project.pause()
+                TempCleanupHelper.cleanupTempDirectory()
+                project.resetForNewMedia()
+                project.prepareMediaAccess(for: url)
+                project.videoURL = url
+            case .failure(let error):
+                print("Import failed: \(error.localizedDescription)")
+            }
         }
     }
     

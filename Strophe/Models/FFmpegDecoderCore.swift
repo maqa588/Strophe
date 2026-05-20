@@ -306,6 +306,41 @@ actor FFmpegDecoderCore {
         swr_init(swr)
     }
     
+    func rebuildVideoCodecContext() {
+        guard let ctx = formatContext, videoStreamIndex >= 0 else { return }
+        guard videoCodecContext != nil else { return }
+        
+        let stream = ctx.pointee.streams[Int(videoStreamIndex)]!
+        let codecpar = stream.pointee.codecpar!
+        
+        guard let decoder = avcodec_find_decoder(codecpar.pointee.codec_id) else {
+            print("❌ rebuildVideoCodecContext: decoder not found")
+            return
+        }
+        
+        avcodec_free_context(&videoCodecContext)
+        
+        let newCtx = avcodec_alloc_context3(decoder)
+        self.videoCodecContext = newCtx
+        av_opt_set_int(newCtx, "threads", 0, 0)
+        avcodec_parameters_to_context(newCtx, codecpar)
+        
+        if let config = avcodec_get_hw_config(decoder, 0),
+           config.pointee.methods & Int32(AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX) != 0 {
+            var hwDeviceCtx: UnsafeMutablePointer<AVBufferRef>? = nil
+            if av_hwdevice_ctx_create(&hwDeviceCtx, AV_HWDEVICE_TYPE_VIDEOTOOLBOX, nil, nil, 0) >= 0 {
+                newCtx!.pointee.hw_device_ctx = av_buffer_ref(hwDeviceCtx)
+                av_buffer_unref(&hwDeviceCtx)
+            }
+        }
+        
+        if avcodec_open2(newCtx, decoder, nil) < 0 {
+            print("❌ rebuildVideoCodecContext: avcodec_open2 failed")
+        } else {
+            print("✅ rebuildVideoCodecContext: VT pipeline rebuilt")
+        }
+    }
+    
     func closeFFmpeg() {
         if let sws = swsContext {
             sws_freeContext(sws)
@@ -397,14 +432,16 @@ actor FFmpegDecoderCore {
     func decodeNextPacket(frame: UnsafeMutablePointer<AVFrame>, packet: UnsafeMutablePointer<AVPacket>, skipVideo: Bool = false) async {
         guard let ctx = formatContext, let vCtx = videoCodecContext else { return }
         
-        // Try to receive any pending video frames first to drain the decoder's internal buffer
         if !skipVideo {
             while avcodec_receive_frame(vCtx, frame) >= 0 {
                 if self.videoFrameQueueCount >= 8 {
                     return
                 }
                 
-                if let pb = convertFrameToPixelBuffer(frame) {
+                let pb = autoreleasepool { () -> CVPixelBuffer? in
+                    return convertFrameToPixelBuffer(frame)
+                }
+                if let pb = pb {
                     let timeBase = ctx.pointee.streams[Int(videoStreamIndex)]!.pointee.time_base
                     let pts = Double(frame.pointee.best_effort_timestamp) * Double(timeBase.num) / Double(timeBase.den)
                     
@@ -417,20 +454,15 @@ actor FFmpegDecoderCore {
                 }
             }
         } else {
-            // Drain pending video frames without converting — keeps decoder state clean
             while avcodec_receive_frame(vCtx, frame) >= 0 {
                 av_frame_unref(frame)
             }
         }
         
-        // Read the next packet from the demuxer
         av_packet_unref(packet)
         let readStatus = av_read_frame(ctx, packet)
         if readStatus >= 0 {
             if packet.pointee.stream_index == videoStreamIndex {
-                // ALWAYS send video packets to the decoder to maintain H264/HEVC
-                // reference frame state. Without this, seeking back causes -12909
-                // VideoToolbox errors because the decoder is missing reference frames.
                 let sendStatus = avcodec_send_packet(vCtx, packet)
                 if sendStatus >= 0 && !skipVideo {
                     while avcodec_receive_frame(vCtx, frame) >= 0 {
@@ -438,7 +470,10 @@ actor FFmpegDecoderCore {
                             return
                         }
                         
-                        if let pb = convertFrameToPixelBuffer(frame) {
+                        let pb = autoreleasepool { () -> CVPixelBuffer? in
+                            return convertFrameToPixelBuffer(frame)
+                        }
+                        if let pb = pb {
                             let timeBase = ctx.pointee.streams[Int(videoStreamIndex)]!.pointee.time_base
                             let pts = Double(frame.pointee.best_effort_timestamp) * Double(timeBase.num) / Double(timeBase.den)
                             
@@ -451,7 +486,6 @@ actor FFmpegDecoderCore {
                         }
                     }
                 } else if sendStatus >= 0 && skipVideo {
-                    // Drain decoded frames to prevent decoder buffer buildup, but don't convert
                     while avcodec_receive_frame(vCtx, frame) >= 0 {
                         av_frame_unref(frame)
                     }
@@ -465,7 +499,6 @@ actor FFmpegDecoderCore {
                 }
             }
         } else {
-            // Demux ended or failed, sleep slightly
             try? await Task.sleep(nanoseconds: 30_000_000)
         }
     }
@@ -488,18 +521,38 @@ actor FFmpegDecoderCore {
         var count = 0
         var hasFallback = false
         var fallbackPTS: Double = seconds
+        let preheatPacketCount = 4
         
-        while count < 300 {
+        // Phase 1: VT preheat — send packets without receiving to prime the pipeline
+        while count < preheatPacketCount {
+            if seekId != self.activeSeekId { break }
+            await Task.yield()
+            if seekId != self.activeSeekId { break }
+            
+            av_packet_unref(packet)
+            if av_read_frame(ctx, packet) < 0 { break }
+            
+            guard packet.pointee.stream_index == videoStreamIndex else {
+                count += 1
+                continue
+            }
+            
+            guard avcodec_send_packet(vCtx, packet) >= 0 else {
+                count += 1
+                continue
+            }
+            count += 1
+        }
+        
+        // Phase 2: send + receive until target frame found (max 60 packets total)
+        while count < 60 {
             if seekId != self.activeSeekId {
                 print("⏭️ Aborting obsolete seek (target: \(seconds), new target ID: \(self.activeSeekId))")
                 break
             }
             
-            // Yield the actor context so a new seekSession call can execute and update self.activeSeekId!
             await Task.yield()
-            if seekId != self.activeSeekId {
-                break
-            }
+            if seekId != self.activeSeekId { break }
             
             av_packet_unref(packet)
             if av_read_frame(ctx, packet) < 0 { break }
@@ -518,7 +571,6 @@ actor FFmpegDecoderCore {
             while avcodec_receive_frame(vCtx, frame) >= 0 {
                 let pts = Double(frame.pointee.best_effort_timestamp) * Double(timeBase.num) / Double(timeBase.den)
                 
-                // Once we reach or pass the exact target timestamp, render this frame and exit
                 if pts >= seconds - 0.001 {
                     if seekId == self.activeSeekId {
                         if let pb = convertFrameToPixelBuffer(frame) {
@@ -536,7 +588,6 @@ actor FFmpegDecoderCore {
                     break
                 }
                 
-                // Otherwise, store this frame reference as the latest fallback (in case we reach EOF before target)
                 av_frame_unref(fallbackFrame)
                 av_frame_ref(fallbackFrame, frame)
                 fallbackPTS = pts
@@ -617,11 +668,9 @@ actor FFmpegDecoderCore {
         let width  = Int(frame.pointee.width)
         let height = Int(frame.pointee.height)
 
-        // VideoToolbox hardware accelerated decoding path
         if frame.pointee.format == AV_PIX_FMT_VIDEOTOOLBOX.rawValue {
             if let pb = frame.pointee.data.3 {
-                let cvpb = Unmanaged<CVPixelBuffer>.fromOpaque(pb).takeUnretainedValue()
-                return cvpb
+                return Unmanaged<CVPixelBuffer>.fromOpaque(pb).takeUnretainedValue()
             }
         }
 
