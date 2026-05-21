@@ -98,4 +98,4 @@
 
 ## 📄 License
 
-This project is open-sourced under the [Functional Source License](LICENSE).
+This project is source available under the [Functional Source License](LICENSE).

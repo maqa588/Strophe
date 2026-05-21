@@ -8,23 +8,30 @@ import UniformTypeIdentifiers
 
 struct MainContentView: View {
     @ObservedObject var project: SubtitleProject
+    @Environment(\.horizontalSizeClass) var sizeClass
 
-    @State private var isShowingOpenProject = false
-    @State private var isShowingSaveProject = false
+    @State private var isShowingImportMedia = false
     @State private var isShowingExport = false
     @State private var exportText = ""
     @State private var exportFormat: SubtitleFormat = .srt
-    @State private var isShowingImportMedia = false
-    @State private var isShowingConfirmNewProject = false
     
     var isCompact: Bool = false
     var path: Binding<NavigationPath> = .constant(NavigationPath())
+    @Binding var selectedTab: StropheTab
+
+    init(project: SubtitleProject, selectedTab: Binding<StropheTab>, isCompact: Bool = false, path: Binding<NavigationPath> = .constant(NavigationPath())) {
+        self.project = project
+        self._selectedTab = selectedTab
+        self.isCompact = isCompact
+        self.path = path
+    }
 
     private var stropheUTType: UTType {
         UTType(filenameExtension: "strophe") ?? .json
     }
     
     private var navigationSubtitle: String {
+        guard !project.documentDisplayName.isEmpty else { return "" }
         var title = ""
         if let docName = project.projectURL?.deletingPathExtension().lastPathComponent, !docName.isEmpty {
             title = docName
@@ -32,54 +39,67 @@ struct MainContentView: View {
             title = videoName
         }
         if project.isDirty {
-            title += " — Edited"
+            title += String(localized: " — Edited")
         }
         return title
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            VideoPlayerView(project: project, onImportMedia: { isShowingImportMedia = true })
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            VideoPlayerView(project: project, onImportMedia: {
+                isShowingImportMedia = true
+            })
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             WaveformTimelineView(project: project)
                 .frame(maxWidth: .infinity)
         }
         .background(Color.stropheSecondaryBackground)
-        .navigationTitle("Strophe")
         #if os(macOS)
+        .navigationTitle(String(localized: "Strophe"))
         .navigationSubtitle(navigationSubtitle)
+        #else
+        .navigationTitle(project.documentDisplayName.isEmpty ? String(localized: "Strophe") : project.documentDisplayName)
         #endif
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .toolbar {
-            ToolbarItem(placement: .navigation) {
-                HStack(spacing: 16) {
-                    if isCompact {
-                        Button(action: { path.wrappedValue.append("script") }) {
-                            Image(systemName: "doc.text")
-                        }
-                    }
-                    
+            // 💡 核心修复 3：左侧按钮组自适应，iPhone 下并排渲染“返回”与“文件夹”
+            ToolbarItemGroup(placement: .navigation) {
+                #if os(iOS)
+                if sizeClass == .compact {
+                    // 📱 iPhone 窄屏：[返回] 与 [文件夹] 纯图标并列呈现
                     Button(action: {
-                        if project.videoURL != nil || !project.items.isEmpty {
-                            if project.isDirty, project.projectURL != nil {
-                                Task { await project.performAutoSave() }
-                            }
-                            isShowingConfirmNewProject = true
-                        } else {
-                            isShowingImportMedia = true
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            selectedTab = .scriptList
                         }
                     }) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    
+                    Button(action: { isShowingImportMedia = true }) {
+                        Image(systemName: "folder")
+                    }
+                } else {
+                    // 📱 iPad 宽屏：文件夹
+                    Button(action: { isShowingImportMedia = true }) {
                         Image(systemName: "folder")
                     }
                 }
+                #else
+                // 💻 macOS 平台：文件夹
+                Button(action: { isShowingImportMedia = true }) {
+                    Image(systemName: "folder")
+                }
+                .help(String(localized: "导入媒体文件"))
+                #endif
             }
 
             #if os(iOS)
             ToolbarItem(placement: .principal) {
-                Text(project.videoURL?.lastPathComponent ?? "Strophe")
+                Text(project.documentDisplayName.isEmpty ? String(localized: "Strophe") : project.documentDisplayName)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(project.videoURL != nil ? .primary : .secondary)
                     .lineLimit(1)
@@ -87,12 +107,15 @@ struct MainContentView: View {
             }
             #endif
 
+            // 💡 2. 顶栏右侧按钮：纯图标保存与分享
             ToolbarItemGroup(placement: .primaryAction) {
                 Button(action: {
                     NotificationCenter.default.post(name: .stropheSaveProject, object: nil)
                 }) {
-                    Label("Save", systemImage: "square.and.arrow.down")
+                    Image(systemName: "arrow.down.to.line")
                 }
+                .help(String(localized: "保存当前文稿"))
+                
                 
                 Menu {
                     Menu("Soft Subtitles") {
@@ -119,83 +142,33 @@ struct MainContentView: View {
                     Button("Video Stream (Coming Soon)") {}.disabled(true)
                     Button("Audio Stream (Coming Soon)") {}.disabled(true)
                 } label: {
-                    Label("Export", systemImage: "square.and.arrow.up")
+                    Image(systemName: "square.and.arrow.up")
                 }
-                .buttonStyle(.borderedProminent)
+                .help(String(localized: "分享与导出项目"))
             }
         }
         .fileImporter(
-            isPresented: $isShowingOpenProject,
-            allowedContentTypes: [stropheUTType],
-            allowsMultipleSelection: false
-        ) { result in
-            handleOpenProject(result)
-        }
-        .fileImporter(
             isPresented: $isShowingImportMedia,
-            allowedContentTypes: [.movie, .video, .quickTimeMovie, .mpeg4Movie, .audio, .mp3, .item, stropheUTType],
+            allowedContentTypes: UTType.allMediaTypes + [.stropheProject],
             allowsMultipleSelection: false
         ) { result in
-            handleImportMedia(result)
+            if case .success(let urls) = result, let url = urls.first {
+                if url.pathExtension.lowercased() == "strophe" {
+                    NotificationCenter.default.post(name: .stropheOpenProjectWithURL, object: url)
+                } else {
+                    project.importMedia(from: url)
+                }
+            }
         }
-        .fileExporter(
-            isPresented: $isShowingSaveProject,
-            document: project.document,
-            contentType: UTType(filenameExtension: "subsub")!,
-            defaultFilename: "project.subsub"
-        ) { _ in }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheImportMedia)) { _ in
+            isShowingImportMedia = true
+        }
         .fileExporter(
             isPresented: $isShowingExport,
             document: SubtitleExportDocument(textString: exportText),
             contentType: UTType.fromFormat(exportFormat),
             defaultFilename: "subtitles.\(exportFormat.fileExtension)"
         ) { _ in }
-        .confirmationDialog(
-            String(localized: "是否打开新工程？"),
-            isPresented: $isShowingConfirmNewProject,
-            titleVisibility: .visible
-        ) {
-            Button(String(localized: "Open")) {
-                isShowingImportMedia = true
-            }
-            Button(String(localized: "取消"), role: .cancel) {}
-        } message: {
-            Text(String(localized: "当前工程未保存的更改将丢失。"))
-        }
-        .onAppear {}
-    }
-    
-    private func handleOpenProject(_ result: Result<[URL], Error>) {
-        DispatchQueue.main.async {
-            guard case .success(let urls) = result, let url = urls.first else { return }
-            Task {
-                try? await project.loadStrophe(from: url)
-                project.startAutoSave()
-            }
-        }
-    }
-    
-    private func handleImportMedia(_ result: Result<[URL], Error>) {
-        DispatchQueue.main.async {
-            switch result {
-            case .success(let urls):
-                guard let url = urls.first else { return }
-                if url.pathExtension.lowercased() == "strophe" {
-                    Task {
-                        try? await project.loadStrophe(from: url)
-                        project.startAutoSave()
-                    }
-                    return
-                }
-                project.pause()
-                TempCleanupHelper.cleanupTempDirectory()
-                project.resetForNewMedia()
-                project.prepareMediaAccess(for: url)
-                project.videoURL = url
-            case .failure(let error):
-                print("Import failed: \(error.localizedDescription)")
-            }
-        }
     }
     
     private func exportSubtitles(format: SubtitleFormat) {

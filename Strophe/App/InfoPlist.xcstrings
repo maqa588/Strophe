@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "ASS Subtitle" : {
+
+    },
     "CFBundleDisplayName" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -82,6 +85,15 @@
           }
         }
       }
+    },
+    "LRC Lyrics" : {
+
+    },
+    "SRT Subtitle" : {
+
+    },
+    "Strophe Project" : {
+
     }
   },
   "version" : "1.0"

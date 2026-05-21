@@ -9,6 +9,23 @@ import Foundation
 import CoreGraphics
 
 extension SubtitleProject {
+    func importMedia(from url: URL) {
+        pause()
+        TempCleanupHelper.cleanupTempDirectory()
+        if items.isEmpty {
+            resetForNewMedia()
+            prepareMediaAccess(for: url)
+            videoURL = url
+        } else {
+            replaceMedia(with: url)
+        }
+    }
+    
+    func importStropheProject(from url: URL) async throws {
+        try await loadStrophe(from: url)
+        startAutoSave()
+    }
+
     func save(to url: URL) throws {
         let data = SubtitleProjectData(items: items, videoURL: videoURL)
         let encoder = JSONEncoder()

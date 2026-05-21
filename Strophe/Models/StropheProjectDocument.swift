@@ -8,10 +8,7 @@ import UniformTypeIdentifiers
 
 struct StropheProjectDocument: FileDocument {
     static var readableContentTypes: [UTType] {
-        guard let type = UTType(filenameExtension: "strophe") else {
-            return [.json]
-        }
-        return [type]
+        [.stropheProject]
     }
     
     var data: StropheProjectData

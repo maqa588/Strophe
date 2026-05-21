@@ -1,9 +1,26 @@
 import SwiftUI
 import AVFoundation
 
+#if os(macOS)
+class AppDelegate: NSObject, NSApplicationDelegate {
+    weak var project: SubtitleProject?
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let project = project, project.isDirty else {
+            return .terminateNow
+        }
+        NotificationCenter.default.post(name: .stropheShowSaveOnQuitAlert, object: nil)
+        return .terminateLater
+    }
+}
+#endif
+
 @main
 struct StropheApp: App {
     @StateObject private var project = SubtitleProject()
+    #if os(macOS)
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    #endif
     
     init() {
         #if os(iOS)
@@ -22,10 +39,11 @@ struct StropheApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(project: project)
+                #if os(macOS)
+                .onAppear { appDelegate.project = project }
+                #endif
         }
         #if os(macOS)
-        .windowStyle(.titleBar)
-        .windowToolbarStyle(.unified(showsTitle: true))
         .defaultSize(width: 1200, height: 750)
         .commands {
             CommandGroup(replacing: .newItem) {
@@ -63,4 +81,8 @@ extension Notification.Name {
     static let stropheImportMedia = Notification.Name("com.strophe.importMedia")
     static let stropheSaveProject = Notification.Name("com.strophe.saveProject")
     static let stropheSaveProjectAs = Notification.Name("com.strophe.saveProjectAs")
+    static let strophePasteScript = Notification.Name("com.strophe.pasteScript")
+    static let stropheImportScriptFile = Notification.Name("com.strophe.importScriptFile")
+    static let stropheOpenProjectWithURL = Notification.Name("com.strophe.openProjectWithURL")
+    static let stropheShowSaveOnQuitAlert = Notification.Name("com.strophe.showSaveOnQuitAlert")
 }

@@ -98,4 +98,4 @@
 
 ## 📄 开源协议
 
-本项目采用 [Functional Source License](LICENSE) 协议开源。
+本项目采用 [Functional Source License](LICENSE) 协议，因此属于**有源软件**。

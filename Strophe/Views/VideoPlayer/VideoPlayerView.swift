@@ -126,7 +126,7 @@ struct VideoPlayerView: View {
             }
             return true
         }
-        .alert("格式兼容性提示", isPresented: $showingCompatibilityAlert, presenting: incompatibleFormatName) { format in
+        .alert(String(localized: "格式兼容性提示"), isPresented: $showingCompatibilityAlert, presenting: incompatibleFormatName) { format in
             Button("我知道了", role: .none) {
                 if let url = pendingCompatibilityURL {
                     // Approved incompatible format — proceed to load FFmpeg engine
@@ -218,7 +218,7 @@ struct VideoPlayerView: View {
         }
         .fileImporter(
             isPresented: $isShowingReplaceMedia,
-            allowedContentTypes: [.movie, .video, .quickTimeMovie, .mpeg4Movie, .audio, .mp3],
+            allowedContentTypes: UTType.allMediaTypes,
             allowsMultipleSelection: false
         ) { result in
             guard case .success(let urls) = result, let url = urls.first else { return }

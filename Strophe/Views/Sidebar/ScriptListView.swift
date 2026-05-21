@@ -13,6 +13,8 @@ struct ScriptListView: View {
     @State private var editingText = ""
     @State private var editingItem: SubtitleItem? = nil
     
+    /// Legacy compact-mode support (iOS 17 / macOS 14 fallback).
+    /// When using the modern TabView path these default values are used.
     var isCompact: Bool = false
     var path: Binding<NavigationPath> = .constant(NavigationPath())
 
@@ -25,39 +27,6 @@ struct ScriptListView: View {
             }
         }
         .opacity(project.editingMode == .creation ? 0.95 : 1.0)
-        .navigationTitle("文稿")
-        .navigationBarBackButtonHidden(isCompact)
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                HStack(spacing: 16) {
-                    Menu {
-                        Button {
-                            isShowingInput = true
-                        } label: {
-                            Label("Paste Script Text", systemImage: "doc.on.clipboard")
-                        }
-                        
-                        Button {
-                            isShowingFileImporter = true
-                        } label: {
-                            Label("Import File…", systemImage: "doc.badge.plus")
-                        }
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    
-                    if isCompact {
-                        Button(action: {
-                            if !path.wrappedValue.isEmpty {
-                                path.wrappedValue.removeLast()
-                            }
-                        }) {
-                            Image(systemName: "play.rectangle")
-                        }
-                    }
-                }
-            }
-        }
         .sheet(isPresented: $isShowingInput) {
             ScriptImportSheet(scriptText: $scriptText, isPresented: $isShowingInput) {
                 project.importScript(scriptText)
@@ -67,7 +36,7 @@ struct ScriptListView: View {
         .onChange(of: isShowingInput) { _, newValue in
             project.isEditingText = newValue
         }
-        .alert("编辑字幕内容", isPresented: $isEditingText) {
+        .alert(String(localized: "编辑字幕内容"), isPresented: $isEditingText) {
             TextField("输入新字幕文本", text: $editingText)
             Button("确定") {
                 if let item = editingItem {
@@ -111,6 +80,12 @@ struct ScriptListView: View {
         }
         .onChange(of: isShowingFileImporter) { _, newValue in
             project.isEditingText = newValue
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .strophePasteScript)) { _ in
+            isShowingInput = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheImportScriptFile)) { _ in
+            isShowingFileImporter = true
         }
     }
 
@@ -163,7 +138,7 @@ struct ScriptListView: View {
             }
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
-            .background(Color.stropheBackground)
+            .background(Color.clear)
             .onDeleteCommandIfSupported {
                 if !project.selectedIDs.isEmpty {
                     project.deleteSubtitles(ids: project.selectedIDs)

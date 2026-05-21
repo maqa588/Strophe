@@ -129,3 +129,46 @@ extension Color {
         dark: Color.white.opacity(0.12)
     )
 }
+
+// MARK: - Window Configuration Utilities
+#if os(macOS)
+struct WindowConfigurator: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            if let window = view.window {
+                window.titlebarAppearsTransparent = true
+                window.titleVisibility = .hidden
+                window.styleMask.insert(.fullSizeContentView)
+                window.backgroundColor = .clear
+            }
+        }
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+struct WindowDragHandler: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = DraggableNSView()
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+private class DraggableNSView: NSView {
+    override var mouseDownCanMoveWindow: Bool {
+        return true
+    }
+}
+#else
+struct WindowConfigurator: View {
+    var body: some View { EmptyView() }
+}
+struct WindowDragHandler: View {
+    var body: some View { EmptyView() }
+}
+#endif
+
