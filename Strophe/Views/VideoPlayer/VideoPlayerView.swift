@@ -4,7 +4,7 @@ import CoreImage
 import UniformTypeIdentifiers
 import AsyncAlgorithms
 
-struct VideoPlayerView: View {
+struct VideoPlayerView: View, Equatable {
     @ObservedObject var project: SubtitleProject
     @State private var timeObserverPlayer: AVPlayer?
     @State private var timeObserverToken: Any?
@@ -21,18 +21,9 @@ struct VideoPlayerView: View {
 
     var onImportMedia: () -> Void
 
-    private var currentSubtitle: SubtitleItem? {
-        if let activeID = project.activeSlapSubtitleID,
-           let activeItem = project.items.first(where: { $0.id == activeID }) {
-            return activeItem
-        }
-
-        return project.items.first { item in
-            if let start = item.startTime, let end = item.endTime {
-                return project.currentTime >= start && project.currentTime <= end
-            }
-            return false
-        }
+    static func == (lhs: VideoPlayerView, rhs: VideoPlayerView) -> Bool {
+        lhs.project === rhs.project &&
+        lhs.project.videoURL == rhs.project.videoURL
     }
 
     var body: some View {
@@ -52,23 +43,9 @@ struct VideoPlayerView: View {
                             .onTapGesture(count: 2) { project.togglePlayback() }
                     }
 
-                    // Subtitle overlay pinned to bottom of the video area
-                    if project.showSoftSubtitles, let currentSub = currentSubtitle {
-                        VStack {
-                            Spacer()
-                            Text(currentSub.text)
-                                .font(.system(size: 16, weight: .medium, design: .rounded))
-                                .foregroundStyle(.white)
-                                .multilineTextAlignment(.center)
-                                .shadow(color: .black.opacity(0.85), radius: 3, x: 0, y: 1.5)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(Color.black.opacity(0.65))
-                                .cornerRadius(8)
-                                .padding(.bottom, 40)
-                                .id(currentSub.id)
-                                .transition(.opacity.animation(.easeInOut(duration: 0.08)))
-                        }
+                    // Subtitle overlay — stable view, never destroyed/recreated during playback
+                    if project.showSoftSubtitles {
+                        SubtitleOverlayView(project: project)
                     }
                 }
                 .onAppear { setupPlayer(url: project.videoURL) }
@@ -76,21 +53,21 @@ struct VideoPlayerView: View {
                 .onReceive(NotificationCenter.default.publisher(for: .requestCurrentTime)) { _ in
                     project.markCurrentTime(currentEngineTime)
                 }
-                .onChange(of: project.currentTime) { _, newTime in
-                    guard !project.isSeeking else { return }
-                    guard project.isUserSeekingTimeline || project.isScrubbing else { return }
-
-                    if project.isScrubbing {
-                        scrubContinuation?.yield(newTime)
-                    } else {
-                        guard !isSeeking else { return }
-                        isSeeking = true
-                        project.isSeeking = true
-                        seekEngine(to: newTime) {
-                            isSeeking = false
-                            project.isSeeking = false
-                            project.isUserSeekingTimeline = false
-                        }
+                .onReceive(NotificationCenter.default.publisher(for: .stropheScrubTimeChanged)) { notification in
+                    if let time = notification.object as? Double {
+                        scrubContinuation?.yield(time)
+                    }
+                }
+                .onChange(of: project.isUserSeekingTimeline) { _, isSeekingTimeline in
+                    guard isSeekingTimeline else { return }
+                    guard !project.isScrubbing else { return }
+                    guard !isSeeking else { return }
+                    isSeeking = true
+                    project.isSeeking = true
+                    seekEngine(to: project.currentTime) {
+                        isSeeking = false
+                        project.isSeeking = false
+                        project.isUserSeekingTimeline = false
                     }
                 }
                 .onChange(of: project.isScrubbing) { _, isScrubbing in
@@ -316,11 +293,13 @@ struct VideoPlayerView: View {
                 let rate = Double(playerRef.rate)
                 MainActor.assumeIsolated {
                     guard !project.isSeeking && !project.isScrubbing else { return }
-                    withAnimation(.none) {
-                        project.currentTime = seconds
-                        project.referenceTime = seconds
-                        project.referenceDate = .now
-                        project.playbackRate = rate
+                    let subtitleText = project.subtitleText(at: seconds)
+                    project.currentTime = seconds
+                    project.referenceTime = seconds
+                    project.referenceDate = .now
+                    project.playbackRate = rate
+                    if subtitleText != project.currentSubtitleText {
+                        project.currentSubtitleText = subtitleText
                     }
                 }
             }
@@ -335,14 +314,15 @@ struct VideoPlayerView: View {
                             continue
                         }
                         
-                        // Wait until the audio engine is actually rendering frames to hardware to set playbackRate
                         let isRendering = ffmpegEngine.isRenderingAndPlaying
+                        let subtitleText = project.subtitleText(at: seconds)
                         
-                        withAnimation(.none) {
-                            project.currentTime = seconds
-                            project.referenceTime = seconds
-                            project.referenceDate = .now
-                            project.playbackRate = isRendering ? rate : 0.0
+                        project.currentTime = seconds
+                        project.referenceTime = seconds
+                        project.referenceDate = .now
+                        project.playbackRate = isRendering ? rate : 0.0
+                        if subtitleText != project.currentSubtitleText {
+                            project.currentSubtitleText = subtitleText
                         }
                     }
                     try? await Task.sleep(nanoseconds: 16_000_000) // ~60 FPS polling for ultra-responsive timing
@@ -431,6 +411,30 @@ struct VideoPlayerView: View {
         }
     }
 
+}
+
+// MARK: - Subtitle Overlay (leaf view — only reads pre-computed text, zero traversal)
+struct SubtitleOverlayView: View {
+    @ObservedObject var project: SubtitleProject
+    
+    var body: some View {
+        VStack {
+            Spacer()
+            if let text = project.currentSubtitleText {
+                Text(text)
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .shadow(color: .black.opacity(0.85), radius: 3, x: 0, y: 1.5)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.black.opacity(0.65))
+                    .cornerRadius(8)
+                    .padding(.bottom, 40)
+                    .animation(.easeInOut(duration: 0.08), value: text)
+            }
+        }
+    }
 }
 
 #if os(macOS)

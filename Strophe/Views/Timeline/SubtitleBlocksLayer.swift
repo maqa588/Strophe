@@ -8,10 +8,46 @@
 import SwiftUI
 
 // MARK: - 字幕块显示与交互层
-struct SubtitleBlocksLayer: View {
+struct SubtitleBlocksLayer: View, Equatable {
     @ObservedObject var project: SubtitleProject
     let pixelsPerSecond: Double
     let smoothTime: Double
+    let scrollPageStartTime: Double
+    let viewWidth: CGFloat
+    
+    private var visibleStartTime: Double {
+        max(0, scrollPageStartTime - visiblePadding)
+    }
+    
+    private var visibleEndTime: Double {
+        scrollPageStartTime + viewWidth / pixelsPerSecond + visiblePadding
+    }
+    
+    private var visiblePadding: Double {
+        viewWidth / pixelsPerSecond * 0.3
+    }
+    
+    private var visibleItems: [SubtitleItem] {
+        project.items.filter { item in
+            if item.id == project.activeSlapSubtitleID { return true }
+            guard let start = item.startTime else { return false }
+            let end = item.endTime ?? (start + 0.1)
+            return end >= visibleStartTime && start <= visibleEndTime
+        }
+    }
+    
+    private var visibleOverlaps: [SubtitleProject.OverlapInterval] {
+        project.overlappingIntervals.filter { interval in
+            interval.end >= visibleStartTime && interval.start <= visibleEndTime
+        }
+    }
+    
+    static func == (lhs: SubtitleBlocksLayer, rhs: SubtitleBlocksLayer) -> Bool {
+        lhs.project === rhs.project &&
+        lhs.pixelsPerSecond == rhs.pixelsPerSecond &&
+        lhs.scrollPageStartTime == rhs.scrollPageStartTime &&
+        lhs.project.items.count == rhs.project.items.count
+    }
     
     // 框选状态
     @State private var marqueeStart: CGFloat? = nil
@@ -30,7 +66,7 @@ struct SubtitleBlocksLayer: View {
                 #endif
             
             ZStack(alignment: .leading) {
-                ForEach(project.items) { item in
+                ForEach(visibleItems) { item in
                     if let start = item.startTime {
                         let rawEnd = item.endTime ?? (start + 0.1)
                         // 💡 如果当前字幕块是正在被拍打的活跃字幕块，我们使用高精度的 smoothTime 实时延伸，画出丝滑生长效果！
@@ -50,7 +86,7 @@ struct SubtitleBlocksLayer: View {
             }
             
             // ── Overlap diagnostic highlights layer ──────────────────
-            ForEach(project.overlappingIntervals, id: \.self) { interval in
+            ForEach(visibleOverlaps, id: \.self) { interval in
                 OverlapStripesView()
                     .frame(width: CGFloat((interval.end - interval.start) * pixelsPerSecond), height: 30)
                     .offset(x: CGFloat(interval.start * pixelsPerSecond), y: 35)

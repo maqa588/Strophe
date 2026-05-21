@@ -6,9 +6,9 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct MainContentView: View {
+struct MainContentView: View, Equatable {
     @ObservedObject var project: SubtitleProject
-    @Environment(\.horizontalSizeClass) var sizeClass
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @State private var isShowingImportMedia = false
     @State private var isShowingExport = false
@@ -18,6 +18,12 @@ struct MainContentView: View {
     var isCompact: Bool = false
     var path: Binding<NavigationPath> = .constant(NavigationPath())
     @Binding var selectedTab: StropheTab
+
+    static func == (lhs: MainContentView, rhs: MainContentView) -> Bool {
+        lhs.project === rhs.project &&
+        lhs.isCompact == rhs.isCompact &&
+        lhs.selectedTab == rhs.selectedTab
+    }
 
     init(project: SubtitleProject, selectedTab: Binding<StropheTab>, isCompact: Bool = false, path: Binding<NavigationPath> = .constant(NavigationPath())) {
         self.project = project
@@ -68,7 +74,7 @@ struct MainContentView: View {
             // 💡 核心修复 3：左侧按钮组自适应，iPhone 下并排渲染“返回”与“文件夹”
             ToolbarItemGroup(placement: .navigation) {
                 #if os(iOS)
-                if sizeClass == .compact {
+                if horizontalSizeClass == .compact {
                     // 📱 iPhone 窄屏：[返回] 与 [文件夹] 纯图标并列呈现
                     Button(action: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {

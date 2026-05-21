@@ -12,7 +12,7 @@ extension SubtitleProject {
         guard let eng = activeEngine else { return }
         if eng.rate == 0 {
             eng.rate = targetSpeed
-            playbackRate = 0.0
+            playbackRate = targetSpeed
             referenceTime = eng.currentTime
             referenceDate = .now
         } else {

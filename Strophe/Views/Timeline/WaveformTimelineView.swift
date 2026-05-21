@@ -83,9 +83,6 @@ struct WaveformTimelineView: View {
                                 )
                             }
                             .padding(.bottom, 6)
-                            .onChange(of: project.currentTime) { _, newTime in
-                                handleTimeChange(newTime, viewWidth: Double(viewWidth), duration: data.duration, proxy: proxy)
-                            }
                             .onChange(of: pixelsPerSecond) { _, _ in
                                 keepPlayheadInView(viewWidth: Double(viewWidth), duration: data.duration, proxy: proxy)
                             }
@@ -173,44 +170,6 @@ struct WaveformTimelineView: View {
                     }
             }
         )
-    }
-    
-    private func calculatePageStart(smoothTime: Double, visibleDuration: Double, duration: Double) -> Double {
-        if isDraggingPlayhead || isUserInteracting {
-            return scrollPageStartTime
-        } else {
-            let pageIndex = Int(smoothTime / max(0.001, visibleDuration))
-            let target = Double(pageIndex) * visibleDuration
-            return max(0.0, min(max(0.0, duration - visibleDuration), target))
-        }
-    }
-    
-    private func handleTimeChange(_ newTime: Double, viewWidth: Double, duration: Double, proxy: ScrollViewProxy) {
-        let visibleDuration = viewWidth / pixelsPerSecond
-        if isDraggingPlayhead {
-            let pad = visibleDuration * 0.1
-            if newTime < scrollPageStartTime + pad {
-                scrollPageStartTime = max(0, newTime - pad)
-                proxy.scrollTo("scroll-page-anchor", anchor: .leading)
-            } else if newTime > scrollPageStartTime + visibleDuration - pad {
-                let targetPageStart = newTime - visibleDuration + pad
-                scrollPageStartTime = max(0, min(max(0, duration - visibleDuration), targetPageStart))
-                proxy.scrollTo("scroll-page-anchor", anchor: .leading)
-            }
-            return
-        }
-        
-        guard !isUserInteracting else { return }
-        
-        // Logic Pro style: Instant page flip when playhead hits either boundary
-        if newTime >= scrollPageStartTime + visibleDuration || newTime < scrollPageStartTime {
-            let pageIndex = Int(newTime / max(0.001, visibleDuration))
-            let targetPageStart = Double(pageIndex) * visibleDuration
-            let clampedPageStart = max(0, min(max(0, duration - visibleDuration), targetPageStart))
-            
-            scrollPageStartTime = clampedPageStart
-            proxy.scrollTo("scroll-page-anchor", anchor: .leading)
-        }
     }
     
     private func keepPlayheadInView(viewWidth: Double, duration: Double, proxy: ScrollViewProxy) {

@@ -1,7 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct ScriptListView: View {
+struct ScriptListView: View, Equatable {
     @ObservedObject var project: SubtitleProject
     @State private var scriptText: String = ""
     @State private var isShowingInput = false
@@ -17,6 +17,12 @@ struct ScriptListView: View {
     /// When using the modern TabView path these default values are used.
     var isCompact: Bool = false
     var path: Binding<NavigationPath> = .constant(NavigationPath())
+
+    static func == (lhs: ScriptListView, rhs: ScriptListView) -> Bool {
+        lhs.project === rhs.project &&
+        lhs.project.scrollTargetID == rhs.project.scrollTargetID &&
+        lhs.project.items.count == rhs.project.items.count
+    }
 
     var body: some View {
         Group {
@@ -106,35 +112,33 @@ struct ScriptListView: View {
     // MARK: - Script List
     private var scriptList: some View {
         ScrollViewReader { scrollProxy in
-            List(project.items, selection: $project.selectedIDs) { item in
-                if let index = project.items.firstIndex(where: { $0.id == item.id }) {
-                    SubtitleRow(
-                        item: item,
-                        index: index,
-                        isActive: item.id == project.scrollTargetID,
-                        isOverlapping: project.isItemOverlapping(id: item.id)
-                    )
-                    .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
-                    .listRowSeparator(.hidden)
-                    .id(item.id)
-                    .tag(item.id)
-                    .contextMenu {
-                        Button(action: {
-                            editingItem = item
-                            editingText = item.text
-                            isEditingText = true
-                        }) {
-                            Label("编辑内容", systemImage: "pencil")
-                        }
-                        
-                        Button(role: .destructive, action: {
-                            project.deleteSubtitle(id: item.id)
-                        }) {
-                            Label("删除字幕", systemImage: "trash")
-                        }
+            List(Array(project.items.enumerated()), id: \.element.id, selection: $project.selectedIDs) { index, item in
+                SubtitleRow(
+                    item: item,
+                    index: index,
+                    isActive: item.id == project.scrollTargetID,
+                    isOverlapping: project.isItemOverlapping(id: item.id)
+                )
+                .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
+                .listRowSeparator(.hidden)
+                .id(item.id)
+                .tag(item.id)
+                .contextMenu {
+                    Button(action: {
+                        editingItem = item
+                        editingText = item.text
+                        isEditingText = true
+                    }) {
+                        Label("编辑内容", systemImage: "pencil")
                     }
-                    .disabled(project.editingMode == .creation)
+                    
+                    Button(role: .destructive, action: {
+                        project.deleteSubtitle(id: item.id)
+                    }) {
+                        Label("删除字幕", systemImage: "trash")
+                    }
                 }
+                .disabled(project.editingMode == .creation)
             }
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)

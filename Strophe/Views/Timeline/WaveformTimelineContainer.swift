@@ -40,6 +40,36 @@ struct WaveformTimelineContainer: View {
     
     let proxy: ScrollViewProxy
     
+    private var currentTimeBinding: Binding<Double> {
+        Binding(
+            get: { project.currentTime },
+            set: { project.currentTime = $0 }
+        )
+    }
+    
+    private var snapCandidates: [Double] {
+        project.items.flatMap { [$0.startTime, $0.endTime] }.compactMap { $0 }
+    }
+    
+    private func snapCoordinate(_ x: CGFloat, threshold: CGFloat = 12.0) -> (val: CGFloat, snapped: Bool) {
+        var closestSnap: CGFloat = x
+        var minDistance = CGFloat.infinity
+        
+        for candidateTime in snapCandidates {
+            let candidateX = CGFloat(candidateTime * pixelsPerSecond)
+            let distance = abs(candidateX - x)
+            if distance < minDistance {
+                minDistance = distance
+                closestSnap = candidateX
+            }
+        }
+        
+        if minDistance <= threshold {
+            return (closestSnap, true)
+        }
+        return (x, false)
+    }
+    
     var body: some View {
         let smoothTime = project.isScrubbing
             ? project.currentTime
@@ -52,28 +82,6 @@ struct WaveformTimelineContainer: View {
             visibleDuration: visibleDuration,
             duration: data.duration
         )
-        
-        let snapCandidates = project.items.flatMap { [$0.startTime, $0.endTime] }.compactMap { $0 }
-        
-        func snapCoordinate(_ x: CGFloat) -> (val: CGFloat, snapped: Bool) {
-            var closestSnap: CGFloat = x
-            var minDistance = CGFloat.infinity
-            let threshold: CGFloat = 12.0 // 12 像素吸附阈值
-            
-            for candidateTime in snapCandidates {
-                let candidateX = CGFloat(candidateTime * pixelsPerSecond)
-                let distance = abs(candidateX - x)
-                if distance < minDistance {
-                    minDistance = distance
-                    closestSnap = candidateX
-                }
-            }
-            
-            if minDistance <= threshold {
-                return (closestSnap, true)
-            }
-            return (x, false)
-        }
         
         // 🌟 物理视口翻页的异步安全调度，绝对不会阻塞 UI 绘制，且能够同帧响应
         if scrollPageStartTime != smoothScrollPageStartTime {
@@ -127,7 +135,7 @@ struct WaveformTimelineContainer: View {
                         .clipped()
                         .frame(width: totalWidth, height: waveHeight, alignment: .leading)
                     
-                    SubtitleBlocksLayer(project: project, pixelsPerSecond: pixelsPerSecond, smoothTime: smoothTime)
+                    SubtitleBlocksLayer(project: project, pixelsPerSecond: pixelsPerSecond, smoothTime: smoothTime, scrollPageStartTime: smoothScrollPageStartTime, viewWidth: viewWidth)
                         .frame(width: totalWidth, height: waveHeight)
                     
                     if project.editingMode == .creation,
@@ -218,7 +226,7 @@ struct WaveformTimelineContainer: View {
             
             // ── 播放头：完全锁频在 100Hz 运动，丝毫不抖 ──
             DraggablePlayhead(
-                currentTime: $project.currentTime,
+                currentTime: currentTimeBinding,
                 isScrubbing: $project.isScrubbing,
                 isDragging: $isDraggingPlayhead,
                 dragStartTime: $dragStartTime,

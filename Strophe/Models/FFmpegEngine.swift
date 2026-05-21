@@ -393,11 +393,9 @@ import UIKit
         }
         
         if consumed > 0 {
-            let n = consumed
+            let amount = consumed
             Task {
-                for _ in 0..<n {
-                    await core.decrementFrameQueueCount()
-                }
+                await core.decrementFrameQueueCount(by: amount)
             }
         }
         

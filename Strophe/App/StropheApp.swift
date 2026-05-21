@@ -85,4 +85,5 @@ extension Notification.Name {
     static let stropheImportScriptFile = Notification.Name("com.strophe.importScriptFile")
     static let stropheOpenProjectWithURL = Notification.Name("com.strophe.openProjectWithURL")
     static let stropheShowSaveOnQuitAlert = Notification.Name("com.strophe.showSaveOnQuitAlert")
+    static let stropheScrubTimeChanged = Notification.Name("com.strophe.scrubTimeChanged")
 }

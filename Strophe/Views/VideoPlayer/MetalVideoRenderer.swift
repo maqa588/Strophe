@@ -228,6 +228,11 @@ final class MetalVideoRenderer: MTKView {
         encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
         encoder.endEncoding()
         
+        cmdBuffer.addCompletedHandler { _ in
+            _ = cvY
+            _ = cvUV
+        }
+        
         cmdBuffer.present(drawable)
         cmdBuffer.commit()
         

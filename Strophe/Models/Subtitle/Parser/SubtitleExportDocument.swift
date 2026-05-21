@@ -22,7 +22,15 @@ extension UTType {
     }
 
     public static var allMediaTypes: [UTType] {
-        let videoTypes: [UTType] = [.movie, .video]
+        let videoTypes: [UTType] = ([
+            .movie,
+            .video,
+            UTType("org.matroska.mkv"),
+            UTType("org.webmproject.webm"),
+            UTType("public.avi"),
+            UTType("com.adobe.flash.video"),
+            UTType("public.rmvb")
+        ] as [UTType?]).compactMap { $0 }
         let audioTypes: [UTType] = ([
             UTType.mp3,
             UTType.mpeg4Audio,

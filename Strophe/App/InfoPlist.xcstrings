@@ -4,6 +4,9 @@
     "ASS Subtitle" : {
 
     },
+    "AVI Video" : {
+
+    },
     "CFBundleDisplayName" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -86,13 +89,25 @@
         }
       }
     },
+    "Flash Video" : {
+
+    },
     "LRC Lyrics" : {
+
+    },
+    "Matroska Video" : {
+
+    },
+    "RealMedia Variable Bitrate Video" : {
 
     },
     "SRT Subtitle" : {
 
     },
     "Strophe Project" : {
+
+    },
+    "WebM Video" : {
 
     }
   },

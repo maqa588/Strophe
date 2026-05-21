@@ -5,9 +5,14 @@
 
 import SwiftUI
 
-struct StropheSidebarContainer: View {
+struct StropheSidebarContainer: View, Equatable {
     @ObservedObject var project: SubtitleProject
     @Binding var selectedTab: StropheTab
+    
+    static func == (lhs: StropheSidebarContainer, rhs: StropheSidebarContainer) -> Bool {
+        lhs.project === rhs.project &&
+        lhs.selectedTab == rhs.selectedTab
+    }
     
     var body: some View {
         #if os(macOS)

@@ -135,22 +135,44 @@ class SubtitleProject: ObservableObject {
         sortItemsStable()
     }
     
-    @Published var currentTime: Double = 0 {
+    var currentTime: Double = 0 {
         didSet {
             updateActiveSlapBlock(currentTime: currentTime)
             autoUpdateCurrentIndex()
+            if isScrubbing {
+                NotificationCenter.default.post(name: .stropheScrubTimeChanged, object: currentTime)
+            }
         }
     }
     @Published var isScrubbing: Bool = false
     @Published var isUserSeekingTimeline: Bool = false
-    @Published var playbackRate: Double = 0
+    var playbackRate: Double = 0 {
+        didSet {
+            if oldValue != playbackRate {
+                objectWillChange.send()
+            }
+        }
+    }
     @Published var targetSpeed: Double = 1.0
-    @Published var referenceTime: Double = 0
-    @Published var referenceDate: Date = .now
+    var referenceTime: Double = 0
+    var referenceDate: Date = .now
     
     @Published var activeDragDelta: Double = 0
     @Published var activeDragItemID: UUID? = nil
     
     @Published var activeSlapKey: String? = nil
     @Published var activeSlapSubtitleID: UUID? = nil
+    
+    @Published var currentSubtitleText: String? = nil
+    
+    func subtitleText(at time: Double) -> String? {
+        if let activeID = activeSlapSubtitleID,
+           let item = items.first(where: { $0.id == activeID }) {
+            return item.text
+        }
+        return items.first { item in
+            guard let start = item.startTime, let end = item.endTime else { return false }
+            return time >= start && time <= end
+        }?.text
+    }
 }

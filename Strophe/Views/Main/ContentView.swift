@@ -25,8 +25,8 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct ContentView: View {
-    @ObservedObject var project: SubtitleProject
+struct ContentView: View, Equatable {
+    var project: SubtitleProject
     @Environment(\.horizontalSizeClass) var sizeClass
 
     @State private var selectedTab: StropheTab = .editor
@@ -40,6 +40,11 @@ struct ContentView: View {
     @State private var isShowingSaveOnQuitAlert = false
     @State private var isQuittingAfterSave = false
     #endif
+
+    static func == (lhs: ContentView, rhs: ContentView) -> Bool {
+        lhs.project === rhs.project &&
+        lhs.selectedTab == rhs.selectedTab
+    }
 
     var body: some View {
         Group {

@@ -13,7 +13,8 @@ import UIKit
 
 /// 时间轴上方独立的自定义功能工具栏
 struct TimelineToolbarView: View {
-    let project: SubtitleProject // Decoupled from direct @ObservedObject observations to avoid 60fps redraws!
+    let project: SubtitleProject
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     
     // Dynamic available width state to achieve fluid cross-platform responsiveness
     @State private var availableWidth: CGFloat = 800
