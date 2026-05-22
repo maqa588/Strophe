@@ -36,6 +36,7 @@ nonisolated(unsafe) private let getFormatCallback: @convention(c) (UnsafeMutable
 // High-performance background demuxer/decoder isolated to its own serial actor context.
 actor FFmpegDecoderCore {
     static let AV_NOPTS_VALUE = Int64(bitPattern: 0x8000000000000000)
+    let maxVideoQueueCapacity = 8
     
     // Core FFmpeg variables
     var formatContext: UnsafeMutablePointer<AVFormatContext>? = nil
@@ -265,6 +266,7 @@ actor FFmpegDecoderCore {
         let vCtx = avcodec_alloc_context3(vDecoder)
         self.videoCodecContext = vCtx
         av_opt_set_int(vCtx, "threads", 0, 0)
+        vCtx!.pointee.thread_type = Int32(FF_THREAD_FRAME | FF_THREAD_SLICE)
         avcodec_parameters_to_context(vCtx, vCodecpar)
         
         // 绑定协商回调以强制开启 VideoToolbox 输出
@@ -354,6 +356,7 @@ actor FFmpegDecoderCore {
         let newCtx = avcodec_alloc_context3(decoder)
         self.videoCodecContext = newCtx
         av_opt_set_int(newCtx, "threads", 0, 0)
+        newCtx!.pointee.thread_type = Int32(FF_THREAD_FRAME | FF_THREAD_SLICE)
         avcodec_parameters_to_context(newCtx, codecpar)
         
         // 同样在此处绑定回调
@@ -462,7 +465,7 @@ actor FFmpegDecoderCore {
                 continue
             }
             
-            if videoFrameQueueCount >= 8 {
+            if videoFrameQueueCount >= maxVideoQueueCapacity {
                 try? await Task.sleep(nanoseconds: 5_000_000)  // 5ms
                 continue
             }
@@ -480,7 +483,7 @@ actor FFmpegDecoderCore {
         
         if !skipVideo {
             while avcodec_receive_frame(vCtx, frame) >= 0 {
-                if self.videoFrameQueueCount >= 8 { return false }
+                if self.videoFrameQueueCount >= maxVideoQueueCapacity { return false }
                 processVideoFrame(frame, ctx: ctx)
             }
         } else {
@@ -496,7 +499,7 @@ actor FFmpegDecoderCore {
                 let sendStatus = avcodec_send_packet(vCtx, packet)
                 if sendStatus >= 0 && !skipVideo {
                     while avcodec_receive_frame(vCtx, frame) >= 0 {
-                        if self.videoFrameQueueCount >= 8 { return false }
+                        if self.videoFrameQueueCount >= maxVideoQueueCapacity { return false }
                         processVideoFrame(frame, ctx: ctx)
                     }
                 } else if sendStatus >= 0 && skipVideo {

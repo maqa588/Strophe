@@ -171,8 +171,8 @@ struct TimelineToolbarView: View {
                         .font(.system(size: 9, weight: .bold, design: .monospaced))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(Color.accentColor.opacity(0.15))
-                        .foregroundColor(.accentColor)
+                        .background(Color.stropheBlue.opacity(0.15))
+                        .foregroundColor(.stropheBlue)
                         .cornerRadius(4)
                 } else {
                     let displayFPS = videoFrameRate
@@ -193,8 +193,8 @@ struct TimelineToolbarView: View {
                         .font(.system(size: 9, weight: .bold, design: .monospaced))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(Color.accentColor.opacity(0.15))
-                        .foregroundColor(.accentColor)
+                        .background(Color.stropheBlue.opacity(0.15))
+                        .foregroundColor(.stropheBlue)
                         .cornerRadius(4)
                 }
             }

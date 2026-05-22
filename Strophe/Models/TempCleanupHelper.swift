@@ -87,4 +87,36 @@ final class TempCleanupHelper {
         print("🧹 TempCleanupHelper: Detected \(userFiles.count) leftover item(s) from previous session, cleaning up...")
         cleanupTempDirectory()
     }
+    
+    /// Computes the total size of files in the temporary directory in bytes.
+    static func getTempDirectorySize() -> Int64 {
+        let tempDir = FileManager.default.temporaryDirectory
+        var size: Int64 = 0
+        guard let enumerator = FileManager.default.enumerator(
+            at: tempDir,
+            includingPropertiesForKeys: [.fileSizeKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return 0
+        }
+        
+        while let fileURL = enumerator.nextObject() as? URL {
+            if fileURL.lastPathComponent == "TemporaryItems" {
+                continue
+            }
+            if let resourceValues = try? fileURL.resourceValues(forKeys: [.fileSizeKey]),
+               let fileSize = resourceValues.fileSize {
+                size += Int64(fileSize)
+            }
+        }
+        return size
+    }
+    
+    /// Formats bytes into human-readable string.
+    static func formatBytes(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useBytes, .useKB, .useMB, .useGB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes)
+    }
 }

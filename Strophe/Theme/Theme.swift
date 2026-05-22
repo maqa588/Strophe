@@ -99,6 +99,9 @@ extension Color {
     // 3. Brand accent color (C0392B red playhead / selection / cursor)
     static let stropheAccent = Color(red: 0.75, green: 0.22, blue: 0.17) // #C0392B
 
+    // 3b. Accent blue color for timeline time ranges, frame rate, and subtitle blocks
+    static let stropheBlue = Color.blue
+
     // 4. Primary text color (default dark in light mode, creamy white in dark mode)
     static let stropheText = Color(
         light: Color.primary,

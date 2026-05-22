@@ -84,22 +84,26 @@ struct MainContentView: View, Equatable {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 16, weight: .semibold))
                     }
-                    
+                    .help(String(localized: "返回文稿列表"))
+
                     Button(action: { isShowingImportMedia = true }) {
                         Image(systemName: "folder")
                     }
+                    .help(String(localized: "导入媒体文件"))
                 } else {
                     // 📱 iPad 宽屏：文件夹
                     Button(action: { isShowingImportMedia = true }) {
                         Image(systemName: "folder")
                     }
+                    .help(String(localized: "导入媒体文件"))
                 }
                 #else
-                // 💻 macOS 平台：文件夹
+                // 💻 macOS 平台：文件夹（原生 Label）
                 Button(action: { isShowingImportMedia = true }) {
-                    Image(systemName: "folder")
+                    Label("导入媒体", systemImage: "folder")
                 }
-                .help(String(localized: "导入媒体文件"))
+                // 💡 核心修复：删除了 .labelStyle(.titleAndIcon)
+                .help(String(localized: "导入视频或音频文件到当前项目"))
                 #endif
             }
 
@@ -113,14 +117,40 @@ struct MainContentView: View, Equatable {
             }
             #endif
 
-            // 💡 2. 顶栏右侧按钮：纯图标保存与分享
+            // Right side: save, export (+ plus on iPhone)
             ToolbarItemGroup(placement: .primaryAction) {
+                #if os(iOS)
+                if horizontalSizeClass == .compact {
+                    // iPhone: show plus button in the editor toolbar
+                    Menu {
+                        Button {
+                            NotificationCenter.default.post(name: .strophePasteScript, object: nil)
+                        } label: {
+                            Label("粘贴文稿", systemImage: "doc.on.clipboard")
+                        }
+                        Button {
+                            NotificationCenter.default.post(name: .stropheImportScriptFile, object: nil)
+                        } label: {
+                            Label("导入字幕文件", systemImage: "square.and.arrow.down")
+                        }
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .help(String(localized: "更多操作"))
+                }
+                #endif
+
                 Button(action: {
                     NotificationCenter.default.post(name: .stropheSaveProject, object: nil)
                 }) {
-                    Image(systemName: "arrow.down.to.line")
+                    #if os(macOS)
+                    Label("保存", systemImage: "square.and.arrow.down")
+                    // 💡 核心修复：删除了 .labelStyle(.titleAndIcon)
+                    #else
+                    Image(systemName: "square.and.arrow.down")
+                    #endif
                 }
-                .help(String(localized: "保存当前文稿"))
+                .help(String(localized: "保存当前工程文件"))
                 
                 
                 Menu {
@@ -148,9 +178,14 @@ struct MainContentView: View, Equatable {
                     Button("Video Stream (Coming Soon)") {}.disabled(true)
                     Button("Audio Stream (Coming Soon)") {}.disabled(true)
                 } label: {
+                    #if os(macOS)
+                    Label("导出", systemImage: "square.and.arrow.up")
+                    // 💡 核心修复：删除了 .labelStyle(.titleAndIcon)
+                    #else
                     Image(systemName: "square.and.arrow.up")
+                    #endif
                 }
-                .help(String(localized: "分享与导出项目"))
+                .help(String(localized: "导出字幕或分享项目"))
             }
         }
         .fileImporter(

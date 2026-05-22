@@ -8,10 +8,12 @@ import SwiftUI
 struct StropheSidebarContainer: View, Equatable {
     @ObservedObject var project: SubtitleProject
     @Binding var selectedTab: StropheTab
+    @Binding var settingsPath: [SettingsRoute]
     
     static func == (lhs: StropheSidebarContainer, rhs: StropheSidebarContainer) -> Bool {
         lhs.project === rhs.project &&
-        lhs.selectedTab == rhs.selectedTab
+        lhs.selectedTab == rhs.selectedTab &&
+        lhs.settingsPath == rhs.settingsPath
     }
     
     var body: some View {
@@ -25,17 +27,19 @@ struct StropheSidebarContainer: View, Equatable {
         // 📱 iPadOS/iOS 平台：保留你非常满意的精致悬浮玻璃卡片布局
         if #available(iOS 26.0, macOS 26.0, *) {
             sidebarContent
-                .glassEffect(.regular, in: .rect(cornerRadius: 18, style: .continuous))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.leading, 12)
                 .padding(.bottom, 12)
                 .padding(.trailing, 4)
+                .glassEffect(.regular, in: .rect(cornerRadius: 18, style: .continuous))
                 .hideSidebarSystemNavigationBar()
         } else {
             sidebarContent
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.leading, 12)
                 .padding(.bottom, 12)
                 .padding(.trailing, 4)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .hideSidebarSystemNavigationBar()
         }
         #endif
@@ -44,69 +48,82 @@ struct StropheSidebarContainer: View, Equatable {
     @ViewBuilder
     private var sidebarContent: some View {
         VStack(spacing: 0) {
-            
-            // 💡 核心修复 1：使用 ZStack 进行大卡片标题的“绝对水平居中”
+
+            // Header: centered title
             ZStack {
                 HStack(spacing: 6) {
-                    Image(systemName: "folder")
+                    Image(systemName: selectedTab.systemImage)
                         .font(.system(size: 13, weight: .medium))
                     Text(selectedTab.title)
                         .font(.system(size: 13, weight: .semibold))
                 }
                 .foregroundStyle(Color.stropheText)
             }
-            .frame(height: 52) // 52pt 完美对齐右侧
-            
-            // 2. 侧边栏列表内容
+            .frame(height: 52)
+
+            // Sidebar list content
             Group {
                 switch selectedTab {
                 case .editor, .scriptList:
                     ScriptListView(project: project)
                 case .settings:
-                    SettingsPlaceholderView()
+                    SettingsPlaceholderView(settingsPath: $settingsPath)
                 }
             }
             .frame(maxHeight: .infinity)
-            
-            // 3. 柔和分割线
+
+            // Soft divider
             Rectangle()
                 .frame(height: 1)
                 .foregroundColor(Color.stropheBorder)
-            
-            // 4. 自绘 Tab 导航栏区域
+
+            // Custom tab bar
             StropheTabBar(selectedTab: $selectedTab, tabs: StropheTab.wideTabs)
                 .padding(.top, 12)
         }
-        // 💡 核心修复 2：将加号按钮塞回系统原生 Toolbar
-        // macOS 系统会自动把它和 [折叠侧栏] 按钮并排进行避让渲染，绝不冲突
+        // System toolbar: on macOS this is auto-paired with the sidebar toggle button.
+        // On iPadOS, the navbar is now visible (we only hide its background via
+        // .toolbarBackground(.hidden)), so .toolbar items render correctly here too.
         .toolbar {
             if selectedTab == .editor || selectedTab == .scriptList {
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
-                        Button("粘贴文稿") {
+                        Button {
                             NotificationCenter.default.post(name: .strophePasteScript, object: nil)
+                        } label: {
+                            Label("粘贴文稿", systemImage: "doc.on.clipboard")
                         }
-                        Button("导入字幕文件") {
+                        Button {
                             NotificationCenter.default.post(name: .stropheImportScriptFile, object: nil)
+                        } label: {
+                            Label("导入字幕文件", systemImage: "square.and.arrow.down")
                         }
                     } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 14, weight: .medium))
                     }
+                    #if os(macOS)
                     .help(String(localized: "粘贴或导入文稿"))
+                    #endif
                 }
             }
         }
     }
 }
 
-// MARK: - 跨平台隐藏导航栏助手
+// MARK: - Cross-platform navigation bar helper
 
 extension View {
     @ViewBuilder
     fileprivate func hideSidebarSystemNavigationBar() -> some View {
         #if os(iOS)
-        self.toolbar(.hidden, for: .navigationBar)
+        // Clear system navigation title (our custom ZStack header is the only title).
+        // Keep .toolbarBackground(.hidden) so the bar's layout footprint remains
+        // stable and .toolbar items (plus button, sidebar toggle) render correctly.
+        self
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
         #else
         self.navigationTitle("")
         #endif

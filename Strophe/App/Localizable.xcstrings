@@ -64,6 +64,9 @@
         }
       }
     },
+    "© 2026 Strophe. All rights reserved." : {
+
+    },
     "→" : {
       "localizations" : {
         "ar" : {
@@ -103,6 +106,9 @@
           }
         }
       }
+    },
+    "About Strophe" : {
+
     },
     "Advanced SubStation Alpha (.ass)" : {
       "localizations" : {
@@ -239,6 +245,9 @@
           }
         }
       }
+    },
+    "Functional Source License" : {
+
     },
     "Hard Subtitles (Coming Soon)" : {
       "localizations" : {
@@ -1104,6 +1113,12 @@
         }
       }
     },
+    "Strophe 在导入视频 or 音频文件时，会生成临时音频转码文件与波形分析缓存。这些数据可以显著加速波形的渲染和音视频的高速跳转，但在使用完毕后，它们会占用您的设备存储空间。" : {
+
+    },
+    "Strophe 致力于为视频创作者提供最流畅、最高效的打轴与字幕导入/导出流程。通过极其贴合创作者习惯的快捷键操作与精细的音频波形显示，我们正在重新定义字幕制作体验。" : {
+
+    },
     "SubRip (.srt)" : {
       "localizations" : {
         "ar" : {
@@ -1134,6 +1149,19 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SubRip (.srt)"
+          }
+        }
+      }
+    },
+    "SwiftUI / AVFoundation" : {
+
+    },
+    "v%@ (%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "v%1$@ (%2$@)"
           }
         }
       }
@@ -1172,7 +1200,97 @@
         }
       }
     },
+    "不保存" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "عدم الحفظ"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Don’t Save"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存しない"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장하지 않음"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不保存"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不儲存"
+          }
+        }
+      }
+    },
+    "临时占用空间" : {
+
+    },
+    "什么是缓存数据？" : {
+
+    },
+    "保存" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حفظ"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存"
+          }
+        }
+      }
+    },
+    "保存当前工程文件" : {
+
+    },
     "保存当前文稿" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1212,7 +1330,14 @@
         }
       }
     },
+    "关于" : {
+
+    },
+    "关于 Strophe" : {
+
+    },
     "分享与导出项目" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1333,6 +1458,7 @@
       }
     },
     "功能开发中，敬请期待。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1411,6 +1537,55 @@
           }
         }
       }
+    },
+    "好" : {
+
+    },
+    "如果未保存，编辑的内容将会丢失。" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "سيتم فقدان التغييرات غير المحفوظة."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unsaved changes will be lost if you don’t save."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存しない場合、編集内容は失われます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장하지 않으면 편집 내용이 손실됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果未保存，编辑的内容将会丢失。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果未儲存，編輯的內容將會遺失。"
+          }
+        }
+      }
+    },
+    "存储与维护" : {
+
+    },
+    "导入媒体" : {
+
     },
     "导入媒体文件" : {
       "localizations" : {
@@ -1492,6 +1667,9 @@
         }
       }
     },
+    "导入视频或音频文件到当前项目" : {
+
+    },
     "导入脚本" : {
       "localizations" : {
         "ar" : {
@@ -1571,6 +1749,12 @@
           }
         }
       }
+    },
+    "导出" : {
+
+    },
+    "导出字幕或分享项目" : {
+
     },
     "待录入字幕" : {
       "localizations" : {
@@ -1775,6 +1959,12 @@
         }
       }
     },
+    "所有的临时转码数据和波形缓存文件已被安全清除。" : {
+
+    },
+    "技术架构" : {
+
+    },
     "拍打创建" : {
       "localizations" : {
         "ar" : {
@@ -1894,6 +2084,9 @@
           }
         }
       }
+    },
+    "提示：清理缓存是完全安全的，它绝不会删除您的字幕文稿项目、已保存的工程文件或原始音视频源文件。" : {
+
     },
     "撤销" : {
       "localizations" : {
@@ -2015,6 +2208,46 @@
         }
       }
     },
+    "是否保存“%@”工程？" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هل تريد حفظ مشروع \"%@\"؟"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save “%@” Project?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」プロジェクトを保存しますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "\"%@\" 프로젝트를 저장하시겠습니까?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "是否保存“%@”工程？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "是否儲存“%@”工程？"
+          }
+        }
+      }
+    },
     "是否覆盖现有字幕？" : {
       "localizations" : {
         "ar" : {
@@ -2055,6 +2288,9 @@
         }
       }
     },
+    "智能音视频字幕同步工具" : {
+
+    },
     "暂不支持该多媒体文件后缀格式" : {
       "localizations" : {
         "ar" : {
@@ -2094,6 +2330,9 @@
           }
         }
       }
+    },
+    "更多操作" : {
+
     },
     "标记时间" : {
       "localizations" : {
@@ -2175,6 +2414,18 @@
         }
       }
     },
+    "正在清理中..." : {
+
+    },
+    "清理完成" : {
+
+    },
+    "清理缓存" : {
+
+    },
+    "版本" : {
+
+    },
     "确定" : {
       "localizations" : {
         "ar" : {
@@ -2254,6 +2505,9 @@
           }
         }
       }
+    },
+    "立即清理缓存" : {
+
     },
     "粘贴或导入文稿" : {
       "localizations" : {
@@ -2535,6 +2789,9 @@
         }
       }
     },
+    "许可证" : {
+
+    },
     "设置" : {
       "localizations" : {
         "ar" : {
@@ -2696,6 +2953,9 @@
         }
       }
     },
+    "返回文稿列表" : {
+
+    },
     "选择工具" : {
       "comment" : "Selection Tool Tip Title",
       "localizations" : {
@@ -2814,166 +3074,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重做"
-          }
-        }
-      }
-    },
-    "保存" : {
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "حفظ"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Save"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保存"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "저장"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保存"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "儲存"
-          }
-        }
-      }
-    },
-    "不保存" : {
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "عدم الحفظ"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Don\u2019t Save"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保存しない"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "저장하지 않음"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不保存"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不儲存"
-          }
-        }
-      }
-    },
-    "如果未保存，编辑的内容将会丢失。" : {
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "سيتم فقدان التغييرات غير المحفوظة."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unsaved changes will be lost if you don\u2019t save."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保存しない場合、編集内容は失われます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "저장하지 않으면 편집 내용이 손실됩니다."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "如果未保存，编辑的内容将会丢失。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "如果未儲存，編輯的內容將會遺失。"
-          }
-        }
-      }
-    },
-    "是否保存\u201c%@\u201d工程？" : {
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "هل تريد حفظ مشروع \"%@\"؟"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Save \u201c%@\u201d Project?"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「%@」プロジェクトを保存しますか？"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "\"%@\" 프로젝트를 저장하시겠습니까?"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "是否保存\u201c%@\u201d工程？"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "是否儲存\u201c%@\u201d工程？"
           }
         }
       }

@@ -10,7 +10,7 @@ import SwiftUI
 struct WaveformTimelineContainer: View {
     @ObservedObject var project: SubtitleProject
     let timeline: TimelineViewDefaultContext
-    let data: WaveformData
+    @ObservedObject var data: WaveformData
     let viewWidth: CGFloat
     let totalWidth: CGFloat
     let rulerHeight: CGFloat
@@ -146,8 +146,8 @@ struct WaveformTimelineContainer: View {
                         let width = max(2, maxX - minX)
                         
                         Rectangle()
-                            .fill(Color.accentColor.opacity(0.3))
-                            .overlay(Rectangle().stroke(Color.accentColor, lineWidth: 1))
+                            .fill(Color.stropheBlue.opacity(0.3))
+                            .overlay(Rectangle().stroke(Color.stropheBlue, lineWidth: 1))
                             .frame(width: width, height: 30)
                             .offset(x: minX, y: 35)
                     }

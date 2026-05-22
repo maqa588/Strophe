@@ -30,6 +30,7 @@ struct ContentView: View, Equatable {
     @Environment(\.horizontalSizeClass) var sizeClass
 
     @State private var selectedTab: StropheTab = .editor
+    @State private var settingsPath: [SettingsRoute] = []
 
     @State private var isShowingSaveStrophe = false
     @State private var saveStropheDefaultName = "project"
@@ -169,6 +170,12 @@ struct ContentView: View, Equatable {
         .onReceive(NotificationCenter.default.publisher(for: .stropheShowSaveOnQuitAlert)) { _ in
             isShowingSaveOnQuitAlert = true
         }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheShowAbout)) { _ in
+            selectedTab = .settings
+            DispatchQueue.main.async {
+                settingsPath = [.version]
+            }
+        }
         #endif
     }
 
@@ -181,16 +188,22 @@ struct ContentView: View, Equatable {
     private var wideLayout: some View {
         NavigationSplitView {
             // ── 左列：侧边栏容器 ──
-            StropheSidebarContainer(project: project, selectedTab: $selectedTab)
+            StropheSidebarContainer(project: project, selectedTab: $selectedTab, settingsPath: $settingsPath)
                 .navigationSplitViewColumnWidth(300)
                 .ignoresSafeArea(.container, edges: .top)
         } detail: {
-            // ── 右列：始终为编辑器 ──
-            NavigationStack {
+            // ── 右列：始终为编辑器（设置详情通过 settingsPath 覆盖在它上面） ──
+            NavigationStack(path: $settingsPath) {
                 MainContentView(project: project, selectedTab: $selectedTab)
+                    .navigationDestination(for: SettingsRoute.self) { route in
+                        SettingsDetailView(route: route)
+                    }
             }
         }
         .background(Color.stropheBackground)
+        .onChange(of: selectedTab) { _, _ in
+            settingsPath.removeAll()
+        }
     }
 
     // MARK: - Compact Layout (iPhone)
@@ -208,26 +221,55 @@ struct ContentView: View, Equatable {
         } else {
             VStack(spacing: 0) {
                 // 当前 tab 内容
-                NavigationStack {
+                Group {
                     switch selectedTab {
                     case .scriptList:
-                        ScriptListView(project: project)
+                        NavigationStack {
+                            ScriptListView(project: project)
+                                .inlineNavigationTitle(String(localized: "文稿"))
+                                .toolbar {
+                                    ToolbarItem(placement: .primaryAction) {
+                                        Menu {
+                                            Button {
+                                                NotificationCenter.default.post(name: .strophePasteScript, object: nil)
+                                            } label: {
+                                                Label("粘贴文稿", systemImage: "doc.on.clipboard")
+                                            }
+                                            Button {
+                                                NotificationCenter.default.post(name: .stropheImportScriptFile, object: nil)
+                                            } label: {
+                                                Label("导入字幕文件", systemImage: "square.and.arrow.down")
+                                            }
+                                        } label: {
+                                            Image(systemName: "plus")
+                                        }
+                                    }
+                                }
+                        }
                     case .editor:
                         EmptyView()  // 不会走到此分支（editor 在上面处理）
                     case .settings:
-                        SettingsPlaceholderView()
+                        NavigationStack(path: $settingsPath) {
+                            SettingsPlaceholderView(settingsPath: $settingsPath)
+                                .inlineNavigationTitle(String(localized: "设置"))
+                                .navigationDestination(for: SettingsRoute.self) { route in
+                                    SettingsDetailView(route: route)
+                                }
+                        }
                     }
                 }
                 .frame(maxHeight: .infinity)
 
-                // 2. 使用 Theme 中定义的 stropheBorder，避免系统默认 Divider 颜色过亮
-                Rectangle()
-                    .frame(height: 1)
-                    .foregroundColor(Color.stropheBorder)
+                if selectedTab != .settings || settingsPath.isEmpty {
+                    // 2. 使用 Theme 中定义的 stropheBorder，避免系统默认 Divider 颜色过亮
+                    Rectangle()
+                        .frame(height: 1)
+                        .foregroundColor(Color.stropheBorder)
 
-                // 3. 自绘导航栏，顶部加 padding 留出呼吸感
-                StropheTabBar(selectedTab: $selectedTab, tabs: StropheTab.compactTabs)
-                    .padding(.top, 12)
+                    // 3. 自绘导航栏，顶部加 padding 留出呼吸感
+                    StropheTabBar(selectedTab: $selectedTab, tabs: StropheTab.compactTabs)
+                        .padding(.top, 12)
+                }
             }
             .background(Color.stropheBackground)
         }
@@ -305,6 +347,23 @@ extension Notification.Name {
     static let requestCurrentTime  = Notification.Name("com.swiftsub.requestCurrentTime")
     static let seekDelta           = Notification.Name("com.swiftsub.seekDelta")
     static let changePlaybackSpeed = Notification.Name("com.swiftsub.changePlaybackSpeed")
+}
+
+// MARK: - Cross-platform navigation title helper
+
+private extension View {
+    /// Sets a navigation title with inline display mode on iOS/iPadOS;
+    /// on macOS `navigationBarTitleDisplayMode` does not exist, so it is omitted.
+    @ViewBuilder
+    func inlineNavigationTitle(_ title: String) -> some View {
+        #if os(iOS)
+        self
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+        #else
+        self.navigationTitle(title)
+        #endif
+    }
 }
 
 #Preview {

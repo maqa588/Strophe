@@ -20,8 +20,8 @@ class WaveformData: ObservableObject {
     @Published var isProcessing: Bool = false
     @Published var progress: Double = 0
     
-    var duration: Double = 0
-    var sampleRate: Double = 44100
+    @Published var duration: Double = 0
+    @Published var sampleRate: Double = 44100
 }
 
 @MainActor
@@ -313,13 +313,11 @@ class WaveformProcessor {
                 let converted: Int32
                 if let rawOut = outData {
                     var mutableOut: UnsafeMutablePointer<UInt8>? = rawOut
+                    let srcData = withUnsafePointer(to: &frame.pointee.data) { ptr in
+                        ptr.withMemoryRebound(to: UnsafePointer<UInt8>?.self, capacity: 8) { $0 }
+                    }
                     converted = withUnsafeMutablePointer(to: &mutableOut) { outPtrPtr in
-                        frame.pointee.data.0.map { inPtr in
-                            var mutableIn: UnsafePointer<UInt8>? = UnsafePointer(inPtr)
-                            return withUnsafePointer(to: &mutableIn) { inPtrPtr in
-                                swr_convert(swr, outPtrPtr, Int32(maxOutSamples), inPtrPtr, Int32(frame.pointee.nb_samples))
-                            }
-                        } ?? 0
+                        swr_convert(swr, outPtrPtr, Int32(maxOutSamples), srcData, Int32(frame.pointee.nb_samples))
                     }
                 } else {
                     converted = 0

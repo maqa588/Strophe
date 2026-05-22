@@ -2,6 +2,7 @@ import SwiftUI
 import MetalKit
 import Metal
 import CoreVideo
+import simd
 
 // MARK: - MetalVideoRenderer
 // High-performance MTKView subclass rendering bi-planar NV12 (YCbCr 4:2:0) pixel buffers on the GPU.
@@ -13,10 +14,46 @@ final class MetalVideoRenderer: MTKView {
     
     private var currentPixelBuffer: CVPixelBuffer?
     private var lastPixelFormat: OSType = 0
+    private var lastColorMatrix: CFString? = nil
     private let lock = NSLock()
     private var frameCount: Int = 0
     
-    // Vertex data representing a full screen quad
+    // CPU-GPU 共享的转换矩阵结构体（严格保持 16 字节对齐）
+    private struct ColorConversion {
+        var matrix: simd_float3x3  // 48 字节 (每列 16 字节对齐)
+        var offset: simd_float4    // 16 字节 (使用 float4 代替 float3 避免内存对齐对不上的问题)
+    }
+    
+    // BT.709 转换矩阵
+    private let bt709Conversion = ColorConversion(
+        matrix: simd_float3x3(
+            simd_float3(1.16438356, 1.16438356, 1.16438356),
+            simd_float3(0.0, -0.2132209, 2.1124017),
+            simd_float3(1.7927411, -0.5328817, 0.0)
+        ),
+        offset: simd_float4(-16.0 / 255.0, -128.0 / 255.0, -128.0 / 255.0, 0.0)
+    )
+
+    // BT.2020 转换矩阵 (广色域)
+    private let bt2020Conversion = ColorConversion(
+        matrix: simd_float3x3(
+            simd_float3(1.16438356, 1.16438356, 1.16438356),
+            simd_float3(0.0, -0.187326, 2.14177),
+            simd_float3(1.67867, -0.6504, 0.0)
+        ),
+        offset: simd_float4(-16.0 / 255.0, -128.0 / 255.0, -128.0 / 255.0, 0.0)
+    )
+
+    // BT.601 转换矩阵 (老旧/标清视频兼容)
+    private let bt601Conversion = ColorConversion(
+        matrix: simd_float3x3(
+            simd_float3(1.16438356, 1.16438356, 1.16438356),
+            simd_float3(0.0, -0.39173, 2.017),
+            simd_float3(1.5958, -0.8129, 0.0)
+        ),
+        offset: simd_float4(-16.0 / 255.0, -128.0 / 255.0, -128.0 / 255.0, 0.0)
+    )
+    
     private struct Vertex {
         var position: SIMD4<Float>
         var texCoords: SIMD2<Float>
@@ -52,13 +89,18 @@ final class MetalVideoRenderer: MTKView {
         
         self.commandQueue = device.makeCommandQueue()
         
-        // Shader source performing hardware-accelerated BT.709 color conversion from bi-planar NV12 YCbCr to Linear RGB.
+        // 动态支持 BT.601 / BT.709 / BT.2020 的矩阵转换着色器
         let shaderSource = """
         #include <metal_stdlib>
         using namespace metal;
 
         struct VertexIn  { float4 position [[attribute(0)]]; float2 texCoords [[attribute(1)]]; };
         struct VertexOut { float4 position [[position]];     float2 texCoords; };
+
+        struct ColorConversion {
+            float3x3 matrix;
+            float4 offset;
+        };
 
         vertex VertexOut vertexShader(const device VertexIn* v [[buffer(0)]], uint vid [[vertex_id]]) {
             VertexOut out;
@@ -67,26 +109,21 @@ final class MetalVideoRenderer: MTKView {
             return out;
         }
 
-        // BT.709 YCbCr (video range: Y 16-235, CbCr 16-240) → linear RGB
         fragment float4 fragmentShader(VertexOut in [[stage_in]],
                                        texture2d<float> yTex  [[texture(0)]],
-                                       texture2d<float> uvTex [[texture(1)]]) {
+                                       texture2d<float> uvTex [[texture(1)]],
+                                       constant ColorConversion &conversion [[buffer(0)]]) {
             constexpr sampler s(address::clamp_to_edge, filter::linear);
             float  y  = yTex.sample(s,  in.texCoords).r;
             float2 uv = uvTex.sample(s, in.texCoords).rg;
 
-            constexpr float y_bias  = 16.0  / 255.0;
-            constexpr float y_scale = 255.0 / 219.0;
-            constexpr float uv_bias  = 128.0 / 255.0;
-            constexpr float uv_scale = 255.0 / 224.0;
-            y  = (y  - y_bias)  * y_scale;
-            uv = (uv - uv_bias) * uv_scale;
+            // 归一化输入 YUV
+            float3 yuv = float3(y, uv.x, uv.y);
+            
+            // 应用传入的色彩空间矩阵与偏移
+            float3 rgb = conversion.matrix * (yuv + conversion.offset.xyz);
 
-            float r = y + 1.5748 * uv.y;
-            float g = y - 0.1873 * uv.x - 0.4681 * uv.y;
-            float b = y + 1.8556 * uv.x;
-
-            return float4(clamp(float3(r, g, b), 0.0, 1.0), 1.0);
+            return float4(clamp(rgb, 0.0, 1.0), 1.0);
         }
         """
         
@@ -112,7 +149,6 @@ final class MetalVideoRenderer: MTKView {
         }
     }
     
-    // Queue a new bi-planar NV12 pixel buffer for immediate rendering
     func update(with pixelBuffer: CVPixelBuffer) {
         lock.lock()
         self.currentPixelBuffer = pixelBuffer
@@ -137,45 +173,43 @@ final class MetalVideoRenderer: MTKView {
         lock.lock()
         guard let pixelBuffer = currentPixelBuffer else {
             lock.unlock()
-            print("❌ draw: no pixelBuffer")
             return
         }
         guard let cache = textureCache else {
             lock.unlock()
-            print("❌ draw: no textureCache")
             return
         }
         guard let pipeline = pipelineState else {
             lock.unlock()
-            print("❌ draw: no pipelineState")
             return
         }
         guard let vBuffer = vertexBuffer else {
             lock.unlock()
-            print("❌ draw: no vertexBuffer")
             return
         }
         guard let cmdQueue = commandQueue else {
             lock.unlock()
-            print("❌ draw: no commandQueue")
             return
         }
         guard let renderPass = currentRenderPassDescriptor else {
             lock.unlock()
-            print("❌ draw: no currentRenderPassDescriptor")
             return
         }
         guard let drawable = currentDrawable else {
             lock.unlock()
-            print("❌ draw: no currentDrawable")
             return
         }
-        
-
         
         let width  = CVPixelBufferGetWidth(pixelBuffer)
         let height = CVPixelBufferGetHeight(pixelBuffer)
         let pixelFormat = CVPixelBufferGetPixelFormatType(pixelBuffer)
+
+        // 1. 色彩空间检测与更新
+        let colorMatrix = getYCbCrMatrix(from: pixelBuffer)
+        if colorMatrix != lastColorMatrix {
+            lastColorMatrix = colorMatrix
+            updateLayerColorSpace(for: colorMatrix)
+        }
 
         if pixelFormat != lastPixelFormat {
             lastPixelFormat = pixelFormat
@@ -210,14 +244,12 @@ final class MetalVideoRenderer: MTKView {
         guard let yTex  = cvY.flatMap(CVMetalTextureGetTexture),
               let uvTex = cvUV.flatMap(CVMetalTextureGetTexture) else {
             lock.unlock()
-            print("❌ draw: failed to create textures from YUV planes. Y: \(cvY != nil), UV: \(cvUV != nil)")
             return
         }
         lock.unlock()
 
         guard let cmdBuffer = cmdQueue.makeCommandBuffer(),
               let encoder   = cmdBuffer.makeRenderCommandEncoder(descriptor: renderPass) else {
-            print("❌ draw: failed to make command buffer or encoder")
             return
         }
 
@@ -225,6 +257,17 @@ final class MetalVideoRenderer: MTKView {
         encoder.setVertexBuffer(vBuffer, offset: 0, index: 0)
         encoder.setFragmentTexture(yTex,  index: 0)
         encoder.setFragmentTexture(uvTex, index: 1)
+        
+        // 2. 选择对应的色彩空间转换矩阵，并安全传入着色器
+        var activeConversion = bt709Conversion
+        if colorMatrix == kCVImageBufferYCbCrMatrix_ITU_R_2020 {
+            activeConversion = bt2020Conversion
+        } else if colorMatrix == kCVImageBufferYCbCrMatrix_ITU_R_601_4 {
+            activeConversion = bt601Conversion
+        }
+        
+        encoder.setFragmentBytes(&activeConversion, length: MemoryLayout<ColorConversion>.size, index: 0)
+        
         encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
         encoder.endEncoding()
         
@@ -241,34 +284,34 @@ final class MetalVideoRenderer: MTKView {
             CVMetalTextureCacheFlush(cache, 0)
         }
     }
+    
+    // 从 CVPixelBuffer 获取色彩空间元数据
+        private func getYCbCrMatrix(from pixelBuffer: CVPixelBuffer) -> CFString {
+            // macOS 12.0+ 推荐使用 CVBufferCopyAttachment 代替 CVBufferGetAttachment
+            if let attachment = CVBufferCopyAttachment(pixelBuffer, kCVImageBufferYCbCrMatrixKey, nil) {
+                return attachment as! CFString
+            }
+            // 默认回退到 BT.709，Swift API 中它的宏常量后缀带有 _2
+            return kCVImageBufferYCbCrMatrix_ITU_R_709_2
+        }
+        
+        // 动态更新 CAMetalLayer 的物理色彩空间，防止系统级色偏
+        private func updateLayerColorSpace(for matrix: CFString) {
+            let cgColorSpace: CGColorSpace
+            
+            if matrix == kCVImageBufferYCbCrMatrix_ITU_R_2020 {
+                // 正确的 Swift CoreGraphics 常量名为 CGColorSpace.itur_2020
+                cgColorSpace = CGColorSpace(name: CGColorSpace.itur_2020) ?? CGColorSpaceCreateDeviceRGB()
+                print("🎨 Metal Canvas Color Space: BT.2020 (ITU-R BT.2020)")
+            } else {
+                cgColorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+                print("🎨 Metal Canvas Color Space: sRGB/BT.709")
+            }
+            
+            DispatchQueue.main.async { [weak self] in
+                if let metalLayer = self?.layer as? CAMetalLayer {
+                    metalLayer.colorspace = cgColorSpace
+                }
+            }
+        }
 }
-
-#if os(macOS)
-struct MetalPlayerViewRepresentable: NSViewRepresentable {
-    let renderer: MetalVideoRenderer
-    
-    init(renderer: MetalVideoRenderer) {
-        self.renderer = renderer
-    }
-    
-    func makeNSView(context: Context) -> NSView {
-        return renderer
-    }
-    
-    func updateNSView(_ nsView: NSView, context: Context) {}
-}
-#else
-struct MetalPlayerViewRepresentable: UIViewRepresentable {
-    let renderer: MetalVideoRenderer
-    
-    init(renderer: MetalVideoRenderer) {
-        self.renderer = renderer
-    }
-    
-    func makeUIView(context: Context) -> UIView {
-        return renderer
-    }
-    
-    func updateUIView(_ uiView: UIView, context: Context) {}
-}
-#endif

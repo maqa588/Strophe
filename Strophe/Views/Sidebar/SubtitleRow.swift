@@ -24,7 +24,7 @@ struct SubtitleRow: View {
                 Text(item.text)
                     .font(.system(.body, design: .rounded))
                     .fontWeight(isActive ? .medium : .regular)
-                    .foregroundStyle(isActive ? .primary : .secondary)
+                    .foregroundStyle(isActive ? Color.stropheText : Color.stropheText.opacity(0.6))
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -37,10 +37,10 @@ struct SubtitleRow: View {
                         }
                     }
                     .font(.caption2.monospaced())
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.stropheBlue)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(Color.accentColor.opacity(0.1), in: Capsule())
+                    .background(Color.stropheBlue.opacity(0.1), in: Capsule())
                     .environment(\.layoutDirection, .leftToRight)
                 }
             }
@@ -52,7 +52,7 @@ struct SubtitleRow: View {
         .background(
             isActive
                 ? RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.accentColor.opacity(0.08))
+                    .fill(Color.stropheBlue.opacity(0.08))
                 : nil
         )
     }
@@ -70,7 +70,7 @@ struct SubtitleRow: View {
         } else if isActive {
             Image(systemName: "record.circle")
                 .font(.caption)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Color.stropheBlue)
                 .symbolEffect(.pulse, isActive: isActive)
         } else {
             Image(systemName: "circle")

@@ -100,10 +100,10 @@ struct SubtitleBlocksLayer: View, Equatable {
                 let width = max(1, maxX - minX)
                 
                 Rectangle()
-                    .fill(Color.accentColor.opacity(0.15))
+                    .fill(Color.stropheBlue.opacity(0.15))
                     .overlay(
                         Rectangle()
-                            .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round, dash: [4, 4]))
+                            .stroke(Color.stropheBlue, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round, dash: [4, 4]))
                     )
                     .frame(width: width, height: 32)
                     .offset(x: minX, y: 34)

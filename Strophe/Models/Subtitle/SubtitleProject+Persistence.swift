@@ -71,6 +71,7 @@ extension SubtitleProject {
         setDocumentName("")
         mediaLoadError = nil
         projectURLBookmark = nil
+        waveformData = nil
         markClean()
     }
     
@@ -91,7 +92,16 @@ extension SubtitleProject {
             createdAt: Date(),
             modifiedAt: Date()
         )
-        let data = StropheProjectData(version: 1, metadata: metadata, media: media, items: items)
+        let defaultTrack = StropheTrack(
+            id: UUID(),
+            name: "Default Track",
+            language: nil,
+            isEnabled: true,
+            items: items,
+            parentTrackID: nil,
+            trackType: .primary
+        )
+        let data = StropheProjectData(version: 1, metadata: metadata, media: media, tracks: [defaultTrack], styles: [])
         return StropheProjectDocument(data: data)
     }
     
@@ -122,6 +132,10 @@ extension SubtitleProject {
             throw NSError(domain: "Strophe", code: 1, userInfo: [NSLocalizedDescriptionKey: "Unsupported project version"])
         }
         
+        // Reset old project state first, which stops activeEngine, resets videoURL to nil, clears waveformData, etc.
+        resetForNewMedia()
+        videoURL = nil
+        
         items = decoded.items
         videoFrameRate = decoded.metadata.videoFrameRate
         if let sz = decoded.metadata.videoSize {
@@ -144,8 +158,11 @@ extension SubtitleProject {
             if let resolvedURL = resolveMediaURL(media: media) {
                 videoURL = resolvedURL
             } else {
+                videoURL = nil
                 mediaLoadError = mediaName
             }
+        } else {
+            videoURL = nil
         }
         
         markClean()

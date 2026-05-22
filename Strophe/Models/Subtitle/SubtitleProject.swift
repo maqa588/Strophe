@@ -72,6 +72,7 @@ class SubtitleProject: ObservableObject {
             }
             activeEngine?.stop()
             activeEngine = nil
+            waveformData = nil
         }
         didSet {
             currentTime = 0

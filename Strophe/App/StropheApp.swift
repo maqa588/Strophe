@@ -46,31 +46,7 @@ struct StropheApp: App {
         #if os(macOS)
         .defaultSize(width: 1200, height: 750)
         .commands {
-            CommandGroup(replacing: .newItem) {
-                Button(String(localized: "Open")) {
-                    NotificationCenter.default.post(name: .stropheImportMedia, object: nil)
-                }
-                .keyboardShortcut("o", modifiers: .command)
-                
-                Button(String(localized: "Open Strophe Project...")) {
-                    NotificationCenter.default.post(name: .stropheOpenProject, object: nil)
-                }
-                .keyboardShortcut("o", modifiers: [.command, .shift])
-            }
-            
-            CommandGroup(after: .newItem) {
-                Button(String(localized: "Save")) {
-                    NotificationCenter.default.post(name: .stropheSaveProject, object: nil)
-                }
-                .keyboardShortcut("s", modifiers: .command)
-                .disabled(project.videoURL == nil && project.items.isEmpty)
-                
-                Button(String(localized: "Save As...")) {
-                    NotificationCenter.default.post(name: .stropheSaveProjectAs, object: nil)
-                }
-                .keyboardShortcut("s", modifiers: [.command, .shift])
-                .disabled(project.videoURL == nil && project.items.isEmpty)
-            }
+            StropheMenuBar(project: project)
         }
         #endif
     }
@@ -81,6 +57,7 @@ extension Notification.Name {
     static let stropheImportMedia = Notification.Name("com.strophe.importMedia")
     static let stropheSaveProject = Notification.Name("com.strophe.saveProject")
     static let stropheSaveProjectAs = Notification.Name("com.strophe.saveProjectAs")
+    static let stropheShowAbout = Notification.Name("com.strophe.showAbout")
     static let strophePasteScript = Notification.Name("com.strophe.pasteScript")
     static let stropheImportScriptFile = Notification.Name("com.strophe.importScriptFile")
     static let stropheOpenProjectWithURL = Notification.Name("com.strophe.openProjectWithURL")

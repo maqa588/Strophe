@@ -48,8 +48,6 @@ struct VideoPlayerView: View, Equatable {
                         SubtitleOverlayView(project: project)
                     }
                 }
-                .onAppear { setupPlayer(url: project.videoURL) }
-                .onChange(of: project.videoURL) { _, newURL in setupPlayer(url: newURL) }
                 .onReceive(NotificationCenter.default.publisher(for: .requestCurrentTime)) { _ in
                     project.markCurrentTime(currentEngineTime)
                 }
@@ -85,12 +83,22 @@ struct VideoPlayerView: View, Equatable {
                 emptyState
             }
         }
-        .onAppear { setupScrubTask() }
+        .onAppear {
+            setupScrubTask()
+            setupPlayer(url: project.videoURL)
+        }
         .onDisappear {
             scrubTask?.cancel()
             scrubTask = nil
-            timeObserverTask?.cancel()
-            timeObserverTask = nil
+            setupPlayer(url: nil)
+        }
+        .onChange(of: project.videoURL) { _, newURL in
+            setupPlayer(url: newURL)
+        }
+        .onChange(of: project.mediaLoadError) { _, newError in
+            if newError != nil {
+                setupPlayer(url: nil)
+            }
         }
         .onDrop(of: [.movie, .video, .fileURL], isTargeted: nil) { providers in
             guard let provider = providers.first else { return false }
@@ -127,6 +135,14 @@ struct VideoPlayerView: View, Equatable {
             }
         } message: { format in
             Text("您的设备对 \(format) 格式兼容性欠佳，在播放过程中可能会遇到一些性能问题。\n\n建议尽量使用 MP4、MOV、M4V、MP3、FLAC、M4A、AAC、ALAC 等推荐的视频、音频格式以获得最流畅的体验。")
+        }
+        .fileImporter(
+            isPresented: $isShowingReplaceMedia,
+            allowedContentTypes: UTType.allMediaTypes,
+            allowsMultipleSelection: false
+        ) { result in
+            guard case .success(let urls) = result, let url = urls.first else { return }
+            project.replaceMedia(with: url)
         }
     }
 
@@ -193,14 +209,6 @@ struct VideoPlayerView: View, Equatable {
             }
             .padding(40)
         }
-        .fileImporter(
-            isPresented: $isShowingReplaceMedia,
-            allowedContentTypes: UTType.allMediaTypes,
-            allowsMultipleSelection: false
-        ) { result in
-            guard case .success(let urls) = result, let url = urls.first else { return }
-            project.replaceMedia(with: url)
-        }
     }
 
     // MARK: - Player Setup
@@ -211,6 +219,14 @@ struct VideoPlayerView: View, Equatable {
             engine?.stop()
             engine = nil
             currentURL = nil
+            
+            if let token = timeObserverToken {
+                timeObserverPlayer?.removeTimeObserver(token)
+                timeObserverToken = nil
+                timeObserverPlayer = nil
+            }
+            timeObserverTask?.cancel()
+            timeObserverTask = nil
             return
         }
 

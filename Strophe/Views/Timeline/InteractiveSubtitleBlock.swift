@@ -79,12 +79,12 @@ struct InteractiveSubtitleBlock: View {
                 .font(.system(size: 9))
                 .padding(.horizontal, 8)
                 .frame(width: currentWidth, height: 30)
-                .background(isSelected ? Color.accentColor.opacity(0.55) : Color.accentColor.opacity(0.3))
+                .background(isSelected ? Color.stropheBlue.opacity(0.55) : Color.stropheBlue.opacity(0.3))
                 .foregroundColor(isSelected ? .white : .primary)
                 .cornerRadius(4)
                 .overlay(
                     RoundedRectangle(cornerRadius: 4)
-                        .stroke(isSelected ? Color.yellow : Color.accentColor, lineWidth: isSelected ? 2 : 1)
+                        .stroke(isSelected ? Color.yellow : Color.stropheBlue, lineWidth: isSelected ? 2 : 1)
                 )
             
             // 边缘拉伸把手（仅在选择模式下激活）
@@ -397,7 +397,7 @@ struct InteractiveSubtitleBlock: View {
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background(Color.accentColor.opacity(0.85))
+                .background(Color.stropheBlue.opacity(0.85))
                 .foregroundColor(.white)
                 .cornerRadius(6)
         }

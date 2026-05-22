@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct WaveformCanvas: View {
-    let data: WaveformData
+    @ObservedObject var data: WaveformData
     let pixelsPerSecond: Double
     
     // 根据 pixelsPerSecond 选择最合适的 mipmap 层（超采样优先，保证极致清晰度）
