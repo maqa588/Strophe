@@ -9,6 +9,7 @@ final class AudioPlayer {
     private let timePitchNode = AVAudioUnitTimePitch()
     
     private var isEngineRunning = false
+    private var shouldBePlaying = false
     private var baseTime: Double = 0.0
     private var totalSamplesScheduled: Int64 = 0
     private let sampleRate: Double = 44100.0
@@ -43,27 +44,36 @@ final class AudioPlayer {
     
     func start() {
         lock.lock()
-        let alreadyRunning = isEngineRunning
+        let nativelyRunning = audioEngine.isRunning
         lock.unlock()
         
-        guard !alreadyRunning else { return }
-        do {
-            try audioEngine.start()
-            lock.lock()
-            isEngineRunning = true
-            lock.unlock()
-        } catch {
-            print("❌ AudioPlayer: Failed to start audioEngine: \(error)")
+        if !nativelyRunning {
+            do {
+                try audioEngine.start()
+                lock.lock()
+                isEngineRunning = true
+                lock.unlock()
+            } catch {
+                print("❌ AudioPlayer: Failed to start audioEngine: \(error)")
+            }
         }
     }
     
     func play() {
+        lock.lock()
+        shouldBePlaying = true
+        let hasSamples = totalSamplesScheduled > 0
+        lock.unlock()
+        
         start()
-        playerNode.play()
+        if hasSamples {
+            playerNode.play()
+        }
     }
     
     func pause() {
         lock.lock()
+        shouldBePlaying = false
         // Calculate real elapsed using offset-corrected sampleTime
         var elapsed = 0.0
         let isNodePlaying = playerNode.isPlaying
@@ -90,6 +100,7 @@ final class AudioPlayer {
         audioEngine.stop()
         isEngineRunning = false
         lock.lock()
+        shouldBePlaying = false
         totalSamplesScheduled = 0
         scheduledBufferCount = 0
         baseTime = 0.0
@@ -116,7 +127,6 @@ final class AudioPlayer {
                     return
                 }
             }
-            playerNode.play()
         }
     }
     
@@ -145,6 +155,8 @@ final class AudioPlayer {
         }
         
         scheduledBufferCount += 1
+        let isPlayingState = shouldBePlaying
+        let isCurrentlyPlaying = playerNode.isPlaying
         lock.unlock()
         
         let format = AVAudioFormat(commonFormat: .pcmFormatFloat32,
@@ -185,6 +197,10 @@ final class AudioPlayer {
         lock.lock()
         totalSamplesScheduled += Int64(sampleCount)
         lock.unlock()
+        
+        if isPlayingState && !isCurrentlyPlaying {
+            playerNode.play()
+        }
     }
     
     // Get the frame-perfect current time of the audio playback

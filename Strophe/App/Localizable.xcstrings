@@ -1200,6 +1200,9 @@
         }
       }
     },
+    "WebVTT (.vtt)" : {
+
+    },
     "不保存" : {
       "localizations" : {
         "ar" : {

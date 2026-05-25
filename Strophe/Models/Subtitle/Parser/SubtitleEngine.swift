@@ -13,7 +13,8 @@ public final class SubtitleEngine {
     private static let processors: [SubtitleFormat: SubtitleProcessor] = [
         .srt: SRTProcessor(),
         .lrc: LRCProcessor(),
-        .ass: ASSProcessor()
+        .ass: ASSProcessor(),
+        .vtt: WebVTTProcessor()
     ]
     
     /// 自动嗅探文件编码读取，防止中文乱码崩溃
@@ -56,6 +57,14 @@ public final class SubtitleEngine {
         // 1. 判断是否为 ASS 字幕
         if rawText.contains("Dialogue:") {
             let blocks = ASSProcessor().parse(text: rawText)
+            if !blocks.isEmpty {
+                return (true, blocks)
+            }
+        }
+        
+        // 1.5 判断是否为 WebVTT 字幕
+        if rawText.contains("WEBVTT") {
+            let blocks = WebVTTProcessor().parse(text: rawText)
             if !blocks.isEmpty {
                 return (true, blocks)
             }

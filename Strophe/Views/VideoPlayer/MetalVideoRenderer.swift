@@ -154,11 +154,19 @@ final class MetalVideoRenderer: MTKView {
         self.currentPixelBuffer = pixelBuffer
         lock.unlock()
         
+        let updateBlock = { [weak self] in
+            #if os(macOS)
+            self?.needsDisplay = true
+            #else
+            self?.setNeedsDisplay()
+            #endif
+        }
+        
         if Thread.isMainThread {
-            self.draw()
+            updateBlock()
         } else {
-            DispatchQueue.main.async { [weak self] in
-                self?.draw()
+            DispatchQueue.main.async {
+                updateBlock()
             }
         }
     }
@@ -231,15 +239,21 @@ final class MetalVideoRenderer: MTKView {
 
         // plane 0: Y
         var cvY: CVMetalTexture?
-        _ = CVMetalTextureCacheCreateTextureFromImage(
+        let statusY = CVMetalTextureCacheCreateTextureFromImage(
             kCFAllocatorDefault, cache, pixelBuffer, nil,
             yMtlFormat, width, height, 0, &cvY)
+        if statusY != kCVReturnSuccess {
+            print("❌ CVMetalTextureCacheCreateTextureFromImage failed for Y plane: \(statusY)")
+        }
 
         // plane 1: CbCr
         var cvUV: CVMetalTexture?
-        _ = CVMetalTextureCacheCreateTextureFromImage(
+        let statusUV = CVMetalTextureCacheCreateTextureFromImage(
             kCFAllocatorDefault, cache, pixelBuffer, nil,
             uvMtlFormat, width / 2, height / 2, 1, &cvUV)
+        if statusUV != kCVReturnSuccess {
+            print("❌ CVMetalTextureCacheCreateTextureFromImage failed for UV plane: \(statusUV)")
+        }
 
         guard let yTex  = cvY.flatMap(CVMetalTextureGetTexture),
               let uvTex = cvUV.flatMap(CVMetalTextureGetTexture) else {

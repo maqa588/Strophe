@@ -109,6 +109,9 @@
     },
     "WebM Video" : {
 
+    },
+    "WebVTT Subtitle File" : {
+
     }
   },
   "version" : "1.0"

@@ -164,6 +164,9 @@ struct MainContentView: View, Equatable {
                         Button("Lyrics (.lrc)") {
                             exportSubtitles(format: .lrc)
                         }
+                        Button("WebVTT (.vtt)") {
+                            exportSubtitles(format: .vtt)
+                        }
                     }
                     
                     Divider()
@@ -226,6 +229,8 @@ struct MainContentView: View, Equatable {
             generatedText = ASSProcessor().generate(blocks: blocks)
         case .lrc:
             generatedText = LRCProcessor().generate(blocks: blocks)
+        case .vtt:
+            generatedText = WebVTTProcessor().generate(blocks: blocks)
         }
         
         exportFormat = format

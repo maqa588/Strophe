@@ -64,6 +64,8 @@ struct SubtitleTimeFormatter {
             let totalMins = hrs * 60 + mins
             let cs = ms / 10
             return String(format: "[%02d:%02d.%02d]", totalMins, secs, cs)
+        case .vtt:
+            return String(format: "%02d:%02d:%02d.%03d", hrs, mins, secs, ms)
         }
     }
 }

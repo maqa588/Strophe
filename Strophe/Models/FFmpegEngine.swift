@@ -9,6 +9,65 @@ import AppKit
 import UIKit
 #endif
 
+// MARK: - FrameQueue
+// Synchronous, thread-safe frame queue protected by a recursive lock for zero-latency MainActor rendering.
+final class FrameQueue: @unchecked Sendable {
+    private var frames: [VideoFrame] = []
+    private let lock = NSRecursiveLock()
+    let capacity: Int
+
+    init(capacity: Int) {
+        self.capacity = capacity
+    }
+
+    func enqueue(_ frame: VideoFrame) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard frames.count < capacity else { return false }
+        frames.append(frame)
+        return true
+    }
+
+    func dequeueReady(before pts: Double) -> VideoFrame? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let idx = frames.firstIndex(where: { $0.pts <= pts }) else { return nil }
+        return frames.remove(at: idx)
+    }
+
+    func dropBefore(_ pts: Double) -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        let before = frames.count
+        frames.removeAll { $0.pts < pts - 0.1 }
+        return before - frames.count
+    }
+
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return frames.count
+    }
+
+    func removeAll() {
+        lock.lock()
+        defer { lock.unlock() }
+        frames.removeAll()
+    }
+
+    func peekFirst() -> VideoFrame? {
+        lock.lock()
+        defer { lock.unlock() }
+        return frames.first
+    }
+
+    func peekLast() -> VideoFrame? {
+        lock.lock()
+        defer { lock.unlock() }
+        return frames.last
+    }
+}
+
 // MARK: - FFmpegEngine
 // High-performance, `@MainActor`-isolated engine conforming perfectly to `PlayerEngine`.
 @MainActor final class FFmpegEngine: NSObject, PlayerEngine {
@@ -33,9 +92,15 @@ import UIKit
     private var wasPlayingBeforeScrub = false
     private var rateBeforeScrub: Double = 0.0
     
-    private var videoFrameQueue: [VideoFrame] = []
+    private let frameQueue = FrameQueue(capacity: 24)
     private var lastSeekTime: CFTimeInterval = 0
+    private var activeSeekTask: Task<Void, Never>? = nil
     private var diagTimer: Timer? = nil
+
+    // Seek generation — incremented on every seek/load to discard stale pre-seek frames
+    private var currentFrameGeneration: Int = 0
+
+
     
     private var displayLink: CADisplayLink? = nil
     
@@ -57,17 +122,37 @@ import UIKit
             await coreInstance.registerCallbacks(
                 onFrameReady: { [weak self] sendableBuffer, pts in
                     guard let self = self else { return }
-                    
+
+                    // ── Stale-frame guard ──────────────────────────────────────────
+                    // If the generation stamp doesn't match, this callback was queued
+                    // BEFORE the most recent seek/load. We simply discard it.
+                    // DO NOT call decrementFrameQueueCount() here because the seek
+                    // that bumped the generation also explicitly zeroed vfqCount, 
+                    // which already accounted for the removal of these in-flight frames!
+                    guard sendableBuffer.generation == self.currentFrameGeneration else {
+                        return
+                    }
+
                     if self.cachedRate == 0 {
                         self.metalRenderer.update(with: sendableBuffer.buffer)
-                        self.videoFrameQueue.removeAll()
                         Task {
-                            await coreInstance.clearFrameQueueCount()
+                            await coreInstance.decrementFrameQueueCount()
                         }
                     } else {
+                        // Log PTS vs clock mismatch when enqueueing
+                        let clock = self.currentTime
+                        if pts > clock + 2.0 {
+                            print("⚠️ Frame PTS \(String(format: "%.3f", pts)) is \(String(format: "%.1f", pts - clock))s AHEAD of clock \(String(format: "%.3f", clock)) — queue may stall")
+                        }
                         let frame = VideoFrame(pixelBuffer: sendableBuffer.buffer, pts: pts)
-                        self.videoFrameQueue.append(frame)
-                        self.videoFrameQueue.sort { $0.pts < $1.pts }
+                        let accepted = self.frameQueue.enqueue(frame)
+                        if !accepted {
+                            // If the queue is unexpectedly full, we drop the frame.
+                            // DO NOT decrement vfqCount! This allows vfqCount to naturally
+                            // rise to maxCapacity and put the decode loop to sleep, breaking
+                            // any runaway loop caused by previous desynchronization.
+                            print("⚠️ Frame dropped because queue is full. Self-healing vfqCount.")
+                        }
                     }
                 },
                 onAudioReady: { [weak ap] left, right in
@@ -200,8 +285,11 @@ import UIKit
     
     func load(url: URL) async {
         stopDisplayLink()
-        videoFrameQueue.removeAll()
-        await core.clearFrameQueueCount()
+        frameQueue.removeAll()
+        // Bump generation before load so any queued callbacks from a previous
+        // session are immediately discarded by the stale-frame guard.
+        currentFrameGeneration += 1
+        await core.seekClearAndNewGeneration(generation: currentFrameGeneration)
         
         await core.loadSession(url: url)
         
@@ -229,77 +317,101 @@ import UIKit
     }
     
     func seek(to time: Double) async {
-        // Capture playing state BEFORE any async calls that might trigger
-        // state callbacks that could overwrite our cached values
-        let wasPlaying = cachedIsPlaying || wasPlayingBeforeScrub
-        let targetRate = wasPlaying ? (rateBeforeScrub > 0 ? rateBeforeScrub : 1.0) : 0.0
+        activeSeekTask?.cancel()
         
-        // Reset scrub state
-        isScrubbingActive = false
-        wasPlayingBeforeScrub = false
-        rateBeforeScrub = 0.0
-        
-        print("🔍 Seek triggered: frameQueue.count before clear = \(videoFrameQueue.count)")
-        if let lastFrame = videoFrameQueue.last {
-            metalRenderer.update(with: lastFrame.pixelBuffer)
-        }
-        videoFrameQueue.removeAll()
-        await core.clearFrameQueueCount()
-        await core.setIsPlaying(false)
-        
-        // Get the ACTUAL pts of the first decoded frame
-        let actualPTS = await core.seekSession(to: time)
-        
-        // Set audio baseTime to EXACTLY the same value as video first-frame PTS
-        // This is the single source of truth
-        audioPlayer.seek(to: actualPTS)
-        
-        // Reset the system clock baseline AFTER seek completes
-        cachedStartSystemTime = CACurrentMediaTime()
-        cachedStartPlaybackTime = actualPTS
-        lastSeekTime = cachedStartSystemTime
-        
-        // Notify core of new reference points
-        await core.setStartSystemTime(cachedStartSystemTime)
-        await core.setStartPlaybackTime(actualPTS)
-        
-        // Resume decode loop and audio together using saved state
-        await core.setIsPlaying(wasPlaying)
-        
-        if wasPlaying {
+        let task = Task {
+            // Capture playing state BEFORE any async calls that might trigger
+            // state callbacks that could overwrite our cached values
+            let wasPlaying = cachedIsPlaying || wasPlayingBeforeScrub
+            let targetRate = wasPlaying ? (rateBeforeScrub > 0 ? rateBeforeScrub : 1.0) : 0.0
+            
+            // Reset scrub state
+            isScrubbingActive = false
+            wasPlayingBeforeScrub = false
+            rateBeforeScrub = 0.0
+            
+            let countBefore = frameQueue.count
+            print("🔍 Seek triggered: frameQueue.count before clear = \(countBefore)")
+            if let lastFrame = frameQueue.peekLast() {
+                metalRenderer.update(with: lastFrame.pixelBuffer)
+            }
+            frameQueue.removeAll()
+            currentFrameGeneration += 1
+            await core.seekClearAndNewGeneration(generation: currentFrameGeneration)
+            await core.setIsPlaying(false)
+            
+            if Task.isCancelled { return }
+            
+            // Get the ACTUAL pts of the first decoded frame
+            let actualPTS = await core.seekSession(to: time, exact: true)
+            
+            if Task.isCancelled { return }
+            
+            // Set audio baseTime to EXACTLY the same value as video first-frame PTS
+            // This is the single source of truth
+            audioPlayer.seek(to: actualPTS)
+            
+            // Reset the system clock baseline AFTER seek completes
             cachedStartSystemTime = CACurrentMediaTime()
-            self.rate = targetRate
+            cachedStartPlaybackTime = actualPTS
+            lastSeekTime = cachedStartSystemTime
+            
+            // Notify core of new reference points
+            await core.setStartSystemTime(cachedStartSystemTime)
+            await core.setStartPlaybackTime(actualPTS)
+            
+            // Resume decode loop and audio together using saved state
+            await core.setIsPlaying(wasPlaying)
+            
+            if wasPlaying {
+                cachedStartSystemTime = CACurrentMediaTime()
+                self.rate = targetRate
+            }
         }
+        activeSeekTask = task
+        _ = await task.result
     }
     
     func seekVideoFrameOnly(to time: Double) async {
-        // Capture playback state before starting scrub sequence
-        if !isScrubbingActive {
-            isScrubbingActive = true
-            wasPlayingBeforeScrub = cachedIsPlaying
-            rateBeforeScrub = cachedRate
+        activeSeekTask?.cancel()
+        
+        let task = Task {
+            // Capture playback state before starting scrub sequence
+            if !isScrubbingActive {
+                isScrubbingActive = true
+                wasPlayingBeforeScrub = cachedIsPlaying
+                rateBeforeScrub = cachedRate
+            }
+            
+            // Pause playback rate and halt decode loop during scrubbing to prevent frame accumulation
+            rate = 0.0
+            
+            let countBefore = frameQueue.count
+            print("🔍 SeekVideoFrameOnly triggered: frameQueue.count before clear = \(countBefore)")
+            if let lastFrame = frameQueue.peekLast() {
+                metalRenderer.update(with: lastFrame.pixelBuffer)
+            }
+            frameQueue.removeAll()
+            currentFrameGeneration += 1
+            await core.seekClearAndNewGeneration(generation: currentFrameGeneration)
+            
+            if Task.isCancelled { return }
+            
+            // Pause audio stream during scrub previewing
+            audioPlayer.pause()
+            
+            // Asynchronously seek and decode a single preview frame without touching audio playback
+            let actualTime = await core.seekSession(to: time, exact: false)
+            
+            if Task.isCancelled { return }
+            
+            // Instantly align master playback time so timeline ruler updates dynamically while dragging
+            cachedStartPlaybackTime = actualTime
+            cachedStartSystemTime = CACurrentMediaTime()
+            lastSeekTime = cachedStartSystemTime
         }
-        
-        // Pause playback rate and halt decode loop during scrubbing to prevent frame accumulation
-        rate = 0.0
-        
-        print("🔍 SeekVideoFrameOnly triggered: frameQueue.count before clear = \(videoFrameQueue.count)")
-        if let lastFrame = videoFrameQueue.last {
-            metalRenderer.update(with: lastFrame.pixelBuffer)
-        }
-        videoFrameQueue.removeAll()
-        await core.clearFrameQueueCount()
-        
-        // Pause audio stream during scrub previewing
-        audioPlayer.pause()
-        
-        // Asynchronously seek and decode a single preview frame without touching audio playback
-        let actualTime = await core.seekSession(to: time)
-        
-        // Instantly align master playback time so timeline ruler updates dynamically while dragging
-        cachedStartPlaybackTime = actualTime
-        cachedStartSystemTime = CACurrentMediaTime()
-        lastSeekTime = cachedStartSystemTime
+        activeSeekTask = task
+        _ = await task.result
     }
     
     func stop() {
@@ -320,7 +432,7 @@ import UIKit
         }
         
         audioPlayer.stop()
-        videoFrameQueue.removeAll()
+        frameQueue.removeAll()
     }
     
     // MARK: - Display Link
@@ -364,44 +476,27 @@ import UIKit
             return
         }
         let currentClock = currentTime
-        
-        var frameToRender: VideoFrame? = nil
         var consumed = 0
-        
-        while !videoFrameQueue.isEmpty {
-            let nextFrame = videoFrameQueue.first!
-            let delta = nextFrame.pts - currentClock
-            
-            let seekRecoveryWindow: CFTimeInterval = 1.0
-            let isSeekRecovery = (CACurrentMediaTime() - lastSeekTime) < seekRecoveryWindow
-            let dropThreshold = isSeekRecovery ? -0.5 : -0.1
-            
-            if delta < dropThreshold {
-                // Video is more than 100ms behind audio, drop it to catch up
-                videoFrameQueue.removeFirst()
-                consumed += 1
-            } else if delta > 0.015 {
-                // Video is more than 15ms ahead of audio, wait for next tick
-                break
-            } else {
-                // Video is in the sync window (-100ms <= delta <= 15ms), render it
-                frameToRender = nextFrame
-                videoFrameQueue.removeFirst()
-                consumed += 1
-                break
-            }
+
+
+
+        if let frame = frameQueue.dequeueReady(before: currentClock + 0.005) {
+            self.metalRenderer.update(with: frame.pixelBuffer)
+            consumed += 1
         }
-        
+
+        let dropped = frameQueue.dropBefore(currentClock)
+        consumed += dropped
+        consumed += dropped
+
         if consumed > 0 {
-            let amount = consumed
+            let coreInstance = core
+            let consumedCount = consumed
             Task {
-                await core.decrementFrameQueueCount(by: amount)
+                await coreInstance.decrementFrameQueueCount(by: consumedCount)
             }
         }
-        
-        if let frame = frameToRender {
-            metalRenderer.update(with: frame.pixelBuffer)
-        }
+
     }
 }
 

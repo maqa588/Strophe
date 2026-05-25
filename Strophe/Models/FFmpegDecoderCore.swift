@@ -16,6 +16,8 @@ struct VideoFrame: Sendable {
 // MARK: - SendablePixelBuffer
 struct SendablePixelBuffer: @unchecked Sendable {
     let buffer: CVPixelBuffer
+    /// Seek generation stamp — used by FFmpegEngine to discard stale pre-seek callbacks.
+    let generation: Int
 }
 
 // 用于向 FFmpeg 声明优先选择 VideoToolbox 硬件像素格式
@@ -36,7 +38,7 @@ nonisolated(unsafe) private let getFormatCallback: @convention(c) (UnsafeMutable
 // High-performance background demuxer/decoder isolated to its own serial actor context.
 actor FFmpegDecoderCore {
     static let AV_NOPTS_VALUE = Int64(bitPattern: 0x8000000000000000)
-    let maxVideoQueueCapacity = 8
+    let maxVideoQueueCapacity = 24
     
     // Core FFmpeg variables
     var formatContext: UnsafeMutablePointer<AVFormatContext>? = nil
@@ -60,6 +62,7 @@ actor FFmpegDecoderCore {
     var startPlaybackTime: Double = 0.0
     
     var videoFrameQueueCount: Int = 0
+    var frameEmitGeneration: Int = 0
     
     // Callbacks to push decoded frame, audio PCM, and state updates back to MainActor safely.
     var onFrameReady: (@MainActor @Sendable (SendablePixelBuffer, Double) -> Void)? = nil
@@ -91,13 +94,21 @@ actor FFmpegDecoderCore {
     }
     
     func setIsPlaying(_ playing: Bool) {
+        let changed = self.isPlaying != playing
         self.isPlaying = playing
+        if changed {
+            print("▶️ Playback state changed: playing=\(playing), vfqCount=\(videoFrameQueueCount)")
+        }
         notifyStateChanged()
     }
     
     func setPlaybackRate(_ rate: Double) {
+        let changed = self.playbackRate != rate
         self.playbackRate = rate
         self.isPlaying = rate > 0
+        if changed {
+            print("▶️ Playback rate changed: rate=\(rate), playing=\(self.isPlaying)")
+        }
         notifyStateChanged()
     }
     
@@ -120,6 +131,15 @@ actor FFmpegDecoderCore {
     func clearFrameQueueCount() {
         self.videoFrameQueueCount = 0
     }
+
+    /// Atomically clears the video frame queue count AND increments the seek
+    /// generation.  Call this instead of clearFrameQueueCount() whenever a seek
+    /// or load happens so that in-flight MainActor callbacks carrying the old
+    /// generation are silently discarded by FFmpegEngine's stale-frame guard.
+    func seekClearAndNewGeneration(generation: Int) {
+        self.videoFrameQueueCount = 0
+        self.frameEmitGeneration = generation
+    }
     
     func getVideoFrameQueueCount() -> Int {
         return self.videoFrameQueueCount
@@ -135,7 +155,7 @@ actor FFmpegDecoderCore {
             self.activeSeekId += 1
             let seekId = self.activeSeekId
             self.isSeekingSessionActive = true
-            await seekAndQueueSingleFrame(to: 0.0, seekId: seekId)
+            await seekAndQueueSingleFrame(to: 0.0, seekId: seekId, exact: false)
             if seekId == self.activeSeekId {
                 self.isSeekingSessionActive = false
             }
@@ -146,7 +166,7 @@ actor FFmpegDecoderCore {
     }
     
     // Performs seek session entirely off the MainActor
-    func seekSession(to time: Double) async -> Double {
+    func seekSession(to time: Double, exact: Bool) async -> Double {
         activeSeekId += 1
         let seekId = activeSeekId
         
@@ -159,6 +179,9 @@ actor FFmpegDecoderCore {
         }
         
         self.seekTargetTime = time
+        // NOTE: generation is bumped by the caller (FFmpegEngine) via
+        // seekClearAndNewGeneration() BEFORE seekSession is called, so frames
+        // produced here already carry the new generation.
         self.videoFrameQueueCount = 0
         
         if let ctx = self.formatContext {
@@ -184,7 +207,7 @@ actor FFmpegDecoderCore {
         
         notifyStateChanged()
         
-        let actualPTS = await self.seekAndQueueSingleFrame(to: time, seekId: seekId)
+        let actualPTS = await self.seekAndQueueSingleFrame(to: time, seekId: seekId, exact: exact)
         
         if seekId == activeSeekId {
             self.startPlaybackTime = actualPTS
@@ -258,7 +281,50 @@ actor FFmpegDecoderCore {
             self.videoDuration = Double(ctx!.pointee.duration) / Double(AV_TIME_BASE)
         }
         
-        guard let vDecoder = avcodec_find_decoder(vCodecpar.pointee.codec_id) else {
+        var resolvedDecoder = avcodec_find_decoder(vCodecpar.pointee.codec_id)
+        var useVTForAV1 = false
+        
+        if vCodecpar.pointee.codec_id == AV_CODEC_ID_AV1 {
+            // Try native AV1 decoder first, which supports VideoToolbox hwaccel
+            if let nativeAV1 = avcodec_find_decoder_by_name("av1") {
+                // Check if it has a VideoToolbox hw_config
+                var i: Int32 = 0
+                var hasVTConfig = false
+                while let config = avcodec_get_hw_config(nativeAV1, i) {
+                    if config.pointee.device_type == AV_HWDEVICE_TYPE_VIDEOTOOLBOX {
+                        hasVTConfig = true
+                        break
+                    }
+                    i += 1
+                }
+                
+                if hasVTConfig {
+                    // Try to create the VideoToolbox device context to verify physical/OS support
+                    var hwDeviceCtx: UnsafeMutablePointer<AVBufferRef>? = nil
+                    if av_hwdevice_ctx_create(&hwDeviceCtx, AV_HWDEVICE_TYPE_VIDEOTOOLBOX, nil, nil, 0) >= 0 {
+                        // Success! We can use native AV1 with VideoToolbox hardware acceleration
+                        av_buffer_unref(&hwDeviceCtx)
+                        resolvedDecoder = nativeAV1
+                        useVTForAV1 = true
+                        print("🎬 FFmpegEngine: Selected native AV1 decoder with VideoToolbox hardware acceleration.")
+                    } else {
+                        print("ℹ️ FFmpegEngine: Native AV1 decoder has VideoToolbox config but hardware creation failed (likely M1/M2 or OS limitation). Falling back to software libdav1d.")
+                    }
+                } else {
+                    print("ℹ️ FFmpegEngine: Native AV1 decoder does not support VideoToolbox in this FFmpeg build. Falling back to software libdav1d.")
+                }
+            }
+            
+            if !useVTForAV1 {
+                // Fallback to high-performance software libdav1d
+                if let dav1d = avcodec_find_decoder_by_name("libdav1d") {
+                    resolvedDecoder = dav1d
+                    print("🎬 FFmpegEngine: Selected software libdav1d decoder for AV1.")
+                }
+            }
+        }
+        
+        guard let vDecoder = resolvedDecoder else {
             print("❌ FFmpegEngine: Failed to find video decoder")
             return false
         }
@@ -266,7 +332,6 @@ actor FFmpegDecoderCore {
         let vCtx = avcodec_alloc_context3(vDecoder)
         self.videoCodecContext = vCtx
         av_opt_set_int(vCtx, "threads", 0, 0)
-        vCtx!.pointee.thread_type = Int32(FF_THREAD_FRAME | FF_THREAD_SLICE)
         avcodec_parameters_to_context(vCtx, vCodecpar)
         
         // 绑定协商回调以强制开启 VideoToolbox 输出
@@ -293,10 +358,17 @@ actor FFmpegDecoderCore {
             print("⚠️ Warning: VideoToolbox hw_config not found for this decoder.")
         }
         
-        if avcodec_open2(vCtx, vDecoder, nil) < 0 {
+        var opts: OpaquePointer? = nil
+        av_dict_set(&opts, "tilethreads", "0", 0)
+        av_dict_set(&opts, "framethreads", "0", 0)
+        av_dict_set(&opts, "threads", "0", 0)
+        
+        if avcodec_open2(vCtx, vDecoder, &opts) < 0 {
             print("❌ FFmpegEngine: Failed to open video codec")
+            av_dict_free(&opts)
             return false
         }
+        av_dict_free(&opts)
         
         // Initialize Audio Decoder (if present)
         if audioStreamIndex >= 0 {
@@ -346,7 +418,50 @@ actor FFmpegDecoderCore {
         let stream = ctx.pointee.streams[Int(videoStreamIndex)]!
         let codecpar = stream.pointee.codecpar!
         
-        guard let decoder = avcodec_find_decoder(codecpar.pointee.codec_id) else {
+        var resolvedDecoder = avcodec_find_decoder(codecpar.pointee.codec_id)
+        var useVTForAV1 = false
+        
+        if codecpar.pointee.codec_id == AV_CODEC_ID_AV1 {
+            // Try native AV1 decoder first, which supports VideoToolbox hwaccel
+            if let nativeAV1 = avcodec_find_decoder_by_name("av1") {
+                // Check if it has a VideoToolbox hw_config
+                var i: Int32 = 0
+                var hasVTConfig = false
+                while let config = avcodec_get_hw_config(nativeAV1, i) {
+                    if config.pointee.device_type == AV_HWDEVICE_TYPE_VIDEOTOOLBOX {
+                        hasVTConfig = true
+                        break
+                    }
+                    i += 1
+                }
+                
+                if hasVTConfig {
+                    // Try to create the VideoToolbox device context to verify physical/OS support
+                    var hwDeviceCtx: UnsafeMutablePointer<AVBufferRef>? = nil
+                    if av_hwdevice_ctx_create(&hwDeviceCtx, AV_HWDEVICE_TYPE_VIDEOTOOLBOX, nil, nil, 0) >= 0 {
+                        // Success! We can use native AV1 with VideoToolbox hardware acceleration
+                        av_buffer_unref(&hwDeviceCtx)
+                        resolvedDecoder = nativeAV1
+                        useVTForAV1 = true
+                        print("🎬 rebuildVideoCodecContext: Selected native AV1 decoder with VideoToolbox hardware acceleration.")
+                    } else {
+                        print("ℹ️ rebuildVideoCodecContext: Native AV1 decoder has VideoToolbox config but hardware creation failed (likely M1/M2 or OS limitation). Falling back to software libdav1d.")
+                    }
+                } else {
+                    print("ℹ️ rebuildVideoCodecContext: Native AV1 decoder does not support VideoToolbox in this FFmpeg build. Falling back to software libdav1d.")
+                }
+            }
+            
+            if !useVTForAV1 {
+                // Fallback to high-performance software libdav1d
+                if let dav1d = avcodec_find_decoder_by_name("libdav1d") {
+                    resolvedDecoder = dav1d
+                    print("🎬 rebuildVideoCodecContext: Selected software libdav1d decoder for AV1.")
+                }
+            }
+        }
+        
+        guard let decoder = resolvedDecoder else {
             print("❌ rebuildVideoCodecContext: decoder not found")
             return
         }
@@ -356,7 +471,6 @@ actor FFmpegDecoderCore {
         let newCtx = avcodec_alloc_context3(decoder)
         self.videoCodecContext = newCtx
         av_opt_set_int(newCtx, "threads", 0, 0)
-        newCtx!.pointee.thread_type = Int32(FF_THREAD_FRAME | FF_THREAD_SLICE)
         avcodec_parameters_to_context(newCtx, codecpar)
         
         // 同样在此处绑定回调
@@ -382,10 +496,17 @@ actor FFmpegDecoderCore {
             print("⚠️ rebuildVideoCodecContext: VideoToolbox hw_config not found for this decoder.")
         }
         
-        if avcodec_open2(newCtx, decoder, nil) < 0 {
+        var opts: OpaquePointer? = nil
+        av_dict_set(&opts, "tilethreads", "0", 0)
+        av_dict_set(&opts, "framethreads", "0", 0)
+        av_dict_set(&opts, "threads", "0", 0)
+        
+        if avcodec_open2(newCtx, decoder, &opts) < 0 {
             print("❌ rebuildVideoCodecContext: avcodec_open2 failed")
+            av_dict_free(&opts)
         } else {
             print("✅ rebuildVideoCodecContext: VT pipeline rebuilt")
+            av_dict_free(&opts)
         }
     }
     
@@ -422,9 +543,11 @@ actor FFmpegDecoderCore {
         videoFrameSize = .zero
         
         // Release pixel buffer pool
+        poolLock.lock()
         pixelBufferPool = nil
         poolWidth = 0
         poolHeight = 0
+        poolLock.unlock()
     }
     
     func stopDecodeLoop() {
@@ -458,8 +581,10 @@ actor FFmpegDecoderCore {
             var p: UnsafeMutablePointer<AVPacket>? = packet
             av_packet_free(&p)
         }
-        
+
         while !Task.isCancelled {
+            await Task.yield() // ⚡️ Yield the actor executor to allow pending calls (e.g. decrementFrameQueueCount) to execute
+
             if !isPlaying || isSeekingSessionActive {
                 try? await Task.sleep(nanoseconds: 10_000_000) // 10ms
                 continue
@@ -483,8 +608,12 @@ actor FFmpegDecoderCore {
         
         if !skipVideo {
             while avcodec_receive_frame(vCtx, frame) >= 0 {
-                if self.videoFrameQueueCount >= maxVideoQueueCapacity { return false }
+                if self.videoFrameQueueCount >= maxVideoQueueCapacity {
+                    av_frame_unref(frame)
+                    return false
+                }
                 processVideoFrame(frame, ctx: ctx)
+                av_frame_unref(frame)
             }
         } else {
             while avcodec_receive_frame(vCtx, frame) >= 0 {
@@ -499,8 +628,12 @@ actor FFmpegDecoderCore {
                 let sendStatus = avcodec_send_packet(vCtx, packet)
                 if sendStatus >= 0 && !skipVideo {
                     while avcodec_receive_frame(vCtx, frame) >= 0 {
-                        if self.videoFrameQueueCount >= maxVideoQueueCapacity { return false }
+                        if self.videoFrameQueueCount >= maxVideoQueueCapacity {
+                            av_frame_unref(frame)
+                            return false
+                        }
                         processVideoFrame(frame, ctx: ctx)
+                        av_frame_unref(frame)
                     }
                 } else if sendStatus >= 0 && skipVideo {
                     while avcodec_receive_frame(vCtx, frame) >= 0 {
@@ -512,6 +645,7 @@ actor FFmpegDecoderCore {
                 if sendStatus >= 0 {
                     while avcodec_receive_frame(aCtx, frame) >= 0 {
                         resampleAndQueueAudio(frame, context: swr)
+                        av_frame_unref(frame)
                     }
                 }
             }
@@ -522,23 +656,69 @@ actor FFmpegDecoderCore {
     }
     
     private func processVideoFrame(_ frame: UnsafeMutablePointer<AVFrame>, ctx: UnsafeMutablePointer<AVFormatContext>) {
-        let pb = autoreleasepool { () -> CVPixelBuffer? in
-            return convertFrameToPixelBuffer(frame)
-        }
-        if let pb = pb {
+        let isHardware = frame.pointee.format == AV_PIX_FMT_VIDEOTOOLBOX.rawValue
+        
+        if isHardware {
+            let pb = autoreleasepool { () -> CVPixelBuffer? in
+                return convertFrameToPixelBuffer(frame)
+            }
+            if let pb = pb {
+                let timeBase = ctx.pointee.streams[Int(videoStreamIndex)]!.pointee.time_base
+                let pts = Double(frame.pointee.best_effort_timestamp) * Double(timeBase.num) / Double(timeBase.den)
+                
+                self.videoFrameQueueCount += 1
+                let gen = self.frameEmitGeneration
+                let sendableBuffer = SendablePixelBuffer(buffer: pb, generation: gen)
+                let callback = self.onFrameReady
+                Task { @MainActor in
+                    callback?(sendableBuffer, pts)
+                }
+            }
+        } else {
+            // Software decode path — clone the frame and perform heavy sws_scale concurrently on global pool
+            guard let clonedFrame = av_frame_alloc() else { return }
+            if av_frame_ref(clonedFrame, frame) < 0 {
+                var f: UnsafeMutablePointer<AVFrame>? = clonedFrame
+                av_frame_free(&f)
+                return
+            }
+            
             let timeBase = ctx.pointee.streams[Int(videoStreamIndex)]!.pointee.time_base
             let pts = Double(frame.pointee.best_effort_timestamp) * Double(timeBase.num) / Double(timeBase.den)
             
+            // Increment count synchronously to maintain queue flow control immediately
             self.videoFrameQueueCount += 1
-            let sendableBuffer = SendablePixelBuffer(buffer: pb)
+            let gen = self.frameEmitGeneration
+            
             let callback = self.onFrameReady
-            Task { @MainActor in
-                callback?(sendableBuffer, pts)
+            Task.detached(priority: .userInitiated) { [weak self] in
+                guard let self = self else {
+                    var f: UnsafeMutablePointer<AVFrame>? = clonedFrame
+                    av_frame_free(&f)
+                    return
+                }
+                
+                let pb = autoreleasepool { () -> CVPixelBuffer? in
+                    return self.convertFrameToPixelBuffer(clonedFrame)
+                }
+                
+                var f: UnsafeMutablePointer<AVFrame>? = clonedFrame
+                av_frame_free(&f)
+                
+                if let pb = pb {
+                    let sendableBuffer = SendablePixelBuffer(buffer: pb, generation: gen)
+                    await MainActor.run {
+                        callback?(sendableBuffer, pts)
+                    }
+                } else {
+                    // Decrement queue count if conversion fails
+                    await self.decrementFrameQueueCount()
+                }
             }
         }
     }
     @discardableResult
-    func seekAndQueueSingleFrame(to seconds: Double, seekId: Int) async -> Double {
+    func seekAndQueueSingleFrame(to seconds: Double, seekId: Int, exact: Bool) async -> Double {
         guard let ctx = formatContext, let vCtx = videoCodecContext,
               let frame = av_frame_alloc(), let packet = av_packet_alloc(),
               let fallbackFrame = av_frame_alloc() else { return seconds }
@@ -552,35 +732,12 @@ actor FFmpegDecoderCore {
         }
         
         let timeBase = ctx.pointee.streams[Int(videoStreamIndex)]!.pointee.time_base
-        
-        var count = 0
-        var hasFallback = false
         var fallbackPTS: Double = seconds
-        let preheatPacketCount = 4
+        var hasFallback = false
+        var count = 0
+        let maxPackets = exact ? 500 : 30
         
-        // Phase 1: VT preheat — send packets without receiving to prime the pipeline
-        while count < preheatPacketCount {
-            if seekId != self.activeSeekId { break }
-            await Task.yield()
-            if seekId != self.activeSeekId { break }
-            
-            av_packet_unref(packet)
-            if av_read_frame(ctx, packet) < 0 { break }
-            
-            guard packet.pointee.stream_index == videoStreamIndex else {
-                count += 1
-                continue
-            }
-            
-            guard avcodec_send_packet(vCtx, packet) >= 0 else {
-                count += 1
-                continue
-            }
-            count += 1
-        }
-        
-        // Phase 2: send + receive until target frame found (max 60 packets total)
-        while count < 60 {
+        while count < maxPackets {
             if seekId != self.activeSeekId {
                 print("⏭️ Aborting obsolete seek (target: \(seconds), new target ID: \(self.activeSeekId))")
                 break
@@ -593,53 +750,92 @@ actor FFmpegDecoderCore {
             if av_read_frame(ctx, packet) < 0 { break }
             
             guard packet.pointee.stream_index == videoStreamIndex else {
-                count += 1
                 continue
             }
             
-            guard avcodec_send_packet(vCtx, packet) >= 0 else {
-                count += 1
-                continue
-            }
-            
-            var found = false
-            while avcodec_receive_frame(vCtx, frame) >= 0 {
-                let pts = Double(frame.pointee.best_effort_timestamp) * Double(timeBase.num) / Double(timeBase.den)
-                
-                if pts >= seconds - 0.001 {
-                    if seekId == self.activeSeekId {
-                        if let pb = convertFrameToPixelBuffer(frame) {
-                            self.startPlaybackTime = pts
-                            let sendableBuffer = SendablePixelBuffer(buffer: pb)
-                            let callback = self.onFrameReady
-                            let capturePTS = pts
-                            Task { @MainActor in
-                                callback?(sendableBuffer, capturePTS)
+            var sendStatus = avcodec_send_packet(vCtx, packet)
+            let gen = self.frameEmitGeneration  // capture once per packet iteration
+            if sendStatus == -EAGAIN {
+                // Decoder buffer is full, drain it first
+                var found = false
+                while avcodec_receive_frame(vCtx, frame) >= 0 {
+                    let pts = Double(frame.pointee.best_effort_timestamp) * Double(timeBase.num) / Double(timeBase.den)
+                    if !exact || pts >= seconds - 0.005 {
+                        if seekId == self.activeSeekId {
+                            if let pb = convertFrameToPixelBuffer(frame) {
+                                self.startPlaybackTime = pts
+                                let sendableBuffer = SendablePixelBuffer(buffer: pb, generation: gen)
+                                self.videoFrameQueueCount += 1
+                                let callback = self.onFrameReady
+                                let capturePTS = pts
+                                Task { @MainActor in
+                                    callback?(sendableBuffer, capturePTS)
+                                }
                             }
                         }
+                        fallbackPTS = pts
+                        found = true
+                        av_frame_unref(frame)
+                        break
                     }
+                    
+                    av_frame_unref(fallbackFrame)
+                    av_frame_ref(fallbackFrame, frame)
                     fallbackPTS = pts
-                    found = true
-                    break
+                    hasFallback = true
+                    av_frame_unref(frame)
                 }
-                
-                av_frame_unref(fallbackFrame)
-                av_frame_ref(fallbackFrame, frame)
-                fallbackPTS = pts
-                hasFallback = true
+                if found {
+                    return fallbackPTS
+                }
+                // Try sending again
+                sendStatus = avcodec_send_packet(vCtx, packet)
             }
             
-            if found {
-                return fallbackPTS
+            if sendStatus >= 0 {
+                var found = false
+                while avcodec_receive_frame(vCtx, frame) >= 0 {
+                    let pts = Double(frame.pointee.best_effort_timestamp) * Double(timeBase.num) / Double(timeBase.den)
+                    if !exact || pts >= seconds - 0.005 {
+                        if seekId == self.activeSeekId {
+                            if let pb = convertFrameToPixelBuffer(frame) {
+                                self.startPlaybackTime = pts
+                                let sendableBuffer = SendablePixelBuffer(buffer: pb, generation: gen)
+                                self.videoFrameQueueCount += 1
+                                let callback = self.onFrameReady
+                                let capturePTS = pts
+                                Task { @MainActor in
+                                    callback?(sendableBuffer, capturePTS)
+                                }
+                            }
+                        }
+                        fallbackPTS = pts
+                        found = true
+                        av_frame_unref(frame)
+                        break
+                    }
+                    
+                    av_frame_unref(fallbackFrame)
+                    av_frame_ref(fallbackFrame, frame)
+                    fallbackPTS = pts
+                    hasFallback = true
+                    av_frame_unref(frame)
+                }
+                if found {
+                    return fallbackPTS
+                }
             }
+            
             count += 1
         }
         
         // Fallback: If exact frame not reached or EOF, render the last decoded frame
         if hasFallback && seekId == self.activeSeekId {
+            let gen = self.frameEmitGeneration
             if let pb = convertFrameToPixelBuffer(fallbackFrame) {
                 self.startPlaybackTime = fallbackPTS
-                let sendableBuffer = SendablePixelBuffer(buffer: pb)
+                let sendableBuffer = SendablePixelBuffer(buffer: pb, generation: gen)
+                self.videoFrameQueueCount += 1
                 let callback = self.onFrameReady
                 let capturePTS = fallbackPTS
                 Task { @MainActor in
@@ -695,11 +891,12 @@ actor FFmpegDecoderCore {
         }
     }
     // MARK: - CVPixelBuffer Pool for software decode path
-    var pixelBufferPool: CVPixelBufferPool? = nil
-    var poolWidth: Int = 0
-    var poolHeight: Int = 0
+    private let poolLock = NSLock()
+    nonisolated(unsafe) var pixelBufferPool: CVPixelBufferPool? = nil
+    nonisolated(unsafe) var poolWidth: Int = 0
+    nonisolated(unsafe) var poolHeight: Int = 0
     
-    func convertFrameToPixelBuffer(_ frame: UnsafeMutablePointer<AVFrame>) -> CVPixelBuffer? {
+    nonisolated func convertFrameToPixelBuffer(_ frame: UnsafeMutablePointer<AVFrame>) -> CVPixelBuffer? {
         let width  = Int(frame.pointee.width)
         let height = Int(frame.pointee.height)
 
@@ -711,6 +908,7 @@ actor FFmpegDecoderCore {
 
         // Software decode path — use a CVPixelBufferPool to reuse buffers
         // instead of creating new ones every frame (prevents FPS degradation)
+        poolLock.lock()
         if pixelBufferPool == nil || poolWidth != width || poolHeight != height {
             // (Re)create pool for current resolution
             pixelBufferPool = nil
@@ -731,9 +929,11 @@ actor FFmpegDecoderCore {
                                    bufferAttrs as CFDictionary,
                                    &pixelBufferPool)
         }
+        let pool = pixelBufferPool
+        poolLock.unlock()
         
         var pixelBuffer: CVPixelBuffer?
-        guard let pool = pixelBufferPool,
+        guard let pool = pool,
               CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &pixelBuffer) == kCVReturnSuccess,
               let pb = pixelBuffer else { return nil }
 
@@ -747,13 +947,15 @@ actor FFmpegDecoderCore {
         let uvStride = CVPixelBufferGetBytesPerRowOfPlane(pb, 1)
 
         let srcFmt = AVPixelFormat(rawValue: frame.pointee.format)
-        swsContext = sws_getCachedContext(
-            swsContext,
+        
+        // Allocate a local SwsContext to make format conversion thread-safe and concurrent
+        let localSwsCtx = sws_getContext(
             Int32(width), Int32(height), srcFmt,
             Int32(width), Int32(height), AV_PIX_FMT_NV12,
             Int32(SWS_FAST_BILINEAR.rawValue), nil, nil, nil
         )
-        guard let swsCtx = swsContext else { return nil }
+        guard let swsCtx = localSwsCtx else { return nil }
+        defer { sws_freeContext(swsCtx) }
 
         var dstData: [UnsafeMutablePointer<UInt8>?] = [
             yPlane.assumingMemoryBound(to: UInt8.self),

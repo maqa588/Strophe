@@ -26,6 +26,7 @@ public enum SubtitleFormat: String, CaseIterable, Sendable {
     case srt
     case lrc
     case ass
+    case vtt
     
     public var fileExtension: String { self.rawValue }
 }

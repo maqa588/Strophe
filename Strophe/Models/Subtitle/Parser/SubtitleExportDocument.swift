@@ -5,6 +5,7 @@ extension UTType {
     public static let srtSubtitle = UTType("public.srt") ?? .plainText
     public static let assSubtitle = UTType("public.ass") ?? .plainText
     public static let lrcSubtitle = UTType("public.lrc") ?? .plainText
+    public static let vttSubtitle = UTType("public.vtt") ?? .plainText
     public static let stropheProject = UTType("top.maqa.Strophe.strophe-project") ?? UTType(exportedAs: "top.maqa.Strophe.strophe-project", conformingTo: .data)
 
     public static func fromFormat(_ format: SubtitleFormat) -> UTType {
@@ -12,13 +13,14 @@ extension UTType {
         case .srt: return .srtSubtitle
         case .ass: return .assSubtitle
         case .lrc: return .lrcSubtitle
+        case .vtt: return .vttSubtitle
         }
     }
 
     public static var allSubtitleTypes: [UTType] {
         // 💡 只有这些合法的、并在 Info 中备案过的文本类型才会被激活
         // .plainText 会自动匹配您的 .txt 文件
-        [.srtSubtitle, .assSubtitle, .lrcSubtitle, .plainText]
+        [.srtSubtitle, .assSubtitle, .lrcSubtitle, .vttSubtitle, .plainText]
     }
 
     public static var allMediaTypes: [UTType] {
@@ -51,7 +53,8 @@ public struct SubtitleExportDocument: FileDocument {
         .plainText,
         .srtSubtitle,
         .assSubtitle,
-        .lrcSubtitle
+        .lrcSubtitle,
+        .vttSubtitle
     ]
 
     public var textString: String
