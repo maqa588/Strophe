@@ -15,6 +15,7 @@ struct VideoPlayerView: View, Equatable {
     @State private var engine: PlayerEngine?
     @State private var currentURL: URL? = nil
     @State private var showingCompatibilityAlert = false
+    @State private var isRemoteVolumeAlert = false
     @State private var pendingCompatibilityURL: URL? = nil
     @State private var incompatibleFormatName: String = ""
     @State private var isShowingReplaceMedia = false
@@ -111,10 +112,14 @@ struct VideoPlayerView: View, Equatable {
             }
             return true
         }
-        .alert(String(localized: "格式兼容性提示"), isPresented: $showingCompatibilityAlert, presenting: incompatibleFormatName) { format in
-            Button("我知道了", role: .none) {
+        .alert(
+            isRemoteVolumeAlert ? String(localized: "远程文件加载提示") : String(localized: "格式兼容性提示"),
+            isPresented: $showingCompatibilityAlert,
+            presenting: incompatibleFormatName
+        ) { format in
+            Button(isRemoteVolumeAlert ? String(localized: "继续导入") : String(localized: "我知道了"), role: .none) {
                 if let url = pendingCompatibilityURL {
-                    // Approved incompatible format — proceed to load FFmpeg engine
+                    // Approved format or remote share - proceed to load FFmpeg engine
                     currentURL = url
                     let ffmpegEngine = FFmpegEngine()
                     engine = ffmpegEngine
@@ -128,13 +133,17 @@ struct VideoPlayerView: View, Equatable {
                 }
                 pendingCompatibilityURL = nil
             }
-            Button("放弃导入", role: .cancel) {
+            Button(isRemoteVolumeAlert ? String(localized: "取消导入") : String(localized: "放弃导入"), role: .cancel) {
                 // Restore previous valid URL, or nil if none was active
                 project.videoURL = currentURL
                 pendingCompatibilityURL = nil
             }
         } message: { format in
-            Text("您的设备对 \(format) 格式兼容性欠佳，在播放过程中可能会遇到一些性能问题。\n\n建议尽量使用 MP4、MOV、M4V、MP3、FLAC、M4A、AAC、ALAC 等推荐的视频、音频格式以获得最流畅的体验。")
+            if isRemoteVolumeAlert {
+                Text(String(localized: "您正在加载远程共享卷（如 SMB/AFP）上的媒体文件。由于网络带宽和延迟限制，直接播放可能会遇到卡顿或加载缓慢的问题。\n\n建议您将文件复制到本地磁盘后再导入，以获得最流畅的体验。"))
+            } else {
+                Text(String(localized: "您的设备对 \(format) 格式兼容性欠佳，在播放过程中可能会遇到一些性能问题。\n\n建议尽量使用 MP4、MOV、M4V、MP3、FLAC、M4A、AAC、ALAC 等推荐的视频、音频格式以获得最流畅的体验。"))
+            }
         }
         .fileImporter(
             isPresented: $isShowingReplaceMedia,
@@ -278,8 +287,9 @@ struct VideoPlayerView: View, Equatable {
                 
                 // Window adjustment will happen automatically in setupFrameRateDetection after size is fetched
             } else {
-                // Not native AVFoundation compatible (MKV, WebM, RMVB, AVI, FLV etc.)
+                // Not native AVFoundation compatible (MKV, WebM, RMVB, AVI, FLV etc.) or SMB remote share
                 // Show compatibility check alert before loading!
+                self.isRemoteVolumeAlert = result.isRemoteNetworkVolume
                 self.incompatibleFormatName = url.pathExtension.uppercased()
                 self.pendingCompatibilityURL = url
                 self.showingCompatibilityAlert = true

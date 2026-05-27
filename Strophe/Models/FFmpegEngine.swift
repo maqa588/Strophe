@@ -35,6 +35,25 @@ final class FrameQueue: @unchecked Sendable {
         return frames.remove(at: idx)
     }
 
+    func dequeueBestFrame(before pts: Double) -> (frame: VideoFrame?, droppedCount: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        
+        guard let lastReadyIdx = frames.lastIndex(where: { $0.pts <= pts }) else {
+            return (nil, 0)
+        }
+        
+        let chosenFrame = frames[lastReadyIdx]
+        let droppedCount = lastReadyIdx
+        
+        if droppedCount > 0 {
+            frames.removeSubrange(0..<droppedCount)
+        }
+        
+        frames.remove(at: 0)
+        return (chosenFrame, droppedCount)
+    }
+
     func dropBefore(_ pts: Double) -> Int {
         lock.lock()
         defer { lock.unlock() }
@@ -92,7 +111,7 @@ final class FrameQueue: @unchecked Sendable {
     private var wasPlayingBeforeScrub = false
     private var rateBeforeScrub: Double = 0.0
     
-    private let frameQueue = FrameQueue(capacity: 24)
+    private let frameQueue = FrameQueue(capacity: 128)
     private var lastSeekTime: CFTimeInterval = 0
     private var activeSeekTask: Task<Void, Never>? = nil
     private var diagTimer: Timer? = nil
@@ -140,10 +159,10 @@ final class FrameQueue: @unchecked Sendable {
                         }
                     } else {
                         // Log PTS vs clock mismatch when enqueueing
-                        let clock = self.currentTime
-                        if pts > clock + 2.0 {
-                            print("⚠️ Frame PTS \(String(format: "%.3f", pts)) is \(String(format: "%.1f", pts - clock))s AHEAD of clock \(String(format: "%.3f", clock)) — queue may stall")
-                        }
+                        // let clock = self.currentTime
+                        // if pts > clock + 2.0 {
+                        //     print("⚠️ Frame PTS \(String(format: "%.3f", pts)) is \(String(format: "%.1f", pts - clock))s AHEAD of clock \(String(format: "%.3f", clock)) — queue may stall")
+                        // }
                         let frame = VideoFrame(pixelBuffer: sendableBuffer.buffer, pts: pts)
                         let accepted = self.frameQueue.enqueue(frame)
                         if !accepted {
@@ -375,16 +394,22 @@ final class FrameQueue: @unchecked Sendable {
     func seekVideoFrameOnly(to time: Double) async {
         activeSeekTask?.cancel()
         
+        // Capture playback state immediately before the sleep phase to ensure we capture
+        // the true original state prior to the scrubbing session, and pause immediately.
+        if !isScrubbingActive {
+            isScrubbingActive = true
+            wasPlayingBeforeScrub = cachedIsPlaying
+            rateBeforeScrub = cachedRate
+        }
+        rate = 0.0
+        
         let task = Task {
-            // Capture playback state before starting scrub sequence
-            if !isScrubbingActive {
-                isScrubbingActive = true
-                wasPlayingBeforeScrub = cachedIsPlaying
-                rateBeforeScrub = cachedRate
+            // Cooperative sleep to debounce high-frequency timeline scrub events
+            do {
+                try await Task.sleep(nanoseconds: 15_000_000) // 15ms sleep
+            } catch {
+                return // Task was cancelled during sleep phase, abort.
             }
-            
-            // Pause playback rate and halt decode loop during scrubbing to prevent frame accumulation
-            rate = 0.0
             
             let countBefore = frameQueue.count
             print("🔍 SeekVideoFrameOnly triggered: frameQueue.count before clear = \(countBefore)")
@@ -476,19 +501,20 @@ final class FrameQueue: @unchecked Sendable {
             return
         }
         let currentClock = currentTime
+        
+        let result = frameQueue.dequeueBestFrame(before: currentClock + 0.005)
         var consumed = 0
-
-
-
-        if let frame = frameQueue.dequeueReady(before: currentClock + 0.005) {
+        
+        if let frame = result.frame {
             self.metalRenderer.update(with: frame.pixelBuffer)
             consumed += 1
         }
-
-        let dropped = frameQueue.dropBefore(currentClock)
-        consumed += dropped
-        consumed += dropped
-
+        
+        consumed += result.droppedCount
+        
+        let fallbackDropped = frameQueue.dropBefore(currentClock)
+        consumed += fallbackDropped
+        
         if consumed > 0 {
             let coreInstance = core
             let consumedCount = consumed
@@ -496,7 +522,5 @@ final class FrameQueue: @unchecked Sendable {
                 await coreInstance.decrementFrameQueueCount(by: consumedCount)
             }
         }
-
     }
 }
-

@@ -38,7 +38,7 @@ nonisolated(unsafe) private let getFormatCallback: @convention(c) (UnsafeMutable
 // High-performance background demuxer/decoder isolated to its own serial actor context.
 actor FFmpegDecoderCore {
     static let AV_NOPTS_VALUE = Int64(bitPattern: 0x8000000000000000)
-    let maxVideoQueueCapacity = 24
+    var maxVideoQueueCapacity = 64
     
     // Core FFmpeg variables
     var formatContext: UnsafeMutablePointer<AVFormatContext>? = nil
@@ -275,6 +275,7 @@ actor FFmpegDecoderCore {
         
         if videoStream.pointee.avg_frame_rate.den > 0 {
             self.videoFPS = Double(videoStream.pointee.avg_frame_rate.num) / Double(videoStream.pointee.avg_frame_rate.den)
+            self.maxVideoQueueCapacity = self.videoFPS > 45.0 ? 120 : 64 // 120 capacity for 60fps, 64 for 24/30fps to absorb scheduling jitter
         }
         
         if ctx!.pointee.duration != FFmpegDecoderCore.AV_NOPTS_VALUE {
@@ -541,6 +542,7 @@ actor FFmpegDecoderCore {
         videoDuration = 0.0
         videoFPS = 30.0
         videoFrameSize = .zero
+        maxVideoQueueCapacity = 64
         
         // Release pixel buffer pool
         poolLock.lock()
@@ -582,8 +584,12 @@ actor FFmpegDecoderCore {
             av_packet_free(&p)
         }
 
+        var loopCounter = 0
         while !Task.isCancelled {
-            await Task.yield() // ⚡️ Yield the actor executor to allow pending calls (e.g. decrementFrameQueueCount) to execute
+            loopCounter += 1
+            if loopCounter % 10 == 0 {
+                await Task.yield() // ⚡️ Yield the actor executor periodically to allow pending calls (e.g. decrementFrameQueueCount) to execute
+            }
 
             if !isPlaying || isSeekingSessionActive {
                 try? await Task.sleep(nanoseconds: 10_000_000) // 10ms

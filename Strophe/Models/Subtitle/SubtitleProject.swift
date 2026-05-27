@@ -72,6 +72,7 @@ class SubtitleProject: ObservableObject {
             }
             activeEngine?.stop()
             activeEngine = nil
+            waveformData?.cancelAllActiveTasks()
             waveformData = nil
         }
         didSet {
@@ -140,6 +141,10 @@ class SubtitleProject: ObservableObject {
         didSet {
             updateActiveSlapBlock(currentTime: currentTime)
             autoUpdateCurrentIndex()
+            if let wData = waveformData {
+                wData.currentTime = currentTime
+                wData.loadChunkIfNeeded(at: currentTime)
+            }
             if isScrubbing {
                 NotificationCenter.default.post(name: .stropheScrubTimeChanged, object: currentTime)
             }
