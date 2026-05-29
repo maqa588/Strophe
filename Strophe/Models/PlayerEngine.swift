@@ -110,7 +110,10 @@ final class AVFoundationEngine: PlayerEngine {
 
     var playerView: NativeView { hostView }
 
-    var currentTime: Double { player.currentTime().seconds }
+    var currentTime: Double {
+        let seconds = player.currentTime().seconds
+        return seconds.isFinite ? seconds : 0
+    }
 
     var isRenderingAndPlaying: Bool {
         return true
@@ -160,7 +163,7 @@ final class AVFoundationEngine: PlayerEngine {
 
     var rate: Double {
         get { Double(player.rate) }
-        set { player.rate = Float(newValue) }
+        set { player.rate = Float(newValue.isFinite ? newValue : 0) }
     }
 
     func load(url: URL) async {
@@ -177,12 +180,14 @@ final class AVFoundationEngine: PlayerEngine {
     }
 
     func seek(to time: Double) async {
+        guard time.isFinite else { return }
         await MainActor.run {
             player.seek(to: CMTime(seconds: time, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
         }
     }
 
     func seekVideoFrameOnly(to time: Double) async {
+        guard time.isFinite else { return }
         await MainActor.run {
             player.seek(to: CMTime(seconds: time, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
         }
@@ -193,8 +198,10 @@ final class AVFoundationEngine: PlayerEngine {
         player.replaceCurrentItem(with: nil)
     }
 
-    func addPeriodicTimeObserver(interval: CMTime, queue: DispatchQueue, using block: @escaping (CMTime) -> Void) -> Any {
-        return player.addPeriodicTimeObserver(forInterval: interval, queue: queue, using: block)
+    func addPeriodicTimeObserver(interval: CMTime, queue: DispatchQueue, using block: @escaping @Sendable (CMTime) -> Void) -> Any {
+        return player.addPeriodicTimeObserver(forInterval: interval, queue: queue, using: { time in
+            block(time)
+        })
     }
 
     func removeTimeObserver(_ token: Any) {

@@ -139,6 +139,12 @@ class SubtitleProject: ObservableObject {
     
     var currentTime: Double = 0 {
         didSet {
+            guard currentTime.isFinite else {
+                currentTime = oldValue.isFinite ? oldValue : 0
+                referenceTime = currentTime
+                referenceDate = .now
+                return
+            }
             updateActiveSlapBlock(currentTime: currentTime)
             autoUpdateCurrentIndex()
             if let wData = waveformData {

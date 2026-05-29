@@ -5,16 +5,10 @@
 
 import SwiftUI
 
-struct StropheSidebarContainer: View, Equatable {
+struct StropheSidebarContainer: View {
     @ObservedObject var project: SubtitleProject
     @Binding var selectedTab: StropheTab
     @Binding var settingsPath: [SettingsRoute]
-    
-    static func == (lhs: StropheSidebarContainer, rhs: StropheSidebarContainer) -> Bool {
-        lhs.project === rhs.project &&
-        lhs.selectedTab == rhs.selectedTab &&
-        lhs.settingsPath == rhs.settingsPath
-    }
     
     var body: some View {
         #if os(macOS)
@@ -97,6 +91,11 @@ struct StropheSidebarContainer: View, Equatable {
                             NotificationCenter.default.post(name: .stropheImportScriptFile, object: nil)
                         } label: {
                             Label("导入字幕文件", systemImage: "square.and.arrow.down")
+                        }
+                        Button {
+                            NotificationCenter.default.post(name: .stropheStartSpeechRecognition, object: nil)
+                        } label: {
+                            Label("语音识别", systemImage: "waveform.and.mic")
                         }
                     } label: {
                         Image(systemName: "plus")

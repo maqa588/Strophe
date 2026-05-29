@@ -8,13 +8,13 @@ import Libswscale
 import Libswresample
 
 // MARK: - VideoFrame
-struct VideoFrame: Sendable {
+nonisolated struct VideoFrame: @unchecked Sendable {
     let pixelBuffer: CVPixelBuffer
     let pts: Double
 }
 
 // MARK: - SendablePixelBuffer
-struct SendablePixelBuffer: @unchecked Sendable {
+nonisolated struct SendablePixelBuffer: @unchecked Sendable {
     let buffer: CVPixelBuffer
     /// Seek generation stamp — used by FFmpegEngine to discard stale pre-seek callbacks.
     let generation: Int
@@ -682,7 +682,8 @@ actor FFmpegDecoderCore {
             }
         } else {
             // Software decode path — clone the frame and perform heavy sws_scale concurrently on global pool
-            guard let clonedFrame = av_frame_alloc() else { return }
+            guard let rawClonedFrame = av_frame_alloc() else { return }
+            nonisolated(unsafe) let clonedFrame = rawClonedFrame
             if av_frame_ref(clonedFrame, frame) < 0 {
                 var f: UnsafeMutablePointer<AVFrame>? = clonedFrame
                 av_frame_free(&f)

@@ -52,11 +52,13 @@ struct WaveformTimelineContainer: View {
     }
     
     private func snapCoordinate(_ x: CGFloat, threshold: CGFloat = 12.0) -> (val: CGFloat, snapped: Bool) {
+        let safePixelsPerSecond = pixelsPerSecond.isFinite ? max(0.001, pixelsPerSecond) : 50.0
         var closestSnap: CGFloat = x
         var minDistance = CGFloat.infinity
         
         for candidateTime in snapCandidates {
-            let candidateX = CGFloat(candidateTime * pixelsPerSecond)
+            guard candidateTime.isFinite else { continue }
+            let candidateX = CGFloat(candidateTime * safePixelsPerSecond)
             let distance = abs(candidateX - x)
             if distance < minDistance {
                 minDistance = distance
@@ -71,16 +73,23 @@ struct WaveformTimelineContainer: View {
     }
     
     var body: some View {
-        let smoothTime = project.isScrubbing
+        let safeDuration = data.duration.isFinite ? max(0.0, data.duration) : 0.0
+        let safePixelsPerSecond = pixelsPerSecond.isFinite ? max(0.001, pixelsPerSecond) : 50.0
+        let safeRenderedPPS = renderedPPS.isFinite ? max(0.001, renderedPPS) : safePixelsPerSecond
+        let safeViewWidth = viewWidth.isFinite ? max(1.0, viewWidth) : 1.0
+        let safeTotalWidth = totalWidth.isFinite ? max(1.0, totalWidth) : 1.0
+        let rawSmoothTime = project.isScrubbing
             ? project.currentTime
             : (project.referenceTime + timeline.date.timeIntervalSince(project.referenceDate) * project.playbackRate)
-                .clamped(to: 0.0...data.duration)
+        let smoothTime = rawSmoothTime.isFinite
+            ? rawSmoothTime.clamped(to: 0.0...safeDuration)
+            : project.currentTime.clampedFinite(to: 0.0...safeDuration)
         
-        let visibleDuration = Double(viewWidth) / pixelsPerSecond
+        let visibleDuration = Double(safeViewWidth) / safePixelsPerSecond
         let smoothScrollPageStartTime = calculatePageStart(
             smoothTime: smoothTime,
             visibleDuration: visibleDuration,
-            duration: data.duration
+            duration: safeDuration
         )
         
         // 🌟 物理视口翻页的异步安全调度，绝对不会阻塞 UI 绘制，且能够同帧响应
@@ -94,8 +103,8 @@ struct WaveformTimelineContainer: View {
         return ZStack(alignment: .topLeading) {
             // ── 静态与波形图层 ──────────────────────────────
             VStack(spacing: 0) {
-                TimeGridView(pixelsPerSecond: pixelsPerSecond, duration: data.duration)
-                    .frame(width: totalWidth, height: rulerHeight)
+                TimeGridView(pixelsPerSecond: safePixelsPerSecond, duration: safeDuration)
+                    .frame(width: safeTotalWidth, height: rulerHeight)
                     .contentShape(Rectangle())
                     .gesture(
                         DragGesture(minimumDistance: 0, coordinateSpace: .local)
@@ -108,8 +117,8 @@ struct WaveformTimelineContainer: View {
                                     project.isUserSeekingTimeline = true
                                 }
                                 
-                                let clickedTime = Double(value.location.x) / pixelsPerSecond
-                                let snappedTime = project.snapToFrame(clickedTime.clamped(to: 0...data.duration))
+                                let clickedTime = Double(value.location.x) / safePixelsPerSecond
+                                let snappedTime = project.snapToFrame(clickedTime.clamped(to: 0...safeDuration))
                                 
                                 project.currentTime = snappedTime
                             }
@@ -127,16 +136,16 @@ struct WaveformTimelineContainer: View {
                     )
                 
                 ZStack(alignment: .leading) {
-                    let renderedWidth = CGFloat(data.duration * renderedPPS)
-                    let scaleX = renderedPPS > 0 ? pixelsPerSecond / renderedPPS : 1.0
-                    WaveformCanvas(data: data, pixelsPerSecond: renderedPPS)
+                    let renderedWidth = CGFloat(safeDuration * safeRenderedPPS)
+                    let scaleX = safePixelsPerSecond / safeRenderedPPS
+                    WaveformCanvas(data: data, pixelsPerSecond: safeRenderedPPS)
                         .frame(width: renderedWidth, height: waveHeight)
                         .scaleEffect(x: scaleX, y: 1, anchor: .leading)
                         .clipped()
-                        .frame(width: totalWidth, height: waveHeight, alignment: .leading)
+                        .frame(width: safeTotalWidth, height: waveHeight, alignment: .leading)
                     
-                    SubtitleBlocksLayer(project: project, pixelsPerSecond: pixelsPerSecond, smoothTime: smoothTime, scrollPageStartTime: smoothScrollPageStartTime, viewWidth: viewWidth)
-                        .frame(width: totalWidth, height: waveHeight)
+                    SubtitleBlocksLayer(project: project, pixelsPerSecond: safePixelsPerSecond, smoothTime: smoothTime, scrollPageStartTime: smoothScrollPageStartTime, viewWidth: safeViewWidth)
+                        .frame(width: safeTotalWidth, height: waveHeight)
                     
                     if project.editingMode == .creation,
                        let startX = drawSubtitleStartLocation,
@@ -179,11 +188,11 @@ struct WaveformTimelineContainer: View {
                                         let endX = snapCoordinate(value.location.x).val
                                         let minX = min(startX, endX)
                                         let maxX = max(startX, endX)
-                                        let duration = (maxX - minX) / pixelsPerSecond
+                                        let duration = (maxX - minX) / safePixelsPerSecond
                                         
                                         if duration > 0.1 {
-                                            let startTime = minX / pixelsPerSecond
-                                            let endTime = maxX / pixelsPerSecond
+                                            let startTime = minX / safePixelsPerSecond
+                                            let endTime = maxX / safePixelsPerSecond
                                             project.createSubtitleBlock(startTime: startTime, endTime: endTime)
                                         }
                                     }
@@ -196,8 +205,8 @@ struct WaveformTimelineContainer: View {
                         .simultaneousGesture(
                             SpatialTapGesture(count: 2)
                                 .onEnded { value in
-                                    let startTime = value.location.x / pixelsPerSecond
-                                    let endTime = min(data.duration, startTime + 2.0)
+                                    let startTime = value.location.x / safePixelsPerSecond
+                                    let endTime = min(safeDuration, startTime + 2.0)
                                     project.createSubtitleBlock(startTime: startTime, endTime: endTime)
                                 }
                         )
@@ -208,8 +217,8 @@ struct WaveformTimelineContainer: View {
                 guard project.editingMode == .selection else { return }
                 guard project.playbackRate == 0 else { return }
                 
-                let clickedTime = Double(location.x) / pixelsPerSecond
-                let snappedTime = project.snapToFrame(clickedTime.clamped(to: 0...data.duration))
+                let clickedTime = Double(location.x) / safePixelsPerSecond
+                let snappedTime = project.snapToFrame(clickedTime.clamped(to: 0...safeDuration))
                 
                 project.isUserSeekingTimeline = true
                 project.currentTime = snappedTime
@@ -219,7 +228,7 @@ struct WaveformTimelineContainer: View {
             
             // ── Page Scroll Anchor View ────────────────────────
             HStack(spacing: 0) {
-                Color.clear.frame(width: CGFloat(max(0.0, smoothScrollPageStartTime * pixelsPerSecond)))
+                Color.clear.frame(width: CGFloat(max(0.0, smoothScrollPageStartTime * safePixelsPerSecond)))
                 Color.clear.frame(width: 1, height: 1).id("scroll-page-anchor")
                 Spacer(minLength: 0)
             }
@@ -230,21 +239,22 @@ struct WaveformTimelineContainer: View {
                 isScrubbing: $project.isScrubbing,
                 isDragging: $isDraggingPlayhead,
                 dragStartTime: $dragStartTime,
-                pixelsPerSecond: pixelsPerSecond,
-                duration: data.duration,
+                pixelsPerSecond: safePixelsPerSecond,
+                duration: safeDuration,
                 project: project
             )
             .allowsHitTesting(project.editingMode == .selection)
             .frame(height: rulerHeight + waveHeight)
-            .offset(x: CGFloat(max(0.0, smoothTime * pixelsPerSecond)))
+            .offset(x: CGFloat(max(0.0, smoothTime * safePixelsPerSecond)))
         }
-        .frame(width: totalWidth, height: rulerHeight + waveHeight)
+        .frame(width: safeTotalWidth, height: rulerHeight + waveHeight)
     }
     
     private func calculatePageStart(smoothTime: Double, visibleDuration: Double, duration: Double) -> Double {
         if isDraggingPlayhead || isUserInteracting {
-            return scrollPageStartTime
+            return scrollPageStartTime.isFinite ? scrollPageStartTime : 0
         } else {
+            guard smoothTime.isFinite, visibleDuration.isFinite, duration.isFinite else { return 0 }
             let pageIndex = Int(smoothTime / max(0.001, visibleDuration))
             let target = Double(pageIndex) * visibleDuration
             return max(0.0, min(max(0.0, duration - visibleDuration), target))

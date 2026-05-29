@@ -90,10 +90,17 @@ struct EditingModeControlsLegacy: View {
     @Binding var showSoftSubtitlesTip: Bool
     @Binding var showSelectionTip: Bool
     @Binding var showCreationTip: Bool
+    @Binding var showSplitTip: Bool
+    @Binding var showMergeTip: Bool
     
     @Binding var softSubtitlesHoverTask: Task<Void, Never>?
     @Binding var selectionHoverTask: Task<Void, Never>?
     @Binding var creationHoverTask: Task<Void, Never>?
+    @Binding var splitHoverTask: Task<Void, Never>?
+    @Binding var mergeHoverTask: Task<Void, Never>?
+    
+    var onSplit: () -> Void
+    var onMerge: () -> Void
     
     private func legacyButton<Content: View>(
         action: @escaping () -> Void,
@@ -140,8 +147,79 @@ struct EditingModeControlsLegacy: View {
         #endif
     }
     
+    /// 无快捷键版本的 legacyButton（用于切分/合并等操作按钮）
+    private func legacyActionButton<Content: View>(
+        action: @escaping () -> Void,
+        icon: String,
+        tipBinding: Binding<Bool>,
+        hoverTask: Binding<Task<Void, Never>?>,
+        tooltipIcon: String,
+        tooltipTitle: String,
+        tooltipMessage: String,
+        @ViewBuilder label: () -> Content
+    ) -> some View {
+        Button(action: action) {
+            label()
+                .frame(width: 32, height: 28)
+                .background(Color.clear)
+                .foregroundColor(.primary)
+                .cornerRadius(6)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        #if os(iOS)
+        .popover(isPresented: tipBinding, arrowEdge: .top) {
+            RichTooltipView(icon: tooltipIcon, title: tooltipTitle, message: tooltipMessage)
+        }
+        .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            tipBinding.wrappedValue = true
+        })
+        .onHover { hovering in
+            hoverTask.wrappedValue?.cancel()
+            if hovering {
+                hoverTask.wrappedValue = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    if !Task.isCancelled { tipBinding.wrappedValue = true }
+                }
+            } else { tipBinding.wrappedValue = false }
+        }
+        #else
+        .help("\(tooltipTitle)\n\(tooltipMessage)")
+        #endif
+    }
+    
     var body: some View {
         HStack(spacing: 4) {
+            // ── 切分按钮 ──
+            legacyActionButton(
+                action: onSplit,
+                icon: "scissors",
+                tipBinding: $showSplitTip,
+                hoverTask: $splitHoverTask,
+                tooltipIcon: "scissors",
+                tooltipTitle: String(localized: "切分字幕"),
+                tooltipMessage: String(localized: "以时间游标为分割点，将游标所在的字幕块拆分为两个独立字幕块")
+            ) {
+                Image(systemName: "scissors")
+                    .font(.body.weight(.medium))
+            }
+            
+            // ── 合并按钮 ──
+            legacyActionButton(
+                action: onMerge,
+                icon: "arrow.trianglehead.merge",
+                tipBinding: $showMergeTip,
+                hoverTask: $mergeHoverTask,
+                tooltipIcon: "arrow.trianglehead.merge",
+                tooltipTitle: String(localized: "合并字幕"),
+                tooltipMessage: String(localized: "将选中的连续字幕块合并为一个，文本与时间轴同时合并")
+            ) {
+                Image(systemName: "arrow.trianglehead.merge")
+                    .font(.body.weight(.medium))
+            }
+
+            // ── 软字幕预览按钮 ──
             legacyButton(
                 action: { project.showSoftSubtitles.toggle() },
                 isActive: showSoftSubtitles,

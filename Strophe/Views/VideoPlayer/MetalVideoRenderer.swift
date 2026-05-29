@@ -154,19 +154,19 @@ final class MetalVideoRenderer: MTKView {
         self.currentPixelBuffer = pixelBuffer
         lock.unlock()
         
-        let updateBlock = { [weak self] in
-            #if os(macOS)
-            self?.needsDisplay = true
-            #else
-            self?.setNeedsDisplay()
-            #endif
-        }
-        
         if Thread.isMainThread {
-            updateBlock()
+            #if os(macOS)
+            self.needsDisplay = true
+            #else
+            self.setNeedsDisplay()
+            #endif
         } else {
-            DispatchQueue.main.async {
-                updateBlock()
+            Task { @MainActor [weak self] in
+                #if os(macOS)
+                self?.needsDisplay = true
+                #else
+                self?.setNeedsDisplay()
+                #endif
             }
         }
     }
@@ -285,9 +285,11 @@ final class MetalVideoRenderer: MTKView {
         encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
         encoder.endEncoding()
         
+        let wrappedY = SendableTextureWrapper(texture: cvY)
+        let wrappedUV = SendableTextureWrapper(texture: cvUV)
         cmdBuffer.addCompletedHandler { _ in
-            _ = cvY
-            _ = cvUV
+            _ = wrappedY
+            _ = wrappedUV
         }
         
         cmdBuffer.present(drawable)
@@ -310,6 +312,7 @@ final class MetalVideoRenderer: MTKView {
         }
         
         // 动态更新 CAMetalLayer 的物理色彩空间，防止系统级色偏
+        @MainActor
         private func updateLayerColorSpace(for matrix: CFString) {
             let cgColorSpace: CGColorSpace
             
@@ -322,10 +325,12 @@ final class MetalVideoRenderer: MTKView {
                 print("🎨 Metal Canvas Color Space: sRGB/BT.709")
             }
             
-            DispatchQueue.main.async { [weak self] in
-                if let metalLayer = self?.layer as? CAMetalLayer {
-                    metalLayer.colorspace = cgColorSpace
-                }
+            if let metalLayer = self.layer as? CAMetalLayer {
+                metalLayer.colorspace = cgColorSpace
             }
         }
+}
+
+private struct SendableTextureWrapper: @unchecked Sendable {
+    let texture: CVMetalTexture?
 }

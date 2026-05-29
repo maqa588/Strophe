@@ -3,7 +3,7 @@ import AVFoundation
 
 // MARK: - AudioPlayer
 // Safe, high-precision manual buffer queuing and playback using AVAudioEngine + AVAudioPlayerNode
-final class AudioPlayer {
+nonisolated final class AudioPlayer: @unchecked Sendable {
     private let audioEngine = AVAudioEngine()
     private let playerNode = AVAudioPlayerNode()
     private let timePitchNode = AVAudioUnitTimePitch()
@@ -187,11 +187,12 @@ final class AudioPlayer {
             }
         }
         
-        playerNode.scheduleBuffer(pcmBuffer) { [weak self] in
-            guard let self = self else { return }
-            self.lock.lock()
-            self.scheduledBufferCount = max(0, self.scheduledBufferCount - 1)
-            self.lock.unlock()
+        let wrapper = WeakAudioPlayerWrapper(player: self)
+        playerNode.scheduleBuffer(pcmBuffer) {
+            guard let player = wrapper.player else { return }
+            player.lock.lock()
+            player.scheduledBufferCount = max(0, player.scheduledBufferCount - 1)
+            player.lock.unlock()
         }
         
         lock.lock()
@@ -248,4 +249,8 @@ final class AudioPlayer {
         defer { lock.unlock() }
         return scheduledBufferCount
     }
+}
+
+private struct WeakAudioPlayerWrapper: @unchecked Sendable {
+    weak var player: AudioPlayer?
 }

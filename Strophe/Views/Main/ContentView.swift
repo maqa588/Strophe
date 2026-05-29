@@ -25,7 +25,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct ContentView: View, Equatable {
+struct ContentView: View {
     var project: SubtitleProject
     @Environment(\.horizontalSizeClass) var sizeClass
 
@@ -41,11 +41,6 @@ struct ContentView: View, Equatable {
     @State private var isShowingSaveOnQuitAlert = false
     @State private var isQuittingAfterSave = false
     #endif
-
-    static func == (lhs: ContentView, rhs: ContentView) -> Bool {
-        lhs.project === rhs.project &&
-        lhs.selectedTab == rhs.selectedTab
-    }
 
     var body: some View {
         Group {
@@ -239,6 +234,11 @@ struct ContentView: View, Equatable {
                                                 NotificationCenter.default.post(name: .stropheImportScriptFile, object: nil)
                                             } label: {
                                                 Label("导入字幕文件", systemImage: "square.and.arrow.down")
+                                            }
+                                            Button {
+                                                NotificationCenter.default.post(name: .stropheStartSpeechRecognition, object: nil)
+                                            } label: {
+                                                Label("语音识别", systemImage: "waveform.and.mic")
                                             }
                                         } label: {
                                             Image(systemName: "plus")

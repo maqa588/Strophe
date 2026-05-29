@@ -199,7 +199,7 @@ class WaveformData: ObservableObject {
                 } catch {
                     // Task was cancelled during sleep
                     await MainActor.run {
-                        self.activeTasks.removeValue(forKey: index)
+                        _ = self.activeTasks.removeValue(forKey: index)
                     }
                     return
                 }
@@ -208,7 +208,7 @@ class WaveformData: ObservableObject {
             // Check cancellation before decoding
             if Task.isCancelled {
                 await MainActor.run {
-                    self.activeTasks.removeValue(forKey: index)
+                    _ = self.activeTasks.removeValue(forKey: index)
                 }
                 return
             }
@@ -218,7 +218,7 @@ class WaveformData: ObservableObject {
                 // Check cancellation after decoding
                 if Task.isCancelled {
                     await MainActor.run {
-                        self.activeTasks.removeValue(forKey: index)
+                        _ = self.activeTasks.removeValue(forKey: index)
                     }
                     return
                 }

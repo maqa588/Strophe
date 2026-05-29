@@ -114,14 +114,14 @@ final class FrameQueue: @unchecked Sendable {
     private let frameQueue = FrameQueue(capacity: 128)
     private var lastSeekTime: CFTimeInterval = 0
     private var activeSeekTask: Task<Void, Never>? = nil
-    private var diagTimer: Timer? = nil
+    nonisolated(unsafe) private var diagTimer: Timer? = nil
 
     // Seek generation — incremented on every seek/load to discard stale pre-seek frames
     private var currentFrameGeneration: Int = 0
 
 
     
-    private var displayLink: CADisplayLink? = nil
+    nonisolated(unsafe) private var displayLink: CADisplayLink? = nil
     
     override init() {
         let renderer = MetalVideoRenderer()

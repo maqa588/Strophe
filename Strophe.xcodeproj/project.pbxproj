@@ -9,12 +9,18 @@
 /* Begin PBXBuildFile section */
 		4C280D722FBAB0980096A4D3 /* AsyncAlgorithms in Frameworks */ = {isa = PBXBuildFile; productRef = 4C280D712FBAB0980096A4D3 /* AsyncAlgorithms */; };
 		4C289B512FBDE46700F034AD /* Strophe.icon in Resources */ = {isa = PBXBuildFile; fileRef = 4C289B502FBDE46700F034AD /* Strophe.icon */; };
+		4C5220072FC87C340065A20D /* Spleeter in Frameworks */ = {isa = PBXBuildFile; productRef = 4C5220062FC87C340065A20D /* Spleeter */; };
+		4C52200A2FC881640065A20D /* Qwen3ASR in Frameworks */ = {isa = PBXBuildFile; productRef = 4C5220092FC881640065A20D /* Qwen3ASR */; };
+		4C52200E2FC881640065A20D /* SpeechEnhancement in Frameworks */ = {isa = PBXBuildFile; productRef = 4C52200D2FC881640065A20D /* SpeechEnhancement */; };
+		4C5220102FC881640065A20D /* SpeechVAD in Frameworks */ = {isa = PBXBuildFile; productRef = 4C52200F2FC881640065A20D /* SpeechVAD */; };
 		4C88C9072FBB72E300142A61 /* Libswscale.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88C9012FBB72E300142A61 /* Libswscale.xcframework */; };
 		4C88C9092FBB72E300142A61 /* Libavcodec.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88C9022FBB72E300142A61 /* Libavcodec.xcframework */; };
 		4C88C90B2FBB72E300142A61 /* Libavformat.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88C9032FBB72E300142A61 /* Libavformat.xcframework */; };
 		4C88C90D2FBB72E300142A61 /* Libswresample.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88C9042FBB72E300142A61 /* Libswresample.xcframework */; };
 		4C88C90F2FBB72E300142A61 /* Libdav1d.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88C9052FBB72E300142A61 /* Libdav1d.xcframework */; };
 		4C88C9112FBB72E300142A61 /* Libavutil.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88C9062FBB72E300142A61 /* Libavutil.xcframework */; };
+		4CCE16BB2FC9689700368AD7 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 4CCE16BA2FC9689700368AD7 /* ZIPFoundation */; };
+		4CCE175C2FC98B9200368AD7 /* Qwen3TTS in Frameworks */ = {isa = PBXBuildFile; productRef = 4CCE175B2FC98B9200368AD7 /* Qwen3TTS */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -56,11 +62,17 @@
 			files = (
 				4C88C90D2FBB72E300142A61 /* Libswresample.xcframework in Frameworks */,
 				4C88C9092FBB72E300142A61 /* Libavcodec.xcframework in Frameworks */,
+				4CCE175C2FC98B9200368AD7 /* Qwen3TTS in Frameworks */,
+				4C5220072FC87C340065A20D /* Spleeter in Frameworks */,
 				4C88C90B2FBB72E300142A61 /* Libavformat.xcframework in Frameworks */,
 				4C88C9072FBB72E300142A61 /* Libswscale.xcframework in Frameworks */,
 				4C88C9112FBB72E300142A61 /* Libavutil.xcframework in Frameworks */,
+				4C52200E2FC881640065A20D /* SpeechEnhancement in Frameworks */,
 				4C88C90F2FBB72E300142A61 /* Libdav1d.xcframework in Frameworks */,
+				4C5220102FC881640065A20D /* SpeechVAD in Frameworks */,
+				4C52200A2FC881640065A20D /* Qwen3ASR in Frameworks */,
 				4C280D722FBAB0980096A4D3 /* AsyncAlgorithms in Frameworks */,
+				4CCE16BB2FC9689700368AD7 /* ZIPFoundation in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -119,6 +131,12 @@
 			name = Strophe;
 			packageProductDependencies = (
 				4C280D712FBAB0980096A4D3 /* AsyncAlgorithms */,
+				4C5220062FC87C340065A20D /* Spleeter */,
+				4C5220092FC881640065A20D /* Qwen3ASR */,
+				4C52200D2FC881640065A20D /* SpeechEnhancement */,
+				4C52200F2FC881640065A20D /* SpeechVAD */,
+				4CCE16BA2FC9689700368AD7 /* ZIPFoundation */,
+				4CCE175B2FC98B9200368AD7 /* Qwen3TTS */,
 			);
 			productName = Strophe;
 			productReference = 4C3566352FB81D160046E36C /* Strophe.app */;
@@ -150,6 +168,9 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				4C280D702FBAB0980096A4D3 /* XCRemoteSwiftPackageReference "swift-async-algorithms" */,
+				4C5220052FC87C340065A20D /* XCRemoteSwiftPackageReference "swift-spleeter" */,
+				4C5220082FC881640065A20D /* XCRemoteSwiftPackageReference "speech-swift" */,
+				4CCE16B92FC9689700368AD7 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 4C3566362FB81D160046E36C /* Products */;
@@ -187,6 +208,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
@@ -222,6 +244,7 @@
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				"EXCLUDED_ARCHS[sdk=*]" = x86_64;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -250,6 +273,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
@@ -285,6 +309,7 @@
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				"EXCLUDED_ARCHS[sdk=*]" = x86_64;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_OPTIMIZATION_LEVEL = z;
@@ -297,6 +322,7 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_VERSION = 6.0;
 			};
@@ -305,6 +331,7 @@
 		4C3566432FB81D170046E36C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = Strophe;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
@@ -324,6 +351,8 @@
 				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
+				EXCLUDED_ARCHS = "";
+				"EXCLUDED_ARCHS[sdk=*]" = x86_64;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Strophe/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
@@ -337,10 +366,10 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = top.maqa.Strophe;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -352,15 +381,16 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				XROS_DEPLOYMENT_TARGET = 1.0;
+				XROS_DEPLOYMENT_TARGET = 2.0;
 			};
 			name = Debug;
 		};
 		4C3566442FB81D170046E36C /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = Strophe;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
@@ -380,6 +410,8 @@
 				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
+				EXCLUDED_ARCHS = "";
+				"EXCLUDED_ARCHS[sdk=*]" = x86_64;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Strophe/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
@@ -393,10 +425,10 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = top.maqa.Strophe;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -408,9 +440,9 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				XROS_DEPLOYMENT_TARGET = 1.0;
+				XROS_DEPLOYMENT_TARGET = 2.0;
 			};
 			name = Release;
 		};
@@ -446,6 +478,30 @@
 				minimumVersion = 1.1.3;
 			};
 		};
+		4C5220052FC87C340065A20D /* XCRemoteSwiftPackageReference "swift-spleeter" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/jiyimeta/swift-spleeter";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.2.0;
+			};
+		};
+		4C5220082FC881640065A20D /* XCRemoteSwiftPackageReference "speech-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/soniqo/speech-swift";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+		4CCE16B92FC9689700368AD7 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/weichsel/ZIPFoundation.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.20;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -453,6 +509,36 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 4C280D702FBAB0980096A4D3 /* XCRemoteSwiftPackageReference "swift-async-algorithms" */;
 			productName = AsyncAlgorithms;
+		};
+		4C5220062FC87C340065A20D /* Spleeter */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4C5220052FC87C340065A20D /* XCRemoteSwiftPackageReference "swift-spleeter" */;
+			productName = Spleeter;
+		};
+		4C5220092FC881640065A20D /* Qwen3ASR */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4C5220082FC881640065A20D /* XCRemoteSwiftPackageReference "speech-swift" */;
+			productName = Qwen3ASR;
+		};
+		4C52200D2FC881640065A20D /* SpeechEnhancement */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4C5220082FC881640065A20D /* XCRemoteSwiftPackageReference "speech-swift" */;
+			productName = SpeechEnhancement;
+		};
+		4C52200F2FC881640065A20D /* SpeechVAD */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4C5220082FC881640065A20D /* XCRemoteSwiftPackageReference "speech-swift" */;
+			productName = SpeechVAD;
+		};
+		4CCE16BA2FC9689700368AD7 /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4CCE16B92FC9689700368AD7 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
+		};
+		4CCE175B2FC98B9200368AD7 /* Qwen3TTS */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4C5220082FC881640065A20D /* XCRemoteSwiftPackageReference "speech-swift" */;
+			productName = Qwen3TTS;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -236,9 +236,131 @@ extension SubtitleProject {
         notifyChange()
     }
     
+    // MARK: - Split / Merge Operations
+    
+    enum SplitValidationResult {
+        case ready(SubtitleItem)
+        case noBlock
+        case overlapping
+    }
+    
+    /// 校验当前播放游标位置是否可以执行切分操作
+    func validateSplitAtPlayhead() -> SplitValidationResult {
+        let overlapping = items.filter { item in
+            guard let start = item.startTime, let end = item.endTime else { return false }
+            return currentTime >= start && currentTime <= end
+        }
+        switch overlapping.count {
+        case 0:
+            return .noBlock
+        case 1:
+            return .ready(overlapping[0])
+        default:
+            return .overlapping
+        }
+    }
+    
+    /// 切分字幕块：将指定字幕块在 splitTime 处拆分为两个独立字幕块
+    func splitSubtitle(id: UUID, at splitTime: TimeInterval, leftText: String, rightText: String) {
+        guard let index = items.firstIndex(where: { $0.id == id }),
+              let startTime = items[index].startTime,
+              let endTime = items[index].endTime,
+              splitTime > startTime && splitTime < endTime else { return }
+        
+        let oldItems = items
+        let oldSelectedIDs = selectedIDs
+        
+        let snappedSplit = snapToFrame(splitTime)
+        
+        // 修改原 item 为左半部分
+        items[index].text = leftText
+        items[index].endTime = snappedSplit
+        
+        // 创建右半部分
+        let rightItem = SubtitleItem(
+            text: rightText,
+            startTime: snappedSplit,
+            endTime: endTime,
+            originalIndex: items[index].originalIndex
+        )
+        items.insert(rightItem, at: index + 1)
+        
+        sortItemsStable()
+        selectedIDs = [items[index].id, rightItem.id]
+        registerUndo(label: String(localized: "切分字幕"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        notifyChange()
+    }
+    
+    /// 合并选中的连续字幕块，返回错误消息（nil 表示成功）
+    @discardableResult
+    func mergeSelectedSubtitles() -> String? {
+        guard selectedIDs.count >= 2 else {
+            return String(localized: "请至少选中两个字幕块才能合并")
+        }
+        
+        // 取出被选中且已有时间的 items，按 startTime 排序
+        let selectedItems = items
+            .filter { selectedIDs.contains($0.id) }
+            .sorted { ($0.startTime ?? .infinity) < ($1.startTime ?? .infinity) }
+        
+        // 校验所有被选中的 item 都有时间信息
+        guard selectedItems.allSatisfy({ $0.startTime != nil && $0.endTime != nil }) else {
+            return String(localized: "选中的字幕块中有未设置时间的项目，无法合并")
+        }
+        
+        // 连续性校验：检查选中项在 items 数组中的索引是否连续（中间没有未选中的 timed 字幕块）
+        let timedItems = items.filter { $0.startTime != nil && $0.endTime != nil }
+        let selectedIDSet = selectedIDs
+        var indicesInTimed: [Int] = []
+        for (i, item) in timedItems.enumerated() {
+            if selectedIDSet.contains(item.id) {
+                indicesInTimed.append(i)
+            }
+        }
+        indicesInTimed.sort()
+        
+        if indicesInTimed.count >= 2 {
+            for i in 1..<indicesInTimed.count {
+                if indicesInTimed[i] - indicesInTimed[i - 1] != 1 {
+                    return String(localized: "选中的字幕块不连续，请选择连续的字幕块进行合并")
+                }
+            }
+        }
+        
+        let oldItems = items
+        let oldSelectedIDs = self.selectedIDs
+        
+        // 合并数据
+        let mergedStartTime = selectedItems.compactMap { $0.startTime }.min()!
+        let mergedEndTime = selectedItems.compactMap { $0.endTime }.max()!
+        let mergedText = selectedItems.map { $0.text }
+            .joined(separator: "")
+            .replacingOccurrences(of: "\n", with: "")
+            .replacingOccurrences(of: "\r", with: "")
+        
+        // 保留第一个 item，删除其余
+        let firstID = selectedItems[0].id
+        let restIDs = Set(selectedItems.dropFirst().map { $0.id })
+        
+        if let firstIndex = items.firstIndex(where: { $0.id == firstID }) {
+            items[firstIndex].text = mergedText
+            items[firstIndex].startTime = mergedStartTime
+            items[firstIndex].endTime = mergedEndTime
+        }
+        
+        items.removeAll { restIDs.contains($0.id) }
+        
+        selectedIDs = [firstID]
+        sortItemsStable()
+        registerUndo(label: String(localized: "合并字幕"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        notifyChange()
+        return nil
+    }
+    
     func autoUpdateCurrentIndex() {
-        var targetIndex: Int = 0
-        var targetID: UUID? = nil
+        // Default to the current index and scroll target to maintain selection if no new block matches
+        var targetIndex: Int = currentIndex
+        var targetID: UUID? = (currentIndex >= 0 && currentIndex < items.count) ? items[currentIndex].id : scrollTargetID
         
         if let activeID = activeSlapSubtitleID {
             if let index = items.firstIndex(where: { $0.id == activeID }) {
@@ -256,9 +378,23 @@ extension SubtitleProject {
         } else if let index = items.firstIndex(where: { $0.startTime == nil }) {
             targetIndex = index
             targetID = items[index].id
-        } else if !items.isEmpty {
+        }
+        
+        // Ensure index is within bounds if items changed
+        if !items.isEmpty {
+            if targetIndex >= items.count {
+                targetIndex = items.count - 1
+            }
+            if targetIndex < 0 {
+                targetIndex = 0
+            }
+            // If targetID is no longer valid or nil, update it
+            if targetID == nil || !items.contains(where: { $0.id == targetID }) {
+                targetID = items[targetIndex].id
+            }
+        } else {
             targetIndex = 0
-            targetID = items[0].id
+            targetID = nil
         }
         
         if currentIndex != targetIndex {

@@ -4,7 +4,7 @@ import CoreImage
 import UniformTypeIdentifiers
 import AsyncAlgorithms
 
-struct VideoPlayerView: View, Equatable {
+struct VideoPlayerView: View {
     @ObservedObject var project: SubtitleProject
     @State private var timeObserverPlayer: AVPlayer?
     @State private var timeObserverToken: Any?
@@ -21,11 +21,6 @@ struct VideoPlayerView: View, Equatable {
     @State private var isShowingReplaceMedia = false
 
     var onImportMedia: () -> Void
-
-    static func == (lhs: VideoPlayerView, rhs: VideoPlayerView) -> Bool {
-        lhs.project === rhs.project &&
-        lhs.project.videoURL == rhs.project.videoURL
-    }
 
     var body: some View {
         ZStack {
@@ -89,9 +84,7 @@ struct VideoPlayerView: View, Equatable {
             setupPlayer(url: project.videoURL)
         }
         .onDisappear {
-            scrubTask?.cancel()
-            scrubTask = nil
-            setupPlayer(url: nil)
+            suspendPlayerObservers()
         }
         .onChange(of: project.videoURL) { _, newURL in
             setupPlayer(url: newURL)
@@ -127,6 +120,8 @@ struct VideoPlayerView: View, Equatable {
                     print("🎬 Using engine: FFmpegEngine (\(type(of: ffmpegEngine))) for \(url.lastPathComponent)")
                     Task {
                         await ffmpegEngine.load(url: url)
+                        await ffmpegEngine.seek(to: project.currentTime.clampedFinite(to: 0...ffmpegEngine.duration))
+                        setupScrubTask()
                         setupFrameRateDetection(url: url, engine: ffmpegEngine)
                         // Window adjustment will happen automatically in setupFrameRateDetection after size is fetched
                     }
@@ -156,13 +151,16 @@ struct VideoPlayerView: View, Equatable {
     }
 
     private var currentEngineTime: Double {
-        engine?.currentTime ?? 0
+        let time = engine?.currentTime ?? 0
+        guard time.isFinite else { return project.currentTime }
+        return time
     }
 
     // MARK: - Seeking via engine
 
     private func seekEngine(to time: Double, completion: @escaping () -> Void) {
         guard let eng = engine else { completion(); return }
+        guard time.isFinite else { completion(); return }
         Task {
             await eng.seek(to: time)
             await MainActor.run { completion() }
@@ -228,6 +226,8 @@ struct VideoPlayerView: View, Equatable {
             engine?.stop()
             engine = nil
             currentURL = nil
+            project.activeEngine = nil
+            project.playbackRate = 0
             
             if let token = timeObserverToken {
                 timeObserverPlayer?.removeTimeObserver(token)
@@ -236,11 +236,19 @@ struct VideoPlayerView: View, Equatable {
             }
             timeObserverTask?.cancel()
             timeObserverTask = nil
+            scrubTask?.cancel()
+            scrubTask = nil
             return
         }
 
         // Guard against duplicate/re-entrant setup for the same URL
-        if currentURL == url { return }
+        if currentURL == url {
+            if engine != nil {
+                setupTimeObserver()
+                setupScrubTask()
+            }
+            return
+        }
         
         // Guard if we are currently prompting compatibility check for this exact URL
         if pendingCompatibilityURL == url { return }
@@ -262,6 +270,7 @@ struct VideoPlayerView: View, Equatable {
         // consuming CPU/GPU/memory and degrading FPS with each switch.
         engine?.stop()
         engine = nil
+        project.activeEngine = nil
 
         if let token = timeObserverToken {
             timeObserverPlayer?.removeTimeObserver(token)
@@ -282,6 +291,8 @@ struct VideoPlayerView: View, Equatable {
                 project.activeEngine = avEngine
                 print("🎬 Using engine: AVFoundationEngine (\(type(of: avEngine))) for \(url.lastPathComponent)")
                 await avEngine.load(url: url)
+                await avEngine.seek(to: project.currentTime.clampedFinite(to: 0...avEngine.duration))
+                setupScrubTask()
 
                 setupFrameRateDetection(url: url, engine: avEngine)
                 
@@ -295,6 +306,26 @@ struct VideoPlayerView: View, Equatable {
                 self.showingCompatibilityAlert = true
             }
         }
+    }
+
+    private func suspendPlayerObservers() {
+        engine?.pause()
+        project.playbackRate = 0
+        if let currentTime = engine?.currentTime, currentTime.isFinite {
+            project.currentTime = currentTime
+            project.referenceTime = currentTime
+            project.referenceDate = .now
+        }
+
+        if let token = timeObserverToken {
+            timeObserverPlayer?.removeTimeObserver(token)
+            timeObserverToken = nil
+            timeObserverPlayer = nil
+        }
+        timeObserverTask?.cancel()
+        timeObserverTask = nil
+        scrubTask?.cancel()
+        scrubTask = nil
     }
 
     private func setupTimeObserver() {
@@ -317,7 +348,8 @@ struct VideoPlayerView: View, Equatable {
                 guard let project, let playerRef else { return }
                 let seconds = time.seconds
                 let rate = Double(playerRef.rate)
-                MainActor.assumeIsolated {
+                Task { @MainActor in
+                    guard seconds.isFinite else { return }
                     guard !project.isSeeking && !project.isScrubbing else { return }
                     let subtitleText = project.subtitleText(at: seconds)
                     project.currentTime = seconds
@@ -335,6 +367,10 @@ struct VideoPlayerView: View, Equatable {
                     let rate = ffmpegEngine.rate
                     if rate > 0 {
                         let seconds = ffmpegEngine.currentTime
+                        guard seconds.isFinite else {
+                            try? await Task.sleep(nanoseconds: 16_000_000)
+                            continue
+                        }
                         guard !project.isSeeking && !project.isScrubbing else {
                             try? await Task.sleep(nanoseconds: 16_000_000)
                             continue

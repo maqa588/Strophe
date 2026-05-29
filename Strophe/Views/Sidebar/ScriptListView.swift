@@ -1,7 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct ScriptListView: View, Equatable {
+struct ScriptListView: View {
     @ObservedObject var project: SubtitleProject
     @State private var scriptText: String = ""
     @State private var isShowingInput = false
@@ -12,17 +12,12 @@ struct ScriptListView: View, Equatable {
     @State private var isEditingText = false
     @State private var editingText = ""
     @State private var editingItem: SubtitleItem? = nil
+    @State private var isShowingAutoCaption = false
     
     /// Legacy compact-mode support (iOS 17 / macOS 14 fallback).
     /// When using the modern TabView path these default values are used.
     var isCompact: Bool = false
     var path: Binding<NavigationPath> = .constant(NavigationPath())
-
-    static func == (lhs: ScriptListView, rhs: ScriptListView) -> Bool {
-        lhs.project === rhs.project &&
-        lhs.project.scrollTargetID == rhs.project.scrollTargetID &&
-        lhs.project.items.count == rhs.project.items.count
-    }
 
     var body: some View {
         Group {
@@ -93,6 +88,15 @@ struct ScriptListView: View, Equatable {
         .onReceive(NotificationCenter.default.publisher(for: .stropheImportScriptFile)) { _ in
             isShowingFileImporter = true
         }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheStartSpeechRecognition)) { _ in
+            isShowingAutoCaption = true
+        }
+        .sheet(isPresented: $isShowingAutoCaption) {
+            AutoCaptionView(project: project)
+        }
+        .onChange(of: isShowingAutoCaption) { _, newValue in
+            project.isEditingText = newValue
+        }
     }
 
     // MARK: - Empty State
@@ -102,10 +106,19 @@ struct ScriptListView: View, Equatable {
         } description: {
             Text("Paste your script to start marking timestamps.")
         } actions: {
-            Button("Import Script…") {
-                isShowingImportOptions = true
+            VStack(spacing: 8) {
+                Button("Import Script…") {
+                    isShowingImportOptions = true
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color.stropheAccent)
+                
+                Button("Speech Recognition…") {
+                    isShowingAutoCaption = true
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color.stropheAccent)
             }
-            .buttonStyle(.borderedProminent)
         }
     }
 

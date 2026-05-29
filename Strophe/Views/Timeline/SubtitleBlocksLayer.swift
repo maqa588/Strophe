@@ -8,7 +8,7 @@
 import SwiftUI
 
 // MARK: - 字幕块显示与交互层
-struct SubtitleBlocksLayer: View, Equatable {
+struct SubtitleBlocksLayer: View {
     @ObservedObject var project: SubtitleProject
     let pixelsPerSecond: Double
     let smoothTime: Double
@@ -40,13 +40,6 @@ struct SubtitleBlocksLayer: View, Equatable {
         project.overlappingIntervals.filter { interval in
             interval.end >= visibleStartTime && interval.start <= visibleEndTime
         }
-    }
-    
-    static func == (lhs: SubtitleBlocksLayer, rhs: SubtitleBlocksLayer) -> Bool {
-        lhs.project === rhs.project &&
-        lhs.pixelsPerSecond == rhs.pixelsPerSecond &&
-        lhs.scrollPageStartTime == rhs.scrollPageStartTime &&
-        lhs.project.items.count == rhs.project.items.count
     }
     
     // 框选状态

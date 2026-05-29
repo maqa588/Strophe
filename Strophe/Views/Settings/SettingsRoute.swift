@@ -10,4 +10,9 @@ import SwiftUI
 enum SettingsRoute: Hashable {
     case version
     case cache
+    case whisperConfig
+    case alignerConfig
+    case speakerConfig
+    case ttsConfig
+    case otherConfig
 }

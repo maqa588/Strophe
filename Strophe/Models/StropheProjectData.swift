@@ -59,7 +59,7 @@ struct SubtitleStyle: Codable, Sendable, Identifiable, Equatable {
     }
 }
 
-struct StropheProjectData: Sendable, Codable {
+nonisolated struct StropheProjectData: Sendable, Codable {
     let version: Int
     let metadata: StropheMetadata
     let media: StropheMedia?

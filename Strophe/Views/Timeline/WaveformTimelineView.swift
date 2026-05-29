@@ -38,10 +38,11 @@ struct WaveformTimelineView: View {
     }
     
     var body: some View {
-        let viewWidth = availableWidth
-        let duration = project.waveformData?.duration ?? 1
-        let minPPS = viewWidth / max(1, duration)
-        let maxPPS = viewWidth / 5.0
+        let viewWidth = availableWidth.isFinite ? max(1, availableWidth) : 800
+        let rawDuration = project.waveformData?.duration ?? 1
+        let duration = rawDuration.isFinite ? max(1, rawDuration) : 1
+        let minPPS = max(0.001, Double(viewWidth) / duration)
+        let maxPPS = max(minPPS, Double(viewWidth) / 5.0)
 
         VStack(alignment: .leading, spacing: 0) {
             Rectangle()
@@ -54,7 +55,9 @@ struct WaveformTimelineView: View {
 
             // MARK: - Timeline Core
             if let data = project.waveformData {
-                let totalWidth = CGFloat(data.duration * pixelsPerSecond)
+                let safeDataDuration = data.duration.isFinite ? max(0, data.duration) : 0
+                let safePPS = pixelsPerSecond.isFinite ? max(0.001, pixelsPerSecond) : minPPS
+                let totalWidth = CGFloat(max(1, safeDataDuration * safePPS))
                 let rulerHeight: CGFloat = 25
                 let waveHeight: CGFloat = 120
 
@@ -136,7 +139,8 @@ struct WaveformTimelineView: View {
         .environment(\.layoutDirection, .leftToRight)
         .onAppear {
             if let data = project.waveformData {
-                let pps = viewWidth / max(1, data.duration)
+                let safeDuration = data.duration.isFinite ? max(1, data.duration) : 1
+                let pps = Double(viewWidth) / safeDuration
                 pixelsPerSecond = pps
                 renderedPPS = pps
             } else {
@@ -150,7 +154,9 @@ struct WaveformTimelineView: View {
         }
         .onChange(of: project.waveformData?.duration) { _, duration in
             if let duration = duration {
-                let newMinPPS = availableWidth / max(1, duration)
+                let safeDuration = duration.isFinite ? max(1, duration) : 1
+                let safeWidth = availableWidth.isFinite ? max(1, availableWidth) : 800
+                let newMinPPS = Double(safeWidth) / safeDuration
                 pixelsPerSecond = newMinPPS
                 renderedPPS = newMinPPS
                 scrollPageStartTime = 0
@@ -173,9 +179,13 @@ struct WaveformTimelineView: View {
     }
     
     private func keepPlayheadInView(viewWidth: Double, duration: Double, proxy: ScrollViewProxy) {
-        let visibleDuration = viewWidth / pixelsPerSecond
-        let newPageStart = max(0, project.currentTime - visibleDuration * 0.5)
-        scrollPageStartTime = max(0, min(max(0, duration - visibleDuration), newPageStart))
+        let safeViewWidth = viewWidth.isFinite ? max(1, viewWidth) : 1
+        let safePPS = pixelsPerSecond.isFinite ? max(0.001, pixelsPerSecond) : 50
+        let safeDuration = duration.isFinite ? max(0, duration) : 0
+        let safeCurrentTime = project.currentTime.clampedFinite(to: 0...safeDuration)
+        let visibleDuration = safeViewWidth / safePPS
+        let newPageStart = max(0, safeCurrentTime - visibleDuration * 0.5)
+        scrollPageStartTime = max(0, min(max(0, safeDuration - visibleDuration), newPageStart))
         proxy.scrollTo("scroll-page-anchor", anchor: .leading)
     }
     
@@ -209,6 +219,11 @@ struct WaveformTimelineView: View {
 extension Double {
     func clamped(to range: ClosedRange<Double>) -> Double {
         min(max(self, range.lowerBound), range.upperBound)
+    }
+
+    func clampedFinite(to range: ClosedRange<Double>) -> Double {
+        guard isFinite else { return range.lowerBound }
+        return clamped(to: range)
     }
 }
 

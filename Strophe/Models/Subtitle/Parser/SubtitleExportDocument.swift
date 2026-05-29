@@ -2,13 +2,13 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 extension UTType {
-    public static let srtSubtitle = UTType("public.srt") ?? .plainText
-    public static let assSubtitle = UTType("public.ass") ?? .plainText
-    public static let lrcSubtitle = UTType("public.lrc") ?? .plainText
-    public static let vttSubtitle = UTType("public.vtt") ?? .plainText
-    public static let stropheProject = UTType("top.maqa.Strophe.strophe-project") ?? UTType(exportedAs: "top.maqa.Strophe.strophe-project", conformingTo: .data)
+    public static nonisolated let srtSubtitle = UTType("public.srt") ?? .plainText
+    public static nonisolated let assSubtitle = UTType("public.ass") ?? .plainText
+    public static nonisolated let lrcSubtitle = UTType("public.lrc") ?? .plainText
+    public static nonisolated let vttSubtitle = UTType("public.vtt") ?? .plainText
+    public static nonisolated let stropheProject = UTType("top.maqa.Strophe.strophe-project") ?? UTType(exportedAs: "top.maqa.Strophe.strophe-project", conformingTo: .data)
 
-    public static func fromFormat(_ format: SubtitleFormat) -> UTType {
+    public static nonisolated func fromFormat(_ format: SubtitleFormat) -> UTType {
         switch format {
         case .srt: return .srtSubtitle
         case .ass: return .assSubtitle
@@ -17,13 +17,13 @@ extension UTType {
         }
     }
 
-    public static var allSubtitleTypes: [UTType] {
+    public static nonisolated var allSubtitleTypes: [UTType] {
         // 💡 只有这些合法的、并在 Info 中备案过的文本类型才会被激活
         // .plainText 会自动匹配您的 .txt 文件
         [.srtSubtitle, .assSubtitle, .lrcSubtitle, .vttSubtitle, .plainText]
     }
 
-    public static var allMediaTypes: [UTType] {
+    public static nonisolated var allMediaTypes: [UTType] {
         let videoTypes: [UTType] = ([
             .movie,
             .video,
@@ -47,9 +47,9 @@ extension UTType {
     }
 }
 public struct SubtitleExportDocument: FileDocument {
-    public static var readableContentTypes: [UTType] = [.plainText]
+    public static nonisolated let readableContentTypes: [UTType] = [.plainText]
 
-    public static var writableContentTypes: [UTType] = [
+    public static nonisolated let writableContentTypes: [UTType] = [
         .plainText,
         .srtSubtitle,
         .assSubtitle,

@@ -37,11 +37,20 @@ struct TimelineToolbarView: View {
     @State private var showSoftSubtitlesTip = false
     @State private var showSelectionTip = false
     @State private var showCreationTip = false
+    @State private var showSplitTip = false
+    @State private var showMergeTip = false
     
     // 用于 macOS 鼠标延时悬浮（0.5秒）的取消型 Task 实例
     @State private var softSubtitlesHoverTask: Task<Void, Never>? = nil
     @State private var selectionHoverTask: Task<Void, Never>? = nil
     @State private var creationHoverTask: Task<Void, Never>? = nil
+    @State private var splitHoverTask: Task<Void, Never>? = nil
+    @State private var mergeHoverTask: Task<Void, Never>? = nil
+    
+    // 切分/合并操作状态
+    @State private var splitRequest: SplitRequest? = nil
+    @State private var mergeErrorMessage: String? = nil
+    @State private var splitErrorMessage: String? = nil
     
     var body: some View {
         VStack(spacing: isCompact ? 8 : 0) {
@@ -118,6 +127,30 @@ struct TimelineToolbarView: View {
             DispatchQueue.main.async {
                 syncStateFromProject()
             }
+        }
+        .sheet(item: $splitRequest) { request in
+            SubtitleSplitView(
+                item: request.item,
+                splitTime: request.splitTime,
+                project: project,
+                onDismiss: { splitRequest = nil }
+            )
+        }
+        .alert(String(localized: "无法切分"), isPresented: Binding(
+            get: { splitErrorMessage != nil },
+            set: { if !$0 { splitErrorMessage = nil } }
+        )) {
+            Button(String(localized: "确定"), role: .cancel) { splitErrorMessage = nil }
+        } message: {
+            Text(splitErrorMessage ?? "")
+        }
+        .alert(String(localized: "无法合并"), isPresented: Binding(
+            get: { mergeErrorMessage != nil },
+            set: { if !$0 { mergeErrorMessage = nil } }
+        )) {
+            Button(String(localized: "确定"), role: .cancel) { mergeErrorMessage = nil }
+        } message: {
+            Text(mergeErrorMessage ?? "")
         }
     }
     
@@ -273,6 +306,63 @@ struct TimelineToolbarView: View {
         if #available(macOS 26.0, iOS 26.0, *) {
             GlassEffectContainer(spacing: 12) {
                 HStack(spacing: 0) {
+                    // ── 切分按钮 ──
+                    Button(action: { handleSplitAction() }) {
+                        Image(systemName: "scissors")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(.primary)
+                            .frame(width: 32, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.interactive())
+                    .popover(isPresented: $showSplitTip, arrowEdge: .top) {
+                        RichTooltipView(icon: "scissors", title: String(localized: "切分字幕"), message: String(localized: "以时间游标为分割点，将游标所在的字幕块拆分为两个独立字幕块"))
+                    }
+                    .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
+                        #if os(iOS)
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        #endif
+                        showSplitTip = true
+                    })
+                    .onHover { hovering in
+                        splitHoverTask?.cancel()
+                        if hovering {
+                            splitHoverTask = Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 500_000_000)
+                                if !Task.isCancelled { showSplitTip = true }
+                            }
+                        } else { showSplitTip = false }
+                    }
+
+                    // ── 合并按钮 ──
+                    Button(action: { handleMergeAction() }) {
+                        Image(systemName: "arrow.trianglehead.merge")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(.primary)
+                            .frame(width: 32, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.interactive())
+                    .popover(isPresented: $showMergeTip, arrowEdge: .top) {
+                        RichTooltipView(icon: "arrow.trianglehead.merge", title: String(localized: "合并字幕"), message: String(localized: "将选中的连续字幕块合并为一个，文本与时间轴同时合并"))
+                    }
+                    .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
+                        #if os(iOS)
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        #endif
+                        showMergeTip = true
+                    })
+                    .onHover { hovering in
+                        mergeHoverTask?.cancel()
+                        if hovering {
+                            mergeHoverTask = Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 500_000_000)
+                                if !Task.isCancelled { showMergeTip = true }
+                            }
+                        } else { showMergeTip = false }
+                    }
+
+                    // ── 软字幕预览按钮 ──
                     Button(action: { project.showSoftSubtitles.toggle() }) {
                         Image(systemName: showSoftSubtitles ? "captions.bubble.fill" : "captions.bubble")
                             .font(.body.weight(.medium))
@@ -367,12 +457,44 @@ struct TimelineToolbarView: View {
                 showSoftSubtitlesTip: $showSoftSubtitlesTip,
                 showSelectionTip: $showSelectionTip,
                 showCreationTip: $showCreationTip,
+                showSplitTip: $showSplitTip,
+                showMergeTip: $showMergeTip,
                 softSubtitlesHoverTask: $softSubtitlesHoverTask,
                 selectionHoverTask: $selectionHoverTask,
-                creationHoverTask: $creationHoverTask
+                creationHoverTask: $creationHoverTask,
+                splitHoverTask: $splitHoverTask,
+                mergeHoverTask: $mergeHoverTask,
+                onSplit: { handleSplitAction() },
+                onMerge: { handleMergeAction() }
             )
         }
     }
+    
+    // MARK: - Split / Merge Actions
+    
+    private func handleSplitAction() {
+        switch project.validateSplitAtPlayhead() {
+        case .ready(let item):
+            splitRequest = SplitRequest(item: item, splitTime: project.currentTime)
+        case .noBlock:
+            splitErrorMessage = String(localized: "时间游标位置没有字幕块")
+        case .overlapping:
+            splitErrorMessage = String(localized: "请先解决重叠问题再拆分")
+        }
+    }
+    
+    private func handleMergeAction() {
+        if let error = project.mergeSelectedSubtitles() {
+            mergeErrorMessage = error
+        }
+    }
+}
+
+// MARK: - SplitRequest: Identifiable wrapper for .sheet(item:) API
+struct SplitRequest: Identifiable {
+    let id = UUID()
+    let item: SubtitleItem
+    let splitTime: TimeInterval
 }
 
 // MARK: - Rich Interactive Tooltip View

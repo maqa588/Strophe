@@ -17,6 +17,16 @@ struct SettingsDetailView: View {
                 VersionDetailView()
             case .cache:
                 CacheSettingView()
+            case .whisperConfig:
+                ModelConfigView(type: .whisper)
+            case .alignerConfig:
+                ModelConfigView(type: .aligner)
+            case .speakerConfig:
+                ModelConfigView(type: .speaker)
+            case .ttsConfig:
+                ModelConfigView(type: .tts)
+            case .otherConfig:
+                ModelConfigView(type: .other)
             }
         }
     }

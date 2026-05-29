@@ -1,14 +1,14 @@
-import AVFoundation
+@preconcurrency import AVFoundation
 import Foundation
 
-struct FormatDetectionResult: Equatable, Sendable {
+nonisolated struct FormatDetectionResult: Equatable, Sendable {
     let isAVFoundationCompatible: Bool
     let errorMessage: String?
     let hasVideoTrack: Bool
     let detectedFPS: Double?
     var isRemoteNetworkVolume: Bool = false
 
-    static let audioOnly = FormatDetectionResult(
+    static nonisolated let audioOnly = FormatDetectionResult(
         isAVFoundationCompatible: true,
         errorMessage: nil,
         hasVideoTrack: false,
@@ -98,32 +98,31 @@ final class FormatDetector {
         let asset = AVURLAsset(url: url)
 
         do {
-            let (tracks, _) = try await withThrowingTimeout(seconds: 5) {
+            return try await withThrowingTimeout(seconds: 5) {
                 let videoTracks = try await asset.loadTracks(withMediaType: .video)
-                return (videoTracks, ())
-            }
-
-            guard let videoTrack = tracks.first else {
-                let audioTracks = try? await asset.loadTracks(withMediaType: .audio)
-                if audioTracks?.isEmpty ?? true {
-                    return FormatDetectionResult(
-                        isAVFoundationCompatible: false,
-                        errorMessage: "No playable tracks found",
-                        hasVideoTrack: false,
-                        detectedFPS: nil
-                    )
+                
+                guard let videoTrack = videoTracks.first else {
+                    let audioTracks = try? await asset.loadTracks(withMediaType: .audio)
+                    if audioTracks?.isEmpty ?? true {
+                        return FormatDetectionResult(
+                            isAVFoundationCompatible: false,
+                            errorMessage: "No playable tracks found",
+                            hasVideoTrack: false,
+                            detectedFPS: nil
+                        )
+                    }
+                    return .audioOnly
                 }
-                return .audioOnly
-            }
 
-            let fps = (try? await videoTrack.load(.nominalFrameRate)) ?? 30.0
-            
-            return FormatDetectionResult(
-                isAVFoundationCompatible: true,
-                errorMessage: nil,
-                hasVideoTrack: true,
-                detectedFPS: Double(fps)
-            )
+                let fps = (try? await videoTrack.load(.nominalFrameRate)) ?? 30.0
+                
+                return FormatDetectionResult(
+                    isAVFoundationCompatible: true,
+                    errorMessage: nil,
+                    hasVideoTrack: true,
+                    detectedFPS: Double(fps)
+                )
+            }
         } catch {
             return FormatDetectionResult(
                 isAVFoundationCompatible: false,
@@ -135,7 +134,7 @@ final class FormatDetector {
     }
 }
 
-private func withThrowingTimeout<T>(seconds: Double, operation: @escaping () async throws -> T) async throws -> T {
+private func withThrowingTimeout<T: Sendable>(seconds: Double, operation: @escaping @Sendable () async throws -> T) async throws -> T {
     try await withThrowingTaskGroup(of: T.self) { group in
         group.addTask { try await operation() }
         group.addTask {

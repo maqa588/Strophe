@@ -30,6 +30,68 @@ struct SettingsPlaceholderView: View {
                 }
             }
 
+            Section(header: Text("AI 引擎与模型管理")) {
+                Button {
+                    settingsPath.append(.whisperConfig)
+                } label: {
+                    Label {
+                        Text("语音转写设置")
+                            .foregroundStyle(Color.stropheText)
+                    } icon: {
+                        Image(systemName: "waveform")
+                            .foregroundStyle(Color.stropheAccent)
+                    }
+                }
+
+                Button {
+                    settingsPath.append(.alignerConfig)
+                } label: {
+                    Label {
+                        Text("强制对齐设置")
+                            .foregroundStyle(Color.stropheText)
+                    } icon: {
+                        Image(systemName: "timeline.selection")
+                            .foregroundStyle(Color.stropheAccent)
+                    }
+                }
+                
+                Button {
+                    settingsPath.append(.speakerConfig)
+                } label: {
+                    Label {
+                        Text("对话人识别设置")
+                            .foregroundStyle(Color.stropheText)
+                    } icon: {
+                        Image(systemName: "person.2.wave.2")
+                            .foregroundStyle(Color.stropheAccent)
+                    }
+                }
+                
+                Button {
+                    settingsPath.append(.ttsConfig)
+                } label: {
+                    Label {
+                        Text("文本转语音设置")
+                            .foregroundStyle(Color.stropheText)
+                    } icon: {
+                        Image(systemName: "speaker.wave.2")
+                            .foregroundStyle(Color.stropheAccent)
+                    }
+                }
+
+                Button {
+                    settingsPath.append(.otherConfig)
+                } label: {
+                    Label {
+                        Text("智能降噪与辅助设置")
+                            .foregroundStyle(Color.stropheText)
+                    } icon: {
+                        Image(systemName: "sparkles")
+                            .foregroundStyle(Color.stropheAccent)
+                    }
+                }
+            }
+
             Section(header: Text("存储与维护")) {
                 Button {
                     settingsPath.append(.cache)

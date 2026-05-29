@@ -1,5 +1,8 @@
 import SwiftUI
 import AVFoundation
+#if os(iOS)
+import Darwin
+#endif
 
 #if os(macOS)
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -24,6 +27,8 @@ struct StropheApp: App {
     
     init() {
         #if os(iOS)
+        IOSStderrRedirector.install()
+
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
             try AVAudioSession.sharedInstance().setActive(true)
@@ -52,6 +57,31 @@ struct StropheApp: App {
     }
 }
 
+#if os(iOS)
+private enum IOSStderrRedirector {
+    static func install() {
+        guard let cachesURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+            return
+        }
+
+        let logsURL = cachesURL.appendingPathComponent("Logs", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: logsURL, withIntermediateDirectories: true)
+        } catch {
+            return
+        }
+
+        let stderrURL = logsURL.appendingPathComponent("strophe-stderr.log")
+        stderrURL.withUnsafeFileSystemRepresentation { path in
+            guard let path else { return }
+            fflush(stderr)
+            _ = freopen(path, "a", stderr)
+            setvbuf(stderr, nil, _IOLBF, 0)
+        }
+    }
+}
+#endif
+
 extension Notification.Name {
     static let stropheOpenProject = Notification.Name("com.strophe.openProject")
     static let stropheImportMedia = Notification.Name("com.strophe.importMedia")
@@ -60,6 +90,7 @@ extension Notification.Name {
     static let stropheShowAbout = Notification.Name("com.strophe.showAbout")
     static let strophePasteScript = Notification.Name("com.strophe.pasteScript")
     static let stropheImportScriptFile = Notification.Name("com.strophe.importScriptFile")
+    static let stropheStartSpeechRecognition = Notification.Name("com.strophe.startSpeechRecognition")
     static let stropheOpenProjectWithURL = Notification.Name("com.strophe.openProjectWithURL")
     static let stropheShowSaveOnQuitAlert = Notification.Name("com.strophe.showSaveOnQuitAlert")
     static let stropheScrubTimeChanged = Notification.Name("com.strophe.scrubTimeChanged")

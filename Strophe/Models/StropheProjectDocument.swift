@@ -21,16 +21,12 @@ struct StropheProjectDocument: FileDocument {
         guard let rawData = configuration.file.regularFileContents else {
             throw CocoaError(.fileReadCorruptFile)
         }
-        let decoded = try MainActor.assumeIsolated {
-            try JSONDecoder().decode(StropheProjectData.self, from: rawData)
-        }
+        let decoded = try JSONDecoder().decode(StropheProjectData.self, from: rawData)
         self.data = decoded
     }
     
     nonisolated func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        let encoded = try MainActor.assumeIsolated {
-            try JSONEncoder().encode(data)
-        }
+        let encoded = try JSONEncoder().encode(data)
         return FileWrapper(regularFileWithContents: encoded)
     }
 }

@@ -6,7 +6,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct MainContentView: View, Equatable {
+struct MainContentView: View {
     @ObservedObject var project: SubtitleProject
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -18,12 +18,6 @@ struct MainContentView: View, Equatable {
     var isCompact: Bool = false
     var path: Binding<NavigationPath> = .constant(NavigationPath())
     @Binding var selectedTab: StropheTab
-
-    static func == (lhs: MainContentView, rhs: MainContentView) -> Bool {
-        lhs.project === rhs.project &&
-        lhs.isCompact == rhs.isCompact &&
-        lhs.selectedTab == rhs.selectedTab
-    }
 
     init(project: SubtitleProject, selectedTab: Binding<StropheTab>, isCompact: Bool = false, path: Binding<NavigationPath> = .constant(NavigationPath())) {
         self.project = project
@@ -117,29 +111,8 @@ struct MainContentView: View, Equatable {
             }
             #endif
 
-            // Right side: save, export (+ plus on iPhone)
+            // Right side: save, export
             ToolbarItemGroup(placement: .primaryAction) {
-                #if os(iOS)
-                if horizontalSizeClass == .compact {
-                    // iPhone: show plus button in the editor toolbar
-                    Menu {
-                        Button {
-                            NotificationCenter.default.post(name: .strophePasteScript, object: nil)
-                        } label: {
-                            Label("粘贴文稿", systemImage: "doc.on.clipboard")
-                        }
-                        Button {
-                            NotificationCenter.default.post(name: .stropheImportScriptFile, object: nil)
-                        } label: {
-                            Label("导入字幕文件", systemImage: "square.and.arrow.down")
-                        }
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .help(String(localized: "更多操作"))
-                }
-                #endif
-
                 Button(action: {
                     NotificationCenter.default.post(name: .stropheSaveProject, object: nil)
                 }) {
@@ -198,14 +171,20 @@ struct MainContentView: View, Equatable {
         ) { result in
             if case .success(let urls) = result, let url = urls.first {
                 if url.pathExtension.lowercased() == "strophe" {
-                    NotificationCenter.default.post(name: .stropheOpenProjectWithURL, object: url)
+                    DispatchQueue.main.async {
+                        NotificationCenter.default.post(name: .stropheOpenProjectWithURL, object: url)
+                    }
                 } else {
-                    project.importMedia(from: url)
+                    DispatchQueue.main.async {
+                        project.importMedia(from: url)
+                    }
                 }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .stropheImportMedia)) { _ in
-            isShowingImportMedia = true
+            DispatchQueue.main.async {
+                isShowingImportMedia = true
+            }
         }
         .fileExporter(
             isPresented: $isShowingExport,

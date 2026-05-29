@@ -11,7 +11,6 @@ import CoreGraphics
 extension SubtitleProject {
     func importMedia(from url: URL) {
         pause()
-        TempCleanupHelper.cleanupTempDirectory()
         if items.isEmpty {
             resetForNewMedia()
             prepareMediaAccess(for: url)
