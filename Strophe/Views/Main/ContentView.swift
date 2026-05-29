@@ -42,6 +42,15 @@ struct ContentView: View {
     @State private var isQuittingAfterSave = false
     #endif
 
+    private var usesLiquidGlassNavigation: Bool {
+        #if os(iOS)
+        if #available(iOS 26.0, *) { return true }
+        #elseif os(macOS)
+        if #available(macOS 26.0, *) { return true }
+        #endif
+        return false
+    }
+
     var body: some View {
         Group {
             if sizeClass == .compact {
@@ -213,65 +222,77 @@ struct ContentView: View {
             NavigationStack {
                 MainContentView(project: project, selectedTab: $selectedTab)
             }
-        } else {
-            VStack(spacing: 0) {
-                // 当前 tab 内容
-                Group {
-                    switch selectedTab {
-                    case .scriptList:
-                        NavigationStack {
-                            ScriptListView(project: project)
-                                .inlineNavigationTitle(String(localized: "文稿"))
-                                .toolbar {
-                                    ToolbarItem(placement: .primaryAction) {
-                                        Menu {
-                                            Button {
-                                                NotificationCenter.default.post(name: .strophePasteScript, object: nil)
-                                            } label: {
-                                                Label("粘贴文稿", systemImage: "doc.on.clipboard")
-                                            }
-                                            Button {
-                                                NotificationCenter.default.post(name: .stropheImportScriptFile, object: nil)
-                                            } label: {
-                                                Label("导入字幕文件", systemImage: "square.and.arrow.down")
-                                            }
-                                            Button {
-                                                NotificationCenter.default.post(name: .stropheStartSpeechRecognition, object: nil)
-                                            } label: {
-                                                Label("语音识别", systemImage: "waveform.and.mic")
-                                            }
-                                        } label: {
-                                            Image(systemName: "plus")
-                                        }
-                                    }
-                                }
-                        }
-                    case .editor:
-                        EmptyView()  // 不会走到此分支（editor 在上面处理）
-                    case .settings:
-                        NavigationStack(path: $settingsPath) {
-                            SettingsPlaceholderView(settingsPath: $settingsPath)
-                                .inlineNavigationTitle(String(localized: "设置"))
-                                .navigationDestination(for: SettingsRoute.self) { route in
-                                    SettingsDetailView(route: route)
-                                }
-                        }
-                    }
-                }
-                .frame(maxHeight: .infinity)
+        } else if usesLiquidGlassNavigation {
+            ZStack(alignment: .bottom) {
+                compactTabContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .ignoresSafeArea(.container, edges: .bottom)
 
                 if selectedTab != .settings || settingsPath.isEmpty {
-                    // 2. 使用 Theme 中定义的 stropheBorder，避免系统默认 Divider 颜色过亮
+                    StropheTabBar(selectedTab: $selectedTab, tabs: StropheTab.compactTabs)
+                }
+            }
+            .background(Color.stropheBackground)
+            .ignoresSafeArea(.keyboard, edges: .bottom)
+        } else {
+            VStack(spacing: 0) {
+                compactTabContent
+                    .frame(maxHeight: .infinity)
+
+                if selectedTab != .settings || settingsPath.isEmpty {
                     Rectangle()
                         .frame(height: 1)
                         .foregroundColor(Color.stropheBorder)
 
-                    // 3. 自绘导航栏，顶部加 padding 留出呼吸感
                     StropheTabBar(selectedTab: $selectedTab, tabs: StropheTab.compactTabs)
                         .padding(.top, 12)
                 }
             }
             .background(Color.stropheBackground)
+        }
+    }
+
+    @ViewBuilder
+    private var compactTabContent: some View {
+        switch selectedTab {
+        case .scriptList:
+            NavigationStack {
+                ScriptListView(project: project)
+                    .inlineNavigationTitle(String(localized: "文稿"))
+                    .toolbar {
+                        ToolbarItem(placement: .primaryAction) {
+                            Menu {
+                                Button {
+                                    NotificationCenter.default.post(name: .strophePasteScript, object: nil)
+                                } label: {
+                                    Label("粘贴文稿", systemImage: "doc.on.clipboard")
+                                }
+                                Button {
+                                    NotificationCenter.default.post(name: .stropheImportScriptFile, object: nil)
+                                } label: {
+                                    Label("导入字幕文件", systemImage: "square.and.arrow.down")
+                                }
+                                Button {
+                                    NotificationCenter.default.post(name: .stropheStartSpeechRecognition, object: nil)
+                                } label: {
+                                    Label("语音识别", systemImage: "waveform.and.mic")
+                                }
+                            } label: {
+                                Image(systemName: "plus")
+                            }
+                        }
+                    }
+            }
+        case .editor:
+            EmptyView()
+        case .settings:
+            NavigationStack(path: $settingsPath) {
+                SettingsPlaceholderView(settingsPath: $settingsPath)
+                    .inlineNavigationTitle(String(localized: "设置"))
+                    .navigationDestination(for: SettingsRoute.self) { route in
+                        SettingsDetailView(route: route)
+                    }
+            }
         }
     }
 

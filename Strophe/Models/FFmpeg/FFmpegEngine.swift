@@ -90,6 +90,12 @@ final class FrameQueue: @unchecked Sendable {
 // MARK: - FFmpegEngine
 // High-performance, `@MainActor`-isolated engine conforming perfectly to `PlayerEngine`.
 @MainActor final class FFmpegEngine: NSObject, PlayerEngine {
+    #if os(iOS)
+    private static let frameQueueCapacity = 10
+    #else
+    private static let frameQueueCapacity = 24
+    #endif
+
     let playerView: NativeView
     private let metalRenderer: MetalVideoRenderer
     private let audioPlayer: AudioPlayer
@@ -111,7 +117,7 @@ final class FrameQueue: @unchecked Sendable {
     private var wasPlayingBeforeScrub = false
     private var rateBeforeScrub: Double = 0.0
     
-    private let frameQueue = FrameQueue(capacity: 128)
+    private let frameQueue = FrameQueue(capacity: FFmpegEngine.frameQueueCapacity)
     private var lastSeekTime: CFTimeInterval = 0
     private var activeSeekTask: Task<Void, Never>? = nil
     nonisolated(unsafe) private var diagTimer: Timer? = nil

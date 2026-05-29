@@ -2,17 +2,9 @@
 //  StropheTabBar.swift
 //  Strophe
 //
-//  基于 Apple 官方规范的 iOS 26+ / macOS 26+ 原生 Liquid Glass 导航栏 (优化重构版)
-//  - 外部采用 GlassEffectContainer 统一容器，支持多个玻璃形状的自动流体融合
-//  - 使用 .glassEffect(.regular) 渲染系统级真实折射与反射毛玻璃
-//  - 使用 .glassEffect(.regular.interactive()) 让选中的滑块在触下时呈现水滴波动反馈
-//  - 通过内置拖拽手势 (DragGesture) 支持 0 延迟连续滑动切换
-//
-//  性能与平台自适应优化 (HIG 规范)：
-//  - 去除内部 GeometryReader，使用 background 异步获取宽度，防止布局吞噬
-//  - 添加 VoiceOver 支持，使用 tab.title 作为无障碍标签 (accessibilityLabel)
-//  - 桌面端/大屏 (Mac/iPad) 自动限制最大宽度并调整边距，呈现悬浮中控台样式
-//  - 交互式弹簧动画曲线优化，强化水滴流体感
+//  iOS 26+ / macOS 26+ Liquid Glass floating navigation.
+//  The modern path avoids opaque background blocks and lets the control hover
+//  directly above the surrounding content.
 //
 
 import SwiftUI
@@ -21,11 +13,42 @@ struct StropheTabBar: View {
     @Binding var selectedTab: StropheTab
     var tabs: [StropheTab] = StropheTab.allCases
 
-    @Namespace private var tabIndicatorAnimation
-    @State private var activeIndex: Int = 0
-    @State private var containerWidth: CGFloat = 0 // 动态捕获宽度用于拖拽
+    @Namespace private var selectionNamespace
+    @State private var containerWidth: CGFloat = 0
+    @State private var dragLocationX: CGFloat?
+    @State private var isDragging = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
-    // 平台检测：适配 iPadOS / macOS 的不同交互直觉
+    private var selectedIndex: Int {
+        guard !tabs.isEmpty else { return 0 }
+        return tabs.firstIndex(of: selectedTab) ?? 0
+    }
+
+    private var liveIndex: Int {
+        guard let dragLocationX, containerWidth > 0, !tabs.isEmpty else {
+            return selectedIndex
+        }
+
+        let itemWidth = containerWidth / CGFloat(tabs.count)
+        let rawIndex = Int(dragLocationX / itemWidth)
+        return max(0, min(tabs.count - 1, rawIndex))
+    }
+
+    private var barHeight: CGFloat {
+        isDesktop ? 50 : 56
+    }
+
+    private var buttonHeight: CGFloat {
+        isDesktop ? 40 : 46
+    }
+
+    private var tabBarSpring: Animation {
+        reduceMotion
+            ? .easeOut(duration: 0.12)
+            : .interactiveSpring(response: 0.3, dampingFraction: 0.72)
+    }
+
     #if os(macOS) || os(visionOS)
     let isDesktop = true
     #else
@@ -41,118 +64,154 @@ struct StropheTabBar: View {
         }
     }
 
-    // ==========================================
-    // 1. 🌟 Apple 原生 Liquid Glass 导航栏 (WWDC25)
-    // ==========================================
     @available(iOS 26.0, macOS 26.0, *)
     private var advancedLiquidGlassTabBar: some View {
-        // 使用 GlassEffectContainer 联合渲染
-        // spacing: 12 是控制融合阈值（水滴吸附距离）的最佳实践
-        GlassEffectContainer(spacing: 12) {
-            HStack(spacing: 0) {
-                ForEach(Array(tabs.enumerated()), id: \.element) { index, tab in
-                    liquidGlassTabButton(for: tab, index: index)
+        GlassEffectContainer(spacing: 8) {
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    movingSelectionThumb
+
+                    HStack(spacing: 4) {
+                        ForEach(Array(tabs.enumerated()), id: \.element) { index, tab in
+                            liquidGlassTabButton(for: tab, index: index)
+                        }
+                    }
+                    .padding(5)
                 }
+                .onAppear {
+                    containerWidth = proxy.size.width
+                }
+                .onChange(of: proxy.size.width) { _, newWidth in
+                    containerWidth = newWidth
+                }
+                .stropheGlassCapsule(interactive: true, reduceTransparency: reduceTransparency)
+                .gesture(tabDragGesture)
             }
-            // 使用 background GeometryReader 仅无感获取宽度，不破坏整体布局
-            .background(
-                GeometryReader { proxy in
-                    Color.clear.onAppear { containerWidth = proxy.size.width }
-                        .onChange(of: proxy.size.width) { _, newWidth in containerWidth = newWidth }
-                }
-            )
-            .padding(4)
-            // 外层：系统级常规毛玻璃
-            .glassEffect(.regular, in: .capsule)
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in handleDrag(value) }
-                    .onEnded { value in commitDrag(value) }
-            )
+            .frame(height: barHeight)
         }
-        // 桌面端约束最大宽度并调整位置，避免像 iOS 一样横跨整个大屏幕
-        .frame(maxWidth: isDesktop ? 400 : .infinity)
-        .padding(.horizontal, 16)
-        .padding(.bottom, isDesktop ? 24 : 12) 
-        .onAppear {
-            activeIndex = tabs.firstIndex(of: selectedTab) ?? 0
-        }
+        .frame(maxWidth: isDesktop ? 360 : 430)
+        .padding(.horizontal, isDesktop ? 20 : 16)
+        .padding(.bottom, isDesktop ? 20 : 12)
         .onChange(of: selectedTab) { _, newTab in
-            if let idx = tabs.firstIndex(of: newTab) {
-                // 使用带有阻尼的交互式弹簧，强化液体流动感
-                withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.65)) {
-                    activeIndex = idx
+            if tabs.contains(newTab) {
+                withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.72)) {
+                    dragLocationX = nil
+                    isDragging = false
                 }
             }
         }
     }
 
-    // ==========================================
-    // 2. 🌟 内部流体滑块组件
-    // ==========================================
+    @available(iOS 26.0, macOS 26.0, *)
+    private var movingSelectionThumb: some View {
+        let outerPadding: CGFloat = 5
+        let spacing: CGFloat = 4
+        let count = CGFloat(tabs.count)
+        let availableWidth = max(containerWidth - outerPadding * 2 - spacing * CGFloat(max(tabs.count - 1, 0)), 0)
+        let itemWidth = count > 0 ? availableWidth / count : 0
+        let restingX = outerPadding + CGFloat(selectedIndex) * (itemWidth + spacing)
+        let liveX: CGFloat = {
+            guard let dragLocationX else { return restingX }
+            let halfWidth = itemWidth / 2
+            let minX = outerPadding
+            let maxX = max(outerPadding, containerWidth - outerPadding - itemWidth)
+            return min(max(dragLocationX - halfWidth, minX), maxX)
+        }()
+
+        return HStack(spacing: 0) {
+            Color.clear
+                .frame(width: liveX)
+
+            Capsule()
+                .fill(.clear)
+                .frame(width: itemWidth, height: buttonHeight)
+                .scaleEffect(isDragging ? 1.04 : 1.0)
+                .stropheGlassCapsule(interactive: true, reduceTransparency: reduceTransparency)
+                .glassEffectID("selectionThumb", in: selectionNamespace)
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(tabBarSpring, value: selectedIndex)
+        .animation(reduceMotion ? nil : .interactiveSpring(response: 0.16, dampingFraction: 0.82), value: isDragging)
+        .animation(reduceMotion ? nil : .interactiveSpring(response: 0.14, dampingFraction: 0.86), value: dragLocationX)
+    }
+
     @available(iOS 26.0, macOS 26.0, *)
     @ViewBuilder
     private func liquidGlassTabButton(for tab: StropheTab, index: Int) -> some View {
-        let isActive = (activeIndex == index)
+        let isActive = isTabVisuallyActive(index)
 
-        VStack(spacing: 0) {
+        Button {
+            selectTab(tab, at: index)
+        } label: {
             Image(systemName: tab.systemImage)
-                .font(.system(size: 20, weight: isActive ? .semibold : .regular))
-                // 🍎 规范强制要求：必须添加无障碍标签，确保屏幕朗读可用
-                .accessibilityLabel(tab.title)
+                .font(.system(size: isDesktop ? 18 : 20, weight: isActive ? .semibold : .regular))
+                .symbolVariant(isActive ? .fill : .none)
+                .symbolEffect(.bounce, value: isActive)
+                .frame(maxWidth: .infinity)
+                .frame(height: buttonHeight)
+                .contentShape(Capsule())
         }
-        .foregroundStyle(isActive ? Color.white : Color.secondary)
-        .frame(maxWidth: .infinity)
-        .frame(height: 44)
-        .background {
-            if isActive {
-                Capsule()
-                    .fill(Color.stropheAccent) // 采用 App 强调色
-                    // 核心交互层：附加 interactive() 后，按下会有水滴波纹反馈
-                    .glassEffect(.regular.interactive(), in: .capsule)
-                    // MatchedGeometryEffect 负责位置转移，外层的 Container 自动计算路径上的流体融合形变
-                    .matchedGeometryEffect(id: "activeTabIndicator", in: tabIndicatorAnimation)
-                    .padding(.horizontal, 4)
-            }
-        }
-        // 增加点击热区
-        .contentShape(Rectangle()) 
-        .onTapGesture {
-            withAnimation(.interactiveSpring(response: 0.3, dampingFraction: 0.6)) {
-                activeIndex = index
-                selectedTab = tab
-            }
+        .buttonStyle(.plain)
+        .foregroundStyle(isActive ? Color.stropheAccent : Color.secondary)
+        .scaleEffect(isActive ? 1.07 : 1.0)
+        .animation(tabBarSpring, value: isActive)
+        .accessibilityLabel(tab.title)
+        .accessibilityValue(isActive ? Text("已选择") : Text(""))
+        #if os(macOS)
+        .help(tab.title)
+        #endif
+    }
+
+    private func isTabVisuallyActive(_ index: Int) -> Bool {
+        isDragging ? liveIndex == index : selectedIndex == index
+    }
+
+    @available(iOS 26.0, macOS 26.0, *)
+    private func selectTab(_ tab: StropheTab, at index: Int) {
+        withAnimation(tabBarSpring) {
+            selectedTab = tab
+            dragLocationX = nil
+            isDragging = false
         }
     }
 
-    // ==========================================
-    // 3. 🛠️ 性能优化的拖拽手势逻辑
-    // ==========================================
-    private func handleDrag(_ value: DragGesture.Value) {
-        guard containerWidth > 0 else { return }
+    @available(iOS 26.0, macOS 26.0, *)
+    private var tabDragGesture: some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                handleLiveDrag(value)
+            }
+            .onEnded { value in
+                commitLiveDrag(value)
+            }
+    }
+
+    private func handleLiveDrag(_ value: DragGesture.Value) {
+        guard containerWidth > 0, !tabs.isEmpty else { return }
+        isDragging = true
+        dragLocationX = value.location.x
+    }
+
+    private func commitLiveDrag(_ value: DragGesture.Value) {
+        guard containerWidth > 0, !tabs.isEmpty else {
+            isDragging = false
+            dragLocationX = nil
+            return
+        }
+
         let tabWidth = containerWidth / CGFloat(tabs.count)
-        let locationX = value.location.x
-        let index = Int(locationX / tabWidth)
+        let index = Int(value.location.x / tabWidth)
         let clampedIndex = max(0, min(tabs.count - 1, index))
 
-        guard activeIndex != clampedIndex else { return }
-
-        // 仅拖拽期间驱动 UI 层的 activeIndex 变化，避免高频触发全局 Binding 导致整个 App 重绘
-        withAnimation(.interactiveSpring(response: 0.25, dampingFraction: 0.7)) {
-            activeIndex = clampedIndex
+        withAnimation(tabBarSpring) {
+            selectedTab = tabs[clampedIndex]
+            dragLocationX = nil
+            isDragging = false
         }
     }
 
-    private func commitDrag(_ value: DragGesture.Value) {
-        let targetTab = tabs[activeIndex]
-        if selectedTab != targetTab {
-            selectedTab = targetTab
-        }
-    }
-
-    // ==========================================
-    // 4. 🌟 较低系统版本的普通按钮导航栏
-    // ==========================================
     private var ordinaryTabBar: some View {
         HStack(spacing: 0) {
             ForEach(tabs, id: \.self) { tab in
@@ -167,12 +226,29 @@ struct StropheTabBar: View {
                     }
                     .foregroundStyle(selectedTab == tab ? Color.stropheAccent : Color.secondary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                    .frame(height: 44)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(tab.title)
+                .accessibilityValue(selectedTab == tab ? Text("已选择") : Text(""))
             }
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
+    }
+}
+
+private extension View {
+    @available(iOS 26.0, macOS 26.0, *)
+    @ViewBuilder
+    func stropheGlassCapsule(interactive: Bool, reduceTransparency: Bool) -> some View {
+        if reduceTransparency {
+            self.background(.regularMaterial, in: .capsule)
+        } else if interactive {
+            self.glassEffect(.regular.interactive(), in: .capsule)
+        } else {
+            self.glassEffect(.regular, in: .capsule)
+        }
     }
 }

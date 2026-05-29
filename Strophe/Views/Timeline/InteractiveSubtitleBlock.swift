@@ -13,10 +13,14 @@ struct InteractiveSubtitleBlock: View {
     let end: TimeInterval
     let pixelsPerSecond: Double
     @ObservedObject var project: SubtitleProject
+    var onSweepSelectionStart: ((SubtitleItem) -> Void)? = nil
+    var onSweepSelectionChange: ((CGFloat) -> Void)? = nil
+    var onSweepSelectionEnd: (() -> Void)? = nil
     
     @State private var dragOffset: CGFloat = 0
     @State private var edgeDragOffset: CGFloat = 0
     @State private var draggingEdge: Edge? = nil
+    @State private var isSweepSelecting = false
     
     // 磁力吸附与物理反馈状态
     @State private var isSnappedLeft = false
@@ -40,8 +44,22 @@ struct InteractiveSubtitleBlock: View {
     }
 
     private func handleTapSelection() {
+        #if os(iOS)
+        if project.isSubtitleMultiSelecting {
+            if project.selectedIDs.contains(item.id) {
+                project.selectedIDs.remove(item.id)
+                if project.selectedIDs.isEmpty {
+                    project.isSubtitleMultiSelecting = false
+                }
+            } else {
+                project.selectedIDs.insert(item.id)
+            }
+        } else {
+            editingText = item.text
+            isEditingText = true
+        }
+        #else
         DispatchQueue.main.async {
-            #if os(macOS)
             if NSEvent.modifierFlags.contains(.command) {
                 if self.project.selectedIDs.contains(self.item.id) {
                     self.project.selectedIDs.remove(self.item.id)
@@ -51,10 +69,8 @@ struct InteractiveSubtitleBlock: View {
             } else {
                 self.project.selectedIDs = [self.item.id]
             }
-            #else
-            self.project.selectedIDs = [self.item.id]
-            #endif
         }
+        #endif
     }
     
     var body: some View {
@@ -265,7 +281,7 @@ struct InteractiveSubtitleBlock: View {
         .gesture(
             DragGesture(coordinateSpace: .global)
                 .onChanged { value in
-                    guard project.editingMode == .selection else { return }
+                    guard project.editingMode == .selection, !isSweepSelecting else { return }
                     if draggingEdge == nil {
                         let rawProposedStart = start + Double(value.translation.width / pixelsPerSecond)
                         let rawProposedEnd = end + Double(value.translation.width / pixelsPerSecond)
@@ -362,7 +378,7 @@ struct InteractiveSubtitleBlock: View {
                     }
                 }
                 .onEnded { value in
-                    guard project.editingMode == .selection else { return }
+                    guard project.editingMode == .selection, !isSweepSelecting else { return }
                     if draggingEdge == nil {
                         let delta = dragOffset / pixelsPerSecond
                         if project.selectedIDs.count > 1 && project.selectedIDs.contains(item.id) {
@@ -378,6 +394,10 @@ struct InteractiveSubtitleBlock: View {
                     }
                 }
         )
+        #if os(iOS)
+        .highPriorityGesture(mobileSweepSelectionGesture)
+        #endif
+        #if os(macOS)
         // 多平台一致右键/长按菜单
         .contextMenu {
             Button(action: {
@@ -401,6 +421,7 @@ struct InteractiveSubtitleBlock: View {
                 .foregroundColor(.white)
                 .cornerRadius(6)
         }
+        #endif
         // 原生编辑文本弹框
         .alert("编辑字幕内容", isPresented: $isEditingText) {
             TextField("输入新字幕文本", text: $editingText)
@@ -413,4 +434,34 @@ struct InteractiveSubtitleBlock: View {
             project.isEditingText = newValue
         }
     }
+
+    #if os(iOS)
+    private var mobileSweepSelectionGesture: some Gesture {
+        LongPressGesture(minimumDuration: 0.4)
+            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .named(subtitleBlocksCoordinateSpaceName)))
+            .onChanged { value in
+                switch value {
+                case .first(true):
+                    beginMobileSweepSelection()
+                case .second(true, let dragValue):
+                    beginMobileSweepSelection()
+                    if let dragValue {
+                        onSweepSelectionChange?(dragValue.location.x)
+                    }
+                default:
+                    break
+                }
+            }
+            .onEnded { _ in
+                isSweepSelecting = false
+                onSweepSelectionEnd?()
+            }
+    }
+
+    private func beginMobileSweepSelection() {
+        guard !isSweepSelecting else { return }
+        isSweepSelecting = true
+        onSweepSelectionStart?(item)
+    }
+    #endif
 }

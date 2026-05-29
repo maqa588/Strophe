@@ -7,6 +7,8 @@
 
 import SwiftUI
 
+private let timelineScrollCoordinateSpaceName = "timelineScrollCoordinateSpace"
+
 struct WaveformTimelineView: View {
     @ObservedObject var project: SubtitleProject
     
@@ -20,6 +22,7 @@ struct WaveformTimelineView: View {
     @State private var isZooming = false  // 缩放节流标志
     @State private var isUserInteracting = false // 是否正在手动操作
     @State private var scrollPageStartTime: Double = 0 // 播放标尺视口分页起始时间
+    @State private var viewportStartTime: Double = 0 // 当前 ScrollView 实际可见起始时间
     @State private var zoomDebounceTask: Task<Void, Never>? = nil // 缩放防抖任务
     
     // Draw Subtitle State
@@ -66,24 +69,29 @@ struct WaveformTimelineView: View {
                         ScrollViewReader { proxy in
                             // 🚀 硬件级刷新率同步渲染引擎 - 自适应当前显示器的 100Hz/120Hz 物理高刷新率！
                             TimelineView(.animation) { timeline in
-                                WaveformTimelineContainer(
-                                    project: project,
-                                    timeline: timeline,
-                                    data: data,
-                                    viewWidth: viewWidth,
-                                    totalWidth: totalWidth,
-                                    rulerHeight: rulerHeight,
-                                    waveHeight: waveHeight,
-                                    pixelsPerSecond: $pixelsPerSecond,
-                                    renderedPPS: $renderedPPS,
-                                    scrollPageStartTime: $scrollPageStartTime,
-                                    isDraggingPlayhead: $isDraggingPlayhead,
-                                    isUserInteracting: $isUserInteracting,
-                                    drawSubtitleStartLocation: $drawSubtitleStartLocation,
-                                    drawSubtitleCurrentLocation: $drawSubtitleCurrentLocation,
-                                    dragStartTime: $dragStartTime,
-                                    proxy: proxy
-                                )
+                                ZStack(alignment: .topLeading) {
+                                    scrollOffsetReader(pixelsPerSecond: safePPS, duration: safeDataDuration, viewWidth: viewWidth)
+
+                                    WaveformTimelineContainer(
+                                        project: project,
+                                        timeline: timeline,
+                                        data: data,
+                                        viewWidth: viewWidth,
+                                        totalWidth: totalWidth,
+                                        visibleStartTime: viewportStartTime,
+                                        rulerHeight: rulerHeight,
+                                        waveHeight: waveHeight,
+                                        pixelsPerSecond: $pixelsPerSecond,
+                                        renderedPPS: $renderedPPS,
+                                        scrollPageStartTime: $scrollPageStartTime,
+                                        isDraggingPlayhead: $isDraggingPlayhead,
+                                        isUserInteracting: $isUserInteracting,
+                                        drawSubtitleStartLocation: $drawSubtitleStartLocation,
+                                        drawSubtitleCurrentLocation: $drawSubtitleCurrentLocation,
+                                        dragStartTime: $dragStartTime,
+                                        proxy: proxy
+                                    )
+                                }
                             }
                             .padding(.bottom, 6)
                             .onChange(of: pixelsPerSecond) { _, _ in
@@ -91,6 +99,7 @@ struct WaveformTimelineView: View {
                             }
                         }
                     }
+                    .coordinateSpace(name: timelineScrollCoordinateSpaceName)
                     .simultaneousGesture(
                         DragGesture(minimumDistance: 5)
                             .onChanged { _ in
@@ -148,9 +157,11 @@ struct WaveformTimelineView: View {
                 renderedPPS = minPPS
             }
             scrollPageStartTime = 0
+            viewportStartTime = 0
         }
         .onChange(of: project.videoURL) { _, _ in
             scrollPageStartTime = 0
+            viewportStartTime = 0
         }
         .onChange(of: project.waveformData?.duration) { _, duration in
             if let duration = duration {
@@ -160,6 +171,7 @@ struct WaveformTimelineView: View {
                 pixelsPerSecond = newMinPPS
                 renderedPPS = newMinPPS
                 scrollPageStartTime = 0
+                viewportStartTime = 0
             }
         }
         .frame(height: isCompact ? 236 : 200)
@@ -177,6 +189,37 @@ struct WaveformTimelineView: View {
             }
         )
     }
+
+    private func scrollOffsetReader(pixelsPerSecond: Double, duration: Double, viewWidth: CGFloat) -> some View {
+        GeometryReader { proxy in
+            Color.clear
+                .onAppear {
+                    updateVisibleScrollStart(proxy: proxy, pixelsPerSecond: pixelsPerSecond, duration: duration, viewWidth: viewWidth)
+                }
+                .onChange(of: proxy.frame(in: .named(timelineScrollCoordinateSpaceName)).minX) { _, _ in
+                    updateVisibleScrollStart(proxy: proxy, pixelsPerSecond: pixelsPerSecond, duration: duration, viewWidth: viewWidth)
+                }
+                .onChange(of: pixelsPerSecond) { _, _ in
+                    updateVisibleScrollStart(proxy: proxy, pixelsPerSecond: pixelsPerSecond, duration: duration, viewWidth: viewWidth)
+                }
+        }
+        .frame(width: 1, height: 1)
+        .allowsHitTesting(false)
+    }
+
+    private func updateVisibleScrollStart(proxy: GeometryProxy, pixelsPerSecond: Double, duration: Double, viewWidth: CGFloat) {
+        let safePPS = pixelsPerSecond.isFinite ? max(0.001, pixelsPerSecond) : 50
+        let safeDuration = duration.isFinite ? max(0, duration) : 0
+        let safeViewWidth = viewWidth.isFinite ? max(1, viewWidth) : 1
+        let visibleDuration = Double(safeViewWidth) / safePPS
+        let maxStart = max(0, safeDuration - visibleDuration)
+        let contentOffsetX = max(0, -proxy.frame(in: .named(timelineScrollCoordinateSpaceName)).minX)
+        let visibleStart = min(maxStart, Double(contentOffsetX) / safePPS)
+
+        if abs(viewportStartTime - visibleStart) > 0.001 {
+            viewportStartTime = visibleStart
+        }
+    }
     
     private func keepPlayheadInView(viewWidth: Double, duration: Double, proxy: ScrollViewProxy) {
         let safeViewWidth = viewWidth.isFinite ? max(1, viewWidth) : 1
@@ -186,6 +229,7 @@ struct WaveformTimelineView: View {
         let visibleDuration = safeViewWidth / safePPS
         let newPageStart = max(0, safeCurrentTime - visibleDuration * 0.5)
         scrollPageStartTime = max(0, min(max(0, safeDuration - visibleDuration), newPageStart))
+        viewportStartTime = scrollPageStartTime
         proxy.scrollTo("scroll-page-anchor", anchor: .leading)
     }
     

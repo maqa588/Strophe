@@ -20,6 +20,22 @@ nonisolated struct SendablePixelBuffer: @unchecked Sendable {
     let generation: Int
 }
 
+private enum FFmpegPlaybackTuning {
+    #if os(iOS)
+    nonisolated static let normalQueueCapacity = 6
+    nonisolated static let highFPSQueueCapacity = 10
+    nonisolated static let codecThreads = "4"
+    nonisolated static let frameThreads = "1"
+    nonisolated static let tileThreads = "2"
+    #else
+    nonisolated static let normalQueueCapacity = 16
+    nonisolated static let highFPSQueueCapacity = 24
+    nonisolated static let codecThreads = "0"
+    nonisolated static let frameThreads = "0"
+    nonisolated static let tileThreads = "0"
+    #endif
+}
+
 // 用于向 FFmpeg 声明优先选择 VideoToolbox 硬件像素格式
 nonisolated(unsafe) private let getFormatCallback: @convention(c) (UnsafeMutablePointer<AVCodecContext>?, UnsafePointer<AVPixelFormat>?) -> AVPixelFormat = { ctx, fmts in
     guard let fmts = fmts else { return AV_PIX_FMT_NONE }
@@ -38,7 +54,7 @@ nonisolated(unsafe) private let getFormatCallback: @convention(c) (UnsafeMutable
 // High-performance background demuxer/decoder isolated to its own serial actor context.
 actor FFmpegDecoderCore {
     static let AV_NOPTS_VALUE = Int64(bitPattern: 0x8000000000000000)
-    var maxVideoQueueCapacity = 64
+    var maxVideoQueueCapacity = FFmpegPlaybackTuning.normalQueueCapacity
     
     // Core FFmpeg variables
     var formatContext: UnsafeMutablePointer<AVFormatContext>? = nil
@@ -275,7 +291,9 @@ actor FFmpegDecoderCore {
         
         if videoStream.pointee.avg_frame_rate.den > 0 {
             self.videoFPS = Double(videoStream.pointee.avg_frame_rate.num) / Double(videoStream.pointee.avg_frame_rate.den)
-            self.maxVideoQueueCapacity = self.videoFPS > 45.0 ? 120 : 64 // 120 capacity for 60fps, 64 for 24/30fps to absorb scheduling jitter
+            self.maxVideoQueueCapacity = self.videoFPS > 45.0
+                ? FFmpegPlaybackTuning.highFPSQueueCapacity
+                : FFmpegPlaybackTuning.normalQueueCapacity
         }
         
         if ctx!.pointee.duration != FFmpegDecoderCore.AV_NOPTS_VALUE {
@@ -332,7 +350,7 @@ actor FFmpegDecoderCore {
         
         let vCtx = avcodec_alloc_context3(vDecoder)
         self.videoCodecContext = vCtx
-        av_opt_set_int(vCtx, "threads", 0, 0)
+        av_opt_set(vCtx, "threads", FFmpegPlaybackTuning.codecThreads, 0)
         avcodec_parameters_to_context(vCtx, vCodecpar)
         
         // 绑定协商回调以强制开启 VideoToolbox 输出
@@ -360,9 +378,9 @@ actor FFmpegDecoderCore {
         }
         
         var opts: OpaquePointer? = nil
-        av_dict_set(&opts, "tilethreads", "0", 0)
-        av_dict_set(&opts, "framethreads", "0", 0)
-        av_dict_set(&opts, "threads", "0", 0)
+        av_dict_set(&opts, "tilethreads", FFmpegPlaybackTuning.tileThreads, 0)
+        av_dict_set(&opts, "framethreads", FFmpegPlaybackTuning.frameThreads, 0)
+        av_dict_set(&opts, "threads", FFmpegPlaybackTuning.codecThreads, 0)
         
         if avcodec_open2(vCtx, vDecoder, &opts) < 0 {
             print("❌ FFmpegEngine: Failed to open video codec")
@@ -471,7 +489,7 @@ actor FFmpegDecoderCore {
         
         let newCtx = avcodec_alloc_context3(decoder)
         self.videoCodecContext = newCtx
-        av_opt_set_int(newCtx, "threads", 0, 0)
+        av_opt_set(newCtx, "threads", FFmpegPlaybackTuning.codecThreads, 0)
         avcodec_parameters_to_context(newCtx, codecpar)
         
         // 同样在此处绑定回调
@@ -498,9 +516,9 @@ actor FFmpegDecoderCore {
         }
         
         var opts: OpaquePointer? = nil
-        av_dict_set(&opts, "tilethreads", "0", 0)
-        av_dict_set(&opts, "framethreads", "0", 0)
-        av_dict_set(&opts, "threads", "0", 0)
+        av_dict_set(&opts, "tilethreads", FFmpegPlaybackTuning.tileThreads, 0)
+        av_dict_set(&opts, "framethreads", FFmpegPlaybackTuning.frameThreads, 0)
+        av_dict_set(&opts, "threads", FFmpegPlaybackTuning.codecThreads, 0)
         
         if avcodec_open2(newCtx, decoder, &opts) < 0 {
             print("❌ rebuildVideoCodecContext: avcodec_open2 failed")
@@ -542,7 +560,7 @@ actor FFmpegDecoderCore {
         videoDuration = 0.0
         videoFPS = 30.0
         videoFrameSize = .zero
-        maxVideoQueueCapacity = 64
+        maxVideoQueueCapacity = FFmpegPlaybackTuning.normalQueueCapacity
         
         // Release pixel buffer pool
         poolLock.lock()

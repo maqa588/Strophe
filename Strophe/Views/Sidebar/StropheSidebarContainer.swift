@@ -9,6 +9,15 @@ struct StropheSidebarContainer: View {
     @ObservedObject var project: SubtitleProject
     @Binding var selectedTab: StropheTab
     @Binding var settingsPath: [SettingsRoute]
+
+    private var usesLiquidGlassNavigation: Bool {
+        #if os(iOS)
+        if #available(iOS 26.0, *) { return true }
+        #elseif os(macOS)
+        if #available(macOS 26.0, *) { return true }
+        #endif
+        return false
+    }
     
     var body: some View {
         #if os(macOS)
@@ -41,39 +50,28 @@ struct StropheSidebarContainer: View {
     
     @ViewBuilder
     private var sidebarContent: some View {
-        VStack(spacing: 0) {
+        Group {
+            if usesLiquidGlassNavigation {
+                ZStack(alignment: .bottom) {
+                    sidebarPrimaryContent
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            // Header: centered title
-            ZStack {
-                HStack(spacing: 6) {
-                    Image(systemName: selectedTab.systemImage)
-                        .font(.system(size: 13, weight: .medium))
-                    Text(selectedTab.title)
-                        .font(.system(size: 13, weight: .semibold))
+                    StropheTabBar(selectedTab: $selectedTab, tabs: StropheTab.wideTabs)
                 }
-                .foregroundStyle(Color.stropheText)
-            }
-            .frame(height: 52)
+                .ignoresSafeArea(.keyboard, edges: .bottom)
+            } else {
+                VStack(spacing: 0) {
+                    sidebarPrimaryContent
+                        .frame(maxHeight: .infinity)
 
-            // Sidebar list content
-            Group {
-                switch selectedTab {
-                case .editor, .scriptList:
-                    ScriptListView(project: project)
-                case .settings:
-                    SettingsPlaceholderView(settingsPath: $settingsPath)
+                    Rectangle()
+                        .frame(height: 1)
+                        .foregroundColor(Color.stropheBorder)
+
+                    StropheTabBar(selectedTab: $selectedTab, tabs: StropheTab.wideTabs)
+                        .padding(.top, 12)
                 }
             }
-            .frame(maxHeight: .infinity)
-
-            // Soft divider
-            Rectangle()
-                .frame(height: 1)
-                .foregroundColor(Color.stropheBorder)
-
-            // Custom tab bar
-            StropheTabBar(selectedTab: $selectedTab, tabs: StropheTab.wideTabs)
-                .padding(.top, 12)
         }
         // System toolbar: on macOS this is auto-paired with the sidebar toggle button.
         // On iPadOS, the navbar is now visible (we only hide its background via
@@ -106,6 +104,32 @@ struct StropheSidebarContainer: View {
                     #endif
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var sidebarPrimaryContent: some View {
+        VStack(spacing: 0) {
+            ZStack {
+                HStack(spacing: 6) {
+                    Image(systemName: selectedTab.systemImage)
+                        .font(.system(size: 13, weight: .medium))
+                    Text(selectedTab.title)
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                .foregroundStyle(Color.stropheText)
+            }
+            .frame(height: 52)
+
+            Group {
+                switch selectedTab {
+                case .editor, .scriptList:
+                    ScriptListView(project: project)
+                case .settings:
+                    SettingsPlaceholderView(settingsPath: $settingsPath)
+                }
+            }
+            .frame(maxHeight: .infinity)
         }
     }
 }

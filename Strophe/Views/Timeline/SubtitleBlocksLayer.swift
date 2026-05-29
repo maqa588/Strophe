@@ -7,20 +7,22 @@
 
 import SwiftUI
 
+let subtitleBlocksCoordinateSpaceName = "subtitleBlocksCoordinateSpace"
+
 // MARK: - 字幕块显示与交互层
 struct SubtitleBlocksLayer: View {
     @ObservedObject var project: SubtitleProject
     let pixelsPerSecond: Double
     let smoothTime: Double
-    let scrollPageStartTime: Double
+    let visibleStartTime: Double
     let viewWidth: CGFloat
     
-    private var visibleStartTime: Double {
-        max(0, scrollPageStartTime - visiblePadding)
+    private var renderStartTime: Double {
+        max(0, visibleStartTime - visiblePadding)
     }
     
-    private var visibleEndTime: Double {
-        scrollPageStartTime + viewWidth / pixelsPerSecond + visiblePadding
+    private var renderEndTime: Double {
+        visibleStartTime + viewWidth / pixelsPerSecond + visiblePadding
     }
     
     private var visiblePadding: Double {
@@ -32,19 +34,20 @@ struct SubtitleBlocksLayer: View {
             if item.id == project.activeSlapSubtitleID { return true }
             guard let start = item.startTime else { return false }
             let end = item.endTime ?? (start + 0.1)
-            return end >= visibleStartTime && start <= visibleEndTime
+            return end >= renderStartTime && start <= renderEndTime
         }
     }
     
     private var visibleOverlaps: [SubtitleProject.OverlapInterval] {
         project.overlappingIntervals.filter { interval in
-            interval.end >= visibleStartTime && interval.start <= visibleEndTime
+            interval.end >= renderStartTime && interval.start <= renderEndTime
         }
     }
     
     // 框选状态
     @State private var marqueeStart: CGFloat? = nil
     @State private var marqueeCurrent: CGFloat? = nil
+    @State private var sweepSelectionStartX: CGFloat? = nil
     
     var body: some View {
         ZStack(alignment: .leading) {
@@ -53,6 +56,7 @@ struct SubtitleBlocksLayer: View {
                 .contentShape(Rectangle())
                 .onTapGesture {
                     project.selectedIDs.removeAll()
+                    project.isSubtitleMultiSelecting = false
                 }
                 #if os(macOS)
                 .gesture(marqueeGesture)
@@ -72,7 +76,16 @@ struct SubtitleBlocksLayer: View {
                             start: start,
                             end: displayEnd,
                             pixelsPerSecond: pixelsPerSecond,
-                            project: project
+                            project: project,
+                            onSweepSelectionStart: { item in
+                                beginSweepSelection(with: item)
+                            },
+                            onSweepSelectionChange: { locationX in
+                                updateSweepSelection(to: locationX)
+                            },
+                            onSweepSelectionEnd: {
+                                endSweepSelection()
+                            }
                         )
                     }
                 }
@@ -102,9 +115,11 @@ struct SubtitleBlocksLayer: View {
                     .offset(x: minX, y: 34)
             }
         }
+        .coordinateSpace(name: subtitleBlocksCoordinateSpaceName)
     }
     
-    // 智能多端框选手势：Mac/Apple Pencil 直接框选，iPhone/iPad 触控需长按 0.3s 触发以防与横向滚动冲突
+    // macOS keeps direct marquee selection; iPhone/iPad use block long-press sweep
+    // selection from InteractiveSubtitleBlock to avoid fighting timeline scroll.
     private var marqueeGesture: some Gesture {
         let drag = DragGesture(minimumDistance: 5)
             .onChanged { value in
@@ -164,6 +179,54 @@ struct SubtitleBlocksLayer: View {
             }
         }
         project.selectedIDs = newSelected
+    }
+
+    private func beginSweepSelection(with item: SubtitleItem) {
+        project.editingMode = .selection
+        project.isSubtitleMultiSelecting = true
+        project.selectedIDs = [item.id]
+
+        if let start = item.startTime {
+            let end = item.endTime ?? (start + 0.1)
+            sweepSelectionStartX = CGFloat(((start + end) / 2) * pixelsPerSecond)
+        } else {
+            sweepSelectionStartX = nil
+        }
+
+        triggerSweepSelectionFeedback()
+    }
+
+    private func updateSweepSelection(to locationX: CGFloat) {
+        guard let startX = sweepSelectionStartX else { return }
+
+        let minTime = Double(min(startX, locationX)) / pixelsPerSecond
+        let maxTime = Double(max(startX, locationX)) / pixelsPerSecond
+
+        var selected = Set<UUID>()
+        for item in project.items {
+            guard let start = item.startTime else { continue }
+            let end = item.endTime ?? (start + 0.1)
+            if start <= maxTime && end >= minTime {
+                selected.insert(item.id)
+            }
+        }
+
+        if !selected.isEmpty {
+            project.selectedIDs = selected
+        }
+    }
+
+    private func endSweepSelection() {
+        sweepSelectionStartX = nil
+    }
+
+    private func triggerSweepSelectionFeedback() {
+        #if os(macOS)
+        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+        #elseif os(iOS)
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+        #endif
     }
 }
 

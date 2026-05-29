@@ -22,6 +22,7 @@ class SubtitleProject: ObservableObject {
     @Published var isSeeking: Bool = false
     @Published var editingMode: TimelineEditingMode = .selection
     @Published var selectedIDs: Set<UUID> = []
+    @Published var isSubtitleMultiSelecting: Bool = false
     @Published var isEditingText: Bool = false
     
     @Published var projectURL: URL?

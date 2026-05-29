@@ -59,6 +59,7 @@ extension SubtitleProject {
         currentIndex = 0
         scrollTargetID = nil
         selectedIDs = []
+        isSubtitleMultiSelecting = false
         isEditingText = false
         currentTime = 0
         videoFrameRate = 30.0

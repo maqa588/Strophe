@@ -13,6 +13,7 @@ struct WaveformTimelineContainer: View {
     @ObservedObject var data: WaveformData
     let viewWidth: CGFloat
     let totalWidth: CGFloat
+    let visibleStartTime: Double
     let rulerHeight: CGFloat
     let waveHeight: CGFloat
     
@@ -144,7 +145,7 @@ struct WaveformTimelineContainer: View {
                         .clipped()
                         .frame(width: safeTotalWidth, height: waveHeight, alignment: .leading)
                     
-                    SubtitleBlocksLayer(project: project, pixelsPerSecond: safePixelsPerSecond, smoothTime: smoothTime, scrollPageStartTime: smoothScrollPageStartTime, viewWidth: safeViewWidth)
+                    SubtitleBlocksLayer(project: project, pixelsPerSecond: safePixelsPerSecond, smoothTime: smoothTime, visibleStartTime: visibleStartTime, viewWidth: safeViewWidth)
                         .frame(width: safeTotalWidth, height: waveHeight)
                     
                     if project.editingMode == .creation,
