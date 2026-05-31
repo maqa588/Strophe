@@ -149,6 +149,7 @@ struct StropheTabBar: View {
                 .font(.system(size: isDesktop ? 18 : 20, weight: isActive ? .semibold : .regular))
                 .symbolVariant(isActive ? .fill : .none)
                 .symbolEffect(.bounce, value: isActive)
+                .environment(\.locale, Locale(identifier: "en"))
                 .frame(maxWidth: .infinity)
                 .frame(height: buttonHeight)
                 .contentShape(Capsule())
@@ -223,6 +224,7 @@ struct StropheTabBar: View {
                     VStack(spacing: 4) {
                         Image(systemName: tab.systemImage)
                             .font(.system(size: 18, weight: selectedTab == tab ? .semibold : .regular))
+                            .environment(\.locale, Locale(identifier: "en"))
                     }
                     .foregroundStyle(selectedTab == tab ? Color.stropheAccent : Color.secondary)
                     .frame(maxWidth: .infinity)

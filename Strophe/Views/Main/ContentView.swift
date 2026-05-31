@@ -285,6 +285,16 @@ struct ContentView: View {
             }
         case .editor:
             EmptyView()
+        case .styleManager:
+            NavigationStack {
+                StylePlaceholderView()
+                    .inlineNavigationTitle(String(localized: "样式"))
+            }
+        case .subGroup:
+            NavigationStack {
+                SubGroupPlaceholderView()
+                    .inlineNavigationTitle(String(localized: "组别"))
+            }
         case .settings:
             NavigationStack(path: $settingsPath) {
                 SettingsPlaceholderView(settingsPath: $settingsPath)

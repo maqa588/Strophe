@@ -19,6 +19,7 @@ class SubtitleProject: ObservableObject {
     @Published var currentIndex: Int = 0
     @Published var scrollTargetID: UUID? = nil
     @Published var showSoftSubtitles: Bool = false
+    @Published var showHardSubtitles: Bool = false
     @Published var isSeeking: Bool = false
     @Published var editingMode: TimelineEditingMode = .selection
     @Published var selectedIDs: Set<UUID> = []

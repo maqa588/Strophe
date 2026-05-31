@@ -84,16 +84,19 @@ struct PlaybackControlsLegacy: View {
 struct EditingModeControlsLegacy: View {
     let project: SubtitleProject
     let showSoftSubtitles: Bool
+    let showHardSubtitles: Bool
     let editingMode: TimelineEditingMode
     let isEditingText: Bool
     
     @Binding var showSoftSubtitlesTip: Bool
+    @Binding var showHardSubtitlesTip: Bool
     @Binding var showSelectionTip: Bool
     @Binding var showCreationTip: Bool
     @Binding var showSplitTip: Bool
     @Binding var showMergeTip: Bool
     
     @Binding var softSubtitlesHoverTask: Task<Void, Never>?
+    @Binding var hardSubtitlesHoverTask: Task<Void, Never>?
     @Binding var selectionHoverTask: Task<Void, Never>?
     @Binding var creationHoverTask: Task<Void, Never>?
     @Binding var splitHoverTask: Task<Void, Never>?
@@ -233,6 +236,22 @@ struct EditingModeControlsLegacy: View {
                 modifiers: [.option]
             ) {
                 Image(systemName: showSoftSubtitles ? "captions.bubble.fill" : "captions.bubble")
+                    .font(.body.weight(.medium))
+            }
+
+            // ── 硬字幕预览按钮 ──
+            legacyButton(
+                action: { project.showHardSubtitles.toggle() },
+                isActive: showHardSubtitles,
+                icon: "list.and.film",
+                tipBinding: $showHardSubtitlesTip,
+                hoverTask: $hardSubtitlesHoverTask,
+                tooltipIcon: "list.and.film",
+                tooltipTitle: String(localized: "硬字幕预览"),
+                tooltipMessage: String(localized: "点击开启/关闭视频硬字幕实时预览"),
+                shortcut: nil
+            ) {
+                Image(systemName: "list.and.film")
                     .font(.body.weight(.medium))
             }
 

@@ -26,6 +26,7 @@ struct TimelineToolbarView: View {
     // Local state variables for layout and rendering, keeping body evaluations isolated
     @State private var targetSpeed: Double = 1.0
     @State private var showSoftSubtitles: Bool = false
+    @State private var showHardSubtitles: Bool = false
     @State private var editingMode: TimelineEditingMode = .selection
     @State private var videoURL: URL? = nil
     @State private var isAudioOnly: Bool = false
@@ -35,6 +36,7 @@ struct TimelineToolbarView: View {
     @State private var isEditingText: Bool = false
     
     @State private var showSoftSubtitlesTip = false
+    @State private var showHardSubtitlesTip = false
     @State private var showSelectionTip = false
     @State private var showCreationTip = false
     @State private var showSplitTip = false
@@ -42,6 +44,7 @@ struct TimelineToolbarView: View {
     
     // 用于 macOS 鼠标延时悬浮（0.5秒）的取消型 Task 实例
     @State private var softSubtitlesHoverTask: Task<Void, Never>? = nil
+    @State private var hardSubtitlesHoverTask: Task<Void, Never>? = nil
     @State private var selectionHoverTask: Task<Void, Never>? = nil
     @State private var creationHoverTask: Task<Void, Never>? = nil
     @State private var splitHoverTask: Task<Void, Never>? = nil
@@ -160,6 +163,9 @@ struct TimelineToolbarView: View {
         }
         if showSoftSubtitles != project.showSoftSubtitles {
             showSoftSubtitles = project.showSoftSubtitles
+        }
+        if showHardSubtitles != project.showHardSubtitles {
+            showHardSubtitles = project.showHardSubtitles
         }
         if editingMode != project.editingMode {
             editingMode = project.editingMode
@@ -391,6 +397,34 @@ struct TimelineToolbarView: View {
                         } else { showSoftSubtitlesTip = false }
                     }
 
+                    // ── 硬字幕预览按钮 ──
+                    Button(action: { project.showHardSubtitles.toggle() }) {
+                        Image(systemName: "list.and.film")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(showHardSubtitles ? Color.stropheAccent : .primary)
+                            .frame(width: 32, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.interactive())
+                    .popover(isPresented: $showHardSubtitlesTip, arrowEdge: .top) {
+                        RichTooltipView(icon: "list.and.film", title: String(localized: "硬字幕预览"), message: String(localized: "点击开启/关闭视频硬字幕实时预览"))
+                    }
+                    .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
+                        #if os(iOS)
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        #endif
+                        showHardSubtitlesTip = true
+                    })
+                    .onHover { hovering in
+                        hardSubtitlesHoverTask?.cancel()
+                        if hovering {
+                            hardSubtitlesHoverTask = Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 500_000_000)
+                                if !Task.isCancelled { showHardSubtitlesTip = true }
+                            }
+                        } else { showHardSubtitlesTip = false }
+                    }
+
                     Button(action: { project.editingMode = .selection }) {
                         Image(systemName: "cursorarrow")
                             .font(.body.weight(.medium))
@@ -452,14 +486,17 @@ struct TimelineToolbarView: View {
             EditingModeControlsLegacy(
                 project: project,
                 showSoftSubtitles: showSoftSubtitles,
+                showHardSubtitles: showHardSubtitles,
                 editingMode: editingMode,
                 isEditingText: isEditingText,
                 showSoftSubtitlesTip: $showSoftSubtitlesTip,
+                showHardSubtitlesTip: $showHardSubtitlesTip,
                 showSelectionTip: $showSelectionTip,
                 showCreationTip: $showCreationTip,
                 showSplitTip: $showSplitTip,
                 showMergeTip: $showMergeTip,
                 softSubtitlesHoverTask: $softSubtitlesHoverTask,
+                hardSubtitlesHoverTask: $hardSubtitlesHoverTask,
                 selectionHoverTask: $selectionHoverTask,
                 creationHoverTask: $creationHoverTask,
                 splitHoverTask: $splitHoverTask,

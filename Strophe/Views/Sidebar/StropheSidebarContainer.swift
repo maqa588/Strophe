@@ -109,28 +109,24 @@ struct StropheSidebarContainer: View {
 
     @ViewBuilder
     private var sidebarPrimaryContent: some View {
-        VStack(spacing: 0) {
-            ZStack {
-                HStack(spacing: 6) {
-                    Image(systemName: selectedTab.systemImage)
-                        .font(.system(size: 13, weight: .medium))
-                    Text(selectedTab.title)
-                        .font(.system(size: 13, weight: .semibold))
-                }
-                .foregroundStyle(Color.stropheText)
+        Group {
+            switch selectedTab {
+            case .editor, .scriptList:
+                ScriptListView(project: project)
+            case .styleManager:
+                StylePlaceholderView()
+            case .subGroup:
+                SubGroupPlaceholderView()
+            case .settings:
+                SettingsPlaceholderView(settingsPath: $settingsPath)
             }
-            .frame(height: 52)
-
-            Group {
-                switch selectedTab {
-                case .editor, .scriptList:
-                    ScriptListView(project: project)
-                case .settings:
-                    SettingsPlaceholderView(settingsPath: $settingsPath)
-                }
-            }
-            .frame(maxHeight: .infinity)
         }
+        .frame(maxHeight: .infinity)
+        #if os(macOS)
+        .padding(.top, 52)
+        #else
+        .padding(.top, 16)
+        #endif
     }
 }
 
