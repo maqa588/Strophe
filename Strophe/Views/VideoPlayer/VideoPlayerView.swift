@@ -57,14 +57,20 @@ struct VideoPlayerView: View {
                 }
                 .onChange(of: project.isUserSeekingTimeline) { _, isSeekingTimeline in
                     guard isSeekingTimeline else { return }
-                    guard !project.isScrubbing else { return }
-                    guard !isSeeking else { return }
-                    isSeeking = true
-                    project.isSeeking = true
-                    seekEngine(to: project.currentTime) {
-                        isSeeking = false
-                        project.isSeeking = false
-                        project.isUserSeekingTimeline = false
+                    Task { @MainActor in
+                        await Task.yield()
+                        guard !project.isScrubbing else {
+                            project.isUserSeekingTimeline = false
+                            return
+                        }
+                        guard !isSeeking else { return }
+                        isSeeking = true
+                        project.isSeeking = true
+                        seekEngine(to: project.currentTime) {
+                            isSeeking = false
+                            project.isSeeking = false
+                            project.isUserSeekingTimeline = false
+                        }
                     }
                 }
                 .onChange(of: project.isScrubbing) { _, isScrubbing in
@@ -466,11 +472,20 @@ struct VideoPlayerView: View {
 
         scrubTask = Task { [weak project, weak engine] in
             guard let project, let eng = engine else { return }
+            var lastPreviewSeekTime: Double?
             for await time in stream._throttle(for: Duration.milliseconds(30), latest: true) {
                 guard !Task.isCancelled else { break }
-                await MainActor.run {
-                    guard project.isScrubbing else { return }
+                let shouldPreview = await MainActor.run {
+                    project.isScrubbing
                 }
+                guard shouldPreview else {
+                    lastPreviewSeekTime = nil
+                    continue
+                }
+                if let lastPreviewSeekTime, abs(lastPreviewSeekTime - time) < 0.001 {
+                    continue
+                }
+                lastPreviewSeekTime = time
                 await eng.seekVideoFrameOnly(to: time)
             }
         }

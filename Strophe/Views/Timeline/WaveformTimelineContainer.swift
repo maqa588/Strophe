@@ -9,7 +9,6 @@ import SwiftUI
 
 struct WaveformTimelineContainer: View {
     @ObservedObject var project: SubtitleProject
-    let timeline: TimelineViewDefaultContext
     @ObservedObject var data: WaveformData
     let viewWidth: CGFloat
     let totalWidth: CGFloat
@@ -79,27 +78,7 @@ struct WaveformTimelineContainer: View {
         let safeRenderedPPS = renderedPPS.isFinite ? max(0.001, renderedPPS) : safePixelsPerSecond
         let safeViewWidth = viewWidth.isFinite ? max(1.0, viewWidth) : 1.0
         let safeTotalWidth = totalWidth.isFinite ? max(1.0, totalWidth) : 1.0
-        let rawSmoothTime = project.isScrubbing
-            ? project.currentTime
-            : (project.referenceTime + timeline.date.timeIntervalSince(project.referenceDate) * project.playbackRate)
-        let smoothTime = rawSmoothTime.isFinite
-            ? rawSmoothTime.clamped(to: 0.0...safeDuration)
-            : project.currentTime.clampedFinite(to: 0.0...safeDuration)
-        
-        let visibleDuration = Double(safeViewWidth) / safePixelsPerSecond
-        let smoothScrollPageStartTime = calculatePageStart(
-            smoothTime: smoothTime,
-            visibleDuration: visibleDuration,
-            duration: safeDuration
-        )
-        
-        // 🌟 物理视口翻页的异步安全调度，绝对不会阻塞 UI 绘制，且能够同帧响应
-        if scrollPageStartTime != smoothScrollPageStartTime {
-            DispatchQueue.main.async {
-                scrollPageStartTime = smoothScrollPageStartTime
-                proxy.scrollTo("scroll-page-anchor", anchor: .leading)
-            }
-        }
+        let staticTime = project.currentTime.clampedFinite(to: 0.0...safeDuration)
         
         return ZStack(alignment: .topLeading) {
             // ── 静态与波形图层 ──────────────────────────────
@@ -115,7 +94,7 @@ struct WaveformTimelineContainer: View {
                                 isUserInteracting = true
                                 if !project.isScrubbing {
                                     project.isScrubbing = true
-                                    project.isUserSeekingTimeline = true
+                                    project.isUserSeekingTimeline = false
                                 }
                                 
                                 let clickedTime = Double(value.location.x) / safePixelsPerSecond
@@ -145,7 +124,7 @@ struct WaveformTimelineContainer: View {
                         .clipped()
                         .frame(width: safeTotalWidth, height: waveHeight, alignment: .leading)
                     
-                    SubtitleBlocksLayer(project: project, pixelsPerSecond: safePixelsPerSecond, smoothTime: smoothTime, visibleStartTime: visibleStartTime, viewWidth: safeViewWidth)
+                    SubtitleBlocksLayer(project: project, pixelsPerSecond: safePixelsPerSecond, smoothTime: staticTime, visibleStartTime: visibleStartTime, viewWidth: safeViewWidth)
                         .frame(width: safeTotalWidth, height: waveHeight)
                     
                     if project.editingMode == .creation,
@@ -228,27 +207,50 @@ struct WaveformTimelineContainer: View {
             }
             
             // ── Page Scroll Anchor View ────────────────────────
-            HStack(spacing: 0) {
-                Color.clear.frame(width: CGFloat(max(0.0, smoothScrollPageStartTime * safePixelsPerSecond)))
-                Color.clear.frame(width: 1, height: 1).id("scroll-page-anchor")
-                Spacer(minLength: 0)
-            }
+            Color.clear
+                .frame(width: 1, height: 1)
+                .offset(x: CGFloat(max(0.0, scrollPageStartTime * safePixelsPerSecond)))
+                .id("scroll-page-anchor")
             
             // ── 播放头：完全锁频在 100Hz 运动，丝毫不抖 ──
-            DraggablePlayhead(
-                currentTime: currentTimeBinding,
-                isScrubbing: $project.isScrubbing,
-                isDragging: $isDraggingPlayhead,
-                dragStartTime: $dragStartTime,
-                pixelsPerSecond: safePixelsPerSecond,
-                duration: safeDuration,
-                project: project
-            )
-            .allowsHitTesting(project.editingMode == .selection)
-            .frame(height: rulerHeight + waveHeight)
-            .offset(x: CGFloat(max(0.0, smoothTime * safePixelsPerSecond)))
+            TimelineView(.animation) { timeline in
+                let smoothTime = playbackTime(at: timeline.date, duration: safeDuration)
+                let visibleDuration = Double(safeViewWidth) / safePixelsPerSecond
+                let smoothScrollPageStartTime = calculatePageStart(
+                    smoothTime: smoothTime,
+                    visibleDuration: visibleDuration,
+                    duration: safeDuration
+                )
+
+                DraggablePlayhead(
+                    currentTime: currentTimeBinding,
+                    isScrubbing: $project.isScrubbing,
+                    isDragging: $isDraggingPlayhead,
+                    dragStartTime: $dragStartTime,
+                    pixelsPerSecond: safePixelsPerSecond,
+                    duration: safeDuration,
+                    project: project
+                )
+                .allowsHitTesting(project.editingMode == .selection)
+                .frame(height: rulerHeight + waveHeight)
+                .offset(x: CGFloat(max(0.0, smoothTime * safePixelsPerSecond)))
+                .task(id: smoothScrollPageStartTime) {
+                    guard scrollPageStartTime != smoothScrollPageStartTime else { return }
+                    scrollPageStartTime = smoothScrollPageStartTime
+                    proxy.scrollTo("scroll-page-anchor", anchor: .leading)
+                }
+            }
         }
         .frame(width: safeTotalWidth, height: rulerHeight + waveHeight)
+    }
+
+    private func playbackTime(at date: Date, duration: Double) -> Double {
+        let rawTime = project.isScrubbing
+            ? project.currentTime
+            : (project.referenceTime + date.timeIntervalSince(project.referenceDate) * project.playbackRate)
+        return rawTime.isFinite
+            ? rawTime.clamped(to: 0.0...duration)
+            : project.currentTime.clampedFinite(to: 0.0...duration)
     }
     
     private func calculatePageStart(smoothTime: Double, visibleDuration: Double, duration: Double) -> Double {

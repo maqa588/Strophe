@@ -150,8 +150,11 @@ class SubtitleProject: ObservableObject {
             updateActiveSlapBlock(currentTime: currentTime)
             autoUpdateCurrentIndex()
             if let wData = waveformData {
+                let shouldLoadWaveformChunk = abs(wData.currentTime - currentTime) > 0.25 || isScrubbing
                 wData.currentTime = currentTime
-                wData.loadChunkIfNeeded(at: currentTime)
+                if shouldLoadWaveformChunk {
+                    wData.loadChunkIfNeeded(at: currentTime)
+                }
             }
             if isScrubbing {
                 NotificationCenter.default.post(name: .stropheScrubTimeChanged, object: currentTime)

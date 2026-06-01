@@ -82,7 +82,7 @@ actor FFmpegDecoderCore {
     
     // Callbacks to push decoded frame, audio PCM, and state updates back to MainActor safely.
     var onFrameReady: (@MainActor @Sendable (SendablePixelBuffer, Double) -> Void)? = nil
-    var onAudioReady: (@MainActor @Sendable ([Float], [Float]) -> Void)? = nil
+    var onAudioReady: (@MainActor @Sendable ([Float], [Float], Double?) -> Void)? = nil
     var onStateChanged: (@MainActor @Sendable (Double, Double, Double, CGSize, Double, Bool, Int32) -> Void)? = nil
     
     var decodeTask: Task<Void, Never>? = nil
@@ -93,7 +93,7 @@ actor FFmpegDecoderCore {
     
     func registerCallbacks(
         onFrameReady: @MainActor @Sendable @escaping (SendablePixelBuffer, Double) -> Void,
-        onAudioReady: @MainActor @Sendable @escaping ([Float], [Float]) -> Void,
+        onAudioReady: @MainActor @Sendable @escaping ([Float], [Float], Double?) -> Void,
         onStateChanged: @MainActor @Sendable @escaping (Double, Double, Double, CGSize, Double, Bool, Int32) -> Void
     ) {
         self.onFrameReady = onFrameReady
@@ -156,6 +156,20 @@ actor FFmpegDecoderCore {
         self.videoFrameQueueCount = 0
         self.frameEmitGeneration = generation
     }
+
+    func cancelActiveSeekSession() {
+        activeSeekId += 1
+        seekTargetTime = nil
+        isSeekingSessionActive = false
+        videoFrameQueueCount = 0
+        if let vCtx = videoCodecContext {
+            avcodec_flush_buffers(vCtx)
+        }
+        if let aCtx = audioCodecContext {
+            avcodec_flush_buffers(aCtx)
+        }
+        notifyStateChanged()
+    }
     
     func getVideoFrameQueueCount() -> Int {
         return self.videoFrameQueueCount
@@ -187,10 +201,16 @@ actor FFmpegDecoderCore {
         let seekId = activeSeekId
         
         self.isSeekingSessionActive = true
+        defer {
+            if seekId == activeSeekId {
+                self.isSeekingSessionActive = false
+                notifyStateChanged()
+            }
+        }
         
         // Yield to allow any other pending seeks to execute and update activeSeekId
         await Task.yield()
-        if seekId != activeSeekId {
+        if Task.isCancelled || seekId != activeSeekId {
             return time
         }
         
@@ -214,7 +234,7 @@ actor FFmpegDecoderCore {
             }
         }
         
-        if seekId != activeSeekId {
+        if Task.isCancelled || seekId != activeSeekId {
             return time
         }
         
@@ -227,8 +247,6 @@ actor FFmpegDecoderCore {
         
         if seekId == activeSeekId {
             self.startPlaybackTime = actualPTS
-            self.isSeekingSessionActive = false
-            notifyStateChanged()
         }
         
         return actualPTS
@@ -668,7 +686,7 @@ actor FFmpegDecoderCore {
                 let sendStatus = avcodec_send_packet(aCtx, packet)
                 if sendStatus >= 0 {
                     while avcodec_receive_frame(aCtx, frame) >= 0 {
-                        resampleAndQueueAudio(frame, context: swr)
+                        resampleAndQueueAudio(frame, context: swr, ctx: ctx)
                         av_frame_unref(frame)
                     }
                 }
@@ -763,13 +781,13 @@ actor FFmpegDecoderCore {
         let maxPackets = exact ? 500 : 30
         
         while count < maxPackets {
-            if seekId != self.activeSeekId {
+            if Task.isCancelled || seekId != self.activeSeekId {
                 print("⏭️ Aborting obsolete seek (target: \(seconds), new target ID: \(self.activeSeekId))")
                 break
             }
             
             await Task.yield()
-            if seekId != self.activeSeekId { break }
+            if Task.isCancelled || seekId != self.activeSeekId { break }
             
             av_packet_unref(packet)
             if av_read_frame(ctx, packet) < 0 { break }
@@ -873,9 +891,16 @@ actor FFmpegDecoderCore {
         return seconds
     }
     
-    func resampleAndQueueAudio(_ frame: UnsafeMutablePointer<AVFrame>, context: OpaquePointer) {
+    func resampleAndQueueAudio(_ frame: UnsafeMutablePointer<AVFrame>, context: OpaquePointer, ctx: UnsafeMutablePointer<AVFormatContext>) {
         let swr = context
         let sampleCount = frame.pointee.nb_samples
+        let audioPTS: Double? = {
+            guard audioStreamIndex >= 0 else { return nil }
+            let timestamp = frame.pointee.best_effort_timestamp
+            guard timestamp != FFmpegDecoderCore.AV_NOPTS_VALUE else { return nil }
+            let timeBase = ctx.pointee.streams[Int(audioStreamIndex)]!.pointee.time_base
+            return Double(timestamp) * Double(timeBase.num) / Double(timeBase.den)
+        }()
         
         let maxOutSamples = swr_get_delay(swr, 44100) + Int64(sampleCount)
         let capacity = Int(maxOutSamples)
@@ -911,7 +936,7 @@ actor FFmpegDecoderCore {
             let right = Array(UnsafeBufferPointer(start: rightBuffer, count: Int(outSamples)))
             let callback = self.onAudioReady
             Task { @MainActor in
-                callback?(left, right)
+                callback?(left, right, audioPTS)
             }
         }
     }

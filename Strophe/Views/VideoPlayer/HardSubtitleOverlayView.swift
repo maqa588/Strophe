@@ -1,29 +1,62 @@
+import Combine
 import SwiftUI
 
 struct HardSubtitleOverlayView: View {
     @ObservedObject var project: SubtitleProject
     @ObservedObject private var store = StyleAndGroupStore.shared
+    @State private var displayedCues: [ResolvedSubtitleCue] = []
 
     var body: some View {
         GeometryReader { proxy in
             VStack {
                 Spacer()
-                let cues = project.resolvedSubtitleCues(at: project.currentTime, store: store)
-                if !cues.isEmpty {
+                if !displayedCues.isEmpty {
                     VStack(spacing: max(6, proxy.size.height * 0.01)) {
-                        ForEach(cues) { cue in
+                        ForEach(displayedCues) { cue in
                             subtitleView(for: cue, in: proxy.size)
                                 .transition(.opacity)
                         }
                     }
                     .padding(.horizontal, max(18, proxy.size.width * 0.06))
                     .padding(.bottom, max(28, proxy.size.height * 0.075))
-                    .animation(.easeInOut(duration: 0.08), value: cues)
+                    .animation(.easeInOut(duration: 0.08), value: displayedCues)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .allowsHitTesting(false)
+        .task {
+            await refreshLoop()
+        }
+        .onChange(of: store.activeGroupID) { _, _ in
+            refreshDisplayedCues(at: resolvedCurrentTime)
+        }
+        .onReceive(project.objectWillChange) { _ in
+            refreshDisplayedCues(at: resolvedCurrentTime)
+        }
+    }
+
+    private var resolvedCurrentTime: Double {
+        let engineTime = project.activeEngine?.currentTime
+        if let engineTime, engineTime.isFinite {
+            return engineTime
+        }
+        return project.currentTime.isFinite ? project.currentTime : 0
+    }
+
+    @MainActor
+    private func refreshLoop() async {
+        while !Task.isCancelled {
+            refreshDisplayedCues(at: resolvedCurrentTime)
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+    }
+
+    @MainActor
+    private func refreshDisplayedCues(at time: Double) {
+        let cues = project.resolvedSubtitleCues(at: time, store: store)
+        guard cues != displayedCues else { return }
+        displayedCues = cues
     }
 
     private func subtitleView(for cue: ResolvedSubtitleCue, in size: CGSize) -> some View {

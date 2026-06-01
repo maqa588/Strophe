@@ -36,6 +36,21 @@ struct StyleEditSheet: View {
     @State private var showsCheckerboard = true
     @State private var showsSafeArea = true
     @State private var previewBackground: PreviewBackground = .neutral
+    @State private var isShowingFontPicker = false
+    
+    private var currentFontDisplayName: String {
+        if fontName.isEmpty {
+            return "系统默认 / PingFang SC"
+        }
+        if let info = FontCatalog.shared.fonts.first(where: { $0.id == fontName }) {
+            return info.localizedFamilyName
+        }
+        return fontName
+    }
+    
+    private var currentFontInfo: FontInfo? {
+        FontCatalog.shared.fonts.first(where: { $0.id == fontName })
+    }
 
     private enum PreviewBackground: String, CaseIterable, Identifiable {
         case neutral
@@ -259,16 +274,51 @@ struct StyleEditSheet: View {
     private var typographyPanel: some View {
         editorSection("字体") {
             LabeledContent("字体") {
-                Picker("", selection: $fontName) {
-                    Text("系统默认 / PingFang SC").tag("")
-                    Divider()
-                    ForEach(PlatformFontCatalog.recommendedFontNames, id: \.self) { name in
-                        Text(name).tag(name)
+                Button {
+                    isShowingFontPicker = true
+                } label: {
+                    HStack {
+                        Text(currentFontDisplayName)
+                            .foregroundStyle(Color.stropheText)
+                            .font(.subheadline)
+                        
+                        if let info = currentFontInfo {
+                            HStack(spacing: 4) {
+                                if info.categories.contains(.sc) {
+                                    Text("简中").font(.system(size: 9)).padding(.horizontal, 4).padding(.vertical, 1).background(Color.secondary.opacity(0.12)).cornerRadius(3)
+                                }
+                                if info.categories.contains(.nerd) {
+                                    Text("Nerd").font(.system(size: 9)).padding(.horizontal, 4).padding(.vertical, 1).background(Color.indigo.opacity(0.12)).cornerRadius(3)
+                                }
+                                if info.categories.contains(.monospace) {
+                                    Text("等宽").font(.system(size: 9)).padding(.horizontal, 4).padding(.vertical, 1).background(Color.blue.opacity(0.12)).cornerRadius(3)
+                                }
+                            }
+                            .foregroundStyle(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.stropheSecondaryBackground.opacity(0.4))
+                    .cornerRadius(6)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color.stropheBorder, lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .popover(isPresented: $isShowingFontPicker, attachmentAnchor: .rect(.bounds), arrowEdge: .trailing) {
+                    FontPickerView(selectedFontName: $fontName) { _ in
+                        isShowingFontPicker = false
                     }
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(maxWidth: .infinity, alignment: .leading)
                 .help("选择硬字幕渲染字体；导出时会使用同一字体名生成字幕位图")
             }
 
@@ -495,46 +545,3 @@ private struct CheckerboardPattern: View {
     }
 }
 
-private enum PlatformFontCatalog {
-    static var recommendedFontNames: [String] {
-        let preferred = [
-            "PingFang SC",
-            "PingFang TC",
-            "Hiragino Sans",
-            "Songti SC",
-            "STSong",
-            "Kaiti SC",
-            "Heiti SC",
-            "Helvetica Neue",
-            "Arial",
-            "Avenir Next",
-            "SF Pro Display",
-            "SF Pro Text"
-        ]
-
-        let installed = Set(installedFontNames)
-        let preferredInstalled = preferred.filter { installed.contains($0) }
-        let extra = installed
-            .filter { name in
-                name.localizedCaseInsensitiveContains("PingFang")
-                || name.localizedCaseInsensitiveContains("Hiragino")
-                || name.localizedCaseInsensitiveContains("Songti")
-                || name.localizedCaseInsensitiveContains("Kaiti")
-                || name.localizedCaseInsensitiveContains("Helvetica")
-            }
-            .sorted()
-            .filter { !preferredInstalled.contains($0) }
-
-        return Array((preferredInstalled + extra).prefix(36))
-    }
-
-    private static var installedFontNames: [String] {
-        #if canImport(AppKit)
-        return NSFontManager.shared.availableFontFamilies
-        #elseif canImport(UIKit)
-        return UIFont.familyNames.sorted()
-        #else
-        return []
-        #endif
-    }
-}

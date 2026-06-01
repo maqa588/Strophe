@@ -33,14 +33,11 @@ struct WaveformCanvas: View {
                     let endTime = min(data.duration, Double(index + 1) * chunkDuration)
                     let duration = endTime - startTime
                     
-                    // 精准截取属于当前分段的 Bins
                     let startIndex = Int((startTime / data.duration) * Double(bins.count))
                     let endIndex = min(bins.count, Int((endTime / data.duration) * Double(bins.count)))
-                    let chunkBins = Array(bins[startIndex..<endIndex])
-                    
                     let chunkWidth = CGFloat(duration * pixelsPerSecond)
                     
-                    WaveformChunkCanvas(bins: chunkBins)
+                    WaveformChunkCanvas(bins: bins, range: startIndex..<endIndex)
                         .frame(width: chunkWidth)
                 }
             }
@@ -51,22 +48,23 @@ struct WaveformCanvas: View {
 /// 对应 30秒 单一分段的高性能矢量 Canvas 绘制器
 struct WaveformChunkCanvas: View {
     let bins: [WaveformBin]
+    let range: Range<Int>
     
     var body: some View {
         Canvas { context, size in
-            guard !bins.isEmpty else { return }
+            guard !bins.isEmpty, !range.isEmpty else { return }
             
             let midY = size.height / 2
-            let totalBins = bins.count
+            let totalBins = range.count
             let binWidth = size.width / CGFloat(totalBins)
             
             // 创建单一路径以整合所有峰值和 RMS 数据，实现零渲染开销
             var peakPath = Path()
             var rmsPath = Path()
             
-            for i in 0..<totalBins {
-                let bin = bins[i]
-                let x = CGFloat(i) * binWidth
+            for (offset, index) in range.enumerated() {
+                let bin = bins[index]
+                let x = CGFloat(offset) * binWidth
                 
                 // 1. 物理峰值包络线 (Peak Envelope)
                 let peakTop = midY - CGFloat(bin.peakPositive) * midY

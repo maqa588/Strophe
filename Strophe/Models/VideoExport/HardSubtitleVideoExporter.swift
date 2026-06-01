@@ -16,6 +16,7 @@ enum HardSubtitleVideoExportError: LocalizedError {
     case writerFailed(String)
     case readerFailed(String)
     case audioMuxFailed(String)
+    case ffmpegDecodeFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -41,6 +42,8 @@ enum HardSubtitleVideoExportError: LocalizedError {
             return String(localized: "视频读取失败：\(message)")
         case .audioMuxFailed(let message):
             return String(localized: "音频复用失败：\(message)")
+        case .ffmpegDecodeFailed(let message):
+            return String(localized: "FFmpeg 解码失败：\(message)")
         }
     }
 }
@@ -230,13 +233,36 @@ enum HardSubtitleVideoExporter {
         destinationURL: URL,
         progress: @MainActor @Sendable @escaping (Double) -> Void
     ) async throws {
-        let codec = settings.codec
         let unsupportedExtensions: Set<String> = ["mkv", "webm", "avi", "flv", "rmvb"]
         let ext = inputURL.pathExtension.lowercased()
         if unsupportedExtensions.contains(ext) {
-            throw HardSubtitleVideoExportError.unsupportedInput(ext)
+            try await exportViaFFmpeg(
+                inputURL: inputURL,
+                cues: cues,
+                settings: settings,
+                destinationURL: destinationURL,
+                progress: progress
+            )
+            return
         }
 
+        try await exportViaAVFoundation(
+            inputURL: inputURL,
+            cues: cues,
+            settings: settings,
+            destinationURL: destinationURL,
+            progress: progress
+        )
+    }
+
+    private static func exportViaAVFoundation(
+        inputURL: URL,
+        cues: [ResolvedSubtitleCue],
+        settings: HardSubtitleVideoExportSettings,
+        destinationURL: URL,
+        progress: @MainActor @Sendable @escaping (Double) -> Void
+    ) async throws {
+        let codec = settings.codec
         let didAccessInput = inputURL.startAccessingSecurityScopedResource()
         let didAccessOutput = destinationURL.startAccessingSecurityScopedResource()
         defer {
@@ -449,11 +475,251 @@ enum HardSubtitleVideoExporter {
         }
     }
 
+    private static func exportViaFFmpeg(
+        inputURL: URL,
+        cues: [ResolvedSubtitleCue],
+        settings: HardSubtitleVideoExportSettings,
+        destinationURL: URL,
+        progress: @MainActor @Sendable @escaping (Double) -> Void
+    ) async throws {
+        let codec = settings.codec
+        let didAccessInput = inputURL.startAccessingSecurityScopedResource()
+        let didAccessOutput = destinationURL.startAccessingSecurityScopedResource()
+        defer {
+            if didAccessInput { inputURL.stopAccessingSecurityScopedResource() }
+            if didAccessOutput { destinationURL.stopAccessingSecurityScopedResource() }
+        }
+
+        let workingURL = temporaryExportURL(fileExtension: codec.fileExtension)
+        defer {
+            try? FileManager.default.removeItem(at: workingURL)
+        }
+        try? FileManager.default.removeItem(at: workingURL)
+
+        let videoReader = try FFmpegVideoExportVideoReader(url: inputURL)
+        defer { videoReader.close() }
+
+        let audioReader = try? FFmpegVideoExportAudioReader(url: inputURL)
+        defer { audioReader?.close() }
+
+        let geometry = renderGeometry(
+            naturalSize: videoReader.storageSize,
+            sampleAspectRatio: videoReader.sampleAspectRatio,
+            usesDisplayAspect: settings.usesDisplayAspect
+        )
+        let renderSize = geometry.renderSize
+        let width = Int(renderSize.width.rounded(.toNearestOrAwayFromZero))
+        let height = Int(renderSize.height.rounded(.toNearestOrAwayFromZero))
+        let frameRate = videoReader.frameRate > 0 ? videoReader.frameRate : 30
+        let durationSeconds = max(videoReader.duration, 0.001)
+
+        let writer: AVAssetWriter
+        do {
+            writer = try AVAssetWriter(outputURL: workingURL, fileType: codec.fileType)
+        } catch {
+            throw HardSubtitleVideoExportError.cannotCreateWriter
+        }
+        print("🎞️ FFmpeg hard-sub export: writing temporary file at \(workingURL.path)")
+
+        let writerInput = AVAssetWriterInput(
+            mediaType: .video,
+            outputSettings: codec.outputSettings(
+                width: width,
+                height: height,
+                frameRate: frameRate,
+                exportSettings: settings
+            )
+        )
+        writerInput.expectsMediaDataInRealTime = false
+        writerInput.mediaTimeScale = CMTimeScale(max(600, Int32(frameRate.rounded()) * 100))
+
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+            assetWriterInput: writerInput,
+            sourcePixelBufferAttributes: [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+                kCVPixelBufferWidthKey as String: width,
+                kCVPixelBufferHeightKey as String: height,
+                kCVPixelBufferMetalCompatibilityKey as String: true,
+                kCVPixelBufferCGImageCompatibilityKey as String: true,
+                kCVPixelBufferCGBitmapContextCompatibilityKey as String: true
+            ]
+        )
+
+        guard writer.canAdd(writerInput) else {
+            throw HardSubtitleVideoExportError.cannotCreateWriter
+        }
+        writer.add(writerInput)
+
+        let audioInput: AVAssetWriterInput?
+        if let audioReader {
+            let input = AVAssetWriterInput(
+                mediaType: .audio,
+                outputSettings: audioReader.writerOutputSettings
+            )
+            input.expectsMediaDataInRealTime = false
+            if writer.canAdd(input) {
+                writer.add(input)
+                audioInput = input
+            } else {
+                audioInput = nil
+            }
+        } else {
+            audioInput = nil
+        }
+
+        guard writer.startWriting() else {
+            throw HardSubtitleVideoExportError.cannotStartWriting(writer.error?.localizedDescription ?? "Unknown error")
+        }
+        writer.startSession(atSourceTime: .zero)
+
+        let compositor = MetalSubtitleCompositor()
+        let sortedCues = cues.sorted { $0.startTime < $1.startTime }
+        var cueIndex = 0
+        var firstVideoPTS: Double?
+        var lastVideoPresentationTime = CMTime.invalid
+        let frameDuration = CMTime(
+            seconds: 1.0 / max(frameRate, 1.0),
+            preferredTimescale: writerInput.mediaTimeScale
+        )
+        var isAudioFinished = false
+
+        while true {
+            if Task.isCancelled {
+                writer.cancelWriting()
+                throw HardSubtitleVideoExportError.cancelled
+            }
+
+            guard let frame = try videoReader.nextFrame() else {
+                break
+            }
+
+            let basePTS = firstVideoPTS ?? frame.pts
+            if firstVideoPTS == nil {
+                firstVideoPTS = basePTS
+                audioReader?.timeOffset = basePTS
+            }
+            var seconds = max(0, frame.pts - basePTS)
+            if lastVideoPresentationTime.isValid {
+                let minimumNextSeconds = CMTimeAdd(lastVideoPresentationTime, frameDuration).seconds
+                if minimumNextSeconds.isFinite, seconds <= lastVideoPresentationTime.seconds {
+                    seconds = minimumNextSeconds
+                }
+            }
+
+            let canAppendFrame = try await waitForFFmpegVideoInputReady(
+                writerInput,
+                writer: writer,
+                audioReader: audioReader,
+                audioInput: audioInput,
+                isAudioFinished: &isAudioFinished,
+                audioLimit: CMTime(seconds: seconds + 1, preferredTimescale: 600),
+                seconds: seconds,
+                durationSeconds: durationSeconds,
+                progress: progress
+            )
+            if !canAppendFrame {
+                break
+            }
+
+            guard let pool = adaptor.pixelBufferPool else {
+                writerInput.markAsFinished()
+                writer.cancelWriting()
+                throw SubtitleCompositorError.outputPoolUnavailable
+            }
+
+            var outputBuffer: CVPixelBuffer?
+            guard CVPixelBufferPoolCreatePixelBuffer(nil, pool, &outputBuffer) == kCVReturnSuccess,
+                  let outputBuffer else {
+                writerInput.markAsFinished()
+                writer.cancelWriting()
+                throw SubtitleCompositorError.pixelBufferCreationFailed
+            }
+
+            let cue = activeCue(at: seconds, cues: sortedCues, index: &cueIndex)
+            try compositor.render(
+                sourcePixelBuffer: frame.pixelBuffer,
+                outputPixelBuffer: outputBuffer,
+                cue: cue,
+                renderSize: renderSize,
+                preferredTransform: .identity,
+                sourceDisplaySize: geometry.sourceDisplaySize
+            )
+
+            let presentationTime = CMTime(seconds: seconds, preferredTimescale: writerInput.mediaTimeScale)
+            guard adaptor.append(outputBuffer, withPresentationTime: presentationTime) else {
+                writerInput.markAsFinished()
+                writer.cancelWriting()
+                throw HardSubtitleVideoExportError.writerFailed(writer.error?.localizedDescription ?? "Unknown error")
+            }
+            lastVideoPresentationTime = presentationTime
+
+            if let audioReader, let audioInput, !isAudioFinished {
+                try await drainFFmpegAudio(
+                    audioReader,
+                    input: audioInput,
+                    upTo: presentationTime + CMTime(seconds: 1, preferredTimescale: 600),
+                    writer: writer
+                )
+                if audioReader.isFinished {
+                    audioInput.markAsFinished()
+                    isAudioFinished = true
+                }
+            }
+
+            let videoProgressScale = audioInput == nil ? 1.0 : 0.96
+            let fraction = min(max(seconds / durationSeconds, 0), 1) * videoProgressScale
+            await MainActor.run {
+                progress(fraction)
+            }
+        }
+
+        writerInput.markAsFinished()
+        print("🎞️ FFmpeg hard-sub export: video input finished at \(lastVideoPresentationTime.seconds)")
+
+        if let audioReader, let audioInput, !isAudioFinished {
+            let audioEndLimit = CMTime(
+                seconds: durationSeconds + 0.25,
+                preferredTimescale: CMTimeScale(max(600, Int32(audioReader.sampleRate)))
+            )
+            try await drainFFmpegAudio(
+                audioReader,
+                input: audioInput,
+                upTo: audioEndLimit,
+                writer: writer,
+                progress: progress,
+                durationSeconds: durationSeconds
+            )
+            audioInput.markAsFinished()
+            isAudioFinished = true
+            print("🎞️ FFmpeg hard-sub export: audio input finished")
+        }
+
+        if lastVideoPresentationTime.isValid {
+            let appendedVideoEnd = CMTimeAdd(lastVideoPresentationTime, frameDuration)
+            let sourceEnd = CMTime(seconds: durationSeconds, preferredTimescale: writerInput.mediaTimeScale)
+            writer.endSession(atSourceTime: CMTimeMaximum(appendedVideoEnd, sourceEnd))
+        }
+
+        print("🎞️ FFmpeg hard-sub export: finishing writer")
+        try await finish(writer: writer)
+        print("🎞️ FFmpeg hard-sub export: writer finished, moving to \(destinationURL.path)")
+
+        await MainActor.run {
+            progress(0.995)
+        }
+        try replaceExport(at: destinationURL, with: workingURL)
+
+        await MainActor.run {
+            progress(1)
+        }
+    }
+
     private struct AudioPipe {
         let output: AVAssetReaderTrackOutput
         let input: AVAssetWriterInput
         var pendingSample: CMSampleBuffer?
         var isFinished = false
+        var hasMarkedFinished = false
     }
 
     private static func drainAudioPipes(
@@ -479,6 +745,10 @@ enum HardSubtitleVideoExporter {
                 let sample = pipes[index].pendingSample ?? pipes[index].output.copyNextSampleBuffer()
                 guard let sample else {
                     pipes[index].isFinished = true
+                    if !pipes[index].hasMarkedFinished {
+                        pipes[index].input.markAsFinished()
+                        pipes[index].hasMarkedFinished = true
+                    }
                     break
                 }
 
@@ -497,6 +767,122 @@ enum HardSubtitleVideoExporter {
                 }
             }
         }
+    }
+
+    private static func drainFFmpegAudio(
+        _ reader: FFmpegVideoExportAudioReader,
+        input: AVAssetWriterInput,
+        upTo limit: CMTime?,
+        writer: AVAssetWriter,
+        progress: (@MainActor @Sendable (Double) -> Void)? = nil,
+        durationSeconds: Double? = nil
+    ) async throws {
+        var lastProgressUpdate = CFAbsoluteTimeGetCurrent()
+        while !reader.isFinished {
+            if Task.isCancelled {
+                writer.cancelWriting()
+                throw HardSubtitleVideoExportError.cancelled
+            }
+
+            guard input.isReadyForMoreMediaData else {
+                if limit == nil {
+                    try await Task.sleep(nanoseconds: 2_000_000)
+                    continue
+                }
+                break
+            }
+
+            let sample = try reader.peekSampleBuffer()
+            guard let sample else { break }
+
+            if let limit {
+                let presentationTime = CMSampleBufferGetPresentationTimeStamp(sample)
+                if presentationTime.isValid, presentationTime > limit {
+                    break
+                }
+            }
+
+            _ = try reader.consumePeekedSampleBuffer()
+            guard input.append(sample) else {
+                writer.cancelWriting()
+                throw HardSubtitleVideoExportError.audioMuxFailed(writer.error?.localizedDescription ?? "Unknown error")
+            }
+
+            if let progress, let durationSeconds, durationSeconds > 0 {
+                let now = CFAbsoluteTimeGetCurrent()
+                if now - lastProgressUpdate > 0.1 {
+                    lastProgressUpdate = now
+                    let seconds = CMSampleBufferGetPresentationTimeStamp(sample).seconds
+                    if seconds.isFinite {
+                        let fraction = 0.96 + min(max(seconds / durationSeconds, 0), 1) * 0.03
+                        await MainActor.run {
+                            progress(fraction)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static func waitForFFmpegVideoInputReady(
+        _ input: AVAssetWriterInput,
+        writer: AVAssetWriter,
+        audioReader: FFmpegVideoExportAudioReader?,
+        audioInput: AVAssetWriterInput?,
+        isAudioFinished: inout Bool,
+        audioLimit: CMTime,
+        seconds: Double,
+        durationSeconds: Double,
+        progress: @MainActor @Sendable @escaping (Double) -> Void
+    ) async throws -> Bool {
+        let started = CFAbsoluteTimeGetCurrent()
+        let tailTolerance = max(1.5, min(5.0, durationSeconds * 0.02))
+        let isTailFrame = seconds >= durationSeconds - tailTolerance
+        let timeout = isTailFrame ? 5.0 : 20.0
+        var lastLog = started
+
+        while !input.isReadyForMoreMediaData {
+            if Task.isCancelled {
+                writer.cancelWriting()
+                throw HardSubtitleVideoExportError.cancelled
+            }
+            if writer.status == .failed {
+                throw HardSubtitleVideoExportError.writerFailed(writer.error?.localizedDescription ?? "Unknown error")
+            }
+
+            if let audioReader, let audioInput, !isAudioFinished {
+                try await drainFFmpegAudio(
+                    audioReader,
+                    input: audioInput,
+                    upTo: audioLimit,
+                    writer: writer,
+                    progress: progress,
+                    durationSeconds: durationSeconds
+                )
+                if audioReader.isFinished {
+                    audioInput.markAsFinished()
+                    isAudioFinished = true
+                }
+            }
+
+            let now = CFAbsoluteTimeGetCurrent()
+            let waited = now - started
+            if now - lastLog > 5.0 {
+                lastLog = now
+                print("🎞️ FFmpeg hard-sub export: waiting for video writer readiness at \(String(format: "%.2f", seconds))s (\(String(format: "%.1f", waited))s)")
+            }
+            if waited > timeout {
+                if isTailFrame {
+                    print("🎞️ FFmpeg hard-sub export: video writer stayed not-ready at tail for \(String(format: "%.1f", waited))s; ending video track at source duration \(String(format: "%.2f", durationSeconds))s")
+                    return false
+                }
+                writer.cancelWriting()
+                throw HardSubtitleVideoExportError.writerFailed("VideoToolbox writer stayed not-ready for \(String(format: "%.1f", waited))s at \(String(format: "%.2f", seconds))s.")
+            }
+
+            try await Task.sleep(nanoseconds: 2_000_000)
+        }
+        return true
     }
 
     private static func activeCue(
@@ -537,6 +923,24 @@ enum HardSubtitleVideoExporter {
             renderSize: evenSize(transformedSize(naturalSize, preferredTransform: preferredTransform)),
             sourceDisplaySize: nil
         )
+    }
+
+    private static func renderGeometry(
+        naturalSize: CGSize,
+        sampleAspectRatio: CGSize,
+        usesDisplayAspect: Bool
+    ) -> RenderGeometry {
+        let storageSize = evenSize(naturalSize)
+        guard usesDisplayAspect,
+              sampleAspectRatio.width > 0,
+              sampleAspectRatio.height > 0,
+              abs(sampleAspectRatio.width - sampleAspectRatio.height) > 0.0001 else {
+            return RenderGeometry(renderSize: storageSize, sourceDisplaySize: nil)
+        }
+
+        let displayWidth = naturalSize.width * sampleAspectRatio.width / sampleAspectRatio.height
+        let displaySize = evenSize(CGSize(width: displayWidth, height: naturalSize.height))
+        return RenderGeometry(renderSize: displaySize, sourceDisplaySize: displaySize)
     }
 
     private static func transformedSize(
@@ -610,6 +1014,23 @@ enum HardSubtitleVideoExporter {
 
         if writer.status == .failed {
             throw HardSubtitleVideoExportError.writerFailed(writer.error?.localizedDescription ?? "Unknown error")
+        }
+    }
+
+    private static func temporaryExportURL(fileExtension: String) -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("StropheExports", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory.appendingPathComponent(UUID().uuidString).appendingPathExtension(fileExtension)
+    }
+
+    private static func replaceExport(at destinationURL: URL, with temporaryURL: URL) throws {
+        try? FileManager.default.removeItem(at: destinationURL)
+        do {
+            try FileManager.default.moveItem(at: temporaryURL, to: destinationURL)
+        } catch {
+            try FileManager.default.copyItem(at: temporaryURL, to: destinationURL)
+            try? FileManager.default.removeItem(at: temporaryURL)
         }
     }
 }

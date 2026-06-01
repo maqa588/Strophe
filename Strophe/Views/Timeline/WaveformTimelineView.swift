@@ -67,31 +67,27 @@ struct WaveformTimelineView: View {
                 ZStack(alignment: .top) {
                     ScrollView(.horizontal, showsIndicators: true) {
                         ScrollViewReader { proxy in
-                            // 🚀 硬件级刷新率同步渲染引擎 - 自适应当前显示器的 100Hz/120Hz 物理高刷新率！
-                            TimelineView(.animation) { timeline in
-                                ZStack(alignment: .topLeading) {
-                                    scrollOffsetReader(pixelsPerSecond: safePPS, duration: safeDataDuration, viewWidth: viewWidth)
+                            ZStack(alignment: .topLeading) {
+                                scrollOffsetReader(pixelsPerSecond: safePPS, duration: safeDataDuration, viewWidth: viewWidth)
 
-                                    WaveformTimelineContainer(
-                                        project: project,
-                                        timeline: timeline,
-                                        data: data,
-                                        viewWidth: viewWidth,
-                                        totalWidth: totalWidth,
-                                        visibleStartTime: viewportStartTime,
-                                        rulerHeight: rulerHeight,
-                                        waveHeight: waveHeight,
-                                        pixelsPerSecond: $pixelsPerSecond,
-                                        renderedPPS: $renderedPPS,
-                                        scrollPageStartTime: $scrollPageStartTime,
-                                        isDraggingPlayhead: $isDraggingPlayhead,
-                                        isUserInteracting: $isUserInteracting,
-                                        drawSubtitleStartLocation: $drawSubtitleStartLocation,
-                                        drawSubtitleCurrentLocation: $drawSubtitleCurrentLocation,
-                                        dragStartTime: $dragStartTime,
-                                        proxy: proxy
-                                    )
-                                }
+                                WaveformTimelineContainer(
+                                    project: project,
+                                    data: data,
+                                    viewWidth: viewWidth,
+                                    totalWidth: totalWidth,
+                                    visibleStartTime: viewportStartTime,
+                                    rulerHeight: rulerHeight,
+                                    waveHeight: waveHeight,
+                                    pixelsPerSecond: $pixelsPerSecond,
+                                    renderedPPS: $renderedPPS,
+                                    scrollPageStartTime: $scrollPageStartTime,
+                                    isDraggingPlayhead: $isDraggingPlayhead,
+                                    isUserInteracting: $isUserInteracting,
+                                    drawSubtitleStartLocation: $drawSubtitleStartLocation,
+                                    drawSubtitleCurrentLocation: $drawSubtitleCurrentLocation,
+                                    dragStartTime: $dragStartTime,
+                                    proxy: proxy
+                                )
                             }
                             .padding(.bottom, 6)
                             .onChange(of: pixelsPerSecond) { _, _ in
@@ -217,7 +213,8 @@ struct WaveformTimelineView: View {
         let contentOffsetX = max(0, -proxy.frame(in: .named(timelineScrollCoordinateSpaceName)).minX)
         let visibleStart = min(maxStart, Double(contentOffsetX) / safePPS)
 
-        if abs(viewportStartTime - visibleStart) > 0.001 {
+        let onePixelInSeconds = 1.0 / safePPS
+        if abs(viewportStartTime - visibleStart) > onePixelInSeconds {
             viewportStartTime = visibleStart
         }
     }

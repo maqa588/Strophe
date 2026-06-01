@@ -311,6 +311,14 @@ struct ContentView: View {
     private func setupKeyboardMonitor() {
         #if os(macOS)
         NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { event in
+            if let keyWindow = NSApp.keyWindow,
+               let responder = keyWindow.firstResponder {
+                let className = String(describing: type(of: responder))
+                if responder is NSText || className.contains("Text") || className.contains("Field") || className.contains("Editor") {
+                    return event
+                }
+            }
+
             if project.isEditingText { return event }
 
             let isKeyDown = event.type == .keyDown

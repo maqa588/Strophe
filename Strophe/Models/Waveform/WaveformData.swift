@@ -25,7 +25,7 @@ class WaveformData: ObservableObject {
     private var activeTasks: [Int: Task<Void, Never>] = [:]
     
     // Track playhead position to perform scrubbing task cancellation
-    @Published var currentTime: Double = 0.0
+    var currentTime: Double = 0.0
     
     // Track last time to distinguish seeks/jumps from normal play
     private var lastTriggerTime: Double = -999.0

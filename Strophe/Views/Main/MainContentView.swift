@@ -5,6 +5,9 @@
 
 import SwiftUI
 import UniformTypeIdentifiers
+#if os(macOS)
+import AppKit
+#endif
 
 struct MainContentView: View {
     @ObservedObject var project: SubtitleProject
@@ -205,6 +208,7 @@ struct MainContentView: View {
             contentType: UTType.fromFormat(exportFormat),
             defaultFilename: "subtitles.\(exportFormat.fileExtension)"
         ) { _ in }
+        #if os(iOS)
         .fileExporter(
             isPresented: $isShowingHardSubtitleExport,
             document: VideoExportPlaceholderDocument(),
@@ -214,10 +218,15 @@ struct MainContentView: View {
             guard case .success(let url) = result else { return }
             exportHardSubtitleVideo(to: url)
         }
+        #endif
         .sheet(isPresented: $isShowingHardSubtitleExportSettings) {
             HardSubtitleExportSettingsSheet(settings: $hardSubtitleSettings) {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                    #if os(macOS)
+                    showHardSubtitleSavePanel()
+                    #else
                     isShowingHardSubtitleExport = true
+                    #endif
                 }
             }
         }
@@ -311,7 +320,13 @@ struct MainContentView: View {
 
     private func exportHardSubtitleVideo(to url: URL) {
         hardSubtitleProgress = 0
+        let didAccessDestination = url.startAccessingSecurityScopedResource()
         Task {
+            defer {
+                if didAccessDestination {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
             do {
                 try await HardSubtitleVideoExporter.export(
                     project: project,
@@ -328,4 +343,18 @@ struct MainContentView: View {
             isShowingHardSubtitleExportAlert = true
         }
     }
+
+    #if os(macOS)
+    private func showHardSubtitleSavePanel() {
+        let panel = NSSavePanel()
+        panel.canCreateDirectories = true
+        panel.isExtensionHidden = false
+        panel.nameFieldStringValue = hardSubtitleDefaultFilename
+        panel.allowedContentTypes = [hardSubtitleSettings.codec.contentType]
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            exportHardSubtitleVideo(to: url)
+        }
+    }
+    #endif
 }

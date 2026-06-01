@@ -70,6 +70,66 @@ actor SubtitleGenerator {
         return result
     }
 
+    /// DeepFilterNet3 CoreML 输入的时间维上限是 6000 帧。48kHz、hop=480 时约为 60 秒；
+    /// 这里用 45 秒块并做 1 秒交叉淡化，避免长音频一次性推理触发 CoreML shape 错误。
+    private func enhanceLongAudioWithDeepFilterNet3(
+        _ denoiser: SpeechEnhancer,
+        samples: [Float],
+        sampleRate: Int,
+        progressCallback: (@Sendable (Int, Double, String) -> Void)?
+    ) throws -> [Float] {
+        guard !samples.isEmpty else { return [] }
+
+        let chunkSampleCount = sampleRate * 45
+        let overlapSampleCount = sampleRate
+        guard samples.count > chunkSampleCount else {
+            return try denoiser.enhance(audio: samples, sampleRate: sampleRate)
+        }
+
+        let stepSampleCount = chunkSampleCount - overlapSampleCount
+        let totalChunks = Int(ceil(Double(max(samples.count - overlapSampleCount, 1)) / Double(stepSampleCount)))
+        var output: [Float] = []
+        output.reserveCapacity(samples.count)
+
+        var chunkIndex = 0
+        var start = 0
+        while start < samples.count {
+            let end = min(samples.count, start + chunkSampleCount)
+            let chunk = Array(samples[start..<end])
+            let enhanced = try denoiser.enhance(audio: chunk, sampleRate: sampleRate)
+
+            if output.isEmpty {
+                output.append(contentsOf: enhanced)
+            } else {
+                let overlap = min(overlapSampleCount, output.count, enhanced.count)
+                let fadeStart = output.count - overlap
+                if overlap > 0 {
+                    for i in 0..<overlap {
+                        let fadeIn = Float(i + 1) / Float(overlap + 1)
+                        output[fadeStart + i] = output[fadeStart + i] * (1 - fadeIn) + enhanced[i] * fadeIn
+                    }
+                }
+                if enhanced.count > overlap {
+                    output.append(contentsOf: enhanced[overlap...])
+                }
+            }
+
+            chunkIndex += 1
+            let fraction = Double(chunkIndex) / Double(max(totalChunks, 1))
+            progressCallback?(0, 0.78 + min(fraction, 1) * 0.17, "正在分块过滤环境风噪与人声杂音 (\(chunkIndex)/\(totalChunks))...")
+
+            if end >= samples.count { break }
+            start += stepSampleCount
+        }
+
+        if output.count > samples.count {
+            output.removeLast(output.count - samples.count)
+        } else if output.count < samples.count {
+            output.append(contentsOf: repeatElement(Float(0), count: samples.count - output.count))
+        }
+        return output
+    }
+
     /// 将字词级时间戳片段合并为字幕级的块
     /// 普通说话优先按说话人、停顿和标点成句，字符数只作为兜底约束。
     nonisolated private func mergeWordsToSegments(
@@ -1285,8 +1345,13 @@ actor SubtitleGenerator {
             )
             
             print("🧹 正在进行降噪处理...")
-            progressCallback?(0, 0.8, "正在过滤环境风噪与人声杂音...")
-            let denoisedSamples48k = try denoiser.enhance(audio: rawSamples48k, sampleRate: 48000)
+            progressCallback?(0, 0.78, "正在过滤环境风噪与人声杂音...")
+            let denoisedSamples48k = try enhanceLongAudioWithDeepFilterNet3(
+                denoiser,
+                samples: rawSamples48k,
+                sampleRate: 48000,
+                progressCallback: progressCallback
+            )
             cleanSamples16k = resample(denoisedSamples48k, from: 48000, to: 16000)
         }
         

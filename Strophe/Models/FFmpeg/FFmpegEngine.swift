@@ -180,8 +180,8 @@ final class FrameQueue: @unchecked Sendable {
                         }
                     }
                 },
-                onAudioReady: { [weak ap] left, right in
-                    ap?.schedulePCMData(left, right)
+                onAudioReady: { [weak ap] left, right, pts in
+                    ap?.schedulePCMData(left, right, presentationTime: pts)
                 },
                 onStateChanged: { [weak self] duration, fps, _, size, startPlaybackTime, _, audioIndex in
                     guard let self = self else { return }
@@ -228,9 +228,8 @@ final class FrameQueue: @unchecked Sendable {
                     await coreInstance.setStartPlaybackTime(capturePlaybackTime)
                 }
             }
-            // Use system clock during pending phase to avoid circular deadlocks
             if isPlaybackStartedPending {
-                return systemClockTime
+                return cachedStartPlaybackTime
             }
             return apTime
         }
@@ -276,10 +275,9 @@ final class FrameQueue: @unchecked Sendable {
             }
             
             if cachedIsPlaying {
-                // ALWAYS snapshot system time at the moment of play resumption
+                let resumeTime = currentTime
                 cachedStartSystemTime = CACurrentMediaTime()
-                // Use actual current position as reference, not stale cached value
-                cachedStartPlaybackTime = currentTime
+                cachedStartPlaybackTime = resumeTime
                 isPlaybackStartedPending = true // 🚀 Freeze systemClockTime and wait for hardware rendering start!
                 
                 let captureSystemTime = cachedStartSystemTime
@@ -343,6 +341,7 @@ final class FrameQueue: @unchecked Sendable {
     
     func seek(to time: Double) async {
         activeSeekTask?.cancel()
+        await core.cancelActiveSeekSession()
         
         let task = Task {
             // Capture playing state BEFORE any async calls that might trigger
@@ -408,6 +407,7 @@ final class FrameQueue: @unchecked Sendable {
             rateBeforeScrub = cachedRate
         }
         rate = 0.0
+        await core.cancelActiveSeekSession()
         
         let task = Task {
             // Cooperative sleep to debounce high-frequency timeline scrub events

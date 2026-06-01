@@ -145,7 +145,7 @@ nonisolated final class AudioPlayer: @unchecked Sendable {
     }
     
     // Convert PCM data into AVAudioPCMBuffer and schedule it on the player node
-    func schedulePCMData(_ left: [Float], _ right: [Float]) {
+    func schedulePCMData(_ left: [Float], _ right: [Float], presentationTime: Double? = nil) {
         lock.lock()
         
         let sampleCount = left.count
@@ -154,6 +154,10 @@ nonisolated final class AudioPlayer: @unchecked Sendable {
             return
         }
         
+        if totalSamplesScheduled == 0, let presentationTime, presentationTime.isFinite {
+            baseTime = presentationTime
+            sampleTimeOffset = -1
+        }
         scheduledBufferCount += 1
         let isPlayingState = shouldBePlaying
         let isCurrentlyPlaying = playerNode.isPlaying
