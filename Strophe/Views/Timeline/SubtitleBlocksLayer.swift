@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 let subtitleBlocksCoordinateSpaceName = "subtitleBlocksCoordinateSpace"
 
@@ -168,12 +171,14 @@ struct SubtitleBlocksLayer: View {
         guard let startX = marqueeStart, let currentX = marqueeCurrent else { return }
         let minTime = Double(min(startX, currentX)) / pixelsPerSecond
         let maxTime = Double(max(startX, currentX)) / pixelsPerSecond
+        let activeGroupID = StyleAndGroupStore.shared.activeGroupID
         
         var newSelected = Set<UUID>()
         for item in project.items {
             if let start = item.startTime, let end = item.endTime {
                 // 如果字幕块与选框范围相交，则被框选中
-                if start <= maxTime && end >= minTime {
+                if start <= maxTime && end >= minTime,
+                   project.subgroup(for: item)?.id == activeGroupID {
                     newSelected.insert(item.id)
                 }
             }
@@ -182,6 +187,7 @@ struct SubtitleBlocksLayer: View {
     }
 
     private func beginSweepSelection(with item: SubtitleItem) {
+        guard project.subgroup(for: item)?.id == StyleAndGroupStore.shared.activeGroupID else { return }
         project.editingMode = .selection
         project.isSubtitleMultiSelecting = true
         project.selectedIDs = [item.id]
@@ -201,12 +207,14 @@ struct SubtitleBlocksLayer: View {
 
         let minTime = Double(min(startX, locationX)) / pixelsPerSecond
         let maxTime = Double(max(startX, locationX)) / pixelsPerSecond
+        let activeGroupID = StyleAndGroupStore.shared.activeGroupID
 
         var selected = Set<UUID>()
         for item in project.items {
             guard let start = item.startTime else { continue }
             let end = item.endTime ?? (start + 0.1)
-            if start <= maxTime && end >= minTime {
+            if start <= maxTime && end >= minTime,
+               project.subgroup(for: item)?.id == activeGroupID {
                 selected.insert(item.id)
             }
         }

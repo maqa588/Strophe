@@ -25,10 +25,112 @@ extension SubtitleProject {
     
     func undo() { undoManager.undo() }
     func redo() { undoManager.redo() }
+
+    func subgroup(for item: SubtitleItem, store: StyleAndGroupStore = .shared) -> SubGroupItem? {
+        store.group(id: item.groupID) ?? store.activeGroup ?? store.groups.first
+    }
+
+    func cueCount(in groupID: UUID) -> Int {
+        items.filter { $0.groupID == groupID }.count
+    }
+
+    func selectedCueCount(in groupID: UUID) -> Int {
+        items.filter { selectedIDs.contains($0.id) && $0.groupID == groupID }.count
+    }
+
+    func isLockedForEditing(_ item: SubtitleItem, store: StyleAndGroupStore = .shared) -> Bool {
+        item.isLocked || subgroup(for: item, store: store)?.isLocked == true
+    }
+
+    func assignSubtitle(id: UUID, toGroup groupID: UUID) {
+        guard let index = items.firstIndex(where: { $0.id == id }),
+              !isLockedForEditing(items[index]) else { return }
+        let oldItems = items
+        let oldSelectedIDs = selectedIDs
+        items[index].groupID = groupID
+        registerUndo(label: String(localized: "移动到分组"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        notifyChange()
+    }
+
+    func assignSelectedSubtitles(toGroup groupID: UUID) {
+        guard !selectedIDs.isEmpty else { return }
+        let oldItems = items
+        let oldSelectedIDs = selectedIDs
+        for index in items.indices where selectedIDs.contains(items[index].id) && !isLockedForEditing(items[index]) {
+            items[index].groupID = groupID
+        }
+        registerUndo(label: String(localized: "移动到分组"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        notifyChange()
+    }
+
+    func assignSelectedSubtitlesToShortcutGroup(_ number: Int, store: StyleAndGroupStore = .shared) -> Bool {
+        guard let group = store.shortcutGroup(number: number) else { return false }
+        assignSelectedSubtitles(toGroup: group.id)
+        return true
+    }
+
+    func selectAllCues(in groupID: UUID) {
+        selectedIDs = Set(items.filter { $0.groupID == groupID }.map(\.id))
+    }
+
+    func clearText(in groupID: UUID) {
+        let oldItems = items
+        let oldSelectedIDs = selectedIDs
+        for index in items.indices where items[index].groupID == groupID && !isLockedForEditing(items[index]) {
+            items[index].text = ""
+        }
+        registerUndo(label: String(localized: "清空分组文字"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        notifyChange()
+    }
+
+    func deleteCues(in groupID: UUID) {
+        let oldItems = items
+        let oldSelectedIDs = selectedIDs
+        items.removeAll { item in
+            item.groupID == groupID && !isLockedForEditing(item)
+        }
+        selectedIDs.subtract(oldItems.filter { $0.groupID == groupID }.map(\.id))
+        registerUndo(label: String(localized: "删除分组字幕"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        notifyChange()
+    }
+
+    func setSubtitleStyleOverride(id: UUID, styleID: UUID?) {
+        guard let index = items.firstIndex(where: { $0.id == id }),
+              !isLockedForEditing(items[index]) else { return }
+        let oldItems = items
+        let oldSelectedIDs = selectedIDs
+        items[index].styleID = styleID
+        registerUndo(label: String(localized: "设置字幕样式"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        notifyChange()
+    }
+
+    func setSelectedSubtitleStyleOverride(styleID: UUID?) {
+        guard !selectedIDs.isEmpty else { return }
+        let oldItems = items
+        let oldSelectedIDs = selectedIDs
+        for index in items.indices where selectedIDs.contains(items[index].id) && !isLockedForEditing(items[index]) {
+            items[index].styleID = styleID
+        }
+        registerUndo(label: String(localized: "设置字幕样式"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        notifyChange()
+    }
+
+    func followGroupStyle(id: UUID) {
+        guard let index = items.firstIndex(where: { $0.id == id }),
+              !isLockedForEditing(items[index]) else { return }
+        let oldItems = items
+        let oldSelectedIDs = selectedIDs
+        items[index].styleID = nil
+        items[index].styleOverrides = nil
+        items[index].positionOverride = nil
+        registerUndo(label: String(localized: "跟随小组样式"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        notifyChange()
+    }
     
     func importScript(_ text: String) {
         let oldItems = items
         let oldSelectedIDs = selectedIDs
+        let activeGroupID = StyleAndGroupStore.shared.activeGroupID
         
         let (hasTimeline, blocks) = SubtitleEngine.parseAnyText(text)
 
@@ -38,7 +140,8 @@ extension SubtitleProject {
                 text: block.text,
                 startTime: hasTimeline ? snapToFrame(block.startTime) : nil,
                 endTime: hasTimeline ? snapToFrame(block.endTime) : nil,
-                originalIndex: index
+                originalIndex: index,
+                groupID: activeGroupID
             )
         }
         self.currentIndex = 0
@@ -75,6 +178,7 @@ extension SubtitleProject {
     func createSubtitleBlock(startTime: TimeInterval, endTime: TimeInterval) {
         let oldItems = items
         let oldSelectedIDs = selectedIDs
+        let activeGroupID = StyleAndGroupStore.shared.activeGroupID
         
         let snappedStart = snapToFrame(startTime)
         let minDuration = videoFrameRate > 0 ? (1.0 / videoFrameRate) : 0.1
@@ -83,8 +187,9 @@ extension SubtitleProject {
         if let index = items.firstIndex(where: { $0.startTime == nil }) {
             items[index].startTime = snappedStart
             items[index].endTime = snappedEnd
+            items[index].groupID = items[index].groupID ?? activeGroupID
         } else {
-            let newBlock = SubtitleItem(text: String(localized: "待录入字幕"), startTime: snappedStart, endTime: snappedEnd, originalIndex: items.count)
+            let newBlock = SubtitleItem(text: String(localized: "待录入字幕"), startTime: snappedStart, endTime: snappedEnd, originalIndex: items.count, groupID: activeGroupID)
             items.append(newBlock)
         }
         
@@ -95,6 +200,7 @@ extension SubtitleProject {
     
     func updateSubtitleTime(id: UUID, newStartTime: TimeInterval, newEndTime: TimeInterval) {
         if let index = items.firstIndex(where: { $0.id == id }) {
+            guard !isLockedForEditing(items[index]) else { return }
             let oldItems = items
             let oldSelectedIDs = selectedIDs
             
@@ -116,6 +222,7 @@ extension SubtitleProject {
         
         for id in selectedIDs {
             if let index = items.firstIndex(where: { $0.id == id }),
+               !isLockedForEditing(items[index]),
                let start = items[index].startTime,
                let end = items[index].endTime {
                 let newStart = snapToFrame(max(0, start + delta))
@@ -139,6 +246,7 @@ extension SubtitleProject {
         
         let oldItems = items
         let oldSelectedIDs = selectedIDs
+        let activeGroupID = StyleAndGroupStore.shared.activeGroupID
         
         let startTime = snapToFrame(currentTime)
         let minDuration = videoFrameRate > 0 ? (1.0 / videoFrameRate) : 0.1
@@ -147,10 +255,11 @@ extension SubtitleProject {
         if let index = items.firstIndex(where: { $0.startTime == nil }) {
             items[index].startTime = startTime
             items[index].endTime = endTime
+            items[index].groupID = items[index].groupID ?? activeGroupID
             activeSlapSubtitleID = items[index].id
         } else {
             let newID = UUID()
-            let newBlock = SubtitleItem(id: newID, text: String(localized: "待录入字幕"), startTime: startTime, endTime: endTime, originalIndex: items.count)
+            let newBlock = SubtitleItem(id: newID, text: String(localized: "待录入字幕"), startTime: startTime, endTime: endTime, originalIndex: items.count, groupID: activeGroupID)
             items.append(newBlock)
             activeSlapSubtitleID = newID
         }
@@ -212,6 +321,7 @@ extension SubtitleProject {
     
     func updateSubtitleText(id: UUID, text: String) {
         if let index = items.firstIndex(where: { $0.id == id }) {
+            guard !isLockedForEditing(items[index]) else { return }
             let oldItems = items
             let oldSelectedIDs = selectedIDs
             items[index].text = text
@@ -223,7 +333,7 @@ extension SubtitleProject {
     func deleteSubtitle(id: UUID) {
         let oldItems = items
         let oldSelectedIDs = selectedIDs
-        items.removeAll(where: { $0.id == id })
+        items.removeAll(where: { $0.id == id && !isLockedForEditing($0) })
         registerUndo(label: String(localized: "删除字幕"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
@@ -231,7 +341,7 @@ extension SubtitleProject {
     func deleteSubtitles(ids: Set<UUID>) {
         let oldItems = items
         let oldSelectedIDs = selectedIDs
-        items.removeAll(where: { ids.contains($0.id) })
+        items.removeAll(where: { ids.contains($0.id) && !isLockedForEditing($0) })
         registerUndo(label: String(localized: "删除字幕"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
@@ -265,6 +375,7 @@ extension SubtitleProject {
         guard let index = items.firstIndex(where: { $0.id == id }),
               let startTime = items[index].startTime,
               let endTime = items[index].endTime,
+              !isLockedForEditing(items[index]),
               splitTime > startTime && splitTime < endTime else { return }
         
         let oldItems = items
@@ -276,12 +387,22 @@ extension SubtitleProject {
         items[index].text = leftText
         items[index].endTime = snappedSplit
         
-        // 创建右半部分
         let rightItem = SubtitleItem(
+            id: UUID(),
             text: rightText,
             startTime: snappedSplit,
             endTime: endTime,
-            originalIndex: items[index].originalIndex
+            originalIndex: items[index].originalIndex,
+            groupID: items[index].groupID,
+            trackIndex: items[index].trackIndex,
+            styleID: items[index].styleID,
+            styleOverrides: items[index].styleOverrides,
+            positionOverride: items[index].positionOverride,
+            parentItemID: items[index].parentItemID,
+            languageCode: items[index].languageCode,
+            bilingualPairID: items[index].bilingualPairID,
+            isHidden: items[index].isHidden,
+            isLocked: items[index].isLocked
         )
         items.insert(rightItem, at: index + 1)
         
@@ -302,6 +423,10 @@ extension SubtitleProject {
         let selectedItems = items
             .filter { selectedIDs.contains($0.id) }
             .sorted { ($0.startTime ?? .infinity) < ($1.startTime ?? .infinity) }
+
+        guard selectedItems.allSatisfy({ !isLockedForEditing($0) }) else {
+            return String(localized: "选中的字幕块中包含锁定项目，无法合并")
+        }
         
         // 校验所有被选中的 item 都有时间信息
         guard selectedItems.allSatisfy({ $0.startTime != nil && $0.endTime != nil }) else {

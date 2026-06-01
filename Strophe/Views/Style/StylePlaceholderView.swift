@@ -33,15 +33,10 @@ struct StylePlaceholderView: View {
                         selectedStyleId = style.id
                         showingEditSheet = true
                     } label: {
-                        Label("重命名", systemImage: "pencil")
+                        Label("编辑样式", systemImage: "slider.horizontal.3")
                     }
                     Button {
-                        let copy = SubgroupStyle(
-                            name: "\(style.name) 副本",
-                            description: style.description,
-                            color: style.color,
-                            isGlowing: style.isGlowing
-                        )
+                        let copy = duplicate(style)
                         store.styles.append(copy)
                         selectedStyleId = copy.id
                     } label: {
@@ -81,12 +76,7 @@ struct StylePlaceholderView: View {
                     Button {
                         if let id = selectedStyleId,
                            let style = store.styles.first(where: { $0.id == id }) {
-                            let copy = SubgroupStyle(
-                                name: "\(style.name) 副本",
-                                description: style.description,
-                                color: style.color,
-                                isGlowing: style.isGlowing
-                            )
+                            let copy = duplicate(style)
                             store.styles.append(copy)
                             selectedStyleId = copy.id
                         }
@@ -155,10 +145,21 @@ struct StylePlaceholderView: View {
 
     private func deleteStyle(id: UUID) {
         guard let index = store.styles.firstIndex(where: { $0.id == id }) else { return }
+        let deletedName = store.styles[index].name
         store.styles.remove(at: index)
+        let fallbackStyle = store.styles.first?.name ?? "Default"
+        for groupIndex in store.groups.indices where store.groups[groupIndex].style == deletedName {
+            store.groups[groupIndex].style = fallbackStyle
+        }
         selectedStyleId = store.styles.isEmpty ? nil : store.styles[max(0, index - 1)].id
     }
 
+    private func duplicate(_ style: SubgroupStyle) -> SubgroupStyle {
+        var copy = style
+        copy.id = UUID()
+        copy.name = "\(style.name) 副本"
+        return copy
+    }
 
 }
 

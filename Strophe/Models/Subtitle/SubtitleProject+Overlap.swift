@@ -17,9 +17,11 @@ extension SubtitleProject {
         guard let item = items.first(where: { $0.id == id }),
               let start = item.startTime,
               let end = item.endTime else { return false }
+        let groupID = item.groupID
         
         for other in items {
             guard other.id != id,
+                  other.groupID == groupID,
                   let oStart = other.startTime,
                   let oEnd = other.endTime else { continue }
             
@@ -39,6 +41,7 @@ extension SubtitleProject {
             for j in (i+1)..<timed.count {
                 let a = timed[i]
                 let b = timed[j]
+                guard a.groupID == b.groupID else { continue }
                 let startA = a.startTime!
                 let endA = a.endTime!
                 let startB = b.startTime!

@@ -12,8 +12,14 @@ struct MainContentView: View {
 
     @State private var isShowingImportMedia = false
     @State private var isShowingExport = false
+    @State private var isShowingHardSubtitleExport = false
+    @State private var isShowingHardSubtitleExportSettings = false
     @State private var exportText = ""
     @State private var exportFormat: SubtitleFormat = .srt
+    @State private var hardSubtitleSettings = HardSubtitleVideoExportSettings()
+    @State private var hardSubtitleProgress: Double? = nil
+    @State private var hardSubtitleExportMessage: String? = nil
+    @State private var isShowingHardSubtitleExportAlert = false
     
     var isCompact: Bool = false
     var path: Binding<NavigationPath> = .constant(NavigationPath())
@@ -47,7 +53,7 @@ struct MainContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             VideoPlayerView(project: project, onImportMedia: {
-                isShowingImportMedia = true
+                requestImportMedia()
             })
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -55,6 +61,12 @@ struct MainContentView: View {
                 .frame(maxWidth: .infinity)
         }
         .background(Color.stropheSecondaryBackground)
+        .overlay(alignment: .topTrailing) {
+            if let hardSubtitleProgress {
+                hardSubtitleProgressView(progress: hardSubtitleProgress)
+                    .padding(16)
+            }
+        }
         #if os(macOS)
         .navigationTitle(String(localized: "Strophe"))
         .navigationSubtitle(navigationSubtitle)
@@ -80,20 +92,20 @@ struct MainContentView: View {
                     }
                     .help(String(localized: "返回文稿列表"))
 
-                    Button(action: { isShowingImportMedia = true }) {
+                    Button(action: requestImportMedia) {
                         Image(systemName: "folder")
                     }
                     .help(String(localized: "导入媒体文件"))
                 } else {
                     // 📱 iPad 宽屏：文件夹
-                    Button(action: { isShowingImportMedia = true }) {
+                    Button(action: requestImportMedia) {
                         Image(systemName: "folder")
                     }
                     .help(String(localized: "导入媒体文件"))
                 }
                 #else
                 // 💻 macOS 平台：文件夹（原生 Label）
-                Button(action: { isShowingImportMedia = true }) {
+                Button(action: requestImportMedia) {
                     Label("导入媒体", systemImage: "folder")
                 }
                 // 💡 核心修复：删除了 .labelStyle(.titleAndIcon)
@@ -150,7 +162,9 @@ struct MainContentView: View {
                     
                     Divider()
                     
-                    Button("Hard Subtitles (Coming Soon)") {}.disabled(true)
+                    Button("Hard Subtitled Video…") {
+                        isShowingHardSubtitleExportSettings = true
+                    }
                     Button("Video Stream (Coming Soon)") {}.disabled(true)
                     Button("Audio Stream (Coming Soon)") {}.disabled(true)
                 } label: {
@@ -164,27 +178,26 @@ struct MainContentView: View {
                 .help(String(localized: "导出字幕或分享项目"))
             }
         }
+        #if os(iOS)
+        .sheet(isPresented: $isShowingImportMedia) {
+            MediaDocumentPicker(
+                allowedContentTypes: UTType.allMediaTypes + [.stropheProject],
+                allowsMultipleSelection: false
+            ) { result in
+                isShowingImportMedia = false
+                handleImportMedia(result)
+            }
+        }
+        #else
         .fileImporter(
             isPresented: $isShowingImportMedia,
             allowedContentTypes: UTType.allMediaTypes + [.stropheProject],
-            allowsMultipleSelection: false
-        ) { result in
-            if case .success(let urls) = result, let url = urls.first {
-                if url.pathExtension.lowercased() == "strophe" {
-                    DispatchQueue.main.async {
-                        NotificationCenter.default.post(name: .stropheOpenProjectWithURL, object: url)
-                    }
-                } else {
-                    DispatchQueue.main.async {
-                        project.importMedia(from: url)
-                    }
-                }
-            }
-        }
+            allowsMultipleSelection: false,
+            onCompletion: handleImportMedia
+        )
+        #endif
         .onReceive(NotificationCenter.default.publisher(for: .stropheImportMedia)) { _ in
-            DispatchQueue.main.async {
-                isShowingImportMedia = true
-            }
+            requestImportMedia()
         }
         .fileExporter(
             isPresented: $isShowingExport,
@@ -192,6 +205,85 @@ struct MainContentView: View {
             contentType: UTType.fromFormat(exportFormat),
             defaultFilename: "subtitles.\(exportFormat.fileExtension)"
         ) { _ in }
+        .fileExporter(
+            isPresented: $isShowingHardSubtitleExport,
+            document: VideoExportPlaceholderDocument(),
+            contentType: hardSubtitleSettings.codec.contentType,
+            defaultFilename: hardSubtitleDefaultFilename
+        ) { result in
+            guard case .success(let url) = result else { return }
+            exportHardSubtitleVideo(to: url)
+        }
+        .sheet(isPresented: $isShowingHardSubtitleExportSettings) {
+            HardSubtitleExportSettingsSheet(settings: $hardSubtitleSettings) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                    isShowingHardSubtitleExport = true
+                }
+            }
+        }
+        .alert(
+            String(localized: "硬字幕导出"),
+            isPresented: $isShowingHardSubtitleExportAlert,
+            presenting: hardSubtitleExportMessage
+        ) { _ in
+            Button(String(localized: "好"), role: .cancel) {}
+        } message: { message in
+            Text(message)
+        }
+    }
+
+    private var hardSubtitleDefaultFilename: String {
+        let baseName: String
+        if let videoName = project.videoURL?.deletingPathExtension().lastPathComponent, !videoName.isEmpty {
+            baseName = videoName
+        } else if !project.documentDisplayName.isEmpty {
+            baseName = project.documentDisplayName
+        } else {
+            baseName = "hard-subtitles"
+        }
+        return "\(baseName)-hard-subtitles.\(hardSubtitleSettings.codec.fileExtension)"
+    }
+
+    private func requestImportMedia() {
+        guard !isShowingImportMedia else { return }
+        DispatchQueue.main.async {
+            isShowingImportMedia = true
+        }
+    }
+
+    private func handleImportMedia(_ result: Result<[URL], Error>) {
+        guard case .success(let urls) = result, let url = urls.first else { return }
+        if url.pathExtension.lowercased() == "strophe" {
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .stropheOpenProjectWithURL, object: url)
+            }
+        } else {
+            DispatchQueue.main.async {
+                project.importMedia(from: url)
+            }
+        }
+    }
+
+    private func hardSubtitleProgressView(progress: Double) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("正在导出硬字幕视频")
+                    .font(.caption.weight(.semibold))
+            }
+            ProgressView(value: progress)
+                .frame(width: 220)
+            Text("\(Int((progress * 100).rounded()))%")
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.stropheBorder.opacity(0.35), lineWidth: 1)
+        )
     }
     
     private func exportSubtitles(format: SubtitleFormat) {
@@ -215,5 +307,25 @@ struct MainContentView: View {
         exportFormat = format
         exportText = generatedText
         isShowingExport = true
+    }
+
+    private func exportHardSubtitleVideo(to url: URL) {
+        hardSubtitleProgress = 0
+        Task {
+            do {
+                try await HardSubtitleVideoExporter.export(
+                    project: project,
+                    settings: hardSubtitleSettings,
+                    destinationURL: url
+                ) { progress in
+                    hardSubtitleProgress = progress
+                }
+                hardSubtitleExportMessage = String(localized: "导出完成：\(url.lastPathComponent)")
+            } catch {
+                hardSubtitleExportMessage = error.localizedDescription
+            }
+            hardSubtitleProgress = nil
+            isShowingHardSubtitleExportAlert = true
+        }
     }
 }

@@ -4,6 +4,9 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct StropheSidebarContainer: View {
     @ObservedObject var project: SubtitleProject
@@ -116,7 +119,7 @@ struct StropheSidebarContainer: View {
             case .styleManager:
                 StylePlaceholderView()
             case .subGroup:
-                SubGroupPlaceholderView()
+                SubGroupPlaceholderView(project: project)
             case .settings:
                 SettingsPlaceholderView(settingsPath: $settingsPath)
             }
@@ -125,7 +128,7 @@ struct StropheSidebarContainer: View {
         #if os(macOS)
         .padding(.top, 52)
         #else
-        .padding(.top, 16)
+        .padding(.top, UIDevice.current.userInterfaceIdiom == .pad ? 72 : 16)
         #endif
     }
 }

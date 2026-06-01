@@ -12,8 +12,11 @@ struct SubtitleRow: View {
     let index: Int
     let isActive: Bool
     let isOverlapping: Bool
+    let group: SubGroupItem?
 
     var body: some View {
+        let groupColor = group?.color ?? Color.stropheBlue
+
         HStack(alignment: .top, spacing: 10) {
             // Status indicator
             statusBadge
@@ -29,18 +32,32 @@ struct SubtitleRow: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let start = item.startTime {
-                    HStack(spacing: 4) {
-                        Text(formatTime(start))
-                        if let end = item.endTime {
-                            Text("→")
-                            Text(formatTime(end))
+                    HStack(spacing: 6) {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(groupColor)
+                                .frame(width: 6, height: 6)
+                            Text(group?.name ?? "未分组")
+                                .lineLimit(1)
                         }
+                        .foregroundStyle(groupColor)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(groupColor.opacity(0.12), in: Capsule())
+
+                        HStack(spacing: 4) {
+                            Text(formatTime(start))
+                            if let end = item.endTime {
+                                Text("→")
+                                Text(formatTime(end))
+                            }
+                        }
+                        .foregroundStyle(Color.stropheBlue)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.stropheBlue.opacity(0.1), in: Capsule())
                     }
                     .font(.caption2.monospaced())
-                    .foregroundStyle(Color.stropheBlue)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.stropheBlue.opacity(0.1), in: Capsule())
                     .environment(\.layoutDirection, .leftToRight)
                 }
             }

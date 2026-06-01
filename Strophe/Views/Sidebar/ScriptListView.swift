@@ -12,7 +12,12 @@ struct ScriptListView: View {
     @State private var isEditingText = false
     @State private var editingText = ""
     @State private var editingItem: SubtitleItem? = nil
+    @State private var isEditingTime = false
+    @State private var editingStartText = ""
+    @State private var editingEndText = ""
+    @State private var editingTimeItem: SubtitleItem? = nil
     @State private var isShowingAutoCaption = false
+    @ObservedObject private var store = StyleAndGroupStore.shared
     
     /// Legacy compact-mode support (iOS 17 / macOS 14 fallback).
     /// When using the modern TabView path these default values are used.
@@ -50,6 +55,21 @@ struct ScriptListView: View {
             }
         }
         .onChange(of: isEditingText) { _, newValue in
+            project.isEditingText = newValue
+        }
+        .alert(String(localized: "更改显示时间"), isPresented: $isEditingTime) {
+            TextField("起始时间，例如 01:23.45", text: $editingStartText)
+            TextField("结束时间，例如 01:25.20", text: $editingEndText)
+            Button("确定") {
+                saveEditingTime()
+            }
+            Button(String(localized: "Cancel"), role: .cancel) {
+                editingTimeItem = nil
+            }
+        } message: {
+            Text("可输入秒数、MM:SS 或 HH:MM:SS")
+        }
+        .onChange(of: isEditingTime) { _, newValue in
             project.isEditingText = newValue
         }
         .confirmationDialog(String(localized: "Import Script"), isPresented: $isShowingImportOptions, titleVisibility: .visible) {
@@ -126,17 +146,40 @@ struct ScriptListView: View {
     private var scriptList: some View {
         ScrollViewReader { scrollProxy in
             List(Array(project.items.enumerated()), id: \.element.id, selection: $project.selectedIDs) { index, item in
+                let group = project.subgroup(for: item, store: store)
+                let isLocked = item.isLocked || group?.isLocked == true
+                
                 SubtitleRow(
                     item: item,
                     index: index,
                     isActive: item.id == project.scrollTargetID,
-                    isOverlapping: project.isItemOverlapping(id: item.id)
+                    isOverlapping: project.isItemOverlapping(id: item.id),
+                    group: group
                 )
                 .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
                 .listRowSeparator(.hidden)
                 .id(item.id)
                 .tag(item.id)
+                .onTapGestureIf(condition: project.isSubtitleMultiSelecting) {
+                    if project.selectedIDs.contains(item.id) {
+                        project.selectedIDs.remove(item.id)
+                        if project.selectedIDs.isEmpty {
+                            project.isSubtitleMultiSelecting = false
+                        }
+                    } else {
+                        project.selectedIDs.insert(item.id)
+                    }
+                }
                 .contextMenu {
+                    Button(action: {
+                        project.isSubtitleMultiSelecting = true
+                        if !project.selectedIDs.contains(item.id) {
+                            project.selectedIDs.insert(item.id)
+                        }
+                    }) {
+                        Label("多选字幕块", systemImage: "checklist")
+                    }
+
                     Button(action: {
                         editingItem = item
                         editingText = item.text
@@ -144,12 +187,86 @@ struct ScriptListView: View {
                     }) {
                         Label("编辑内容", systemImage: "pencil")
                     }
+                    .disabled(isLocked)
+
+                    Button(action: {
+                        beginEditingTime(item)
+                    }) {
+                        Label("更改显示时间", systemImage: "clock")
+                    }
+                    .disabled(isLocked)
                     
+                    Menu {
+                        ForEach(store.sortedGroups) { grp in
+                            Button(action: {
+                                if project.selectedIDs.count > 1, project.selectedIDs.contains(item.id) {
+                                    project.assignSelectedSubtitles(toGroup: grp.id)
+                                } else {
+                                    project.assignSubtitle(id: item.id, toGroup: grp.id)
+                                }
+                            }) {
+                                HStack {
+                                    if item.groupID == grp.id {
+                                        Image(systemName: "checkmark")
+                                    }
+                                    Text(grp.name)
+                                }
+                            }
+                        }
+                    } label: {
+                        Label("移动到分组", systemImage: "rectangle.3.group")
+                    }
+                    .disabled(isLocked)
+
+                    Menu {
+                        Button(action: {
+                            if project.selectedIDs.count > 1, project.selectedIDs.contains(item.id) {
+                                project.setSelectedSubtitleStyleOverride(styleID: nil)
+                            } else {
+                                project.followGroupStyle(id: item.id)
+                            }
+                        }) {
+                            HStack {
+                                if !item.hasIndependentPresentation {
+                                    Image(systemName: "checkmark")
+                                }
+                                Text("跟随小组样式")
+                            }
+                        }
+
+                        if !store.styles.isEmpty {
+                            Divider()
+                        }
+
+                        ForEach(store.styles) { style in
+                            Button(action: {
+                                if project.selectedIDs.count > 1, project.selectedIDs.contains(item.id) {
+                                    project.setSelectedSubtitleStyleOverride(styleID: style.id)
+                                } else {
+                                    project.setSubtitleStyleOverride(id: item.id, styleID: style.id)
+                                }
+                            }) {
+                                HStack {
+                                    if item.styleID == style.id {
+                                        Image(systemName: "checkmark")
+                                    }
+                                    Text(style.name)
+                                }
+                            }
+                        }
+                    } label: {
+                        Label("设定样式", systemImage: "textformat")
+                    }
+                    .disabled(isLocked)
+
+                    Divider()
+
                     Button(role: .destructive, action: {
                         project.deleteSubtitle(id: item.id)
                     }) {
                         Label("删除字幕", systemImage: "trash")
                     }
+                    .disabled(isLocked)
                 }
                 .disabled(project.editingMode == .creation)
             }
@@ -176,6 +293,51 @@ struct ScriptListView: View {
             }
         }
     }
+
+    private func beginEditingTime(_ item: SubtitleItem) {
+        editingTimeItem = item
+        editingStartText = formatEditableTime(item.startTime ?? 0)
+        editingEndText = formatEditableTime(item.endTime ?? ((item.startTime ?? 0) + 2))
+        isEditingTime = true
+    }
+
+    private func saveEditingTime() {
+        guard let item = editingTimeItem,
+              let newStart = parseEditableTime(editingStartText),
+              let newEnd = parseEditableTime(editingEndText) else { return }
+        project.updateSubtitleTime(id: item.id, newStartTime: newStart, newEndTime: newEnd)
+        editingTimeItem = nil
+    }
+
+    private func formatEditableTime(_ seconds: TimeInterval) -> String {
+        let clamped = max(0, seconds)
+        let totalSeconds = Int(clamped)
+        let h = totalSeconds / 3600
+        let m = (totalSeconds % 3600) / 60
+        let s = totalSeconds % 60
+        let cs = Int(((clamped - Double(totalSeconds)) * 100).rounded())
+        return h > 0
+            ? String(format: "%d:%02d:%02d.%02d", h, m, s, cs)
+            : String(format: "%02d:%02d.%02d", m, s, cs)
+    }
+
+    private func parseEditableTime(_ raw: String) -> TimeInterval? {
+        let normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "，", with: ".")
+            .replacingOccurrences(of: ",", with: ".")
+        guard !normalized.isEmpty else { return nil }
+        let parts = normalized.split(separator: ":").map(String.init)
+        if parts.count == 1 {
+            return Double(parts[0]).map { max(0, $0) }
+        }
+
+        var total = 0.0
+        for (index, part) in parts.reversed().enumerated() {
+            guard let value = Double(part) else { return nil }
+            total += value * pow(60.0, Double(index))
+        }
+        return max(0, total)
+    }
 }
 
 // MARK: - View Extension for Multiplatform Support
@@ -191,5 +353,14 @@ extension View {
         #else
         self
         #endif
+    }
+
+    @ViewBuilder
+    func onTapGestureIf(condition: Bool, action: @escaping () -> Void) -> some View {
+        if condition {
+            self.onTapGesture(perform: action)
+        } else {
+            self
+        }
     }
 }

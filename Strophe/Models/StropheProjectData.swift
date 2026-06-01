@@ -65,6 +65,8 @@ nonisolated struct StropheProjectData: Sendable, Codable {
     let media: StropheMedia?
     var tracks: [StropheTrack]
     var styles: [SubtitleStyle]
+    var subgroupStyles: [StoredSubgroupStyle]? = nil
+    var subtitleGroups: [StoredSubGroupItem]? = nil
     
     /// For backward compatibility with interfaces expecting a flat items array.
     var items: [SubtitleItem] {

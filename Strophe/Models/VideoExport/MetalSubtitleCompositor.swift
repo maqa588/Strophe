@@ -1,0 +1,262 @@
+import AVFoundation
+import CoreImage
+import CoreText
+import Metal
+import SwiftUI
+
+enum SubtitleCompositorError: LocalizedError {
+    case outputPoolUnavailable
+    case pixelBufferCreationFailed
+    case renderFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .outputPoolUnavailable:
+            return String(localized: "无法创建视频输出像素缓冲池。")
+        case .pixelBufferCreationFailed:
+            return String(localized: "无法创建视频输出帧。")
+        case .renderFailed:
+            return String(localized: "硬字幕帧合成失败。")
+        }
+    }
+}
+
+final class MetalSubtitleCompositor {
+    private let context: CIContext
+    private let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+    private var bitmapCache: [SubtitleBitmapCacheKey: CGImage] = [:]
+
+    init(device: MTLDevice? = MTLCreateSystemDefaultDevice()) {
+        if let device {
+            context = CIContext(mtlDevice: device, options: [.workingColorSpace: CGColorSpaceCreateDeviceRGB()])
+        } else {
+            context = CIContext(options: [.workingColorSpace: CGColorSpaceCreateDeviceRGB()])
+        }
+    }
+
+    func render(
+        sourcePixelBuffer: CVPixelBuffer,
+        outputPixelBuffer: CVPixelBuffer,
+        cue: ResolvedSubtitleCue?,
+        renderSize: CGSize,
+        preferredTransform: CGAffineTransform,
+        sourceDisplaySize: CGSize? = nil
+    ) throws {
+        var image = CIImage(cvPixelBuffer: sourcePixelBuffer)
+        if preferredTransform != .identity {
+            image = image.transformed(by: preferredTransform)
+            image = normalizeOrigin(image)
+        }
+
+        if let sourceDisplaySize,
+           sourceDisplaySize.width > 0,
+           sourceDisplaySize.height > 0,
+           image.extent.width > 0,
+           image.extent.height > 0 {
+            let scaleX = sourceDisplaySize.width / image.extent.width
+            let scaleY = sourceDisplaySize.height / image.extent.height
+            image = image.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
+            image = normalizeOrigin(image)
+        }
+
+        let bounds = CGRect(origin: .zero, size: renderSize)
+        let fittedImage = aspectFit(image: image, in: bounds)
+        var output = fittedImage.composited(over: CIImage(color: .black).cropped(to: bounds))
+
+        if let cue,
+           let subtitle = subtitleImage(for: cue, canvasSize: renderSize) {
+            let x = (renderSize.width - CGFloat(subtitle.width)) / 2.0
+            let y = max(28, renderSize.height * 0.075)
+            let overlay = CIImage(cgImage: subtitle)
+                .transformed(by: CGAffineTransform(translationX: x.rounded(.down), y: y.rounded(.down)))
+            output = overlay.composited(over: output)
+        }
+
+        context.render(output, to: outputPixelBuffer, bounds: bounds, colorSpace: colorSpace)
+    }
+
+    private func normalizeOrigin(_ image: CIImage) -> CIImage {
+        let extent = image.extent
+        guard extent.origin != .zero else { return image }
+        return image.transformed(by: CGAffineTransform(translationX: -extent.origin.x, y: -extent.origin.y))
+    }
+
+    private func aspectFit(image: CIImage, in bounds: CGRect) -> CIImage {
+        let extent = image.extent
+        guard extent.width > 0, extent.height > 0, bounds.width > 0, bounds.height > 0 else {
+            return image
+        }
+
+        let scale = min(bounds.width / extent.width, bounds.height / extent.height)
+        let scaledWidth = extent.width * scale
+        let scaledHeight = extent.height * scale
+        let x = bounds.midX - scaledWidth / 2.0
+        let y = bounds.midY - scaledHeight / 2.0
+
+        return image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+            .transformed(by: CGAffineTransform(translationX: x, y: y))
+    }
+
+    private func subtitleImage(for cue: ResolvedSubtitleCue, canvasSize: CGSize) -> CGImage? {
+        let key = SubtitleBitmapCacheKey(cue: cue, canvasSize: canvasSize)
+        if let cached = bitmapCache[key] {
+            return cached
+        }
+
+        let image = SubtitleBitmapRenderer.makeImage(cue: cue, canvasSize: canvasSize)
+        if let image {
+            bitmapCache[key] = image
+        }
+
+        if bitmapCache.count > 128 {
+            bitmapCache.removeAll(keepingCapacity: true)
+        }
+
+        return image
+    }
+}
+
+private struct SubtitleBitmapCacheKey: Hashable {
+    var text: String
+    var style: ResolvedSubtitleStyle
+    var width: Int
+    var height: Int
+
+    init(cue: ResolvedSubtitleCue, canvasSize: CGSize) {
+        text = cue.text
+        style = cue.style
+        width = Int(canvasSize.width.rounded())
+        height = Int(canvasSize.height.rounded())
+    }
+}
+
+private enum SubtitleBitmapRenderer {
+    static func makeImage(cue: ResolvedSubtitleCue, canvasSize: CGSize) -> CGImage? {
+        let style = cue.style
+        let scale = max(0.5, min(canvasSize.height / 1080.0, 2.2))
+        let fontSize = max(18, style.fontSize * scale)
+        let maxTextWidth = max(240, canvasSize.width * 0.82)
+        let paragraph = makeParagraphStyle()
+        let font = makeFont(style: style, size: fontSize)
+        let attributed = NSAttributedString(
+            string: cue.text,
+            attributes: [
+                .font: font,
+                .foregroundColor: style.textColor.cgColor,
+                .paragraphStyle: paragraph
+            ]
+        )
+
+        let framesetter = CTFramesetterCreateWithAttributedString(attributed)
+        let suggested = CTFramesetterSuggestFrameSizeWithConstraints(
+            framesetter,
+            CFRange(location: 0, length: attributed.length),
+            nil,
+            CGSize(width: maxTextWidth, height: .greatestFiniteMagnitude),
+            nil
+        )
+
+        let outline = max(0, style.outlineWidth * scale)
+        let shadow = max(0, style.shadowRadius * scale)
+        let horizontalPadding = style.backgroundColor == nil ? outline + shadow : max(22 * scale, outline + shadow)
+        let verticalPadding = style.backgroundColor == nil ? outline + shadow : max(12 * scale, outline + shadow)
+        let width = Int(ceil(suggested.width + horizontalPadding * 2))
+        let height = Int(ceil(suggested.height + verticalPadding * 2))
+        guard width > 0, height > 0 else { return nil }
+
+        guard let context = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return nil
+        }
+
+        context.clear(CGRect(x: 0, y: 0, width: width, height: height))
+
+        if let backgroundColor = style.backgroundColor {
+            let rect = CGRect(x: 0, y: 0, width: width, height: height)
+            context.setFillColor(backgroundColor.cgColor)
+            context.addPath(CGPath(roundedRect: rect, cornerWidth: max(8, 12 * scale), cornerHeight: max(8, 12 * scale), transform: nil))
+            context.fillPath()
+        }
+
+        let textRect = CGRect(
+            x: horizontalPadding,
+            y: verticalPadding,
+            width: suggested.width,
+            height: suggested.height
+        )
+
+        if outline > 0 {
+            let outlineAttributed = NSMutableAttributedString(attributedString: attributed)
+            outlineAttributed.addAttribute(.foregroundColor, value: style.outlineColor.cgColor, range: NSRange(location: 0, length: outlineAttributed.length))
+            drawOutlinedText(outlineAttributed, in: textRect, context: context, radius: outline)
+        }
+
+        context.setShadow(offset: CGSize(width: 0, height: -max(1, shadow * 0.35)), blur: shadow, color: style.shadowColor.cgColor)
+        draw(attributed, in: textRect, context: context)
+        context.setShadow(offset: .zero, blur: 0, color: nil)
+
+        return context.makeImage()
+    }
+
+    private static func makeFont(style: ResolvedSubtitleStyle, size: CGFloat) -> CTFont {
+        let base: CTFont
+        if let fontName = style.fontName, !fontName.isEmpty {
+            base = CTFontCreateWithName(fontName as CFString, size, nil)
+        } else {
+            base = CTFontCreateUIFontForLanguage(style.isBold ? .emphasizedSystem : .system, size, nil)
+                ?? CTFontCreateWithName("Helvetica" as CFString, size, nil)
+        }
+
+        var traits: CTFontSymbolicTraits = []
+        if style.isBold { traits.insert(.boldTrait) }
+        if style.isItalic { traits.insert(.italicTrait) }
+
+        guard !traits.isEmpty else { return base }
+        return CTFontCreateCopyWithSymbolicTraits(base, 0, nil, traits, traits) ?? base
+    }
+
+    private static func makeParagraphStyle() -> NSParagraphStyle {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        paragraph.lineBreakMode = .byWordWrapping
+        paragraph.lineSpacing = 2
+        return paragraph
+    }
+
+    private static func drawOutlinedText(
+        _ attributed: NSAttributedString,
+        in rect: CGRect,
+        context: CGContext,
+        radius: CGFloat
+    ) {
+        let offsets: [CGPoint] = [
+            CGPoint(x: -radius, y: 0),
+            CGPoint(x: radius, y: 0),
+            CGPoint(x: 0, y: -radius),
+            CGPoint(x: 0, y: radius),
+            CGPoint(x: -radius * 0.72, y: -radius * 0.72),
+            CGPoint(x: radius * 0.72, y: -radius * 0.72),
+            CGPoint(x: -radius * 0.72, y: radius * 0.72),
+            CGPoint(x: radius * 0.72, y: radius * 0.72)
+        ]
+
+        for offset in offsets {
+            draw(attributed, in: rect.offsetBy(dx: offset.x, dy: offset.y), context: context)
+        }
+    }
+
+    private static func draw(_ attributed: NSAttributedString, in rect: CGRect, context: CGContext) {
+        let path = CGMutablePath()
+        path.addRect(rect)
+        let framesetter = CTFramesetterCreateWithAttributedString(attributed)
+        let frame = CTFramesetterCreateFrame(framesetter, CFRange(location: 0, length: attributed.length), path, nil)
+        CTFrameDraw(frame, context)
+    }
+}

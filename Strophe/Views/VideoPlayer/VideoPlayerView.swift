@@ -39,8 +39,11 @@ struct VideoPlayerView: View {
                             .onTapGesture(count: 2) { project.togglePlayback() }
                     }
 
-                    // Subtitle overlay — stable view, never destroyed/recreated during playback
-                    if project.showSoftSubtitles {
+                    // Subtitle overlay — stable view, never destroyed/recreated during playback.
+                    // Hard preview takes visual precedence so the two preview modes do not double-render.
+                    if project.showHardSubtitles {
+                        HardSubtitleOverlayView(project: project)
+                    } else if project.showSoftSubtitles {
                         SubtitleOverlayView(project: project)
                     }
                 }

@@ -121,6 +121,7 @@ struct WaveformTimelineView: View {
                                 pixelsPerSecond = min(maxPPS, max(minPPS, newPPS))
                             }
                             .onEnded { _ in
+                                guard isZooming else { return }
                                 isZooming = false
                                 renderedPPS = pixelsPerSecond
                                 scheduleCanvasRedraw()

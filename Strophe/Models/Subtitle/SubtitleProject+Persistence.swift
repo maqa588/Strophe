@@ -101,7 +101,15 @@ extension SubtitleProject {
             parentTrackID: nil,
             trackType: .primary
         )
-        let data = StropheProjectData(version: 1, metadata: metadata, media: media, tracks: [defaultTrack], styles: [])
+        let data = StropheProjectData(
+            version: 1,
+            metadata: metadata,
+            media: media,
+            tracks: [defaultTrack],
+            styles: [],
+            subgroupStyles: StyleAndGroupStore.shared.storedStyles(),
+            subtitleGroups: StyleAndGroupStore.shared.storedGroups()
+        )
         return StropheProjectDocument(data: data)
     }
     
@@ -137,6 +145,7 @@ extension SubtitleProject {
         videoURL = nil
         
         items = decoded.items
+        StyleAndGroupStore.shared.restore(styles: decoded.subgroupStyles, groups: decoded.subtitleGroups)
         videoFrameRate = decoded.metadata.videoFrameRate
         if let sz = decoded.metadata.videoSize {
             videoSize = CGSize(width: sz.width, height: sz.height)

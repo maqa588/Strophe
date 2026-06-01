@@ -292,7 +292,7 @@ struct ContentView: View {
             }
         case .subGroup:
             NavigationStack {
-                SubGroupPlaceholderView()
+                SubGroupPlaceholderView(project: project)
                     .inlineNavigationTitle(String(localized: "组别"))
             }
         case .settings:
@@ -332,6 +332,18 @@ struct ContentView: View {
                 }
                 if mod == [.command, .shift], event.charactersIgnoringModifiers == "Z" {
                     project.redo(); return nil
+                }
+                if mod == .option,
+                   let rawKey = event.charactersIgnoringModifiers,
+                   let number = Int(rawKey),
+                   (1...9).contains(number),
+                   let group = StyleAndGroupStore.shared.shortcutGroup(number: number) {
+                    if project.selectedIDs.isEmpty {
+                        StyleAndGroupStore.shared.setActiveGroup(group.id)
+                    } else {
+                        project.assignSelectedSubtitles(toGroup: group.id)
+                    }
+                    return nil
                 }
                 switch event.charactersIgnoringModifiers {
                 case " ":

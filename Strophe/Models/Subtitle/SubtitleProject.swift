@@ -181,12 +181,24 @@ class SubtitleProject: ObservableObject {
     
     func subtitleText(at time: Double) -> String? {
         if let activeID = activeSlapSubtitleID,
-           let item = items.first(where: { $0.id == activeID }) {
+           let item = items.first(where: { $0.id == activeID }),
+           !item.isHidden,
+           subgroup(for: item)?.isOverlayEnabled != false {
             return item.text
         }
-        return items.first { item in
-            guard let start = item.startTime, let end = item.endTime else { return false }
-            return time >= start && time <= end
-        }?.text
+
+        let activeGroupID = StyleAndGroupStore.shared.activeGroupID
+        return items
+            .filter { item in
+                guard !item.isHidden, subgroup(for: item)?.isOverlayEnabled != false else { return false }
+                guard let start = item.startTime, let end = item.endTime else { return false }
+                return time >= start && time <= end
+            }
+            .sorted { lhs, rhs in
+                if lhs.groupID == activeGroupID && rhs.groupID != activeGroupID { return true }
+                if lhs.groupID != activeGroupID && rhs.groupID == activeGroupID { return false }
+                return lhs.trackIndex < rhs.trackIndex
+            }
+            .first?.text
     }
 }

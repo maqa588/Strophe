@@ -14,6 +14,8 @@ struct SubGroupCreateSheet: View {
     
     @State private var name: String = ""
     @State private var subName: String = "默认分组"
+    @State private var role: SubtitleGroupRole = .normal
+    @State private var selectedStyleName: String = ""
     @State private var selectedColorIndex: Int = 0
     
     private let availableColors: [Color] = [
@@ -108,6 +110,26 @@ struct SubGroupCreateSheet: View {
                                     .textFieldStyle(.roundedBorder)
                                     .font(.subheadline)
                             }
+
+                            LabeledContent("角色") {
+                                Picker("", selection: $role) {
+                                    ForEach(SubtitleGroupRole.allCases) { role in
+                                        Text(role.title).tag(role)
+                                    }
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.menu)
+                            }
+
+                            LabeledContent("样式") {
+                                Picker("", selection: $selectedStyleName) {
+                                    ForEach(store.styles) { style in
+                                        Text(style.name).tag(style.name)
+                                    }
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.menu)
+                            }
                         }
                     }
                     .padding()
@@ -192,20 +214,26 @@ struct SubGroupCreateSheet: View {
             if name.isEmpty {
                 name = "组 \(store.groups.count + 1)"
             }
+            if selectedStyleName.isEmpty {
+                selectedStyleName = store.styles.first?.name ?? "Default"
+            }
             selectedColorIndex = store.groups.count % availableColors.count
         }
     }
     
     private func createGroup() {
-        let defaultStyle = store.styles.first?.name ?? "Default"
+        let defaultStyle = selectedStyleName.isEmpty ? (store.styles.first?.name ?? "Default") : selectedStyleName
         let newGroup = SubGroupItem(
             name: name.isEmpty ? "未命名组" : name,
             subName: subName,
+            role: role,
             color: availableColors[selectedColorIndex],
             isActive: store.groups.isEmpty,
             style: defaultStyle,
             isOverlayEnabled: true,
-            isFlagged: false
+            isFlagged: role == .secondaryLanguage || role == .translatedDraft,
+            exportPolicy: role == .metadata ? .referenceOnly : .includeInAllExports,
+            sortOrder: store.groups.count
         )
         store.groups.append(newGroup)
         isPresented = false
