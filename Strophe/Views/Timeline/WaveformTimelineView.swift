@@ -19,7 +19,6 @@ struct WaveformTimelineView: View {
     @State private var playheadID = "playhead-anchor"
     @State private var isDraggingPlayhead = false
     @State private var dragStartTime: Double = 0
-    @State private var isZooming = false  // 缩放节流标志
     @State private var isUserInteracting = false // 是否正在手动操作
     @State private var scrollPageStartTime: Double = 0 // 播放标尺视口分页起始时间
     @State private var viewportStartTime: Double = 0 // 当前 ScrollView 实际可见起始时间
@@ -31,9 +30,10 @@ struct WaveformTimelineView: View {
     
     // Real-time dynamic layout width state
     @State private var availableWidth: CGFloat = 800
-    
+
     #if os(iOS)
     @State private var gestureZoomBasePPS: Double = 50.0
+    @State private var isTouchZooming = false
     #endif
     
     private var isCompact: Bool {
@@ -117,18 +117,19 @@ struct WaveformTimelineView: View {
                         .simultaneousGesture(
                             MagnificationGesture()
                                 .onChanged { value in
-                                    if !isZooming {
-                                        isZooming = true
+                                    if !isTouchZooming {
+                                        isTouchZooming = true
                                         gestureZoomBasePPS = pixelsPerSecond
                                     }
                                     let newPPS = gestureZoomBasePPS * Double(value)
                                     pixelsPerSecond = min(maxPPS, max(minPPS, newPPS))
+                                    scheduleCanvasRedraw()
                                 }
                                 .onEnded { _ in
-                                    guard isZooming else { return }
-                                    isZooming = false
+                                    guard isTouchZooming else { return }
+                                    isTouchZooming = false
+                                    gestureZoomBasePPS = pixelsPerSecond
                                     renderedPPS = pixelsPerSecond
-                                    scheduleCanvasRedraw()
                                 }
                         )
                         #endif

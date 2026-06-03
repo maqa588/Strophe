@@ -12,6 +12,9 @@ import AppKit
 #if canImport(UIKit)
 import UIKit
 #endif
+#if os(iOS)
+import GameController
+#endif
 
 struct InteractiveSubtitleBlock: View {
     let item: SubtitleItem
@@ -94,7 +97,17 @@ struct InteractiveSubtitleBlock: View {
 
     private func handleTapSelection() {
         #if os(iOS)
-        if project.isSubtitleMultiSelecting && isInActiveGroup {
+        let isCommandPressed: Bool
+        if let keyboardInput = GCKeyboard.coalesced?.keyboardInput {
+            isCommandPressed = keyboardInput.button(forKeyCode: .leftGUI)?.isPressed ?? false ||
+                               keyboardInput.button(forKeyCode: .rightGUI)?.isPressed ?? false
+        } else {
+            isCommandPressed = false
+        }
+        
+        if isCommandPressed {
+            handleCommandTapSelection()
+        } else if project.isSubtitleMultiSelecting && isInActiveGroup {
             if project.selectedIDs.contains(item.id) {
                 project.selectedIDs.remove(item.id)
                 if project.selectedIDs.isEmpty {
@@ -256,6 +269,7 @@ struct InteractiveSubtitleBlock: View {
         .onTapGesture(count: 1) {
             handleTapSelection()
         }
+        #if os(macOS)
         // Command+点击多选
         .highPriorityGesture(
             TapGesture()
@@ -264,6 +278,7 @@ struct InteractiveSubtitleBlock: View {
                     handleCommandTapSelection()
                 }
         )
+        #endif
         #if os(iOS)
         // iOS 长按菜单
         .simultaneousGesture(

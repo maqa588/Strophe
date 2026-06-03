@@ -64,7 +64,9 @@ struct SubtitleBlocksLayer: View {
                     project.selectedIDs.removeAll()
                     project.isSubtitleMultiSelecting = false
                 }
+                #if os(macOS)
                 .gesture(marqueeGesture)
+                #endif
             
             ZStack(alignment: .topLeading) {
                 if visibleItems.count > 150 {

@@ -127,7 +127,7 @@ struct EditingModeControlsLegacy: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .keyboardShortcutIf(!isEditingText && shortcut != nil, shortcut!, modifiers: modifiers)
+        .optionalKeyboardShortcut(shortcut, enabled: !isEditingText, modifiers: modifiers)
         #if os(iOS)
         .popover(isPresented: tipBinding, arrowEdge: .top) {
             RichTooltipView(icon: tooltipIcon, title: tooltipTitle, message: tooltipMessage)
@@ -288,5 +288,16 @@ struct EditingModeControlsLegacy: View {
         .padding(2)
         .background(Color.primary.opacity(0.05))
         .cornerRadius(8)
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func optionalKeyboardShortcut(_ key: KeyEquivalent?, enabled: Bool, modifiers: EventModifiers = []) -> some View {
+        if enabled, let key {
+            self.keyboardShortcut(key, modifiers: modifiers)
+        } else {
+            self
+        }
     }
 }
