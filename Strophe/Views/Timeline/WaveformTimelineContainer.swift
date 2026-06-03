@@ -38,7 +38,6 @@ struct WaveformTimelineContainer: View {
         #endif
     }
     
-    let proxy: ScrollViewProxy
     
     private var currentTimeBinding: Binding<Double> {
         Binding(
@@ -206,11 +205,9 @@ struct WaveformTimelineContainer: View {
                 project.referenceDate = .now
             }
             
-            // ── Page Scroll Anchor View ────────────────────────
-            Color.clear
-                .frame(width: 1, height: 1)
-                .offset(x: CGFloat(max(0.0, scrollPageStartTime * safePixelsPerSecond)))
-                .id("scroll-page-anchor")
+            ScrollViewTracker(scrollPageStartTime: scrollPageStartTime, pixelsPerSecond: safePixelsPerSecond)
+                .frame(width: 0, height: 0)
+                .allowsHitTesting(false)
             
             // ── 播放头：完全锁频在 100Hz 运动，丝毫不抖 ──
             TimelineView(.animation) { timeline in
@@ -235,9 +232,9 @@ struct WaveformTimelineContainer: View {
                 .frame(height: rulerHeight + waveHeight)
                 .offset(x: CGFloat(max(0.0, smoothTime * safePixelsPerSecond)))
                 .task(id: smoothScrollPageStartTime) {
+                    guard project.playbackRate != 0 else { return }
                     guard scrollPageStartTime != smoothScrollPageStartTime else { return }
                     scrollPageStartTime = smoothScrollPageStartTime
-                    proxy.scrollTo("scroll-page-anchor", anchor: .leading)
                 }
             }
         }
@@ -256,8 +253,18 @@ struct WaveformTimelineContainer: View {
     private func calculatePageStart(smoothTime: Double, visibleDuration: Double, duration: Double) -> Double {
         if isDraggingPlayhead || isUserInteracting {
             return scrollPageStartTime.isFinite ? scrollPageStartTime : 0
+        }
+        
+        guard smoothTime.isFinite, visibleDuration.isFinite, duration.isFinite else { return 0 }
+        
+        let currentStart = visibleStartTime.isFinite ? visibleStartTime : 0
+        let currentEnd = currentStart + visibleDuration
+        
+        // If playhead is inside the current visible page, don't trigger auto-scroll
+        if smoothTime >= currentStart && smoothTime <= currentEnd {
+            return scrollPageStartTime.isFinite ? scrollPageStartTime : 0
         } else {
-            guard smoothTime.isFinite, visibleDuration.isFinite, duration.isFinite else { return 0 }
+            // Playhead went off-screen. Scroll to the page containing smoothTime
             let pageIndex = Int(smoothTime / max(0.001, visibleDuration))
             let target = Double(pageIndex) * visibleDuration
             return max(0.0, min(max(0.0, duration - visibleDuration), target))

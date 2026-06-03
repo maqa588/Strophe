@@ -253,22 +253,21 @@ class WaveformData: ObservableObject {
         guard !samples.isEmpty else { return }
         
         for zoom in WaveformProcessor.zoomLevels {
-            guard var mainBins = self.levels[zoom] else { continue }
+            guard let mainBinCount = self.levels[zoom]?.count else { continue }
             
             let startSample = Int(chunkStart * sampleRate)
             let endSample = Int((chunkStart + chunkDur) * sampleRate)
             
             let startBinIndex = startSample / zoom
-            let endBinIndex = min(mainBins.count, endSample / zoom)
+            let endBinIndex = min(mainBinCount, endSample / zoom)
             let expectedBinCount = endBinIndex - startBinIndex
             
             guard expectedBinCount > 0 else { continue }
             
             let chunkBins = WaveformProcessor.computeBins(samples: samples, expectedBinCount: expectedBinCount)
             
-            if startBinIndex >= 0 && startBinIndex + chunkBins.count <= mainBins.count {
-                mainBins.replaceSubrange(startBinIndex..<(startBinIndex + chunkBins.count), with: chunkBins)
-                self.levels[zoom] = mainBins
+            if startBinIndex >= 0 && startBinIndex + chunkBins.count <= mainBinCount {
+                self.levels[zoom]?.replaceSubrange(startBinIndex..<(startBinIndex + chunkBins.count), with: chunkBins)
             }
         }
     }

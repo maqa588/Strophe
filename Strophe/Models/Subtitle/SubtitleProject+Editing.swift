@@ -492,14 +492,10 @@ extension SubtitleProject {
                 targetIndex = index
                 targetID = activeID
             }
-        } else if let index = items.firstIndex(where: {
-            if let start = $0.startTime, let end = $0.endTime {
-                return currentTime >= start && currentTime <= end
-            }
-            return false
-        }) {
+        } else if let firstMatch = timelineIndex.visibleItems(in: currentTime...currentTime).first,
+                  let index = timelineIndex.itemIndexByID[firstMatch.id] {
             targetIndex = index
-            targetID = items[index].id
+            targetID = firstMatch.id
         } else if let index = items.firstIndex(where: { $0.startTime == nil }) {
             targetIndex = index
             targetID = items[index].id

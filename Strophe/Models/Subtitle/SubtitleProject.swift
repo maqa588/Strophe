@@ -15,10 +15,19 @@ extension Notification.Name {
 
 @MainActor
 class SubtitleProject: ObservableObject {
-    @Published var items: [SubtitleItem] = []
+    @Published var timelineIndex: TimelineIndex = TimelineIndex()
+    @Published var items: [SubtitleItem] = [] {
+        didSet {
+            timelineIndex.rebuild(with: items)
+        }
+    }
     @Published var currentIndex: Int = 0
     @Published var scrollTargetID: UUID? = nil
-    @Published var showSoftSubtitles: Bool = false
+    @Published var showSoftSubtitles: Bool = false {
+        didSet {
+            notifyChange()
+        }
+    }
     @Published var showHardSubtitles: Bool = false
     @Published var isSeeking: Bool = false
     @Published var editingMode: TimelineEditingMode = .selection
@@ -30,6 +39,7 @@ class SubtitleProject: ObservableObject {
     @Published private(set) var isDirty: Bool = false
     @Published private(set) var documentName: String = ""
     @Published var mediaLoadError: String? = nil
+    @Published var isLoadingProject: Bool = false
     
     let undoManager = UndoManager()
     
@@ -48,13 +58,14 @@ class SubtitleProject: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor [weak self] in
+            MainActor.assumeIsolated {
                 self?.isDirty = true
             }
         }
     }
     
     func notifyChange() {
+        isDirty = true
         NotificationCenter.default.post(name: .subtitleProjectDidChange, object: nil)
     }
     
@@ -181,6 +192,7 @@ class SubtitleProject: ObservableObject {
     @Published var activeSlapSubtitleID: UUID? = nil
     
     @Published var currentSubtitleText: String? = nil
+    @Published var loadedPlayheadTime: Double? = nil
     
     func subtitleText(at time: Double) -> String? {
         if let activeID = activeSlapSubtitleID,

@@ -953,9 +953,23 @@ struct AutoCaptionView: View {
                     }
                 )
                 
-                let generatedSubtitles = results.enumerated().map { index, seg in
-                    SubtitleItem(
-                        text: cleanSubtitleText(seg.text),
+                let generatedSubtitles = results.enumerated().compactMap { index, seg -> SubtitleItem? in
+                    let cleaned = cleanSubtitleText(seg.text)
+                    
+                    // 去除可能存在的说话人标签后再检查是否为空
+                    var textWithoutSpeaker = cleaned
+                    if textWithoutSpeaker.hasPrefix("["), let endBracket = textWithoutSpeaker.firstIndex(of: "]") {
+                        let startIndex = textWithoutSpeaker.index(after: endBracket)
+                        textWithoutSpeaker = String(textWithoutSpeaker[startIndex...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                    
+                    // 如果字幕块最终只有“嗯啊呃”或标点符号（即剥离说话人标签后为空），则丢弃该字幕块
+                    if textWithoutSpeaker.isEmpty {
+                        return nil
+                    }
+                    
+                    return SubtitleItem(
+                        text: cleaned,
                         startTime: seg.startTime,
                         endTime: seg.endTime,
                         originalIndex: index
@@ -997,6 +1011,12 @@ struct AutoCaptionView: View {
     
     private func cleanSubtitleText(_ text: String) -> String {
         var result = text
+        
+        // 剔除 Qwen ASR3 经常生成的卡顿字
+        let hesitationWords = ["嗯", "啊", "呃"]
+        for word in hesitationWords {
+            result = result.replacingOccurrences(of: word, with: "")
+        }
         
         // Remove periods, semicolons, and question marks (both Chinese and English)
         let toRemove = ["。", ".", "；", ";", "？", "?"]

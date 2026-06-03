@@ -22,11 +22,11 @@ struct SubtitleSplitView: View {
     }
 
     private var leftText: String {
-        String(characters.prefix(cursorPosition))
+        String(characters.prefix(cursorPosition)).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var rightText: String {
-        String(characters.suffix(characters.count - cursorPosition))
+        String(characters.suffix(characters.count - cursorPosition)).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     init(item: SubtitleItem, splitTime: TimeInterval, project: SubtitleProject, onDismiss: @escaping () -> Void) {

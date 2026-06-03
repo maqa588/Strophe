@@ -43,7 +43,8 @@ struct ScriptListView: View {
             project.isEditingText = newValue
         }
         .alert(String(localized: "编辑字幕内容"), isPresented: $isEditingText) {
-            TextField("输入新字幕文本", text: $editingText)
+            TextField("输入新字幕文本", text: $editingText, axis: .vertical)
+                .lineLimit(3...6)
             Button("确定") {
                 if let item = editingItem {
                     project.updateSubtitleText(id: item.id, text: editingText)

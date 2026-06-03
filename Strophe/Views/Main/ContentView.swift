@@ -26,7 +26,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ContentView: View {
-    var project: SubtitleProject
+    @ObservedObject var project: SubtitleProject
     @Environment(\.horizontalSizeClass) var sizeClass
 
     @State private var selectedTab: StropheTab = .editor
@@ -37,6 +37,8 @@ struct ContentView: View {
     @State private var isShowingOpenProject = false
     @State private var isShowingOverwriteAlert = false
     @State private var pendingStropheURL: URL? = nil
+    @State private var isShowingRestoreTimeAlert = false
+    @State private var pendingRestoreTime: Double = 0
     #if os(macOS)
     @State private var isShowingSaveOnQuitAlert = false
     @State private var isQuittingAfterSave = false
@@ -60,6 +62,11 @@ struct ContentView: View {
             }
         }
         .tint(Color.stropheAccent)
+        .overlay {
+            if project.isLoadingProject {
+                projectLoadingOverlay
+            }
+        }
         .fileImporter(
             isPresented: $isShowingOpenProject,
             allowedContentTypes: [.stropheProject],
@@ -99,7 +106,7 @@ struct ContentView: View {
             Button(String(localized: "覆盖"), role: .destructive) {
                 if let url = pendingStropheURL {
                     Task {
-                        try? await project.importStropheProject(from: url)
+                        await openProject(url)
                     }
                 }
                 pendingStropheURL = nil
@@ -143,6 +150,24 @@ struct ContentView: View {
             Text(String(localized: "如果未保存，编辑的内容将会丢失。"))
         }
         #endif
+        .alert(
+            String(localized: "是否回到上次编辑位置？"),
+            isPresented: $isShowingRestoreTimeAlert
+        ) {
+            Button(String(localized: "恢复位置")) {
+                project.currentTime = pendingRestoreTime
+            }
+            Button(String(localized: "不恢复"), role: .cancel) { }
+        } message: {
+            Text(String(localized: "该工程文件保存了上一次的时间轴位置，是否要跳转到该位置？"))
+        }
+        .onChange(of: project.loadedPlayheadTime) { _, newValue in
+            if let time = newValue {
+                pendingRestoreTime = time
+                isShowingRestoreTimeAlert = true
+                project.loadedPlayheadTime = nil
+            }
+        }
         .onAppear {
             setupKeyboardMonitor()
         }
@@ -384,9 +409,44 @@ struct ContentView: View {
                 isShowingOverwriteAlert = true
             } else {
                 Task {
-                    try? await project.importStropheProject(from: url)
+                    await openProject(url)
                 }
             }
+        }
+    }
+
+    private var projectLoadingOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.18)
+                .ignoresSafeArea()
+
+            VStack(spacing: 10) {
+                ProgressView()
+                    .controlSize(.small)
+                Text(String(localized: "正在打开项目"))
+                    .font(.caption.weight(.semibold))
+                Text(String(localized: "正在读取字幕、重建时间轴索引并准备波形"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(14)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color.stropheBorder.opacity(0.35), lineWidth: 1)
+            )
+        }
+    }
+
+    @MainActor
+    private func openProject(_ url: URL) async {
+        project.isLoadingProject = true
+        await Task.yield()
+        defer { project.isLoadingProject = false }
+        do {
+            try await project.importStropheProject(from: url)
+        } catch {
+            print("Failed to open project: \(error.localizedDescription)")
         }
     }
 }

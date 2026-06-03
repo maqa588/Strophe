@@ -25,20 +25,21 @@ struct SubtitleBlocksLayer: View {
     }
     
     private var renderEndTime: Double {
-        visibleStartTime + viewWidth / pixelsPerSecond + visiblePadding
+        visibleStartTime + Double(viewWidth) / pixelsPerSecond + visiblePadding
     }
     
     private var visiblePadding: Double {
-        viewWidth / pixelsPerSecond * 0.3
+        Double(viewWidth) / pixelsPerSecond * 0.3
     }
     
     private var visibleItems: [SubtitleItem] {
-        project.items.filter { item in
-            if item.id == project.activeSlapSubtitleID { return true }
-            guard let start = item.startTime else { return false }
-            let end = item.endTime ?? (start + 0.1)
-            return end >= renderStartTime && start <= renderEndTime
+        var items = project.timelineIndex.visibleItems(in: renderStartTime...renderEndTime)
+        if let id = project.activeSlapSubtitleID, !items.contains(where: { $0.id == id }) {
+            if let slapItem = project.items.first(where: { $0.id == id }) {
+                items.append(slapItem)
+            }
         }
+        return items
     }
     
     private var visibleOverlaps: [SubtitleProject.OverlapInterval] {
@@ -47,59 +48,102 @@ struct SubtitleBlocksLayer: View {
         }
     }
     
-    // 框选状态
+    // 框选和拖拽状态
     @State private var marqueeStart: CGFloat? = nil
     @State private var marqueeCurrent: CGFloat? = nil
-    @State private var sweepSelectionStartX: CGFloat? = nil
+    
+    @State private var activeDragItemID: UUID? = nil
+    @State private var activeDragEdge: TimelineInteractionLayer.Edge? = nil
+    @State private var activeDragDelta: Double = 0
     
     var body: some View {
-        ZStack(alignment: .leading) {
-            // 背景透明接收板：框选操作与点击空白处取消选中
-            Color.black.opacity(0.001)
+        ZStack(alignment: .topLeading) {
+            Color.clear
                 .contentShape(Rectangle())
                 .onTapGesture {
                     project.selectedIDs.removeAll()
                     project.isSubtitleMultiSelecting = false
                 }
-                #if os(macOS)
                 .gesture(marqueeGesture)
-                #endif
             
-            ZStack(alignment: .leading) {
-                ForEach(visibleItems) { item in
-                    if let start = item.startTime {
-                        let rawEnd = item.endTime ?? (start + 0.1)
-                        // 💡 如果当前字幕块是正在被拍打的活跃字幕块，我们使用高精度的 smoothTime 实时延伸，画出丝滑生长效果！
-                        let displayEnd = (project.activeSlapSubtitleID == item.id)
-                            ? max(start + 0.1, smoothTime)
-                            : rawEnd
-                        
-                        InteractiveSubtitleBlock(
-                            item: item,
-                            start: start,
-                            end: displayEnd,
-                            pixelsPerSecond: pixelsPerSecond,
-                            project: project,
-                            onSweepSelectionStart: { item in
-                                beginSweepSelection(with: item)
-                            },
-                            onSweepSelectionChange: { locationX in
-                                updateSweepSelection(to: locationX)
-                            },
-                            onSweepSelectionEnd: {
-                                endSweepSelection()
+            ZStack(alignment: .topLeading) {
+                if visibleItems.count > 150 {
+                    // Compact LOD Mode
+                    Canvas { context, size in
+                        let blockHeight: CGFloat = 30
+                        let blockY: CGFloat = 80
+                        for item in visibleItems {
+                            let group = project.subgroup(for: item)
+                            let groupColor = group?.color ?? Color.stropheBlue
+                            let isSelected = project.selectedIDs.contains(item.id)
+                            
+                            guard let start = item.startTime else { continue }
+                            let rawEnd = item.endTime ?? (start + 0.1)
+                            let displayEnd = (project.activeSlapSubtitleID == item.id) ? max(start + 0.1, smoothTime) : rawEnd
+                            
+                            var currentStart = start
+                            var currentEnd = displayEnd
+                            
+                            if item.id == activeDragItemID {
+                                if activeDragEdge == .left {
+                                    currentStart += activeDragDelta
+                                } else if activeDragEdge == .right {
+                                    currentEnd += activeDragDelta
+                                } else {
+                                    currentStart += activeDragDelta
+                                    currentEnd += activeDragDelta
+                                }
+                            } else if activeDragEdge == nil && activeDragItemID != nil && project.selectedIDs.contains(item.id) {
+                                currentStart += activeDragDelta
+                                currentEnd += activeDragDelta
                             }
-                        )
+                            
+                            let x = CGFloat(currentStart * pixelsPerSecond)
+                            let width = CGFloat((currentEnd - currentStart) * pixelsPerSecond)
+                            let rect = CGRect(x: x, y: blockY, width: max(1, width), height: blockHeight)
+                            
+                            let fill = isSelected ? groupColor.opacity(0.62) : groupColor.opacity(0.28)
+                            let stroke = isSelected ? Color.yellow : groupColor
+                            
+                            context.fill(Path(roundedRect: rect, cornerRadius: 4), with: .color(fill))
+                            context.stroke(Path(roundedRect: rect, cornerRadius: 4), with: .color(stroke), lineWidth: isSelected ? 2 : 1)
+                        }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .allowsHitTesting(false)
+                } else {
+                    ZStack(alignment: .topLeading) {
+                        ForEach(visibleItems) { item in
+                            if let start = item.startTime {
+                                let rawEnd = item.endTime ?? (start + 0.1)
+                                let displayEnd = (project.activeSlapSubtitleID == item.id)
+                                    ? max(start + 0.1, smoothTime)
+                                    : rawEnd
+                                
+                                InteractiveSubtitleBlock(
+                                    item: item,
+                                    start: start,
+                                    end: displayEnd,
+                                    pixelsPerSecond: pixelsPerSecond,
+                                    project: project,
+                                    activeDragItemID: $activeDragItemID,
+                                    activeDragEdge: $activeDragEdge,
+                                    activeDragDelta: $activeDragDelta
+                                )
+                            }
+                        }
+                    }
+                    .padding(.top, 80)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
             
             // ── Overlap diagnostic highlights layer ──────────────────
             ForEach(visibleOverlaps, id: \.self) { interval in
                 OverlapStripesView()
                     .frame(width: CGFloat((interval.end - interval.start) * pixelsPerSecond), height: 30)
-                    .offset(x: CGFloat(interval.start * pixelsPerSecond), y: 35)
-                    .allowsHitTesting(false) // 允许鼠标事件穿透，确保用户依然可以拖动字幕块！
+                    .offset(x: CGFloat(interval.start * pixelsPerSecond), y: 80)
+                    .allowsHitTesting(false)
             }
             
             // 框选虚线选框
@@ -115,14 +159,15 @@ struct SubtitleBlocksLayer: View {
                             .stroke(Color.stropheBlue, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round, dash: [4, 4]))
                     )
                     .frame(width: width, height: 32)
-                    .offset(x: minX, y: 34)
+                    .offset(x: minX, y: 79)
+                    .allowsHitTesting(false)
             }
         }
         .coordinateSpace(name: subtitleBlocksCoordinateSpaceName)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .clipped()
     }
-    
-    // macOS keeps direct marquee selection; iPhone/iPad use block long-press sweep
-    // selection from InteractiveSubtitleBlock to avoid fighting timeline scroll.
+
     private var marqueeGesture: some Gesture {
         let drag = DragGesture(minimumDistance: 5)
             .onChanged { value in
@@ -166,7 +211,6 @@ struct SubtitleBlocksLayer: View {
         #endif
     }
     
-    // 计算框选碰撞，更新被选中的字幕块集合
     private func updateSelectionForMarquee() {
         guard let startX = marqueeStart, let currentX = marqueeCurrent else { return }
         let minTime = Double(min(startX, currentX)) / pixelsPerSecond
@@ -176,7 +220,6 @@ struct SubtitleBlocksLayer: View {
         var newSelected = Set<UUID>()
         for item in project.items {
             if let start = item.startTime, let end = item.endTime {
-                // 如果字幕块与选框范围相交，则被框选中
                 if start <= maxTime && end >= minTime,
                    project.subgroup(for: item)?.id == activeGroupID {
                     newSelected.insert(item.id)
@@ -184,57 +227,6 @@ struct SubtitleBlocksLayer: View {
             }
         }
         project.selectedIDs = newSelected
-    }
-
-    private func beginSweepSelection(with item: SubtitleItem) {
-        guard project.subgroup(for: item)?.id == StyleAndGroupStore.shared.activeGroupID else { return }
-        project.editingMode = .selection
-        project.isSubtitleMultiSelecting = true
-        project.selectedIDs = [item.id]
-
-        if let start = item.startTime {
-            let end = item.endTime ?? (start + 0.1)
-            sweepSelectionStartX = CGFloat(((start + end) / 2) * pixelsPerSecond)
-        } else {
-            sweepSelectionStartX = nil
-        }
-
-        triggerSweepSelectionFeedback()
-    }
-
-    private func updateSweepSelection(to locationX: CGFloat) {
-        guard let startX = sweepSelectionStartX else { return }
-
-        let minTime = Double(min(startX, locationX)) / pixelsPerSecond
-        let maxTime = Double(max(startX, locationX)) / pixelsPerSecond
-        let activeGroupID = StyleAndGroupStore.shared.activeGroupID
-
-        var selected = Set<UUID>()
-        for item in project.items {
-            guard let start = item.startTime else { continue }
-            let end = item.endTime ?? (start + 0.1)
-            if start <= maxTime && end >= minTime,
-               project.subgroup(for: item)?.id == activeGroupID {
-                selected.insert(item.id)
-            }
-        }
-
-        if !selected.isEmpty {
-            project.selectedIDs = selected
-        }
-    }
-
-    private func endSweepSelection() {
-        sweepSelectionStartX = nil
-    }
-
-    private func triggerSweepSelectionFeedback() {
-        #if os(macOS)
-        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
-        #elseif os(iOS)
-        let generator = UIImpactFeedbackGenerator(style: .medium)
-        generator.impactOccurred()
-        #endif
     }
 }
 
@@ -247,7 +239,6 @@ struct OverlapStripesView: View {
             
             context.stroke(
                 Path { path in
-                    // 循环生成斜线：起点在上方，终点在下方，产生向右倾斜的斜线
                     for x in stride(from: -size.height, to: size.width + size.height, by: step) {
                         path.move(to: CGPoint(x: x, y: 0))
                         path.addLine(to: CGPoint(x: x + size.height, y: size.height))

@@ -124,7 +124,7 @@ struct HardSubtitleExportSettingsSheet: View {
                                         }
                                         Slider(value: $settings.crfLikeValue, in: 16...34, step: 1)
                                             .tint(Color.stropheAccent)
-                                        Text("数字越小画质越高、文件越大。Apple VideoToolbox 不开放 x264/x265 的真 CRF，这里会用类 CRF 估算码率。")
+                                        Text("数字越小画质越高，导出速度也会相应变慢，同时文件会变大。")
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
                                     }
@@ -163,10 +163,7 @@ struct HardSubtitleExportSettingsSheet: View {
                                     .labelsHidden()
                                 }
                                 
-                                Text("1080p 30fps 预估：\(estimatedBitrateText)。实际码率仍由 VideoToolbox 和画面复杂度决定。")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
+                                }
                         }
                     }
                     .padding()
@@ -252,7 +249,7 @@ struct HardSubtitleExportSettingsSheet: View {
                                         .foregroundStyle(.secondary)
                                 }
                                 Slider(value: $settings.crfLikeValue, in: 16...34, step: 1)
-                                Text("数字越小画质越高、文件越大。Apple VideoToolbox 不开放 x264/x265 的真 CRF，这里会用类 CRF 估算码率。")
+                                Text("数字越小画质越高，导出速度也会相应变慢，同时文件会变大。")
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
                             }
@@ -279,9 +276,6 @@ struct HardSubtitleExportSettingsSheet: View {
                         }
                         .pickerStyle(.segmented)
 
-                        Text("1080p 30fps 预估：\(estimatedBitrateText)。实际码率仍由 VideoToolbox 和画面复杂度决定。")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -305,12 +299,5 @@ struct HardSubtitleExportSettingsSheet: View {
                 }
             }
         }
-    }
-
-
-    private var estimatedBitrateText: String {
-        guard settings.codec != .proRes422 else { return "ProRes 自动" }
-        let bitrate = settings.resolvedBitrate(width: 1920, height: 1080, frameRate: 30)
-        return String(format: "%.2f Mbps", Double(bitrate) / 1_000_000)
     }
 }

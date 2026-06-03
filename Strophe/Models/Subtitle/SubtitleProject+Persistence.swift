@@ -132,9 +132,11 @@ extension SubtitleProject {
     func loadStrophe(from url: URL) async throws {
         let didAccess = url.startAccessingSecurityScopedResource()
         defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
-        let rawData = try Data(contentsOf: url)
-        let decoder = JSONDecoder()
-        let decoded = try decoder.decode(StropheProjectData.self, from: rawData)
+        let decoded = try await Task.detached(priority: .userInitiated) {
+            let rawData = try Data(contentsOf: url)
+            let decoder = JSONDecoder()
+            return try decoder.decode(StropheProjectData.self, from: rawData)
+        }.value
         
         guard decoded.version == 1 else {
             throw NSError(domain: "Strophe", code: 1, userInfo: [NSLocalizedDescriptionKey: "Unsupported project version"])
@@ -155,6 +157,12 @@ extension SubtitleProject {
         editingMode = decoded.metadata.editingMode
         currentTime = 0
         currentIndex = 0
+        
+        if decoded.metadata.currentTime > 0.1 {
+            loadedPlayheadTime = decoded.metadata.currentTime
+        } else {
+            loadedPlayheadTime = nil
+        }
         
         projectURL = url
         setDocumentName(url.deletingPathExtension().lastPathComponent)

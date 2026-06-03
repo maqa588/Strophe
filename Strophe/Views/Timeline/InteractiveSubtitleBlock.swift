@@ -20,20 +20,13 @@ struct InteractiveSubtitleBlock: View {
     let pixelsPerSecond: Double
     @ObservedObject var project: SubtitleProject
     @ObservedObject private var store = StyleAndGroupStore.shared
-    var onSweepSelectionStart: ((SubtitleItem) -> Void)? = nil
-    var onSweepSelectionChange: ((CGFloat) -> Void)? = nil
-    var onSweepSelectionEnd: (() -> Void)? = nil
+    @Binding var activeDragItemID: UUID?
+    @Binding var activeDragEdge: TimelineInteractionLayer.Edge?
+    @Binding var activeDragDelta: Double
     
-    @State private var dragOffset: CGFloat = 0
-    @State private var edgeDragOffset: CGFloat = 0
-    @State private var draggingEdge: Edge? = nil
     @State private var isSweepSelecting = false
-    
-    // 磁力吸附与物理反馈状态
-    @State private var isSnappedLeft = false
-    @State private var isSnappedRight = false
-    @State private var isSnappedCenter = false
-    @State private var snappedTime: Double? = nil
+    @State private var dragMode: BlockDragMode = .none
+    @State private var isSnapped = false
     
     // 文字编辑弹窗控制
     @State private var isEditingText = false
@@ -44,8 +37,13 @@ struct InteractiveSubtitleBlock: View {
     @State private var isShowingBlockActions = false
     @State private var popoverMode: BlockActionsMode = .actions
     
-    enum Edge { case left, right }
     enum BlockActionsMode { case actions, groups, styles, multiSelect }
+    enum BlockDragMode {
+        case move(itemID: UUID, startTimes: [UUID: Double], endTimes: [UUID: Double])
+        case leftEdge(itemID: UUID, initialStart: Double, initialEnd: Double)
+        case rightEdge(itemID: UUID, initialStart: Double, initialEnd: Double)
+        case none
+    }
 
     private var isInActiveGroup: Bool {
         project.subgroup(for: item, store: store)?.id == store.activeGroupID
@@ -80,6 +78,10 @@ struct InteractiveSubtitleBlock: View {
                 }
             }
     }
+
+    private func timeDelta(for dragValue: DragGesture.Value) -> Double {
+        Double(dragValue.location.x - dragValue.startLocation.x) / pixelsPerSecond
+    }
     
     private func triggerHapticFeedback() {
         #if os(macOS)
@@ -106,19 +108,32 @@ struct InteractiveSubtitleBlock: View {
             project.isSubtitleMultiSelecting = false
         }
         #else
-        DispatchQueue.main.async {
-            if NSEvent.modifierFlags.contains(.command) {
-                guard self.isInActiveGroup else { return }
-                if self.project.selectedIDs.contains(self.item.id) {
-                    self.project.selectedIDs.remove(self.item.id)
-                } else {
-                    self.project.selectedIDs.insert(self.item.id)
-                }
+        if NSEvent.modifierFlags.contains(.command) {
+            guard self.isInActiveGroup else { return }
+            if self.project.selectedIDs.contains(self.item.id) {
+                self.project.selectedIDs.remove(self.item.id)
             } else {
-                self.project.selectedIDs = [self.item.id]
+                self.project.selectedIDs.insert(self.item.id)
             }
+            self.project.isSubtitleMultiSelecting = self.project.selectedIDs.count > 1
+        } else {
+            self.project.selectedIDs = [self.item.id]
+            self.project.isSubtitleMultiSelecting = false
         }
         #endif
+    }
+
+    private func handleCommandTapSelection() {
+        guard self.isInActiveGroup else { return }
+        if self.project.selectedIDs.contains(self.item.id) {
+            self.project.selectedIDs.remove(self.item.id)
+            if self.project.selectedIDs.isEmpty {
+                self.project.isSubtitleMultiSelecting = false
+            }
+        } else {
+            self.project.selectedIDs.insert(self.item.id)
+            self.project.isSubtitleMultiSelecting = self.project.selectedIDs.count > 1
+        }
     }
 
     private func showBlockActions() {
@@ -131,19 +146,37 @@ struct InteractiveSubtitleBlock: View {
         }
     }
     
+    private var currentStart: Double {
+        if item.id == activeDragItemID {
+            if activeDragEdge == .left {
+                return start + activeDragDelta
+            } else if activeDragEdge != .right {
+                return start + activeDragDelta
+            }
+        } else if activeDragEdge == nil && activeDragItemID != nil && project.selectedIDs.contains(item.id) {
+            return start + activeDragDelta
+        }
+        return start
+    }
+    
+    private var currentEnd: Double {
+        if item.id == activeDragItemID {
+            if activeDragEdge == .right {
+                return end + activeDragDelta
+            } else if activeDragEdge != .left {
+                return end + activeDragDelta
+            }
+        } else if activeDragEdge == nil && activeDragItemID != nil && project.selectedIDs.contains(item.id) {
+            return end + activeDragDelta
+        }
+        return end
+    }
+    
     var body: some View {
-        let baseWidth = CGFloat((end - start) * pixelsPerSecond)
-        let baseX = CGFloat(start * pixelsPerSecond)
-        
-        let currentWidth = max(4, baseWidth + (draggingEdge == .right ? edgeDragOffset : (draggingEdge == .left ? -edgeDragOffset : 0)))
-        
-        let effectiveDragOffset: CGFloat = draggingEdge == nil ? (
-            project.selectedIDs.contains(item.id) && project.activeDragItemID != nil
-            ? CGFloat(project.activeDragDelta * pixelsPerSecond)
-            : dragOffset
-        ) : 0
-        
-        let currentX = baseX + (draggingEdge == .left ? edgeDragOffset : 0) + effectiveDragOffset
+        let currentStartVal = currentStart
+        let currentEndVal = currentEnd
+        let currentWidth = max(4, CGFloat((currentEndVal - currentStartVal) * pixelsPerSecond))
+        let currentX = CGFloat(currentStartVal * pixelsPerSecond)
         
         let isSelected = project.selectedIDs.contains(item.id)
         let group = project.subgroup(for: item, store: store)
@@ -151,6 +184,8 @@ struct InteractiveSubtitleBlock: View {
         let isLocked = item.isLocked || group?.isLocked == true
         let isDimmed = item.isHidden || group?.isOverlayEnabled == false
         let hasIndependentPresentation = item.hasIndependentPresentation
+        let edgeHandleWidth = min(8, max(2, currentWidth * 0.5))
+        let moveHandleWidth = max(0, currentWidth - edgeHandleWidth * 2)
         
         ZStack {
             // 主体块
@@ -187,185 +222,50 @@ struct InteractiveSubtitleBlock: View {
                     )
             )
             
-            // 边缘拉伸把手（仅在选择模式下激活）
-            if project.editingMode == .selection {
+            if project.editingMode == .selection && !isLocked {
                 HStack(spacing: 0) {
-                    // 左拉把手
                     Rectangle()
-                        .fill(Color.white.opacity(0.01))
-                        .frame(width: 8, height: 30)
+                        .fill(Color.white.opacity(0.001))
+                        .frame(width: edgeHandleWidth, height: 30)
                         .contentShape(Rectangle())
-                        #if os(macOS)
-                        .onHover { hover in
-                            if hover { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
-                        }
-                        #endif
-                        .gesture(
-                            DragGesture(coordinateSpace: .global)
-                                .onChanged { value in
-                                    guard !isLocked else { return }
-                                    draggingEdge = .left
-                                    let rawProposedStart = start + Double(value.translation.width / pixelsPerSecond)
-                                    let snapCandidates = project.items.filter { $0.id != item.id }.flatMap { [$0.startTime, $0.endTime] }.compactMap { $0 }
-                                    
-                                    let playheadTime = project.currentTime
-                                    let playheadDistance = abs(playheadTime - rawProposedStart)
-                                    
-                                    var closestBlockSnap: Double? = nil
-                                    var blockDistance = Double.infinity
-                                    if let closest = snapCandidates.min(by: { abs($0 - rawProposedStart) < abs($1 - rawProposedStart) }) {
-                                        closestBlockSnap = closest
-                                        blockDistance = abs(closest - rawProposedStart)
-                                    }
-                                    
-                                    let activeThreshold = isSnappedLeft ? (20.0 / pixelsPerSecond) : (10.0 / pixelsPerSecond)
-                                    
-                                    let isPlayheadInThreshold = playheadDistance <= activeThreshold
-                                    let isBlockInThreshold = blockDistance <= activeThreshold
-                                    
-                                    var closestSnap: Double? = nil
-                                    if isPlayheadInThreshold && isBlockInThreshold {
-                                        // Competition: Prioritize playhead if they are very close, otherwise take the closer one
-                                        let difference = abs(playheadTime - closestBlockSnap!)
-                                        let closeProximityThreshold = 3.0 / pixelsPerSecond
-                                        if difference <= closeProximityThreshold {
-                                            closestSnap = playheadTime
-                                        } else {
-                                            closestSnap = (playheadDistance < blockDistance) ? playheadTime : closestBlockSnap
-                                        }
-                                    } else if isPlayheadInThreshold {
-                                        closestSnap = playheadTime
-                                    } else if isBlockInThreshold {
-                                        closestSnap = closestBlockSnap
-                                    }
-                                    
-                                    var matchedSnap: Double? = nil
-                                    if let snap = closestSnap {
-                                        if !isSnappedLeft {
-                                            isSnappedLeft = true
-                                            snappedTime = snap
-                                            triggerHapticFeedback()
-                                        }
-                                        matchedSnap = snap
-                                    } else {
-                                        isSnappedLeft = false
-                                        snappedTime = nil
-                                    }
-                                    
-                                    if let snap = matchedSnap {
-                                        edgeDragOffset = CGFloat((snap - start) * pixelsPerSecond)
-                                    } else {
-                                        edgeDragOffset = value.translation.width
-                                    }
-                                }
-                                .onEnded { value in
-                                    guard !isLocked else {
-                                        edgeDragOffset = 0
-                                        draggingEdge = nil
-                                        return
-                                    }
-                                    let delta = edgeDragOffset / pixelsPerSecond
-                                    project.updateSubtitleTime(id: item.id, newStartTime: start + delta, newEndTime: end)
-                                    edgeDragOffset = 0
-                                    isSnappedLeft = false
-                                    snappedTime = nil
-                                    draggingEdge = nil
-                                }
-                        )
-                    
-                    Spacer(minLength: 0)
-                    
-                    // 右拉把手
+                        .cursor()
+                        .highPriorityGesture(edgeDragGesture(.left))
+
                     Rectangle()
-                        .fill(Color.white.opacity(0.01))
-                        .frame(width: 8, height: 30)
+                        .fill(Color.white.opacity(0.001))
+                        .frame(width: moveHandleWidth, height: 30)
                         .contentShape(Rectangle())
-                        #if os(macOS)
-                        .onHover { hover in
-                            if hover { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
-                        }
-                        #endif
-                        .gesture(
-                            DragGesture(coordinateSpace: .global)
-                                .onChanged { value in
-                                    guard !isLocked else { return }
-                                    draggingEdge = .right
-                                    let rawProposedEnd = end + Double(value.translation.width / pixelsPerSecond)
-                                    let snapCandidates = project.items.filter { $0.id != item.id }.flatMap { [$0.startTime, $0.endTime] }.compactMap { $0 }
-                                    
-                                    let playheadTime = project.currentTime
-                                    let playheadDistance = abs(playheadTime - rawProposedEnd)
-                                    
-                                    var closestBlockSnap: Double? = nil
-                                    var blockDistance = Double.infinity
-                                    if let closest = snapCandidates.min(by: { abs($0 - rawProposedEnd) < abs($1 - rawProposedEnd) }) {
-                                        closestBlockSnap = closest
-                                        blockDistance = abs(closest - rawProposedEnd)
-                                    }
-                                    
-                                    let activeThreshold = isSnappedRight ? (20.0 / pixelsPerSecond) : (10.0 / pixelsPerSecond)
-                                    
-                                    let isPlayheadInThreshold = playheadDistance <= activeThreshold
-                                    let isBlockInThreshold = blockDistance <= activeThreshold
-                                    
-                                    var closestSnap: Double? = nil
-                                    if isPlayheadInThreshold && isBlockInThreshold {
-                                        // Competition: Prioritize playhead if they are very close, otherwise take the closer one
-                                        let difference = abs(playheadTime - closestBlockSnap!)
-                                        let closeProximityThreshold = 3.0 / pixelsPerSecond
-                                        if difference <= closeProximityThreshold {
-                                            closestSnap = playheadTime
-                                        } else {
-                                            closestSnap = (playheadDistance < blockDistance) ? playheadTime : closestBlockSnap
-                                        }
-                                    } else if isPlayheadInThreshold {
-                                        closestSnap = playheadTime
-                                    } else if isBlockInThreshold {
-                                        closestSnap = closestBlockSnap
-                                    }
-                                    
-                                    var matchedSnap: Double? = nil
-                                    if let snap = closestSnap {
-                                        if !isSnappedRight {
-                                            isSnappedRight = true
-                                            snappedTime = snap
-                                            triggerHapticFeedback()
-                                        }
-                                        matchedSnap = snap
-                                    } else {
-                                        isSnappedRight = false
-                                        snappedTime = nil
-                                    }
-                                    
-                                    if let snap = matchedSnap {
-                                        edgeDragOffset = CGFloat((snap - end) * pixelsPerSecond)
-                                    } else {
-                                        edgeDragOffset = value.translation.width
-                                    }
-                                }
-                                .onEnded { value in
-                                    guard !isLocked else {
-                                        edgeDragOffset = 0
-                                        draggingEdge = nil
-                                        return
-                                    }
-                                    let delta = edgeDragOffset / pixelsPerSecond
-                                    project.updateSubtitleTime(id: item.id, newStartTime: start, newEndTime: end + delta)
-                                    edgeDragOffset = 0
-                                    isSnappedRight = false
-                                    snappedTime = nil
-                                    draggingEdge = nil
-                                }
-                        )
+                        .highPriorityGesture(moveDragGesture)
+
+                    Rectangle()
+                        .fill(Color.white.opacity(0.001))
+                        .frame(width: edgeHandleWidth, height: 30)
+                        .contentShape(Rectangle())
+                        .cursor()
+                        .highPriorityGesture(edgeDragGesture(.right))
                 }
-                .frame(width: currentWidth)
+                .frame(width: currentWidth, height: 30)
             }
         }
-        .offset(x: currentX, y: 35)
-        .onTapGesture {
+        // 双击字幕块自动进入编辑界面
+        .onTapGesture(count: 2) {
+            editingText = item.text
+            isEditingText = true
+        }
+        // 单击选中
+        .onTapGesture(count: 1) {
             handleTapSelection()
         }
+        // Command+点击多选
+        .highPriorityGesture(
+            TapGesture()
+                .modifiers(.command)
+                .onEnded {
+                    handleCommandTapSelection()
+                }
+        )
         #if os(iOS)
+        // iOS 长按菜单
         .simultaneousGesture(
             LongPressGesture(minimumDuration: 0.45)
                 .onEnded { _ in
@@ -373,142 +273,16 @@ struct InteractiveSubtitleBlock: View {
                 }
         )
         #endif
-        // 双击字幕块自动进入编辑界面
-        .simultaneousGesture(
-            TapGesture(count: 2)
-                .onEnded {
-                    editingText = item.text
-                    isEditingText = true
-                }
-        )
-        // 拖动平移字幕块手势
-        .gesture(
-            DragGesture(coordinateSpace: .global)
-                .onChanged { value in
-                    guard allowsDirectBlockDrag, project.editingMode == .selection, !isSweepSelecting, !isLocked else { return }
-                    if draggingEdge == nil {
-                        let rawProposedStart = start + Double(value.translation.width / pixelsPerSecond)
-                        let rawProposedEnd = end + Double(value.translation.width / pixelsPerSecond)
-                        let snapCandidates = project.items.filter { $0.id != item.id }.flatMap { [$0.startTime, $0.endTime] }.compactMap { $0 }
-                        
-                        // 1. Find the best snap candidate from other block edges
-                        var bestBlockSnapTime: Double? = nil
-                        var minBlockDistance = Double.infinity
-                        var blockSourceEdge: Edge = .left
-                        
-                        for candidate in snapCandidates {
-                            let distStart = abs(candidate - rawProposedStart)
-                            if distStart < minBlockDistance {
-                                minBlockDistance = distStart
-                                bestBlockSnapTime = candidate
-                                blockSourceEdge = .left
-                            }
-                            let distEnd = abs(candidate - rawProposedEnd)
-                            if distEnd < minBlockDistance {
-                                minBlockDistance = distEnd
-                                bestBlockSnapTime = candidate
-                                blockSourceEdge = .right
-                            }
-                        }
-                        
-                        // 2. Find the best snap candidate from the playhead
-                        let playheadTime = project.currentTime
-                        let playheadStartDistance = abs(playheadTime - rawProposedStart)
-                        let playheadEndDistance = abs(playheadTime - rawProposedEnd)
-                        
-                        let minPlayheadDistance = min(playheadStartDistance, playheadEndDistance)
-                        let playheadSourceEdge: Edge = (playheadStartDistance < playheadEndDistance) ? .left : .right
-                        
-                        // 3. Determine active threshold (hysteresis)
-                        let activeThreshold = isSnappedCenter ? (20.0 / pixelsPerSecond) : (10.0 / pixelsPerSecond)
-                        
-                        let isPlayheadInThreshold = minPlayheadDistance <= activeThreshold
-                        let isBlockInThreshold = minBlockDistance <= activeThreshold
-                        
-                        var closestSnap: Double? = nil
-                        var snapSourceEdge: Edge = .left
-                        
-                        if isPlayheadInThreshold && isBlockInThreshold {
-                            // Competition: Prioritize playhead if they are very close, otherwise take the closer one
-                            let difference = abs(playheadTime - bestBlockSnapTime!)
-                            let closeProximityThreshold = 3.0 / pixelsPerSecond
-                            if difference <= closeProximityThreshold {
-                                closestSnap = playheadTime
-                                snapSourceEdge = playheadSourceEdge
-                            } else {
-                                if minPlayheadDistance < minBlockDistance {
-                                    closestSnap = playheadTime
-                                    snapSourceEdge = playheadSourceEdge
-                                } else {
-                                    closestSnap = bestBlockSnapTime
-                                    snapSourceEdge = blockSourceEdge
-                                }
-                            }
-                        } else if isPlayheadInThreshold {
-                            closestSnap = playheadTime
-                            snapSourceEdge = playheadSourceEdge
-                        } else if isBlockInThreshold {
-                            closestSnap = bestBlockSnapTime
-                            snapSourceEdge = blockSourceEdge
-                        }
-                        
-                        var matchedSnap: Double? = nil
-                        if let snap = closestSnap {
-                            if !isSnappedCenter {
-                                isSnappedCenter = true
-                                snappedTime = snap
-                                triggerHapticFeedback()
-                            }
-                            matchedSnap = snap
-                        } else {
-                            isSnappedCenter = false
-                            snappedTime = nil
-                        }
-                        
-                        if let snap = matchedSnap {
-                            if snapSourceEdge == .left {
-                                dragOffset = CGFloat((snap - start) * pixelsPerSecond)
-                            } else {
-                                dragOffset = CGFloat((snap - end) * pixelsPerSecond)
-                            }
-                        } else {
-                            dragOffset = value.translation.width
-                        }
-
-                        if project.selectedIDs.count > 1 && project.selectedIDs.contains(item.id) {
-                            project.activeDragItemID = item.id
-                            project.activeDragDelta = Double(dragOffset / pixelsPerSecond)
-                        }
-                    }
-                }
-                .onEnded { value in
-                    guard allowsDirectBlockDrag, project.editingMode == .selection, !isSweepSelecting, !isLocked else { return }
-                    if draggingEdge == nil {
-                        let delta = dragOffset / pixelsPerSecond
-                        if project.selectedIDs.count > 1 && project.selectedIDs.contains(item.id) {
-                            project.moveSelectedBlocks(by: delta)
-                        } else {
-                            project.updateSubtitleTime(id: item.id, newStartTime: start + delta, newEndTime: end + delta)
-                        }
-                        dragOffset = 0
-                        isSnappedCenter = false
-                        snappedTime = nil
-                        project.activeDragDelta = 0
-                        project.activeDragItemID = nil
-                    }
-                }
-        )
         .popover(isPresented: $isShowingBlockActions, arrowEdge: .bottom) {
             blockActionsPopover
         }
-        #if os(macOS)
         .contextMenu {
-            macContextMenu
+            blockContextMenu
         }
-        #endif
         // 原生编辑文本弹框
         .alert("编辑字幕内容", isPresented: $isEditingText) {
-            TextField("输入新字幕文本", text: $editingText)
+            TextField("输入新字幕文本", text: $editingText, axis: .vertical)
+                .lineLimit(3...6)
             Button("确定") {
                 project.updateSubtitleText(id: item.id, text: editingText)
             }
@@ -525,11 +299,191 @@ struct InteractiveSubtitleBlock: View {
             Text("可输入秒数、MM:SS 或 HH:MM:SS")
         }
         .onChange(of: isEditingText) { _, newValue in
+            if newValue {
+                editingText = item.text
+            }
             project.isEditingText = newValue
         }
         .onChange(of: isEditingTime) { _, newValue in
             project.isEditingText = newValue
         }
+        .offset(x: currentX, y: 0)
+        .transaction { transaction in
+            transaction.animation = nil
+        }
+    }
+
+    private var moveDragGesture: some Gesture {
+        DragGesture(minimumDistance: 3, coordinateSpace: .global)
+            .onChanged { value in
+                handleMoveDragChanged(value: value)
+            }
+            .onEnded { value in
+                handleBlockDragEnded(value: value)
+            }
+    }
+
+    private func edgeDragGesture(_ edge: TimelineInteractionLayer.Edge) -> some Gesture {
+        DragGesture(minimumDistance: 3, coordinateSpace: .global)
+            .onChanged { value in
+                handleEdgeDragChanged(value: value, edge: edge)
+            }
+            .onEnded { value in
+                handleBlockDragEnded(value: value)
+            }
+    }
+
+    private func beginMoveDragIfNeeded() {
+        if !project.selectedIDs.contains(item.id) {
+            project.selectedIDs = [item.id]
+        }
+
+        var starts = [UUID: Double]()
+        var ends = [UUID: Double]()
+        for selectedItem in project.items where project.selectedIDs.contains(selectedItem.id) {
+            starts[selectedItem.id] = selectedItem.startTime ?? 0
+            ends[selectedItem.id] = selectedItem.endTime ?? 0
+        }
+
+        dragMode = .move(itemID: item.id, startTimes: starts, endTimes: ends)
+        activeDragItemID = item.id
+        activeDragEdge = nil
+    }
+
+    private func beginEdgeDragIfNeeded(_ edge: TimelineInteractionLayer.Edge) {
+        dragMode = edge == .left
+            ? .leftEdge(itemID: item.id, initialStart: start, initialEnd: end)
+            : .rightEdge(itemID: item.id, initialStart: start, initialEnd: end)
+        activeDragItemID = item.id
+        activeDragEdge = edge
+    }
+
+    private func handleMoveDragChanged(value: DragGesture.Value) {
+        guard project.editingMode == .selection else { return }
+        guard !project.isLockedForEditing(item, store: store) else { return }
+        guard allowsDirectBlockDrag else { return }
+
+        let distance = hypot(value.translation.width, value.translation.height)
+        if case .none = dragMode {
+            guard distance >= 3 else { return }
+            beginMoveDragIfNeeded()
+        }
+
+        switch dragMode {
+        case .move(let itemID, let startTimes, let endTimes):
+            guard let initialStart = startTimes[itemID], let initialEnd = endTimes[itemID] else { return }
+            let delta = timeDelta(for: value)
+            let rawProposedStart = initialStart + delta
+            let rawProposedEnd = initialEnd + delta
+
+            let snapStart = findBestSnap(for: rawProposedStart, ignoreItemID: itemID)
+            let snapEnd = findBestSnap(for: rawProposedEnd, ignoreItemID: itemID)
+
+            if let snapStart {
+                activeDragDelta = snapStart - initialStart
+                triggerHapticFeedbackIfNeeded()
+            } else if let snapEnd {
+                activeDragDelta = snapEnd - initialEnd
+                triggerHapticFeedbackIfNeeded()
+            } else {
+                activeDragDelta = delta
+                isSnapped = false
+            }
+
+        case .none:
+            break
+        case .leftEdge, .rightEdge:
+            break
+        }
+    }
+
+    private func handleEdgeDragChanged(value: DragGesture.Value, edge: TimelineInteractionLayer.Edge) {
+        guard project.editingMode == .selection else { return }
+        guard !project.isLockedForEditing(item, store: store) else { return }
+
+        let distance = hypot(value.translation.width, value.translation.height)
+        if case .none = dragMode {
+            guard distance >= 3 else { return }
+            beginEdgeDragIfNeeded(edge)
+        }
+
+        switch dragMode {
+        case .leftEdge(let itemID, let initialStart, _):
+            let delta = timeDelta(for: value)
+            let rawProposedStart = initialStart + delta
+            if let snapTime = findBestSnap(for: rawProposedStart, ignoreItemID: itemID) {
+                activeDragDelta = snapTime - initialStart
+                triggerHapticFeedbackIfNeeded()
+            } else {
+                activeDragDelta = delta
+                isSnapped = false
+            }
+
+        case .rightEdge(let itemID, _, let initialEnd):
+            let delta = timeDelta(for: value)
+            let rawProposedEnd = initialEnd + delta
+            if let snapTime = findBestSnap(for: rawProposedEnd, ignoreItemID: itemID) {
+                activeDragDelta = snapTime - initialEnd
+                triggerHapticFeedbackIfNeeded()
+            } else {
+                activeDragDelta = delta
+                isSnapped = false
+            }
+
+        case .move, .none:
+            break
+        }
+    }
+
+    private func handleBlockDragEnded(value: DragGesture.Value) {
+        defer {
+            dragMode = .none
+            activeDragItemID = nil
+            activeDragEdge = nil
+            activeDragDelta = 0
+            isSnapped = false
+        }
+
+        let distance = hypot(value.translation.width, value.translation.height)
+        guard distance >= 3 else { return }
+
+        switch dragMode {
+        case .leftEdge(let itemID, let initialStart, let initialEnd):
+            project.updateSubtitleTime(id: itemID, newStartTime: initialStart + activeDragDelta, newEndTime: initialEnd)
+        case .rightEdge(let itemID, let initialStart, let initialEnd):
+            project.updateSubtitleTime(id: itemID, newStartTime: initialStart, newEndTime: initialEnd + activeDragDelta)
+        case .move:
+            project.moveSelectedBlocks(by: activeDragDelta)
+        case .none:
+            break
+        }
+    }
+
+    private func findBestSnap(for time: Double, ignoreItemID: UUID) -> Double? {
+        let activeThreshold = (isSnapped ? 10.0 : 6.0) / pixelsPerSecond
+        var bestSnap: Double?
+        var minDistance = Double.infinity
+
+        let playheadDistance = abs(project.currentTime - time)
+        if playheadDistance <= activeThreshold {
+            bestSnap = project.currentTime
+            minDistance = playheadDistance
+        }
+
+        if let blockSnap = project.timelineIndex.nearestSnapPoint(to: time, ignoring: ignoreItemID) {
+            let blockDistance = abs(blockSnap - time)
+            if blockDistance <= activeThreshold && blockDistance < minDistance {
+                bestSnap = blockSnap
+            }
+        }
+
+        return bestSnap
+    }
+
+    private func triggerHapticFeedbackIfNeeded() {
+        guard !isSnapped else { return }
+        isSnapped = true
+        triggerHapticFeedback()
     }
 
     private var blockActionsPopover: some View {
@@ -604,7 +558,9 @@ struct InteractiveSubtitleBlock: View {
             popoverAction(icon: "pencil", title: String(localized: "编辑内容"), disabled: isLocked) {
                 editingText = item.text
                 isShowingBlockActions = false
-                isEditingText = true
+                DispatchQueue.main.async {
+                    isEditingText = true
+                }
             }
 
             popoverAction(icon: "clock", title: String(localized: "更改显示时间"), disabled: isLocked) {
@@ -894,43 +850,11 @@ struct InteractiveSubtitleBlock: View {
         }
         return max(0, total)
     }
-
-    #if os(iOS)
-    private var mobileSweepSelectionGesture: some Gesture {
-        LongPressGesture(minimumDuration: 0.4)
-            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .named(subtitleBlocksCoordinateSpaceName)))
-            .onChanged { value in
-                switch value {
-                case .first(true):
-                    beginMobileSweepSelection()
-                case .second(true, let dragValue):
-                    beginMobileSweepSelection()
-                    if let dragValue {
-                        onSweepSelectionChange?(dragValue.location.x)
-                    }
-                default:
-                    break
-                }
-            }
-            .onEnded { _ in
-                isSweepSelecting = false
-                onSweepSelectionEnd?()
-            }
-    }
-
-    private func beginMobileSweepSelection() {
-        guard !isSweepSelecting else { return }
-        guard isInActiveGroup else { return }
-        isSweepSelecting = true
-        onSweepSelectionStart?(item)
-    }
-    #endif
 }
 
-#if os(macOS)
 extension InteractiveSubtitleBlock {
     @ViewBuilder
-    var macContextMenu: some View {
+    var blockContextMenu: some View {
         let group = project.subgroup(for: item, store: store)
         let isLocked = item.isLocked || group?.isLocked == true
 
@@ -940,7 +864,9 @@ extension InteractiveSubtitleBlock {
                 project.selectedIDs.insert(item.id)
             }
             popoverMode = .multiSelect
-            isShowingBlockActions = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                isShowingBlockActions = true
+            }
         } label: {
             Label(String(localized: "多选字幕块"), systemImage: "checklist")
         }
@@ -949,7 +875,9 @@ extension InteractiveSubtitleBlock {
 
         Button {
             editingText = item.text
-            isEditingText = true
+            DispatchQueue.main.async {
+                isEditingText = true
+            }
         } label: {
             Label(String(localized: "编辑内容"), systemImage: "pencil")
         }
@@ -1028,4 +956,3 @@ extension InteractiveSubtitleBlock {
         .disabled(isLocked)
     }
 }
-#endif

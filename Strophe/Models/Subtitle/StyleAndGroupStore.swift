@@ -117,6 +117,31 @@ struct StoredSubGroupItem: Codable, Sendable, Equatable {
 class StyleAndGroupStore: ObservableObject {
     static let shared = StyleAndGroupStore()
 
+    private var cancellables = Set<AnyCancellable>()
+    var isRestoring = false
+
+    init() {
+        setupChangeTracking()
+    }
+
+    private func setupChangeTracking() {
+        $styles
+            .dropFirst()
+            .sink { [weak self] _ in
+                guard let self = self, !self.isRestoring else { return }
+                NotificationCenter.default.post(name: .subtitleProjectDidChange, object: nil)
+            }
+            .store(in: &cancellables)
+
+        $groups
+            .dropFirst()
+            .sink { [weak self] _ in
+                guard let self = self, !self.isRestoring else { return }
+                NotificationCenter.default.post(name: .subtitleProjectDidChange, object: nil)
+            }
+            .store(in: &cancellables)
+    }
+
     enum DefaultStyleID {
         static let `default` = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
         static let l2 = UUID(uuidString: "00000000-0000-4000-8000-000000000002")!
@@ -245,6 +270,8 @@ class StyleAndGroupStore: ObservableObject {
     }
 
     func restore(styles storedStyles: [StoredSubgroupStyle]?, groups storedGroups: [StoredSubGroupItem]?) {
+        isRestoring = true
+        defer { isRestoring = false }
         if let storedStyles, !storedStyles.isEmpty {
             styles = storedStyles.map { stored in
                 SubgroupStyle(
