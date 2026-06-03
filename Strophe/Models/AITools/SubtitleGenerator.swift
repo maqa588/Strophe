@@ -374,11 +374,89 @@ actor SubtitleGenerator {
         return segments
     }
 
+    nonisolated private func transcribeSpeechIslands(
+        model: Qwen3ASRModel,
+        samples: [Float],
+        sampleRate: Int,
+        language: String?,
+        speechRanges: [TimeRange],
+        maxChunkDuration: Double = 12.0,
+        maxTokens: Int = 448,
+        progressCallback: (@Sendable (Int, Double, String) -> Void)?
+    ) -> [AIResultSegment] {
+        guard !speechRanges.isEmpty else {
+            return transcribeInChunks(
+                model: model,
+                samples: samples,
+                sampleRate: sampleRate,
+                language: language,
+                maxChunkDuration: maxChunkDuration,
+                maxTokens: maxTokens,
+                progressCallback: progressCallback
+            )
+        }
+
+        let chunkSize = max(1, Int(maxChunkDuration * Double(sampleRate)))
+        let plannedChunks = speechRanges.reduce(0) { total, range in
+            let startSample = max(0, min(samples.count, Int(range.start * Double(sampleRate))))
+            let endSample = max(startSample, min(samples.count, Int(range.end * Double(sampleRate))))
+            guard startSample < endSample else { return total }
+            return total + max(1, Int(ceil(Double(endSample - startSample) / Double(chunkSize))))
+        }
+
+        let totalChunks = max(1, plannedChunks)
+        var chunkIndex = 0
+        var segments: [AIResultSegment] = []
+
+        for (islandIndex, range) in speechRanges.enumerated() {
+            let islandStartSample = max(0, min(samples.count, Int(range.start * Double(sampleRate))))
+            let islandEndSample = max(islandStartSample, min(samples.count, Int(range.end * Double(sampleRate))))
+            guard islandStartSample < islandEndSample else { continue }
+
+            var startSample = islandStartSample
+            while startSample < islandEndSample {
+                autoreleasepool {
+                    let endSample = min(startSample + chunkSize, islandEndSample)
+                    guard startSample < endSample else { return }
+
+                    let chunk = Array(samples[startSample..<endSample])
+                    let startTime = Double(startSample) / Double(sampleRate)
+                    let duration = Double(chunk.count) / Double(sampleRate)
+                    progressCallback?(
+                        1,
+                        0.25 + (Double(chunkIndex) / Double(totalChunks)) * 0.70,
+                        "正在按语音岛运行 Qwen3-ASR (\(islandIndex + 1)/\(speechRanges.count), \(chunkIndex + 1)/\(totalChunks))..."
+                    )
+
+                    let text = model.transcribe(
+                        audio: chunk,
+                        sampleRate: sampleRate,
+                        options: Qwen3DecodingOptions(
+                            maxTokens: maxTokens,
+                            language: language
+                        )
+                    )
+                    segments.append(contentsOf: makeCoarseSegments(
+                        text: text,
+                        duration: duration,
+                        offset: startTime
+                    ))
+                }
+                chunkIndex += 1
+                startSample += chunkSize
+                Memory.clearCache()
+            }
+        }
+
+        return segments
+    }
+
     nonisolated private func transcribeWithIsolatedASRModel(
         cacheDir: URL,
         samples: [Float],
         sampleRate: Int,
         language: String?,
+        speechRanges: [TimeRange],
         maxChunkDuration: Double,
         maxTokens: Int,
         progressCallback: (@Sendable (Int, Double, String) -> Void)?
@@ -387,11 +465,12 @@ actor SubtitleGenerator {
             cacheDir: cacheDir,
             offlineMode: true
         )
-        let segments = transcribeInChunks(
+        let segments = transcribeSpeechIslands(
             model: asrModel,
             samples: samples,
             sampleRate: sampleRate,
             language: language,
+            speechRanges: speechRanges,
             maxChunkDuration: maxChunkDuration,
             maxTokens: maxTokens,
             progressCallback: progressCallback
@@ -747,6 +826,116 @@ actor SubtitleGenerator {
         return merged
     }
 
+    nonisolated private func mergeSpeechRanges(
+        _ ranges: [TimeRange],
+        audioDuration: Double,
+        padding: Double = 0.18,
+        mergeGap: Double = 0.45,
+        minDuration: Double = 0.20
+    ) -> [TimeRange] {
+        let padded = ranges
+            .map {
+                TimeRange(
+                    start: max(0, $0.start - padding),
+                    end: min(audioDuration, $0.end + padding)
+                )
+            }
+            .filter { $0.duration >= minDuration }
+            .sorted { $0.start < $1.start }
+
+        guard !padded.isEmpty else { return [] }
+
+        var merged: [TimeRange] = []
+        for range in padded {
+            if let last = merged.last, range.start - last.end <= mergeGap {
+                merged[merged.count - 1] = TimeRange(start: last.start, end: max(last.end, range.end))
+            } else {
+                merged.append(range)
+            }
+        }
+        return merged
+    }
+
+    private func detectSpeechIslands(
+        samples: [Float],
+        sampleRate: Int,
+        vadModelURL: URL,
+        progressCallback: (@Sendable (Int, Double, String) -> Void)?
+    ) async throws -> [TimeRange] {
+        guard !samples.isEmpty, sampleRate > 0 else { return [] }
+
+        progressCallback?(1, 0.05, "正在加载 Pyannote VAD 语音活动检测模型...")
+        let audioDuration = Double(samples.count) / Double(sampleRate)
+        let vadConfig = pyannoteVADConfig(audioDuration: audioDuration)
+        let vad = try await PyannoteVADModel.fromPretrained(
+            modelId: "aufklarer/Pyannote-Segmentation-MLX",
+            vadConfig: vadConfig,
+            cacheDir: vadModelURL,
+            offlineMode: true
+        )
+
+        let estimatedWindowCount = pyannoteWindowCount(
+            sampleCount: samples.count,
+            sampleRate: sampleRate,
+            vadConfig: vadConfig
+        )
+        progressCallback?(1, 0.12, "正在快速检测语音活动区间 (\(estimatedWindowCount) 个窗口)...")
+        print("🎙️ Pyannote VAD fast config: stepRatio=\(vadConfig.stepRatio), windows=\(estimatedWindowCount), duration=\(String(format: "%.1f", audioDuration))s")
+        let detected = vad.detectSpeech(audio: samples, sampleRate: sampleRate).map {
+            TimeRange(start: Double($0.startTime), end: Double($0.endTime))
+        }
+        let speechRanges = mergeSpeechRanges(detected, audioDuration: audioDuration)
+        vad.unload()
+        Memory.clearCache()
+
+        return speechRanges.isEmpty
+            ? [TimeRange(start: 0, end: audioDuration)]
+            : speechRanges
+    }
+
+    nonisolated private func pyannoteVADConfig(audioDuration: Double) -> VADConfig {
+        let stepRatio: Float
+        #if os(iOS)
+        stepRatio = audioDuration > 900 ? 0.75 : 0.50
+        #else
+        stepRatio = audioDuration > 900 ? 0.75 : (audioDuration > 60 ? 0.50 : 0.25)
+        #endif
+
+        return VADConfig(
+            onset: 0.767,
+            offset: 0.377,
+            minSpeechDuration: 0.136,
+            minSilenceDuration: 0.067,
+            windowDuration: 10.0,
+            stepRatio: stepRatio
+        )
+    }
+
+    nonisolated private func pyannoteWindowCount(
+        sampleCount: Int,
+        sampleRate: Int,
+        vadConfig: VADConfig
+    ) -> Int {
+        guard sampleCount > 0, sampleRate > 0 else { return 0 }
+        let windowSamples = Int(vadConfig.windowDuration * Float(sampleRate))
+        let stepSamples = max(1, Int(vadConfig.windowDuration * vadConfig.stepRatio * Float(sampleRate)))
+
+        if sampleCount <= windowSamples {
+            return 1
+        }
+
+        var count = 0
+        var start = 0
+        while start + windowSamples <= sampleCount {
+            count += 1
+            start += stepSamples
+        }
+        if count == 0 || (start - stepSamples + windowSamples) < sampleCount {
+            count += 1
+        }
+        return count
+    }
+
     nonisolated private func lyricLineDurationBounds(for text: String) -> (min: Double, max: Double) {
         let charCount = max(1, countAlignableCharacters(in: text))
         let minDuration = min(2.4, max(1.45, Double(charCount) * 0.18))
@@ -854,12 +1043,13 @@ actor SubtitleGenerator {
     nonisolated private func makeLyricSegmentsFromActiveRanges(
         referenceLines: [String],
         samples: [Float],
-        sampleRate: Int
+        sampleRate: Int,
+        speechRanges: [TimeRange]
     ) -> [AIResultSegment] {
         guard !referenceLines.isEmpty, !samples.isEmpty, sampleRate > 0 else { return [] }
 
         let audioDuration = Double(samples.count) / Double(sampleRate)
-        let activeRanges = detectActiveRanges(samples: samples, sampleRate: sampleRate)
+        let activeRanges = speechRanges.isEmpty ? detectActiveRanges(samples: samples, sampleRate: sampleRate) : speechRanges
         let ranges = activeRanges.isEmpty ? [TimeRange(start: 0, end: audioDuration)] : activeRanges
         let weights = referenceLines.map { max(1, countAlignableCharacters(in: $0)) }
         let totalWeight = max(1, weights.reduce(0, +))
@@ -1058,12 +1248,13 @@ actor SubtitleGenerator {
         referenceLines: [String],
         sampleRate: Int,
         language: String,
+        speechRanges: [TimeRange],
         progressCallback: (@Sendable (Int, Double, String) -> Void)?
     ) -> [AIResultSegment] {
         guard !samples.isEmpty, !referenceLines.isEmpty else { return [] }
 
         let audioDuration = Double(samples.count) / Double(sampleRate)
-        let activeRanges = detectActiveRanges(samples: samples, sampleRate: sampleRate)
+        let activeRanges = speechRanges.isEmpty ? detectActiveRanges(samples: samples, sampleRate: sampleRate) : speechRanges
         let estimatedWindows = makeEstimatedLyricWindows(
             referenceLines: referenceLines,
             activeRanges: activeRanges,
@@ -1126,6 +1317,7 @@ actor SubtitleGenerator {
         segments: [AIResultSegment],
         sampleRate: Int,
         language: String,
+        speechRanges: [TimeRange],
         progressCallback: (@Sendable (Int, Double, String) -> Void)?
     ) -> [AIResultSegment] {
         guard !samples.isEmpty, !segments.isEmpty, sampleRate > 0 else { return [] }
@@ -1138,8 +1330,15 @@ actor SubtitleGenerator {
                 let text = segment.text.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !text.isEmpty else { return }
 
-                let searchStart = max(0, segment.startTime - 0.35)
-                let searchEnd = min(audioDuration, max(segment.endTime + 0.55, searchStart + 0.8))
+                let speechRange = activeRangeIntersecting(
+                    start: segment.startTime - 0.25,
+                    end: segment.endTime + 0.25,
+                    activeRanges: speechRanges
+                )
+                let lowerBound = speechRange?.start ?? 0
+                let upperBound = speechRange?.end ?? audioDuration
+                let searchStart = max(lowerBound, segment.startTime - 0.15)
+                let searchEnd = min(upperBound, max(segment.endTime + 0.25, searchStart + 0.8))
                 let startSample = max(0, min(samples.count, Int(searchStart * Double(sampleRate))))
                 let endSample = max(startSample, min(samples.count, Int(searchEnd * Double(sampleRate))))
                 guard startSample < endSample else { return }
@@ -1222,6 +1421,7 @@ actor SubtitleGenerator {
         audioURL: URL,
         whisperModelURL: URL,
         alignerModelURL: URL,
+        vadModelURL: URL,
         speakerModelURL: URL,
         whisperBaseDir: URL,
         alignerBaseDir: URL,
@@ -1240,7 +1440,7 @@ actor SubtitleGenerator {
 
         let resolvedWhisperURL = whisperModelURL.resolvingSymlinksInPath()
         let resolvedAlignerURL = alignerModelURL.resolvingSymlinksInPath()
-        let resolvedSpeakerURL = speakerModelURL.resolvingSymlinksInPath()
+        let resolvedVADURL = vadModelURL.resolvingSymlinksInPath()
         let oldMLXCacheLimit = Memory.cacheLimit
         Memory.cacheLimit = 32 * 1024 * 1024
         defer {
@@ -1275,6 +1475,12 @@ actor SubtitleGenerator {
             resolved: resolvedAlignerURL,
             tempDir: localTempDir,
             label: "Qwen3-ForcedAligner"
+        )
+
+        let activeSpeakerURL = try resolveModelURL(
+            resolved: resolvedVADURL,
+            tempDir: localTempDir,
+            label: "Pyannote VAD"
         )
 
         // MARK: - Step 1: 人声提取与预处理
@@ -1358,6 +1564,16 @@ actor SubtitleGenerator {
         Memory.clearCache()
         progressCallback?(0, 1.0, "人声音频预处理与重采样完成。")
 
+        // MARK: - Step 1.5: Pyannote VAD Speech Islands
+
+        let speechRanges = try await detectSpeechIslands(
+            samples: cleanSamples16k,
+            sampleRate: 16000,
+            vadModelURL: activeSpeakerURL,
+            progressCallback: progressCallback
+        )
+        progressCallback?(1, 0.18, "已检测到 \(speechRanges.count) 个语音活动片段。")
+
         // MARK: - Step 2: Qwen3-ASR 语音转写或参考文本准备
 
         let referenceLines = normalizedReferenceLines(from: referenceText)
@@ -1375,6 +1591,7 @@ actor SubtitleGenerator {
                 samples: cleanSamples16k,
                 sampleRate: 16000,
                 language: languageHint,
+                speechRanges: speechRanges,
                 maxChunkDuration: asrChunkDuration,
                 maxTokens: asrMaxTokensPerChunk,
                 progressCallback: progressCallback
@@ -1431,6 +1648,7 @@ actor SubtitleGenerator {
                         : asrOnlySegments,
                     sampleRate: 16000,
                     language: alignLanguage,
+                    speechRanges: speechRanges,
                     progressCallback: progressCallback
                 )
             } else {
@@ -1439,7 +1657,8 @@ actor SubtitleGenerator {
                 let fallbackSegments = makeLyricSegmentsFromActiveRanges(
                     referenceLines: referenceLines,
                     samples: cleanSamples16k,
-                    sampleRate: 16000
+                    sampleRate: 16000,
+                    speechRanges: speechRanges
                 )
 
                 print("🎯 正在用 ForcedAligner 提取可信歌词锚点...")
@@ -1455,6 +1674,7 @@ actor SubtitleGenerator {
                     referenceLines: referenceLines,
                     sampleRate: 16000,
                     language: alignLanguage,
+                    speechRanges: speechRanges,
                     progressCallback: progressCallback
                 )
                 let audioDuration = Double(cleanSamples16k.count) / 16000.0
@@ -1475,12 +1695,6 @@ actor SubtitleGenerator {
         // MARK: - Step 4: Speaker Diarization 对话人声纹分离
 
         if enableDiarization {
-            _ = try resolveModelURL(
-                resolved: resolvedSpeakerURL,
-                tempDir: localTempDir,
-                label: "Pyannote"
-            )
-
             print("👥 正在加载 Pyannote 声纹分离模型...")
             progressCallback?(3, 0.2, "正在加载 Pyannote 说话人分离与声纹日志模型...")
             let diarizer = try await DiarizationPipeline.fromPretrained(cacheBaseDir: speakerBaseDir)

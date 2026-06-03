@@ -75,6 +75,32 @@ struct ModelConfigView: View {
             } header: {
                 Text("可用模型库")
             }
+
+            if type == .whisper {
+                Section {
+                    let vadType = AIKitType.vad
+                    let presets = LocalModelManager.presets(for: vadType)
+                    let downloadedSet = modelManager.downloadedSet(for: vadType)
+                    ForEach(presets, id: \.name) { model in
+                        let modelId = "\(vadType.rawValue)_\(model.name)"
+                        let isDownloaded = downloadedSet.contains(model.name)
+                        let isDownloading = modelManager.activeDownloads.contains(modelId)
+                        let progress = modelManager.downloadProgresses[modelId] ?? 0.0
+                        modelRow(
+                            model: model,
+                            typeOverride: vadType,
+                            isDownloaded: isDownloaded,
+                            isDownloading: isDownloading,
+                            progress: progress,
+                            showsRepositoryLink: true
+                        )
+                    }
+                } header: {
+                    Text("语音活动检测 (VAD)")
+                } footer: {
+                    Text("自动字幕会先用 VAD 生成 Speech Islands，再交给 ASR 与 ForcedAligner。")
+                }
+            }
         }
         .formStyle(.grouped)
         .background(Color.stropheBackground)
@@ -211,10 +237,13 @@ struct ModelConfigView: View {
     @ViewBuilder
     private func modelRow(
         model: AIModelInfo,
+        typeOverride: AIKitType? = nil,
         isDownloaded: Bool,
         isDownloading: Bool,
-        progress: Double
+        progress: Double,
+        showsRepositoryLink: Bool = false
     ) -> some View {
+        let rowType = typeOverride ?? type
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .center, spacing: 8) {
                 // Name + size tag
@@ -250,7 +279,7 @@ struct ModelConfigView: View {
                             .foregroundStyle(.green)
                             .font(.title3)
                         Button {
-                            modelManager.deleteModel(type: type, modelName: model.name)
+                            modelManager.deleteModel(type: rowType, modelName: model.name)
                         } label: {
                             Image(systemName: "trash")
                                 .foregroundStyle(Color.stropheAccent)
@@ -259,7 +288,7 @@ struct ModelConfigView: View {
                     }
                 } else {
                     Button {
-                        Task { await modelManager.downloadModel(type: type, modelName: model.name) }
+                        Task { await modelManager.downloadModel(type: rowType, modelName: model.name) }
                     } label: {
                         Image(systemName: "icloud.and.arrow.down")
                             .font(.title3)
@@ -274,6 +303,15 @@ struct ModelConfigView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            if showsRepositoryLink, let hfId = modelManager.huggingFaceModelId(for: model.name),
+               let url = URL(string: "https://huggingface.co/\(hfId)") {
+                Link(destination: url) {
+                    Label(hfId, systemImage: "link")
+                        .font(.caption)
+                        .foregroundStyle(Color.stropheAccent)
+                }
+            }
         }
         .padding(.vertical, 4)
     }

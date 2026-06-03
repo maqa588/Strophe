@@ -15,6 +15,7 @@ struct AutoCaptionView: View {
     // Config states - 默认修改为推荐的 qwen3-asr-0.6b 模型
     @State private var selectedModel: String = "qwen3-asr-0.6b"
     @State private var selectedAlignerModel: String = "qwen3-forced-aligner-0.6b-mlx-4bit"
+    @State private var enableAlignment: Bool = true
     @State private var selectedLanguage: String = "auto"
     @State private var enableDiarization: Bool = false
     @State private var speakerCountOption: String = "auto" // "auto" or "custom"
@@ -133,6 +134,10 @@ struct AutoCaptionView: View {
                     }
                     
                     Section {
+                        let alignerControlsEnabled = enableAlignment || enableDiarization
+                        Toggle("启用时间轴精修", isOn: $enableAlignment)
+                            .tint(Color.stropheAccent)
+
                         // Aligner Model
                         Picker("对齐器模型", selection: $selectedAlignerModel) {
                             ForEach(LocalModelManager.alignerPresets, id: \.name) { model in
@@ -142,8 +147,17 @@ struct AutoCaptionView: View {
                             }
                         }
                         .pickerStyle(.navigationLink)
+                        .disabled(!alignerControlsEnabled)
                         
-                        if selectedAlignerModel.contains("coreml") {
+                        if !enableAlignment && enableDiarization {
+                            Text("对话人识别仍会调用对齐器生成词级时间戳，但不会额外做时间轴精修。")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else if !enableAlignment {
+                            Text("关闭后仅使用 VAD 与 Qwen3-ASR 生成粗略时间轴。")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else if selectedAlignerModel.contains("coreml") {
                             Text("当前依赖暂未提供 CoreML ForcedAligner 推理接口；可下载备用，实际生成请先选 MLX 4-bit。")
                                 .font(.caption)
                                 .foregroundStyle(.orange)
@@ -415,9 +429,18 @@ struct AutoCaptionView: View {
                 
                 // Section 2: Pyannote Diarization Config
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("强制对齐配置 (Qwen3-ForcedAligner)")
-                        .font(.headline)
-                        .foregroundStyle(Color.stropheText)
+                    let alignerControlsEnabled = enableAlignment || enableDiarization
+                    HStack {
+                        Text("强制对齐配置 (Qwen3-ForcedAligner)")
+                            .font(.headline)
+                            .foregroundStyle(Color.stropheText)
+
+                        Spacer()
+
+                        Toggle("", isOn: $enableAlignment)
+                            .toggleStyle(.switch)
+                            .tint(Color.stropheAccent)
+                    }
 
                     VStack(alignment: .leading, spacing: 6) {
                         Text("对齐器模型")
@@ -432,8 +455,27 @@ struct AutoCaptionView: View {
                             }
                         }
                         .pickerStyle(.menu)
+                        .disabled(!alignerControlsEnabled)
 
-                        if selectedAlignerModel.contains("coreml") {
+                        if !enableAlignment && enableDiarization {
+                            HStack(spacing: 6) {
+                                Image(systemName: "person.2.wave.2")
+                                    .foregroundStyle(.secondary)
+                                Text("对话人识别仍会调用对齐器生成词级时间戳，但不会额外做时间轴精修。")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.top, 2)
+                        } else if !enableAlignment {
+                            HStack(spacing: 6) {
+                                Image(systemName: "clock.badge.xmark")
+                                    .foregroundStyle(.secondary)
+                                Text("关闭后仅使用 VAD 与 Qwen3-ASR 生成粗略时间轴。")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.top, 2)
+                        } else if selectedAlignerModel.contains("coreml") {
                             HStack(spacing: 6) {
                                 Image(systemName: "exclamationmark.triangle.fill")
                                     .foregroundStyle(.orange)
@@ -654,8 +696,9 @@ struct AutoCaptionView: View {
                     }
                 }
 
+                let needsAligner = enableAlignment || enableDiarization
                 let isAlignerDownloaded = modelManager.downloadedAlignerModels.contains(selectedAlignerModel)
-                if !isAlignerDownloaded {
+                if needsAligner && !isAlignerDownloaded {
                     statusMessage = "正在从 Hugging Face 下载强制对齐模型 \(selectedAlignerModel)..."
                     self.stepProgress = 0.0
 
@@ -684,6 +727,37 @@ struct AutoCaptionView: View {
                     }
                 }
                 
+                let vadModelName = "pyannote-segmentation-3.0-mlx"
+                let isVADDownloaded = modelManager.downloadedVADModels.contains(vadModelName)
+                if !isVADDownloaded {
+                    statusMessage = "正在从 Hugging Face 下载 Pyannote VAD 模型 \(vadModelName) (约 5.7MB)..."
+                    self.stepProgress = 0.0
+
+                    let downloadTask = Task {
+                        let vadModelId = "VADKit_\(vadModelName)"
+                        while !Task.isCancelled {
+                            try? await Task.sleep(nanoseconds: 200_000_000)
+                            await MainActor.run {
+                                if let progress = modelManager.downloadProgresses[vadModelId] {
+                                    self.stepProgress = progress * 0.95
+                                }
+                            }
+                        }
+                    }
+
+                    await modelManager.downloadModel(type: .vad, modelName: vadModelName)
+                    downloadTask.cancel()
+
+                    let vadCheck = modelManager.downloadedVADModels.contains(vadModelName)
+                    if !vadCheck {
+                        throw NSError(
+                            domain: "AutoCaptionView",
+                            code: 10,
+                            userInfo: [NSLocalizedDescriptionKey: "Pyannote VAD 模型下载失败，请检查网络连接。"]
+                        )
+                    }
+                }
+
                 let isSpeakerDownloaded = modelManager.downloadedSpeakerModels.contains("pyannote-diarization-mlx")
                 if enableDiarization && !isSpeakerDownloaded {
                     statusMessage = "正在从 Hugging Face 下载声纹识别模型 pyannote-diarization-mlx (约需几分钟)..."
@@ -808,6 +882,16 @@ struct AutoCaptionView: View {
                     )
                 }
 
+                let vadBaseDir = modelManager.getBaseDirectory(for: .vad)
+                let vadPresetName = LocalModelManager.vadPresets.first?.name ?? "pyannote-segmentation-3.0-mlx"
+                let vadModelURL: URL
+                if let hubDir = modelManager.getModelDirectory(for: vadPresetName, type: .vad) {
+                    vadModelURL = hubDir
+                } else {
+                    let folderName = LocalModelManager.vadPresets.first?.folderName ?? "pyannote-segmentation-3.0-mlx"
+                    vadModelURL = vadBaseDir.appendingPathComponent(folderName)
+                }
+
                 let speakerBaseDir = modelManager.getBaseDirectory(for: .speaker)
                 let speakerModelName = LocalModelManager.speakerPresets.first?.name ?? "pyannote-diarization-mlx"
                 let speakerModelURL: URL
@@ -826,6 +910,7 @@ struct AutoCaptionView: View {
                     audioURL: mediaURL,
                     whisperModelURL: whisperModelURL,
                     alignerModelURL: alignerModelURL,
+                    vadModelURL: vadModelURL,
                     speakerModelURL: speakerModelURL,
                     whisperBaseDir: whisperBaseDir,
                     alignerBaseDir: alignerBaseDir,
@@ -836,7 +921,7 @@ struct AutoCaptionView: View {
                     language: selectedLanguage,
                     enableDiarization: enableDiarization,
                     prefixSpeakerName: prefixSpeakerName,
-                    enableAlignment: true,
+                    enableAlignment: enableAlignment,
                     vocalPreprocessing: vocalPreprocessing,
                     referenceText: referenceLyrics,
                     progressCallback: { step, subProgress, message in

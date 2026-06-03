@@ -19,6 +19,7 @@ import ZIPFoundation
 enum AIKitType: String, CaseIterable, Codable, Sendable {
     case whisper = "Whisper"
     case aligner = "ForcedAligner"
+    case vad = "VADKit"
     case speaker = "SpeakerKit"
     case tts = "TTSKit"
     case other = "Other"
@@ -27,6 +28,7 @@ enum AIKitType: String, CaseIterable, Codable, Sendable {
         switch self {
         case .whisper: return "语音转写设置"
         case .aligner: return "强制对齐设置"
+        case .vad:     return "语音活动检测设置"
         case .speaker: return "对话人识别设置"
         case .tts:     return "文本转语音设置"
         case .other:   return "智能降噪与辅助设置"
@@ -56,6 +58,10 @@ extension LocalModelManager {
         AIModelInfo(name: "qwen3-forced-aligner-0.6b-coreml-int4", size: "662MB", description: "CoreML INT4 (已加入下载；当前推理 SDK 暂未暴露 CoreML 对齐器)", folderName: "qwen3-forced-aligner-0.6b-coreml-int4")
     ]
 
+    static let vadPresets = [
+        AIModelInfo(name: "pyannote-segmentation-3.0-mlx", size: "5.7MB", description: "Pyannote-Segmentation-3.0 (MLX，高精度离线 VAD / Speech Islands)", folderName: "pyannote-segmentation-3.0-mlx")
+    ]
+
     static let speakerPresets = [
         AIModelInfo(name: "pyannote-diarization-mlx", size: "50MB", description: "推荐 (高精度说话人识别与声纹分离)", folderName: "pyannote-diarization-mlx")
     ]
@@ -75,6 +81,7 @@ extension LocalModelManager {
         switch type {
         case .whisper: return whisperPresets
         case .aligner: return alignerPresets
+        case .vad:     return vadPresets
         case .speaker: return speakerPresets
         case .tts:     return ttsPresets
         case .other:   return otherPresets
@@ -90,6 +97,7 @@ private let modelHFIds: [String: String] = [
     "parakeet-tdt-0.6b":        "aufklarer/parakeet-tdt-0.6b-mlx",
     "qwen3-forced-aligner-0.6b-mlx-4bit": "aufklarer/Qwen3-ForcedAligner-0.6B-4bit",
     "qwen3-forced-aligner-0.6b-coreml-int4": "aufklarer/Qwen3-ForcedAligner-0.6B-CoreML-INT4",
+    "pyannote-segmentation-3.0-mlx": "aufklarer/Pyannote-Segmentation-MLX",
     "pyannote-diarization-mlx": "aufklarer/pyannote-segmentation-3.0-mlx",
     "qwen3-tts-0.6b":           "aufklarer/Qwen3-TTS-0.6B-CoreML",
     "qwen3-tts-1.7b":           "aufklarer/Qwen3-TTS-1.7B-CoreML",
@@ -111,6 +119,7 @@ private let expectedModelSizesBytes: [String: Int64] = [
     "parakeet-tdt-0.6b": 1_100_000_000,
     "qwen3-forced-aligner-0.6b-mlx-4bit": 979_000_000,
     "qwen3-forced-aligner-0.6b-coreml-int4": 662_000_000,
+    "pyannote-segmentation-3.0-mlx": 5_700_000,
     "pyannote-diarization-mlx": 50_000_000,
     "qwen3-tts-0.6b": 1_200_000_000,
     "qwen3-tts-1.7b": 3_400_000_000,
@@ -127,6 +136,7 @@ final class LocalModelManager: ObservableObject {
 
     @Published var downloadedWhisperModels: Set<String> = []
     @Published var downloadedAlignerModels: Set<String> = []
+    @Published var downloadedVADModels:     Set<String> = []
     @Published var downloadedSpeakerModels: Set<String> = []
     @Published var downloadedTTSModels:     Set<String> = []
     @Published var downloadedOtherModels:   Set<String> = []
@@ -255,6 +265,7 @@ final class LocalModelManager: ObservableObject {
     func refreshAll() {
         downloadedWhisperModels = scanLocalModels(for: .whisper)
         downloadedAlignerModels = scanLocalModels(for: .aligner)
+        downloadedVADModels     = scanLocalModels(for: .vad)
         downloadedSpeakerModels = scanLocalModels(for: .speaker)
         downloadedTTSModels     = scanLocalModels(for: .tts)
         downloadedOtherModels   = scanLocalModels(for: .other)
@@ -264,6 +275,7 @@ final class LocalModelManager: ObservableObject {
         switch type {
         case .whisper: return downloadedWhisperModels
         case .aligner: return downloadedAlignerModels
+        case .vad:     return downloadedVADModels
         case .speaker: return downloadedSpeakerModels
         case .tts:     return downloadedTTSModels
         case .other:   return downloadedOtherModels
