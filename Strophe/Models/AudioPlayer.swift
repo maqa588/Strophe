@@ -48,13 +48,29 @@ nonisolated final class AudioPlayer: @unchecked Sendable {
         lock.unlock()
         
         if !nativelyRunning {
+            safeStartAudioEngine()
+        }
+    }
+    
+    private func safeStartAudioEngine() {
+        var attempt = 0
+        while attempt < 3 {
             do {
                 try audioEngine.start()
                 lock.lock()
                 isEngineRunning = true
                 lock.unlock()
+                break
             } catch {
-                print("❌ AudioPlayer: Failed to start audioEngine: \(error)")
+                let nsErr = error as NSError
+                if nsErr.code == -4 || nsErr.code == 561015905 {
+                    print("⚠️ AudioPlayer: audioEngine.start() threw \(nsErr.code) (InvalidRunState). Retrying in 50ms... (Attempt \(attempt + 1))")
+                    Thread.sleep(forTimeInterval: 0.05)
+                    attempt += 1
+                } else {
+                    print("❌ AudioPlayer: Failed to start audioEngine: \(error)")
+                    break
+                }
             }
         }
     }
@@ -120,12 +136,7 @@ nonisolated final class AudioPlayer: @unchecked Sendable {
         
         if isEngineRunning {
             if !audioEngine.isRunning {
-                do {
-                    try audioEngine.start()
-                } catch {
-                    print("❌ AudioPlayer: Failed to restart audioEngine in seek: \(error)")
-                    return
-                }
+                safeStartAudioEngine()
             }
         }
     }

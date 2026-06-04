@@ -21,7 +21,7 @@ enum SubtitleCompositorError: LocalizedError {
     }
 }
 
-final class MetalSubtitleCompositor {
+nonisolated final class MetalSubtitleCompositor: @unchecked Sendable {
     private let context: CIContext
     private let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
     private var bitmapCache: [SubtitleBitmapCacheKey: CGImage] = [:]
@@ -116,7 +116,7 @@ final class MetalSubtitleCompositor {
     }
 }
 
-private struct SubtitleBitmapCacheKey: Hashable {
+nonisolated private struct SubtitleBitmapCacheKey: Hashable {
     var text: String
     var style: ResolvedSubtitleStyle
     var width: Int
@@ -130,7 +130,7 @@ private struct SubtitleBitmapCacheKey: Hashable {
     }
 }
 
-private enum SubtitleBitmapRenderer {
+nonisolated private enum SubtitleBitmapRenderer {
     static func makeImage(cue: ResolvedSubtitleCue, canvasSize: CGSize) -> CGImage? {
         let style = cue.style
         let scale = max(0.5, min(canvasSize.height / 1080.0, 2.2))

@@ -34,6 +34,7 @@ class SubtitleProject: ObservableObject {
     @Published var selectedIDs: Set<UUID> = []
     @Published var isSubtitleMultiSelecting: Bool = false
     @Published var isEditingText: Bool = false
+    @Published var subtitleClipboard: [SubtitleItem] = []
     
     @Published var projectURL: URL?
     @Published private(set) var isDirty: Bool = false

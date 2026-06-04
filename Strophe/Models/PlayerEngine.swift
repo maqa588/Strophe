@@ -181,15 +181,16 @@ final class AVFoundationEngine: PlayerEngine {
 
     func seek(to time: Double) async {
         guard time.isFinite else { return }
-        await MainActor.run {
-            player.seek(to: CMTime(seconds: time, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
-        }
+        let cmTime = CMTime(seconds: time, preferredTimescale: 600)
+        _ = await player.seek(to: cmTime, toleranceBefore: .zero, toleranceAfter: .zero)
     }
 
     func seekVideoFrameOnly(to time: Double) async {
         guard time.isFinite else { return }
+        let cmTime = CMTime(seconds: time, preferredTimescale: 600)
         await MainActor.run {
-            player.seek(to: CMTime(seconds: time, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+            player.rate = 0.0 // Pause during scrub to prevent rapid AudioQueue start/stop (-4 errors)
+            player.seek(to: cmTime, toleranceBefore: .zero, toleranceAfter: .zero)
         }
     }
 

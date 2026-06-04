@@ -76,6 +76,23 @@ struct HardSubtitleExportSettingsSheet: View {
                         }
                         .toggleStyle(CheckboxToggleStyle())
                         .tint(Color.stropheAccent)
+
+                        if !settings.codec.isProRes {
+                            Divider()
+                                .background(Color.stropheBorder)
+
+                            Toggle(isOn: $settings.usesExperimentalNV12PixelBuffers) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("NV12 像素缓冲")
+                                        .font(.subheadline)
+                                    Text("实验选项。尝试用更接近硬件编码器的 YUV 缓冲写入 H.264/H.265；若导出失败或颜色异常，请关闭。")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .toggleStyle(CheckboxToggleStyle())
+                            .tint(Color.stropheAccent)
+                        }
                     }
                     .padding()
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -92,8 +109,8 @@ struct HardSubtitleExportSettingsSheet: View {
                             .font(.headline)
                             .foregroundStyle(Color.stropheText)
                         
-                        if settings.codec == .proRes422 {
-                            Text("ProRes 422 使用 Apple 固定的中间片编码参数，适合继续剪辑或高质量归档；码率由 ProRes 规格和画面尺寸决定。")
+                        if settings.codec.isProRes {
+                            Text("ProRes 使用 Apple 固定的中间片编码参数，适合继续剪辑或高质量归档；码率由 ProRes 规格和画面尺寸决定。")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         } else {
@@ -162,6 +179,21 @@ struct HardSubtitleExportSettingsSheet: View {
                                     .pickerStyle(.segmented)
                                     .labelsHidden()
                                 }
+
+                                Divider()
+                                    .background(Color.stropheBorder)
+
+                                Toggle(isOn: $settings.usesMultiPassEncoding) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("2-pass 多遍编码")
+                                            .font(.subheadline)
+                                        Text("默认关闭。开启后会让 VideoToolbox 在支持时进行多遍分析，导出更慢，但低运动画面和目标码率模式通常更容易压出更小体积。")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                .toggleStyle(CheckboxToggleStyle())
+                                .tint(Color.stropheAccent)
                                 
                                 }
                         }
@@ -202,7 +234,7 @@ struct HardSubtitleExportSettingsSheet: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
         }
-        .frame(width: 480, height: 520)
+        .frame(width: 480, height: 640)
         .background(VisualEffectView(material: .sheet, blendingMode: .behindWindow))
     }
     #endif
@@ -222,11 +254,19 @@ struct HardSubtitleExportSettingsSheet: View {
                     Text("开启后会读取视频的像素宽高比和 clean aperture。比如存储为 1920×1080、显示为 4:3 的视频，会按 1440×1080 这类真实显示尺寸重新合成，避免画面被挤歪。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+
+                    if !settings.codec.isProRes {
+                        Toggle("NV12 像素缓冲", isOn: $settings.usesExperimentalNV12PixelBuffers)
+
+                        Text("实验选项。尝试用更接近硬件编码器的 YUV 缓冲写入 H.264/H.265；若导出失败或颜色异常，请关闭。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
-                if settings.codec == .proRes422 {
+                if settings.codec.isProRes {
                     Section("质量") {
-                        Text("ProRes 422 使用 Apple 固定的中间片编码参数，适合继续剪辑或高质量归档；码率由 ProRes 规格和画面尺寸决定。")
+                        Text("ProRes 使用 Apple 固定的中间片编码参数，适合继续剪辑或高质量归档；码率由 ProRes 规格和画面尺寸决定。")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -275,6 +315,12 @@ struct HardSubtitleExportSettingsSheet: View {
                             }
                         }
                         .pickerStyle(.segmented)
+
+                        Toggle("2-pass 多遍编码", isOn: $settings.usesMultiPassEncoding)
+
+                        Text("默认关闭。开启后会让 VideoToolbox 在支持时进行多遍分析，导出更慢，但低运动画面和目标码率模式通常更容易压出更小体积。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
 
                     }
                 }

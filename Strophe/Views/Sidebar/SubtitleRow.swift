@@ -7,9 +7,8 @@
 
 import SwiftUI
 
-struct SubtitleRow: View {
+struct SubtitleRow: View, Equatable {
     let item: SubtitleItem
-    let index: Int
     let isActive: Bool
     let isOverlapping: Bool
     let group: SubGroupItem?

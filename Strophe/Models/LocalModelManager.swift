@@ -157,7 +157,49 @@ final class LocalModelManager: ObservableObject {
         set { UserDefaults.standard.set(newValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Self.hfTokenKey) }
     }
 
-    private init() { refreshAll() }
+    private init() {
+        migrateFromCachesToApplicationSupportIfNeeded()
+        refreshAll()
+    }
+
+    private func migrateFromCachesToApplicationSupportIfNeeded() {
+        let fm = FileManager.default
+        guard let cachesURL = fm.urls(for: .cachesDirectory, in: .userDomainMask).first,
+              let appSupportURL = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return
+        }
+        
+        let oldDir = cachesURL.appendingPathComponent("qwen3-speech", isDirectory: true)
+        let newDir = appSupportURL.appendingPathComponent("qwen3-speech", isDirectory: true)
+        
+        guard fm.fileExists(atPath: oldDir.path) else { return }
+        
+        if !fm.fileExists(atPath: newDir.path) {
+            do {
+                try fm.createDirectory(at: appSupportURL, withIntermediateDirectories: true)
+                try fm.moveItem(at: oldDir, to: newDir)
+                print("✅ LocalModelManager: Migrated models from Caches to Application Support.")
+            } catch {
+                print("⚠️ LocalModelManager: Failed to move models directory: \(error)")
+            }
+        } else {
+            if let contents = try? fm.contentsOfDirectory(at: oldDir, includingPropertiesForKeys: nil) {
+                for item in contents {
+                    let target = newDir.appendingPathComponent(item.lastPathComponent)
+                    do {
+                        if fm.fileExists(atPath: target.path) {
+                            try fm.removeItem(at: target)
+                        }
+                        try fm.moveItem(at: item, to: target)
+                        print("✅ LocalModelManager: Migrated item \(item.lastPathComponent) to Application Support.")
+                    } catch {
+                        print("⚠️ LocalModelManager: Failed to migrate item \(item.lastPathComponent): \(error)")
+                    }
+                }
+            }
+            try? fm.removeItem(at: oldDir)
+        }
+    }
 
     // MARK: - External Storage Bookmark
 
@@ -224,8 +266,8 @@ final class LocalModelManager: ObservableObject {
     /// A user-displayable string of the current storage root.
     var storageSummary: String {
         if let ext = resolvedExternalURL() { return ext.path }
-        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-        return caches.appendingPathComponent("qwen3-speech").path
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return appSupport.appendingPathComponent("qwen3-speech").path
     }
 
     // MARK: - Directory Resolution
@@ -239,10 +281,17 @@ final class LocalModelManager: ObservableObject {
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             return dir
         }
-        // Default: sandboxed ~/Library/Caches/qwen3-speech
-        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-        let dir = caches.appendingPathComponent("qwen3-speech", isDirectory: true)
+        // Default: sandboxed ~/Library/Application Support/qwen3-speech
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let dir = appSupport.appendingPathComponent("qwen3-speech", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        
+        // Exclude from iCloud Backup to save user storage quota and conform to Apple rules
+        var url = dir
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        try? url.setResourceValues(values)
+        
         return dir
     }
 
@@ -479,8 +528,8 @@ final class LocalModelManager: ObservableObject {
         // Resolve cache directory
         let externalURL = resolvedExternalURL()
         let basePath = externalURL?.appendingPathComponent("qwen3-speech", isDirectory: true)
-        let cachesURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-        let cacheDir = basePath ?? cachesURL.appendingPathComponent("qwen3-speech", isDirectory: true)
+        let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let cacheDir = basePath ?? appSupportURL.appendingPathComponent("qwen3-speech", isDirectory: true)
 
         // Start a background progress observer task that periodically scans the directories to update progress
         let progressObserverTask = Task { [weak self] in
@@ -586,8 +635,8 @@ final class LocalModelManager: ObservableObject {
                 basePath = nil
             }
 
-            let cachesURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            let cacheDir = basePath ?? cachesURL.appendingPathComponent("qwen3-speech", isDirectory: true)
+            let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            let cacheDir = basePath ?? appSupportURL.appendingPathComponent("qwen3-speech", isDirectory: true)
             try? FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
 
             // ─── Retry wrapper ────────────────────────────────────────────

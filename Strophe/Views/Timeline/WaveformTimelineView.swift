@@ -60,23 +60,27 @@ struct WaveformTimelineView: View {
             if let data = project.waveformData {
                 let safeDataDuration = data.duration.isFinite ? max(0, data.duration) : 0
                 let safePPS = pixelsPerSecond.isFinite ? max(0.001, pixelsPerSecond) : minPPS
-                let totalWidth = CGFloat(max(1, safeDataDuration * safePPS))
                 let rulerHeight: CGFloat = 25
                 let waveHeight: CGFloat = 120
 
                 GeometryReader { timelineGeo in
                     let contentWidth = timelineGeo.size.width
+                    let visibleDuration = Double(max(1, contentWidth)) / safePPS
+                    let trailingWorkspaceDuration = max(8.0, visibleDuration * 0.75)
+                    let timelineWorkspaceDuration = safeDataDuration + trailingWorkspaceDuration
+                    let totalWidth = CGFloat(max(1, timelineWorkspaceDuration * safePPS))
 
                     ZStack(alignment: .top) {
                         ScrollView(.horizontal, showsIndicators: true) {
                             ZStack(alignment: .topLeading) {
-                                scrollOffsetReader(pixelsPerSecond: safePPS, duration: safeDataDuration, viewWidth: contentWidth)
+                                scrollOffsetReader(pixelsPerSecond: safePPS, duration: timelineWorkspaceDuration, viewWidth: contentWidth)
 
                                 WaveformTimelineContainer(
                                     project: project,
                                     data: data,
                                     viewWidth: contentWidth,
                                     totalWidth: totalWidth,
+                                    workspaceDuration: timelineWorkspaceDuration,
                                     visibleStartTime: viewportStartTime,
                                     rulerHeight: rulerHeight,
                                     waveHeight: waveHeight,
@@ -92,7 +96,7 @@ struct WaveformTimelineView: View {
                             }
                             .padding(.bottom, 6)
                             .onChange(of: pixelsPerSecond) { _, _ in
-                                keepPlayheadInView(viewWidth: Double(contentWidth), duration: data.duration)
+                                keepPlayheadInView(viewWidth: Double(contentWidth), duration: timelineWorkspaceDuration)
                             }
                         }
                         // ── 宽度同步：内层 GR 永远在 NavigationSplitView 内容区域内部，
@@ -167,6 +171,13 @@ struct WaveformTimelineView: View {
             pixelsPerSecond = Double(safeWidth) / safeDuration
             renderedPPS = pixelsPerSecond
         }
+        .onChange(of: project.currentTime) { _, _ in
+            guard project.playbackRate == 0 else { return }
+            guard !project.isScrubbing && !isDraggingPlayhead && !isUserInteracting else { return }
+            let rawDuration = project.waveformData?.duration ?? 1
+            let duration = rawDuration.isFinite ? max(1, rawDuration) : 1
+            centerPlayheadIfNeeded(viewWidth: Double(availableWidth), duration: duration)
+        }
         .frame(height: isCompact ? 236 : 200)
         .frame(maxWidth: .infinity)
         .background(Color.stropheSecondaryBackground)
@@ -213,6 +224,23 @@ struct WaveformTimelineView: View {
         let newPageStart = max(0, safeCurrentTime - visibleDuration * 0.5)
         scrollPageStartTime = max(0, min(max(0, safeDuration - visibleDuration), newPageStart))
         viewportStartTime = scrollPageStartTime
+    }
+
+    private func centerPlayheadIfNeeded(viewWidth: Double, duration: Double) {
+        let safeViewWidth = viewWidth.isFinite ? max(1, viewWidth) : 1
+        let safePPS = pixelsPerSecond.isFinite ? max(0.001, pixelsPerSecond) : 50
+        let safeDuration = duration.isFinite ? max(0, duration) : 0
+        let safeCurrentTime = project.currentTime.clampedFinite(to: 0...safeDuration)
+        let visibleDuration = safeViewWidth / safePPS
+        
+        let currentStart = viewportStartTime.isFinite ? viewportStartTime : 0
+        let currentEnd = currentStart + visibleDuration
+        
+        if safeCurrentTime < currentStart || safeCurrentTime > currentEnd {
+            let newPageStart = max(0, safeCurrentTime - visibleDuration * 0.5)
+            scrollPageStartTime = max(0, min(max(0, safeDuration - visibleDuration), newPageStart))
+            viewportStartTime = scrollPageStartTime
+        }
     }
     
     /// 防抖延迟提交 Canvas 重绘：150ms 内无新缩放事件则立即将 renderedPPS 对齐 pixelsPerSecond。

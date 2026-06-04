@@ -6,8 +6,21 @@
 //
 
 import Foundation
+import Combine
 
 extension SubtitleProject {
+    private typealias SubtitleTimingSnapshot = [UUID: (startTime: TimeInterval?, endTime: TimeInterval?)]
+
+    var canUndo: Bool { undoManager.canUndo }
+    var canRedo: Bool { undoManager.canRedo }
+    var canCopySelectedSubtitleBlocks: Bool { !selectedIDs.isEmpty }
+    var canCutSelectedSubtitleBlocks: Bool {
+        items.contains { selectedIDs.contains($0.id) && !isLockedForEditing($0) }
+    }
+    var canPasteSubtitleBlocks: Bool {
+        !subtitleClipboard.isEmpty && StyleAndGroupStore.shared.activeGroup?.isLocked != true
+    }
+
     private func registerUndo(label: String, oldItems: [SubtitleItem], oldSelectedIDs: Set<UUID>) {
         undoManager.registerUndo(withTarget: self) { project in
             let currentItems = project.items
@@ -22,9 +35,74 @@ extension SubtitleProject {
             undoManager.setActionName(label)
         }
     }
+
+    private func registerTimingUndo(label: String, oldTimings: SubtitleTimingSnapshot, oldSelectedIDs: Set<UUID>) {
+        undoManager.registerUndo(withTarget: self) { project in
+            let affectedIDs = Set(oldTimings.keys)
+            let currentTimings = project.timingSnapshot(for: affectedIDs)
+            let currentSelectedIDs = project.selectedIDs
+            project.applyTimingSnapshot(oldTimings, selectedIDs: oldSelectedIDs)
+            project.registerTimingUndo(label: label, oldTimings: currentTimings, oldSelectedIDs: currentSelectedIDs)
+        }
+        if !label.isEmpty {
+            undoManager.setActionName(label)
+        }
+    }
+
+    private func timingSnapshot(for ids: Set<UUID>) -> SubtitleTimingSnapshot {
+        var snapshot: SubtitleTimingSnapshot = [:]
+        snapshot.reserveCapacity(ids.count)
+        for item in items where ids.contains(item.id) {
+            snapshot[item.id] = (item.startTime, item.endTime)
+        }
+        return snapshot
+    }
+
+    private func applyTimingSnapshot(_ snapshot: SubtitleTimingSnapshot, selectedIDs: Set<UUID>) {
+        guard !snapshot.isEmpty else { return }
+        var updatedItems = items
+        var indicesByID: [UUID: Int] = [:]
+        indicesByID.reserveCapacity(updatedItems.count)
+        for (index, item) in updatedItems.enumerated() {
+            indicesByID[item.id] = index
+        }
+
+        for (id, timing) in snapshot {
+            guard let index = indicesByID[id] else { continue }
+            updatedItems[index].startTime = timing.startTime
+            updatedItems[index].endTime = timing.endTime
+        }
+
+        updatedItems.sort(by: stableSubtitleSort)
+        items = updatedItems
+        self.selectedIDs = selectedIDs
+        autoUpdateCurrentIndex()
+        notifyChange()
+    }
+
+    private func stableSubtitleSort(_ a: SubtitleItem, _ b: SubtitleItem) -> Bool {
+        switch (a.startTime, b.startTime) {
+        case let (startA?, startB?):
+            if startA == startB { return a.originalIndex < b.originalIndex }
+            return startA < startB
+        case (_?, nil):
+            return true
+        case (nil, _?):
+            return false
+        case (nil, nil):
+            return a.originalIndex < b.originalIndex
+        }
+    }
     
-    func undo() { undoManager.undo() }
-    func redo() { undoManager.redo() }
+    func undo() {
+        undoManager.undo()
+        objectWillChange.send()
+    }
+
+    func redo() {
+        undoManager.redo()
+        objectWillChange.send()
+    }
 
     func subgroup(for item: SubtitleItem, store: StyleAndGroupStore = .shared) -> SubGroupItem? {
         store.group(id: item.groupID) ?? store.activeGroup ?? store.groups.first
@@ -217,23 +295,30 @@ extension SubtitleProject {
 
     func moveSelectedBlocks(by delta: TimeInterval) {
         guard !selectedIDs.isEmpty else { return }
-        let oldItems = items
         let oldSelectedIDs = selectedIDs
-        
-        for id in selectedIDs {
-            if let index = items.firstIndex(where: { $0.id == id }),
-               !isLockedForEditing(items[index]),
-               let start = items[index].startTime,
-               let end = items[index].endTime {
+
+        var updatedItems = items
+        var oldTimings: SubtitleTimingSnapshot = [:]
+        oldTimings.reserveCapacity(selectedIDs.count)
+
+        for index in updatedItems.indices where selectedIDs.contains(updatedItems[index].id) {
+            if !isLockedForEditing(updatedItems[index]),
+               let start = updatedItems[index].startTime,
+               let end = updatedItems[index].endTime {
                 let newStart = snapToFrame(max(0, start + delta))
                 let minDuration = videoFrameRate > 0 ? (1.0 / videoFrameRate) : 0.1
                 let newEnd = snapToFrame(max(newStart + minDuration, end + delta))
-                items[index].startTime = newStart
-                items[index].endTime = newEnd
+                oldTimings[updatedItems[index].id] = (start, end)
+                updatedItems[index].startTime = newStart
+                updatedItems[index].endTime = newEnd
             }
         }
-        sortItemsStable()
-        registerUndo(label: String(localized: "移动字幕块"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+
+        guard !oldTimings.isEmpty else { return }
+        updatedItems.sort(by: stableSubtitleSort)
+        items = updatedItems
+        autoUpdateCurrentIndex()
+        registerTimingUndo(label: String(localized: "移动字幕块"), oldTimings: oldTimings, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
     
@@ -304,18 +389,7 @@ extension SubtitleProject {
     }
     
     func sortItemsStable() {
-        items.sort { a, b in
-            switch (a.startTime, b.startTime) {
-            case let (startA?, startB?):
-                return startA < startB
-            case (_?, nil):
-                return true
-            case (nil, _?):
-                return false
-            case (nil, nil):
-                return a.originalIndex < b.originalIndex
-            }
-        }
+        items.sort(by: stableSubtitleSort)
         autoUpdateCurrentIndex()
     }
     
@@ -344,6 +418,70 @@ extension SubtitleProject {
         items.removeAll(where: { ids.contains($0.id) && !isLockedForEditing($0) })
         registerUndo(label: String(localized: "删除字幕"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
+    }
+
+    func copySelectedSubtitleBlocks() {
+        guard canCopySelectedSubtitleBlocks else { return }
+        subtitleClipboard = selectedSubtitleBlocksForClipboard()
+        objectWillChange.send()
+    }
+
+    func cutSelectedSubtitleBlocks() {
+        let blocksToCut = selectedSubtitleBlocksForClipboard().filter { !isLockedForEditing($0) }
+        guard !blocksToCut.isEmpty else { return }
+
+        subtitleClipboard = blocksToCut
+        let oldItems = items
+        let oldSelectedIDs = selectedIDs
+        let cutIDs = Set(blocksToCut.map(\.id))
+        items.removeAll { cutIDs.contains($0.id) }
+        selectedIDs.subtract(cutIDs)
+        registerUndo(label: String(localized: "剪切字幕块"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        notifyChange()
+    }
+
+    func pasteSubtitleBlocksIntoActiveGroup(store: StyleAndGroupStore = .shared) {
+        guard !subtitleClipboard.isEmpty,
+              let activeGroupID = store.activeGroupID,
+              store.activeGroup?.isLocked != true else { return }
+
+        let oldItems = items
+        let oldSelectedIDs = selectedIDs
+        var newIDs = Set<UUID>()
+        let nextOriginalIndex = (items.map(\.originalIndex).max() ?? -1) + 1
+
+        let pastedItems = subtitleClipboard.enumerated().map { offset, source in
+            var item = source
+            item.id = UUID()
+            item.groupID = activeGroupID
+            item.originalIndex = nextOriginalIndex + offset
+            newIDs.insert(item.id)
+            return item
+        }
+
+        items.append(contentsOf: pastedItems)
+        selectedIDs = newIDs
+        sortItemsStable()
+        registerUndo(label: String(localized: "粘贴字幕块"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        notifyChange()
+    }
+
+    private func selectedSubtitleBlocksForClipboard() -> [SubtitleItem] {
+        items
+            .filter { selectedIDs.contains($0.id) }
+            .sorted { lhs, rhs in
+                switch (lhs.startTime, rhs.startTime) {
+                case let (left?, right?):
+                    if left == right { return lhs.originalIndex < rhs.originalIndex }
+                    return left < right
+                case (_?, nil):
+                    return true
+                case (nil, _?):
+                    return false
+                case (nil, nil):
+                    return lhs.originalIndex < rhs.originalIndex
+                }
+            }
     }
     
     // MARK: - Split / Merge Operations

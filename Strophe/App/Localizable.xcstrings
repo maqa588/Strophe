@@ -287,6 +287,9 @@
         }
       }
     },
+    "2-pass 多遍编码" : {
+
+    },
     "1080p 30fps 预估：%@。实际码率仍由 VideoToolbox 和画面复杂度决定。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -618,6 +621,9 @@
         }
       }
     },
+    "Copy Subtitle Blocks" : {
+
+    },
     "CRF" : {
       "localizations" : {
         "ar" : {
@@ -691,6 +697,9 @@
           }
         }
       }
+    },
+    "Cut Subtitle Blocks" : {
+
     },
     "Drop a video or audio file here, or click to import" : {
       "localizations" : {
@@ -1329,6 +1338,9 @@
         }
       }
     },
+    "NV12 像素缓冲" : {
+
+    },
     "Open" : {
       "localizations" : {
         "ar" : {
@@ -1449,6 +1461,9 @@
         }
       }
     },
+    "Paste Subtitle Blocks" : {
+
+    },
     "Paste your script below. Each line becomes one subtitle segment." : {
       "localizations" : {
         "ar" : {
@@ -1518,6 +1533,7 @@
       }
     },
     "ProRes 422 使用 Apple 固定的中间片编码参数，适合继续剪辑或高质量归档；码率由 ProRes 规格和画面尺寸决定。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1556,6 +1572,12 @@
           }
         }
       }
+    },
+    "ProRes 使用 Apple 固定的中间片编码参数，适合继续剪辑或高质量归档；码率由 ProRes 规格和画面尺寸决定。" : {
+
+    },
+    "Redo" : {
+
     },
     "Replace Media…" : {
       "localizations" : {
@@ -2041,6 +2063,9 @@
           }
         }
       }
+    },
+    "Undo" : {
+
     },
     "v%@ (%@)" : {
       "localizations" : {
@@ -3441,6 +3466,9 @@
         }
       }
     },
+    "剪切字幕块" : {
+
+    },
     "功能开发中，敬请期待。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4572,6 +4600,9 @@
       }
     },
     "完成" : {
+
+    },
+    "实验选项。尝试用更接近硬件编码器的 YUV 缓冲写入 H.264/H.265；若导出失败或颜色异常，请关闭。" : {
 
     },
     "对话人识别" : {
@@ -9214,6 +9245,9 @@
         }
       }
     },
+    "粘贴字幕块" : {
+
+    },
     "粘贴或导入文稿" : {
       "localizations" : {
         "ar" : {
@@ -10705,6 +10739,7 @@
       }
     },
     "输入新字幕文本" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -11788,6 +11823,9 @@
           }
         }
       }
+    },
+    "默认关闭。开启后会让 VideoToolbox 在支持时进行多遍分析，导出更慢，但低运动画面和目标码率模式通常更容易压出更小体积。" : {
+
     }
   },
   "version" : "1.0"

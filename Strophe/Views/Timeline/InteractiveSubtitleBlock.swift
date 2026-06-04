@@ -158,6 +158,15 @@ struct InteractiveSubtitleBlock: View {
             isShowingBlockActions = true
         }
     }
+
+    private func latestTextForEditing() -> String {
+        project.items.first(where: { $0.id == item.id })?.text ?? item.text
+    }
+
+    private func beginEditingText() {
+        editingText = latestTextForEditing()
+        isEditingText = true
+    }
     
     private var currentStart: Double {
         if item.id == activeDragItemID {
@@ -262,8 +271,7 @@ struct InteractiveSubtitleBlock: View {
         }
         // 双击字幕块自动进入编辑界面
         .onTapGesture(count: 2) {
-            editingText = item.text
-            isEditingText = true
+            beginEditingText()
         }
         // 单击选中
         .onTapGesture(count: 1) {
@@ -294,14 +302,14 @@ struct InteractiveSubtitleBlock: View {
         .contextMenu {
             blockContextMenu
         }
-        // 原生编辑文本弹框
-        .alert("编辑字幕内容", isPresented: $isEditingText) {
-            TextField("输入新字幕文本", text: $editingText, axis: .vertical)
-                .lineLimit(3...6)
-            Button("确定") {
+        .sheet(isPresented: $isEditingText) {
+            SubtitleTextEditSheet(
+                title: String(localized: "编辑字幕内容"),
+                text: $editingText,
+                isPresented: $isEditingText
+            ) {
                 project.updateSubtitleText(id: item.id, text: editingText)
             }
-            Button("取消", role: .cancel) {}
         }
         .alert("更改显示时间", isPresented: $isEditingTime) {
             TextField("起始时间，例如 01:23.45", text: $editingStartText)
@@ -314,9 +322,6 @@ struct InteractiveSubtitleBlock: View {
             Text("可输入秒数、MM:SS 或 HH:MM:SS")
         }
         .onChange(of: isEditingText) { _, newValue in
-            if newValue {
-                editingText = item.text
-            }
             project.isEditingText = newValue
         }
         .onChange(of: isEditingTime) { _, newValue in
@@ -571,10 +576,9 @@ struct InteractiveSubtitleBlock: View {
             }
 
             popoverAction(icon: "pencil", title: String(localized: "编辑内容"), disabled: isLocked) {
-                editingText = item.text
                 isShowingBlockActions = false
                 DispatchQueue.main.async {
-                    isEditingText = true
+                    beginEditingText()
                 }
             }
 
@@ -867,6 +871,128 @@ struct InteractiveSubtitleBlock: View {
     }
 }
 
+struct SubtitleTextEditSheet: View {
+    let title: String
+    @Binding var text: String
+    @Binding var isPresented: Bool
+    let onConfirm: () -> Void
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(Color.stropheText)
+
+            SubtitleTextEditingView(text: $text)
+                .frame(minHeight: 130)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.stropheBlue, lineWidth: 2)
+                )
+
+            HStack(spacing: 14) {
+                Button(String(localized: "Cancel")) {
+                    isPresented = false
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Button(String(localized: "确定")) {
+                    onConfirm()
+                    isPresented = false
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(24)
+        .frame(width: 430)
+        .background(Color.stropheBackground)
+    }
+}
+
+#if os(macOS)
+struct SubtitleTextEditingView: NSViewRepresentable {
+    @Binding var text: String
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.borderType = .noBorder
+        scrollView.hasVerticalScroller = true
+        scrollView.drawsBackground = true
+        scrollView.backgroundColor = NSColor.textBackgroundColor.withAlphaComponent(0.08)
+
+        let textView = NSTextView()
+        textView.delegate = context.coordinator
+        textView.string = text
+        textView.font = .systemFont(ofSize: 15)
+        textView.isRichText = false
+        textView.allowsUndo = true
+        textView.isEditable = true
+        textView.isSelectable = true
+        textView.drawsBackground = false
+        textView.textContainerInset = NSSize(width: 8, height: 8)
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.containerSize = NSSize(width: scrollView.contentSize.width, height: CGFloat.greatestFiniteMagnitude)
+        textView.autoresizingMask = [.width]
+        scrollView.documentView = textView
+
+        DispatchQueue.main.async {
+            scrollView.window?.makeFirstResponder(textView)
+        }
+
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        context.coordinator.text = $text
+        guard let textView = scrollView.documentView as? NSTextView else { return }
+        if textView.string != text {
+            textView.string = text
+        }
+        DispatchQueue.main.async {
+            if scrollView.window?.firstResponder !== textView {
+                scrollView.window?.makeFirstResponder(textView)
+            }
+        }
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        var text: Binding<String>
+
+        init(text: Binding<String>) {
+            self.text = text
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            text.wrappedValue = textView.string
+        }
+    }
+}
+#else
+struct SubtitleTextEditingView: View {
+    @Binding var text: String
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        TextEditor(text: $text)
+            .font(.system(size: 15))
+            .focused($isFocused)
+            .scrollContentBackground(.hidden)
+            .padding(8)
+            .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            .onAppear {
+                isFocused = true
+            }
+    }
+}
+#endif
+
 extension InteractiveSubtitleBlock {
     @ViewBuilder
     var blockContextMenu: some View {
@@ -889,9 +1015,8 @@ extension InteractiveSubtitleBlock {
         Divider()
 
         Button {
-            editingText = item.text
             DispatchQueue.main.async {
-                isEditingText = true
+                beginEditingText()
             }
         } label: {
             Label(String(localized: "编辑内容"), systemImage: "pencil")

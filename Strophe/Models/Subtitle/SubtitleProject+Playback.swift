@@ -61,4 +61,23 @@ extension SubtitleProject {
         referenceTime = activeEngine?.currentTime ?? 0
         referenceDate = .now
     }
+
+    func seek(to time: Double) {
+        guard let eng = activeEngine else {
+            self.currentTime = time
+            self.referenceTime = time
+            self.referenceDate = .now
+            return
+        }
+        guard !isSeeking else { return }
+        
+        isSeeking = true
+        Task { @MainActor in
+            await eng.seek(to: time)
+            isSeeking = false
+            self.currentTime = time
+            self.referenceTime = time
+            self.referenceDate = .now
+        }
+    }
 }

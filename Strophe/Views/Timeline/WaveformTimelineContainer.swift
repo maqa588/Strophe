@@ -12,6 +12,7 @@ struct WaveformTimelineContainer: View {
     @ObservedObject var data: WaveformData
     let viewWidth: CGFloat
     let totalWidth: CGFloat
+    let workspaceDuration: Double
     let visibleStartTime: Double
     let rulerHeight: CGFloat
     let waveHeight: CGFloat
@@ -77,6 +78,7 @@ struct WaveformTimelineContainer: View {
         let safeRenderedPPS = renderedPPS.isFinite ? max(0.001, renderedPPS) : safePixelsPerSecond
         let safeViewWidth = viewWidth.isFinite ? max(1.0, viewWidth) : 1.0
         let safeTotalWidth = totalWidth.isFinite ? max(1.0, totalWidth) : 1.0
+        let safeWorkspaceDuration = workspaceDuration.isFinite ? max(safeDuration, workspaceDuration) : safeDuration
         let staticTime = project.currentTime.clampedFinite(to: 0.0...safeDuration)
         
         return ZStack(alignment: .topLeading) {
@@ -123,8 +125,16 @@ struct WaveformTimelineContainer: View {
                         .clipped()
                         .frame(width: safeTotalWidth, height: waveHeight, alignment: .leading)
                     
-                    SubtitleBlocksLayer(project: project, pixelsPerSecond: safePixelsPerSecond, smoothTime: staticTime, visibleStartTime: visibleStartTime, viewWidth: safeViewWidth)
-                        .frame(width: safeTotalWidth, height: waveHeight)
+                    SubtitleBlocksLayer(
+                        project: project,
+                        pixelsPerSecond: safePixelsPerSecond,
+                        smoothTime: staticTime,
+                        visibleStartTime: visibleStartTime,
+                        viewWidth: safeViewWidth,
+                        workspaceDuration: safeWorkspaceDuration,
+                        scrollPageStartTime: $scrollPageStartTime
+                    )
+                    .frame(width: safeTotalWidth, height: waveHeight)
                     
                     if project.editingMode == .creation,
                        let startX = drawSubtitleStartLocation,
@@ -170,8 +180,8 @@ struct WaveformTimelineContainer: View {
                                         let duration = (maxX - minX) / safePixelsPerSecond
                                         
                                         if duration > 0.1 {
-                                            let startTime = minX / safePixelsPerSecond
-                                            let endTime = maxX / safePixelsPerSecond
+                                            let startTime = (minX / safePixelsPerSecond).clamped(to: 0...safeWorkspaceDuration)
+                                            let endTime = (maxX / safePixelsPerSecond).clamped(to: 0...safeWorkspaceDuration)
                                             project.createSubtitleBlock(startTime: startTime, endTime: endTime)
                                         }
                                     }
@@ -184,8 +194,8 @@ struct WaveformTimelineContainer: View {
                         .simultaneousGesture(
                             SpatialTapGesture(count: 2)
                                 .onEnded { value in
-                                    let startTime = value.location.x / safePixelsPerSecond
-                                    let endTime = min(safeDuration, startTime + 2.0)
+                                    let startTime = (value.location.x / safePixelsPerSecond).clamped(to: 0...safeWorkspaceDuration)
+                                    let endTime = min(safeWorkspaceDuration, startTime + 2.0)
                                     project.createSubtitleBlock(startTime: startTime, endTime: endTime)
                                 }
                         )

@@ -1,9 +1,40 @@
 import SwiftUI
 
-struct StropheMenuBar: Commands {
+struct StropheNavBarCommands: Commands {
     @ObservedObject var project: SubtitleProject
     
     var body: some Commands {
+        CommandGroup(replacing: .undoRedo) {
+            Button(String(localized: "Undo")) {
+                project.undo()
+            }
+            .keyboardShortcut("z", modifiers: .command)
+            .disabled(!project.canUndo)
+
+            Button(String(localized: "Redo")) {
+                project.redo()
+            }
+            .keyboardShortcut("z", modifiers: [.command, .shift])
+            .disabled(!project.canRedo)
+        }
+
+        CommandGroup(after: .pasteboard) {
+            Button(String(localized: "Cut Subtitle Blocks")) {
+                project.cutSelectedSubtitleBlocks()
+            }
+            .disabled(!project.canCutSelectedSubtitleBlocks)
+
+            Button(String(localized: "Copy Subtitle Blocks")) {
+                project.copySelectedSubtitleBlocks()
+            }
+            .disabled(!project.canCopySelectedSubtitleBlocks)
+
+            Button(String(localized: "Paste Subtitle Blocks")) {
+                project.pasteSubtitleBlocksIntoActiveGroup()
+            }
+            .disabled(!project.canPasteSubtitleBlocks)
+        }
+
         CommandGroup(replacing: .newItem) {
             Button(String(localized: "Open")) {
                 NotificationCenter.default.post(name: .stropheImportMedia, object: nil)

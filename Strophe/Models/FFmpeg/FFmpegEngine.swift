@@ -375,6 +375,10 @@ final class FrameQueue: @unchecked Sendable {
             // This is the single source of truth
             audioPlayer.seek(to: actualPTS)
             
+            // Add a tiny delay to allow AVAudioPlayerNode's internal AudioQueue to fully stop
+            // before we potentially call play() below. This prevents kAudioQueueErr_InvalidRunState (-4).
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            
             // Reset the system clock baseline AFTER seek completes
             cachedStartSystemTime = CACurrentMediaTime()
             cachedStartPlaybackTime = actualPTS

@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 
-struct ResolvedRGBAColor: Sendable, Equatable, Hashable {
+nonisolated struct ResolvedRGBAColor: Sendable, Equatable, Hashable {
     var red: Double
     var green: Double
     var blue: Double
@@ -23,7 +23,7 @@ struct ResolvedRGBAColor: Sendable, Equatable, Hashable {
     }
 }
 
-struct ResolvedSubtitleStyle: Sendable, Equatable, Hashable {
+nonisolated struct ResolvedSubtitleStyle: Sendable, Equatable, Hashable {
     var name: String
     var fontName: String?
     var fontSize: Double
@@ -53,7 +53,7 @@ struct ResolvedSubtitleStyle: Sendable, Equatable, Hashable {
     )
 }
 
-struct ResolvedSubtitleCue: Identifiable, Sendable, Equatable, Hashable {
+nonisolated struct ResolvedSubtitleCue: Identifiable, Sendable, Equatable, Hashable {
     var id: UUID
     var text: String
     var startTime: Double

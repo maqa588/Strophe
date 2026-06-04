@@ -13,15 +13,28 @@ class TimelineIndex {
     private(set) var overlappingIntervals: [SubtitleProject.OverlapInterval] = []
     private(set) var overlappingItemIDs: Set<UUID> = []
     private(set) var itemIndexByID: [UUID: Int] = [:]
+    private var maxEndPrefixByStartTime: [Double] = []
+    private var itemByID: [UUID: SubtitleItem] = [:]
     
     func rebuild(with items: [SubtitleItem]) {
         self.itemIndexByID = [:]
+        self.itemByID = [:]
         for (i, item) in items.enumerated() {
             self.itemIndexByID[item.id] = i
+            self.itemByID[item.id] = item
         }
         
         let timedItems = items.filter { $0.startTime != nil }
         self.itemsByStartTime = timedItems.sorted { ($0.startTime ?? 0) < ($1.startTime ?? 0) }
+        self.maxEndPrefixByStartTime = []
+        self.maxEndPrefixByStartTime.reserveCapacity(itemsByStartTime.count)
+        var maxEndSoFar = -Double.infinity
+        for item in itemsByStartTime {
+            let start = item.startTime ?? 0
+            let end = item.endTime ?? (start + 0.1)
+            maxEndSoFar = max(maxEndSoFar, end)
+            maxEndPrefixByStartTime.append(maxEndSoFar)
+        }
         
         var edges = Set<Double>()
         for item in timedItems {
@@ -92,7 +105,23 @@ class TimelineIndex {
     
     func visibleItems(in range: ClosedRange<Double>) -> [SubtitleItem] {
         var results = [SubtitleItem]()
-        for item in itemsByStartTime {
+        guard !itemsByStartTime.isEmpty else { return results }
+
+        let startIndex = firstIndexWithStart(greaterThanOrEqualTo: range.lowerBound)
+        var scanIndex = startIndex
+        while scanIndex > 0, maxEndPrefixByStartTime[scanIndex - 1] >= range.lowerBound {
+            let previousIndex = scanIndex - 1
+            let item = itemsByStartTime[previousIndex]
+            let start = item.startTime ?? 0
+            let end = item.endTime ?? (start + 0.1)
+            if end >= range.lowerBound {
+                results.append(item)
+            }
+            scanIndex = previousIndex
+        }
+        results.reverse()
+
+        for item in itemsByStartTime[startIndex...] {
             guard let start = item.startTime else { continue }
             if start > range.upperBound {
                 break
@@ -106,36 +135,92 @@ class TimelineIndex {
     }
     
     func nearestSnapPoint(to time: Double, ignoring ignoredItemID: UUID? = nil) -> Double? {
-        let edges: [Double]
+        let ignoredStart: Double?
+        let ignoredEnd: Double?
         if let ignoredItemID,
-           let ignoredItem = itemsByStartTime.first(where: { $0.id == ignoredItemID }) {
-            edges = sortedSnapEdges.filter { edge in
-                edge != ignoredItem.startTime && edge != ignoredItem.endTime
-            }
+           let ignoredItem = itemByID[ignoredItemID] {
+            ignoredStart = ignoredItem.startTime
+            ignoredEnd = ignoredItem.endTime
         } else {
-            edges = sortedSnapEdges
+            ignoredStart = nil
+            ignoredEnd = nil
         }
 
-        guard !edges.isEmpty else { return nil }
+        guard !sortedSnapEdges.isEmpty else { return nil }
+        let insertionIndex = firstSnapEdgeIndex(greaterThanOrEqualTo: time)
+
+        var left = insertionIndex - 1
+        var right = insertionIndex
+        var best: Double?
+        var bestDistance = Double.infinity
+
+        while left >= 0 || right < sortedSnapEdges.count {
+            var advanced = false
+            if right < sortedSnapEdges.count {
+                let candidate = sortedSnapEdges[right]
+                let distance = abs(candidate - time)
+                if distance > bestDistance { break }
+                if !isIgnoredSnapEdge(candidate, ignoredStart: ignoredStart, ignoredEnd: ignoredEnd) {
+                    best = candidate
+                    bestDistance = distance
+                }
+                right += 1
+                advanced = true
+            }
+
+            if left >= 0 {
+                let candidate = sortedSnapEdges[left]
+                let distance = abs(candidate - time)
+                if distance <= bestDistance,
+                   !isIgnoredSnapEdge(candidate, ignoredStart: ignoredStart, ignoredEnd: ignoredEnd) {
+                    best = candidate
+                    bestDistance = distance
+                }
+                left -= 1
+                advanced = true
+            }
+
+            if best != nil { break }
+            if !advanced { break }
+        }
+
+        return best
+    }
+
+    private func firstIndexWithStart(greaterThanOrEqualTo time: Double) -> Int {
         var low = 0
-        var high = edges.count - 1
-        
+        var high = itemsByStartTime.count
+
         while low < high {
             let mid = low + (high - low) / 2
-            if edges[mid] < time {
+            let start = itemsByStartTime[mid].startTime ?? .infinity
+            if start < time {
                 low = mid + 1
             } else {
                 high = mid
             }
         }
-        
-        let candidate1 = edges[low]
-        if low > 0 {
-            let candidate2 = edges[low - 1]
-            if abs(candidate2 - time) < abs(candidate1 - time) {
-                return candidate2
+
+        return low
+    }
+
+    private func firstSnapEdgeIndex(greaterThanOrEqualTo time: Double) -> Int {
+        var low = 0
+        var high = sortedSnapEdges.count
+
+        while low < high {
+            let mid = low + (high - low) / 2
+            if sortedSnapEdges[mid] < time {
+                low = mid + 1
+            } else {
+                high = mid
             }
         }
-        return candidate1
+
+        return low
+    }
+
+    private func isIgnoredSnapEdge(_ edge: Double, ignoredStart: Double?, ignoredEnd: Double?) -> Bool {
+        edge == ignoredStart || edge == ignoredEnd
     }
 }

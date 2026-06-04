@@ -50,8 +50,10 @@ struct StropheApp: App {
         }
         #if os(macOS)
         .defaultSize(width: 1200, height: 750)
+        #endif
+        #if os(macOS) || os(iOS)
         .commands {
-            StropheMenuBar(project: project)
+            StropheNavBarCommands(project: project)
         }
         #endif
     }

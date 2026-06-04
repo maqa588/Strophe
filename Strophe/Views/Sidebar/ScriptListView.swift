@@ -42,20 +42,22 @@ struct ScriptListView: View {
         .onChange(of: isShowingInput) { _, newValue in
             project.isEditingText = newValue
         }
-        .alert(String(localized: "编辑字幕内容"), isPresented: $isEditingText) {
-            TextField("输入新字幕文本", text: $editingText, axis: .vertical)
-                .lineLimit(3...6)
-            Button("确定") {
+        .sheet(isPresented: $isEditingText) {
+            SubtitleTextEditSheet(
+                title: String(localized: "编辑字幕内容"),
+                text: $editingText,
+                isPresented: $isEditingText
+            ) {
                 if let item = editingItem {
                     project.updateSubtitleText(id: item.id, text: editingText)
                 }
                 editingItem = nil
             }
-            Button(String(localized: "Cancel"), role: .cancel) {
-                editingItem = nil
-            }
         }
         .onChange(of: isEditingText) { _, newValue in
+            if !newValue {
+                editingItem = nil
+            }
             project.isEditingText = newValue
         }
         .alert(String(localized: "更改显示时间"), isPresented: $isEditingTime) {
@@ -146,17 +148,18 @@ struct ScriptListView: View {
     // MARK: - Script List
     private var scriptList: some View {
         ScrollViewReader { scrollProxy in
-            List(Array(project.items.enumerated()), id: \.element.id, selection: $project.selectedIDs) { index, item in
+            List(selection: $project.selectedIDs) {
+                ForEach(project.items) { item in
                 let group = project.subgroup(for: item, store: store)
                 let isLocked = item.isLocked || group?.isLocked == true
                 
                 SubtitleRow(
                     item: item,
-                    index: index,
                     isActive: item.id == project.scrollTargetID,
                     isOverlapping: project.isItemOverlapping(id: item.id),
                     group: group
                 )
+                .equatable()
                 .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
                 .listRowSeparator(.hidden)
                 .id(item.id)
@@ -183,7 +186,7 @@ struct ScriptListView: View {
 
                     Button(action: {
                         editingItem = item
-                        editingText = item.text
+                        editingText = project.items.first(where: { $0.id == item.id })?.text ?? item.text
                         isEditingText = true
                     }) {
                         Label("编辑内容", systemImage: "pencil")
@@ -270,6 +273,7 @@ struct ScriptListView: View {
                     .disabled(isLocked)
                 }
                 .disabled(project.editingMode == .creation)
+            }
             }
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)

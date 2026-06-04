@@ -67,6 +67,11 @@ struct ContentView: View {
                 projectLoadingOverlay
             }
         }
+        .overlay {
+            if isShowingRestoreTimeAlert {
+                restoreTimeOverlay
+            }
+        }
         .fileImporter(
             isPresented: $isShowingOpenProject,
             allowedContentTypes: [.stropheProject],
@@ -150,17 +155,6 @@ struct ContentView: View {
             Text(String(localized: "如果未保存，编辑的内容将会丢失。"))
         }
         #endif
-        .alert(
-            String(localized: "是否回到上次编辑位置？"),
-            isPresented: $isShowingRestoreTimeAlert
-        ) {
-            Button(String(localized: "恢复位置")) {
-                project.currentTime = pendingRestoreTime
-            }
-            Button(String(localized: "不恢复"), role: .cancel) { }
-        } message: {
-            Text(String(localized: "该工程文件保存了上一次的时间轴位置，是否要跳转到该位置？"))
-        }
         .onChange(of: project.loadedPlayheadTime) { _, newValue in
             if let time = newValue {
                 pendingRestoreTime = time
@@ -366,6 +360,18 @@ struct ContentView: View {
                 if mod == [.command, .shift], event.charactersIgnoringModifiers == "Z" {
                     project.redo(); return nil
                 }
+                if mod == .command, event.charactersIgnoringModifiers?.lowercased() == "c" {
+                    guard project.canCopySelectedSubtitleBlocks else { return event }
+                    project.copySelectedSubtitleBlocks(); return nil
+                }
+                if mod == .command, event.charactersIgnoringModifiers?.lowercased() == "x" {
+                    guard project.canCutSelectedSubtitleBlocks else { return event }
+                    project.cutSelectedSubtitleBlocks(); return nil
+                }
+                if mod == .command, event.charactersIgnoringModifiers?.lowercased() == "v" {
+                    guard project.canPasteSubtitleBlocks else { return event }
+                    project.pasteSubtitleBlocksIntoActiveGroup(); return nil
+                }
                 if mod == .option,
                    let rawKey = event.charactersIgnoringModifiers,
                    let number = Int(rawKey),
@@ -436,6 +442,56 @@ struct ContentView: View {
                     .stroke(Color.stropheBorder.opacity(0.35), lineWidth: 1)
             )
         }
+    }
+
+    private var restoreTimeOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.24)
+                .ignoresSafeArea()
+
+            VStack(spacing: 20) {
+                VStack(spacing: 8) {
+                    Text(String(localized: "是否回到上次编辑位置？"))
+                        .font(.headline)
+                        .foregroundStyle(Color.stropheText)
+
+                    Text(String(localized: "该工程文件保存了上一次的时间轴位置，是否要跳转到该位置？"))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+
+                HStack(spacing: 16) {
+                    Button(String(localized: "不恢复")) {
+                        dismissRestoreTimePrompt()
+                    }
+                    .keyboardShortcut(.cancelAction)
+
+                    Button(String(localized: "恢复位置")) {
+                        restorePendingTimelinePosition()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(22)
+            .frame(width: 360, height: 160)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.stropheBorder.opacity(0.35), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.22), radius: 24, y: 10)
+        }
+    }
+
+    private func dismissRestoreTimePrompt() {
+        isShowingRestoreTimeAlert = false
+    }
+
+    private func restorePendingTimelinePosition() {
+        project.seek(to: pendingRestoreTime)
+        isShowingRestoreTimeAlert = false
     }
 
     @MainActor

@@ -19,6 +19,8 @@ struct SubtitleBlocksLayer: View {
     let smoothTime: Double
     let visibleStartTime: Double
     let viewWidth: CGFloat
+    let workspaceDuration: Double
+    @Binding var scrollPageStartTime: Double
     
     private var renderStartTime: Double {
         max(0, visibleStartTime - visiblePadding)
@@ -51,10 +53,15 @@ struct SubtitleBlocksLayer: View {
     // 框选和拖拽状态
     @State private var marqueeStart: CGFloat? = nil
     @State private var marqueeCurrent: CGFloat? = nil
+    @State private var marqueeAutoScrollTask: Task<Void, Never>? = nil
     
     @State private var activeDragItemID: UUID? = nil
     @State private var activeDragEdge: TimelineInteractionLayer.Edge? = nil
     @State private var activeDragDelta: Double = 0
+
+    private let marqueeAutoScrollEdgeInset: CGFloat = 72
+    private let marqueeAutoScrollMaxSpeed: CGFloat = 560
+    private let marqueeAutoScrollFrameInterval: TimeInterval = 1.0 / 60.0
     
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -168,6 +175,9 @@ struct SubtitleBlocksLayer: View {
         .coordinateSpace(name: subtitleBlocksCoordinateSpaceName)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .clipped()
+        .onDisappear {
+            stopMarqueeAutoScroll()
+        }
     }
 
     private var marqueeGesture: some Gesture {
@@ -179,8 +189,10 @@ struct SubtitleBlocksLayer: View {
                 }
                 marqueeCurrent = value.location.x
                 updateSelectionForMarquee()
+                ensureMarqueeAutoScrollTask()
             }
             .onEnded { _ in
+                stopMarqueeAutoScroll()
                 marqueeStart = nil
                 marqueeCurrent = nil
             }
@@ -198,12 +210,14 @@ struct SubtitleBlocksLayer: View {
                         }
                         marqueeCurrent = dragVal.location.x
                         updateSelectionForMarquee()
+                        ensureMarqueeAutoScrollTask()
                     }
                 default:
                     break
                 }
             }
             .onEnded { _ in
+                stopMarqueeAutoScroll()
                 marqueeStart = nil
                 marqueeCurrent = nil
             }
@@ -229,6 +243,65 @@ struct SubtitleBlocksLayer: View {
             }
         }
         project.selectedIDs = newSelected
+    }
+
+    private func ensureMarqueeAutoScrollTask() {
+        guard marqueeAutoScrollTask == nil else { return }
+        marqueeAutoScrollTask = Task { @MainActor in
+            while !Task.isCancelled {
+                performMarqueeAutoScrollStep()
+                try? await Task.sleep(for: .milliseconds(16))
+            }
+        }
+    }
+
+    private func stopMarqueeAutoScroll() {
+        marqueeAutoScrollTask?.cancel()
+        marqueeAutoScrollTask = nil
+    }
+
+    private func performMarqueeAutoScrollStep() {
+        guard marqueeStart != nil, let currentX = marqueeCurrent else { return }
+        guard pixelsPerSecond.isFinite, pixelsPerSecond > 0 else { return }
+        guard viewWidth.isFinite, viewWidth > 0 else { return }
+
+        let safeWorkspaceDuration = workspaceDuration.isFinite ? max(0, workspaceDuration) : 0
+        let visibleDuration = Double(viewWidth) / pixelsPerSecond
+        let maxStartTime = max(0, safeWorkspaceDuration - visibleDuration)
+        guard maxStartTime > 0 else { return }
+
+        let visibleStartX = CGFloat(scrollPageStartTime * pixelsPerSecond)
+        let visibleEndX = visibleStartX + viewWidth
+
+        let leftDistance = currentX - visibleStartX
+        let rightDistance = visibleEndX - currentX
+        let direction: CGFloat
+        let edgeOverlap: CGFloat
+
+        if leftDistance < marqueeAutoScrollEdgeInset {
+            direction = -1
+            edgeOverlap = marqueeAutoScrollEdgeInset - max(0, leftDistance)
+        } else if rightDistance < marqueeAutoScrollEdgeInset {
+            direction = 1
+            edgeOverlap = marqueeAutoScrollEdgeInset - max(0, rightDistance)
+        } else {
+            return
+        }
+
+        let strength = min(1, max(0, edgeOverlap / marqueeAutoScrollEdgeInset))
+        guard strength > 0 else { return }
+
+        let speed = marqueeAutoScrollMaxSpeed * max(0.18, strength * strength)
+        let requestedDeltaPixels = direction * speed * CGFloat(marqueeAutoScrollFrameInterval)
+        let requestedDeltaTime = Double(requestedDeltaPixels) / pixelsPerSecond
+        let oldStartTime = scrollPageStartTime.clampedFinite(to: 0...maxStartTime)
+        let newStartTime = (oldStartTime + requestedDeltaTime).clampedFinite(to: 0...maxStartTime)
+        let actualDeltaPixels = CGFloat((newStartTime - oldStartTime) * pixelsPerSecond)
+        guard abs(actualDeltaPixels) > 0.001 else { return }
+
+        scrollPageStartTime = newStartTime
+        marqueeCurrent = currentX + actualDeltaPixels
+        updateSelectionForMarquee()
     }
 }
 
