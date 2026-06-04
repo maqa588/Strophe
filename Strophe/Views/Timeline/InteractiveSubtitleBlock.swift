@@ -321,10 +321,10 @@ struct InteractiveSubtitleBlock: View {
         } message: {
             Text("可输入秒数、MM:SS 或 HH:MM:SS")
         }
-        .onChange(of: isEditingText) { _, newValue in
+        .onChange(of: isEditingText) { newValue in
             project.isEditingText = newValue
         }
-        .onChange(of: isEditingTime) { _, newValue in
+        .onChange(of: isEditingTime) { newValue in
             project.isEditingText = newValue
         }
         .offset(x: currentX, y: 0)
@@ -528,9 +528,6 @@ struct InteractiveSubtitleBlock: View {
         .labelStyle(.titleAndIcon)
         .padding(14)
         .frame(width: popoverMode == .multiSelect ? 340 : 280, alignment: .leading)
-        #if os(iOS)
-        .presentationCompactAdaptation(.popover)
-        #endif
     }
 
     private var popoverHeader: some View {

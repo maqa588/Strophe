@@ -28,7 +28,7 @@ struct HardSubtitleOverlayView: View {
         .task {
             await refreshLoop()
         }
-        .onChange(of: store.activeGroupID) { _, _ in
+        .onChange(of: store.activeGroupID) { _ in
             refreshDisplayedCues(at: resolvedCurrentTime)
         }
         .onReceive(project.objectWillChange) { _ in

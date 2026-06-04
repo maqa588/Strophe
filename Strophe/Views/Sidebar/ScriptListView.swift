@@ -39,7 +39,7 @@ struct ScriptListView: View {
                 scriptText = ""
             }
         }
-        .onChange(of: isShowingInput) { _, newValue in
+        .onChange(of: isShowingInput) { newValue in
             project.isEditingText = newValue
         }
         .sheet(isPresented: $isEditingText) {
@@ -54,7 +54,7 @@ struct ScriptListView: View {
                 editingItem = nil
             }
         }
-        .onChange(of: isEditingText) { _, newValue in
+        .onChange(of: isEditingText) { newValue in
             if !newValue {
                 editingItem = nil
             }
@@ -72,7 +72,7 @@ struct ScriptListView: View {
         } message: {
             Text("可输入秒数、MM:SS 或 HH:MM:SS")
         }
-        .onChange(of: isEditingTime) { _, newValue in
+        .onChange(of: isEditingTime) { newValue in
             project.isEditingText = newValue
         }
         .confirmationDialog(String(localized: "Import Script"), isPresented: $isShowingImportOptions, titleVisibility: .visible) {
@@ -102,7 +102,7 @@ struct ScriptListView: View {
                 print("File import failed: \(error.localizedDescription)")
             }
         }
-        .onChange(of: isShowingFileImporter) { _, newValue in
+        .onChange(of: isShowingFileImporter) { newValue in
             project.isEditingText = newValue
         }
         .onReceive(NotificationCenter.default.publisher(for: .strophePasteScript)) { _ in
@@ -117,18 +117,24 @@ struct ScriptListView: View {
         .sheet(isPresented: $isShowingAutoCaption) {
             AutoCaptionView(project: project)
         }
-        .onChange(of: isShowingAutoCaption) { _, newValue in
+        .onChange(of: isShowingAutoCaption) { newValue in
             project.isEditingText = newValue
         }
     }
 
     // MARK: - Empty State
     private var emptyState: some View {
-        ContentUnavailableView {
-            Label("No Script", systemImage: "doc.text")
-        } description: {
+        VStack(spacing: 14) {
+            Image(systemName: "doc.text")
+                .font(.system(size: 36, weight: .semibold))
+                .foregroundStyle(.secondary)
+            Text("No Script")
+                .font(.headline)
             Text("Paste your script to start marking timestamps.")
-        } actions: {
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+
             VStack(spacing: 8) {
                 Button("Import Script…") {
                     isShowingImportOptions = true
@@ -143,6 +149,8 @@ struct ScriptListView: View {
                 .tint(Color.stropheAccent)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(24)
     }
 
     // MARK: - Script List
@@ -284,7 +292,7 @@ struct ScriptListView: View {
                     project.selectedIDs.removeAll()
                 }
             }
-            .onChange(of: project.scrollTargetID) { _, newID in
+            .onChange(of: project.scrollTargetID) { newID in
                 if let newID = newID {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                         scrollProxy.scrollTo(newID, anchor: .center)

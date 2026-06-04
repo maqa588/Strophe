@@ -21,84 +21,12 @@ struct ModelConfigView: View {
 
     var body: some View {
         Form {
-            #if os(macOS)
-            // MARK: - Storage Location Section
-            Section {
-                storagePicker
-            } header: {
-                Text("模型存储位置")
-            } footer: {
-                Text("选择外置硬盘可节省内置 SSD 空间，下载时模型会直接写入该目录。")
-            }
-
-            // MARK: - Local Import Section
-            Section {
-                Button(action: { showModelFolderImporter = true }) {
-                    Label {
-                        Text("从本地文件夹导入模型...")
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Color.stropheAccent)
-                    } icon: {
-                        Image(systemName: "folder.badge.plus")
-                            .foregroundStyle(Color.stropheAccent)
-                    }
-                }
-                .buttonStyle(.plain)
-            } header: {
-                Text("本地手动导入")
-            }
-            #endif
-
-            // MARK: - HF Token Section
-            Section {
-                hfTokenSection
-            } footer: {
-                Text("部分模型属于受限仓库，需要 Hugging Face 访问令牌才能下载。可前往 huggingface.co/settings/tokens 获取。")
-            }
-
-            // MARK: - Model List Section
-            Section {
-                let presets = LocalModelManager.presets(for: type)
-                let downloadedSet = modelManager.downloadedSet(for: type)
-                ForEach(presets, id: \.name) { model in
-                    let modelId = "\(type.rawValue)_\(model.name)"
-                    let isDownloaded = downloadedSet.contains(model.name)
-                    let isDownloading = modelManager.activeDownloads.contains(modelId)
-                    let progress = modelManager.downloadProgresses[modelId] ?? 0.0
-                    modelRow(
-                        model: model,
-                        isDownloaded: isDownloaded,
-                        isDownloading: isDownloading,
-                        progress: progress
-                    )
-                }
-            } header: {
-                Text("可用模型库")
-            }
-
-            if type == .whisper {
+            if AIBackendClient.isLocalDeviceSupported {
+                supportedModelConfigContent
+            } else {
                 Section {
-                    let vadType = AIKitType.vad
-                    let presets = LocalModelManager.presets(for: vadType)
-                    let downloadedSet = modelManager.downloadedSet(for: vadType)
-                    ForEach(presets, id: \.name) { model in
-                        let modelId = "\(vadType.rawValue)_\(model.name)"
-                        let isDownloaded = downloadedSet.contains(model.name)
-                        let isDownloading = modelManager.activeDownloads.contains(modelId)
-                        let progress = modelManager.downloadProgresses[modelId] ?? 0.0
-                        modelRow(
-                            model: model,
-                            typeOverride: vadType,
-                            isDownloaded: isDownloaded,
-                            isDownloading: isDownloading,
-                            progress: progress,
-                            showsRepositoryLink: true
-                        )
-                    }
-                } header: {
-                    Text("语音活动检测 (VAD)")
-                } footer: {
-                    Text("自动字幕会先用 VAD 生成 Speech Islands，再交给 ASR 与 ForcedAligner。")
+                    LocalAIUnsupportedView()
+                        .listRowInsets(EdgeInsets(top: 18, leading: 16, bottom: 18, trailing: 16))
                 }
             }
         }
@@ -131,6 +59,86 @@ struct ModelConfigView: View {
             Button("好", role: .cancel) {}
         } message: {
             if let msg = errorMessage { Text(msg) }
+        }
+    }
+
+    @ViewBuilder
+    private var supportedModelConfigContent: some View {
+        #if os(macOS)
+        Section {
+            storagePicker
+        } header: {
+            Text("模型存储位置")
+        } footer: {
+            Text("选择外置硬盘可节省内置 SSD 空间，下载时模型会直接写入该目录。")
+        }
+
+        Section {
+            Button(action: { showModelFolderImporter = true }) {
+                Label {
+                    Text("从本地文件夹导入模型...")
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.stropheAccent)
+                } icon: {
+                    Image(systemName: "folder.badge.plus")
+                        .foregroundStyle(Color.stropheAccent)
+                }
+            }
+            .buttonStyle(.plain)
+        } header: {
+            Text("本地手动导入")
+        }
+        #endif
+
+        Section {
+            hfTokenSection
+        } footer: {
+            Text("部分模型属于受限仓库，需要 Hugging Face 访问令牌才能下载。可前往 huggingface.co/settings/tokens 获取。")
+        }
+
+        Section {
+            let presets = LocalModelManager.presets(for: type)
+            let downloadedSet = modelManager.downloadedSet(for: type)
+            ForEach(presets, id: \.name) { model in
+                let modelId = "\(type.rawValue)_\(model.name)"
+                let isDownloaded = downloadedSet.contains(model.name)
+                let isDownloading = modelManager.activeDownloads.contains(modelId)
+                let progress = modelManager.downloadProgresses[modelId] ?? 0.0
+                modelRow(
+                    model: model,
+                    isDownloaded: isDownloaded,
+                    isDownloading: isDownloading,
+                    progress: progress
+                )
+            }
+        } header: {
+            Text("可用模型库")
+        }
+
+        if type == .whisper {
+            Section {
+                let vadType = AIKitType.vad
+                let presets = LocalModelManager.presets(for: vadType)
+                let downloadedSet = modelManager.downloadedSet(for: vadType)
+                ForEach(presets, id: \.name) { model in
+                    let modelId = "\(vadType.rawValue)_\(model.name)"
+                    let isDownloaded = downloadedSet.contains(model.name)
+                    let isDownloading = modelManager.activeDownloads.contains(modelId)
+                    let progress = modelManager.downloadProgresses[modelId] ?? 0.0
+                    modelRow(
+                        model: model,
+                        typeOverride: vadType,
+                        isDownloaded: isDownloaded,
+                        isDownloading: isDownloading,
+                        progress: progress,
+                        showsRepositoryLink: true
+                    )
+                }
+            } header: {
+                Text("语音活动检测 (VAD)")
+            } footer: {
+                Text("自动字幕会先用 VAD 生成 Speech Islands，再交给 ASR 与 ForcedAligner。")
+            }
         }
     }
 

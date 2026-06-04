@@ -14,13 +14,6 @@ import SpeechVAD
 import AudioCommon
 import Spleeter
 
-/// 跨 Actor 传递的简单结果实体，符合 Sendable 约束
-nonisolated struct AIResultSegment: Sendable {
-    let text: String
-    let startTime: Double
-    let endTime: Double
-}
-
 private nonisolated struct TimeRange: Sendable {
     let start: Double
     let end: Double
@@ -1406,7 +1399,7 @@ actor SubtitleGenerator {
 
     /// 执行智能降噪、语音转写、高精度强制打轴并在启用的情况下分离说话人
     /// - Parameters:
-    ///   - audioURL: 音视频本地路径
+    ///   - preparedAudio16kURL: 主 App 已解码并重采样的 16kHz 单声道 WAV
     ///   - whisperModelURL: 已下载 Whisper 模型的本地路径 URL (现映射为 Qwen3ASR 路径)
     ///   - speakerModelURL: 已下载 Speaker 模型的本地路径 URL (现映射为 Pyannote 路径)
     ///   - whisperBaseDir: ASR 模型存储的书签根目录（用于安全域访问）
@@ -1418,7 +1411,8 @@ actor SubtitleGenerator {
     ///   - prefixSpeakerName: 是否在字幕行中添加发言人前缀
     ///   - progressCallback: 进度回调 (step, stepProgress, statusMessage)
     func generateDiarizedSubtitles(
-        audioURL: URL,
+        preparedAudio16kURL: URL,
+        preparedAudio48kURL: URL?,
         whisperModelURL: URL,
         alignerModelURL: URL,
         vadModelURL: URL,
@@ -1486,16 +1480,24 @@ actor SubtitleGenerator {
         // MARK: - Step 1: 人声提取与预处理
         
         let cleanSamples16k: [Float]
+        let preparedAudio16k = try BackendAudioIO.readMonoFloatWav(preparedAudio16kURL)
         
-        switch vocalPreprocessing {
+        switch vocalPreprocessing.lowercased() {
         case "none":
-            print("🔊 正在直接提取音频 (16kHz)...")
-            progressCallback?(0, 0.5, "正在提取 16kHz ASR 音频...")
-            cleanSamples16k = try await AudioExtractor.extract(from: audioURL, targetSampleRate: 16000.0)
+            print("🔊 正在读取主程序准备的 16kHz 音频...")
+            progressCallback?(0, 0.5, "正在读取主程序准备的 ASR 音频...")
+            cleanSamples16k = resample(preparedAudio16k.samples, from: preparedAudio16k.sampleRate, to: 16000)
             
         case "separate":
             print("🎹 正在进行伴奏与人声分离 (Spleeter)...")
             progressCallback?(0, 0.2, "正在初始化伴奏人声分离引擎...")
+            guard let preparedAudio48kURL else {
+                throw NSError(
+                    domain: "SubtitleGenerator",
+                    code: 1001,
+                    userInfo: [NSLocalizedDescriptionKey: "缺少主程序准备的 48kHz 音频，无法进行人声分离。"]
+                )
+            }
             
             let spleeterModelId = "aufklarer/Spleeter2-CoreML"
             let spleeterCacheDir = try HuggingFaceDownloader.getCacheDirectory(for: spleeterModelId, basePath: whisperBaseDir)
@@ -1519,13 +1521,8 @@ actor SubtitleGenerator {
             let instrumentsWavURL = localTempDir.appendingPathComponent("instruments.wav")
             let outputURLs = Stems2(vocals: vocalsWavURL, accompaniment: instrumentsWavURL)
 
-            progressCallback?(0, 0.35, "正在用 FFmpeg 解码媒体音频供 Spleeter 使用...")
-            let spleeterInputSamples48k = try await AudioExtractor.extract(from: audioURL, targetSampleRate: 48000.0)
-            try AudioExtractor.writeMonoWav(
-                samples: spleeterInputSamples48k,
-                sampleRate: 48000.0,
-                to: spleeterInputURL
-            )
+            progressCallback?(0, 0.35, "正在读取主程序准备的人声分离音频...")
+            try FileManager.default.copyItem(at: preparedAudio48kURL, to: spleeterInputURL)
 
             progressCallback?(0, 0.45, "正在运行伴奏人声分离，提取纯净人声...")
             for try await progress in separator.separate(from: spleeterInputURL, to: outputURLs) {
@@ -1534,12 +1531,20 @@ actor SubtitleGenerator {
             }
             
             progressCallback?(0, 0.9, "人声分离完成，正在加载提取的人声音轨...")
-            cleanSamples16k = try await AudioExtractor.extract(from: vocalsWavURL, targetSampleRate: 16000.0)
+            let vocals = try BackendAudioIO.readMonoFloatWav(vocalsWavURL)
+            cleanSamples16k = resample(vocals.samples, from: vocals.sampleRate, to: 16000)
             
         default: // "denoise"
-            print("🔊 正在提取音频 (48kHz)...")
-            progressCallback?(0, 0.2, "正在从媒体中提取 48kHz 高采样率音频...")
-            let rawSamples48k = try await AudioExtractor.extract(from: audioURL, targetSampleRate: 48000.0)
+            print("🔊 正在读取主程序准备的 48kHz 音频...")
+            progressCallback?(0, 0.2, "正在读取主程序准备的 48kHz 高采样率音频...")
+            guard let preparedAudio48kURL else {
+                throw NSError(
+                    domain: "SubtitleGenerator",
+                    code: 1002,
+                    userInfo: [NSLocalizedDescriptionKey: "缺少主程序准备的 48kHz 音频，无法进行智能降噪。"]
+                )
+            }
+            let rawAudio48k = try BackendAudioIO.readMonoFloatWav(preparedAudio48kURL)
             
             print("🧹 正在加载 DeepFilterNet3 智能降噪模型...")
             progressCallback?(0, 0.5, "正在初始化 ANE 加速 DeepFilterNet3 智能降噪模型...")
@@ -1554,11 +1559,11 @@ actor SubtitleGenerator {
             progressCallback?(0, 0.78, "正在过滤环境风噪与人声杂音...")
             let denoisedSamples48k = try enhanceLongAudioWithDeepFilterNet3(
                 denoiser,
-                samples: rawSamples48k,
-                sampleRate: 48000,
+                samples: rawAudio48k.samples,
+                sampleRate: rawAudio48k.sampleRate,
                 progressCallback: progressCallback
             )
-            cleanSamples16k = resample(denoisedSamples48k, from: 48000, to: 16000)
+            cleanSamples16k = resample(denoisedSamples48k, from: rawAudio48k.sampleRate, to: 16000)
         }
         
         Memory.clearCache()

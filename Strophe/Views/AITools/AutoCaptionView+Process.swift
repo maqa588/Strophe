@@ -111,34 +111,16 @@ extension AutoCaptionView {
         
         Task {
             do {
-                // 1. 系统版本检查 (iOS 18+ / macOS 15+)
-                if #available(iOS 18.0, macOS 15.0, *) {
-                    // 满足要求
-                } else {
-                    throw NSError(
-                        domain: "AutoCaptionView",
-                        code: 1,
-                        userInfo: [NSLocalizedDescriptionKey: "本地 AI 自动生成功能需要 iOS 18.0 或 macOS 15.0 以上的系统支持。"]
-                    )
-                }
-                
-                // 2. 架构检查 (不支持 Intel x86_64)
-                #if arch(x86_64)
-                throw NSError(
-                    domain: "AutoCaptionView",
-                    code: 2,
-                    userInfo: [NSLocalizedDescriptionKey: "本地 AI 自动生成功能仅支持 Apple Silicon 芯片设备，不支持 Intel (x86_64) 架构设备。"]
-                )
-                #endif
-                
-                // 3. 内存检查 (>= 4GB)
+                try AIBackendClient.ensureLocalAIAvailable()
+
+                // 1. 内存检查 (>= 3.7GB)
                 let physicalMemory = ProcessInfo.processInfo.physicalMemory
                 if physicalMemory < 3_700_000_000 {
                     let memoryInGB = Double(physicalMemory) / (1024.0 * 1024.0 * 1024.0)
                     throw NSError(
                         domain: "AutoCaptionView",
                         code: 3,
-                        userInfo: [NSLocalizedDescriptionKey: String(format: "当前设备运行内存不足 (%.1f GB)，本地 AI 运行至少需要 4GB 内存以防闪退。", memoryInGB)]
+                        userInfo: [NSLocalizedDescriptionKey: String(format: "当前设备运行内存不足 (%.1f GB)，本地 AI 运行至少需要约 3.7GB 内存以防闪退。", memoryInGB)]
                     )
                 }
 
@@ -380,9 +362,7 @@ extension AutoCaptionView {
                 
                 let expectedSpeakersCount: Int? = (speakerCountOption == "custom") ? customSpeakerCount : nil
                 
-                let modelStorageRoot = modelManager.resolvedExternalURL()
-                let generator = SubtitleGenerator()
-                let results = try await generator.generateDiarizedSubtitles(
+                let request = AIGenerateSubtitlesRequest(
                     audioURL: mediaURL,
                     whisperModelURL: whisperModelURL,
                     alignerModelURL: alignerModelURL,
@@ -392,14 +372,18 @@ extension AutoCaptionView {
                     alignerBaseDir: alignerBaseDir,
                     speakerBaseDir: speakerBaseDir,
                     alignerModelId: alignerModelId,
-                    modelStorageRoot: modelStorageRoot,
+                    modelStorageRoot: modelManager.resolvedExternalURL(),
                     expectedSpeakers: expectedSpeakersCount,
                     language: selectedLanguage,
                     enableDiarization: enableDiarization,
                     prefixSpeakerName: prefixSpeakerName,
                     enableAlignment: enableAlignment,
                     vocalPreprocessing: vocalPreprocessing,
-                    referenceText: referenceLyrics,
+                    referenceText: referenceLyrics
+                )
+
+                let results = try await AIBackendClient.shared.generateSubtitles(
+                    request: request,
                     progressCallback: { step, subProgress, message in
                         Task { @MainActor in
                             self.currentStep = step

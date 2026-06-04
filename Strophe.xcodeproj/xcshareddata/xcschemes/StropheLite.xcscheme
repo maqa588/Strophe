@@ -15,9 +15,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "4C5A10902FD1C00100A1090A"
-               BuildableName = "Strophe.app"
-               BlueprintName = "Strophe"
+               BlueprintIdentifier = "4C3566342FB81D160046E36C"
+               BuildableName = "Strophe Lite.app"
+               BlueprintName = "StropheLite"
                ReferencedContainer = "container:Strophe.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -45,9 +45,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "4C5A10902FD1C00100A1090A"
-            BuildableName = "Strophe.app"
-            BlueprintName = "Strophe"
+            BlueprintIdentifier = "4C3566342FB81D160046E36C"
+            BuildableName = "Strophe Lite.app"
+            BlueprintName = "StropheLite"
             ReferencedContainer = "container:Strophe.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -62,9 +62,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "4C5A10902FD1C00100A1090A"
-            BuildableName = "Strophe.app"
-            BlueprintName = "Strophe"
+            BlueprintIdentifier = "4C3566342FB81D160046E36C"
+            BuildableName = "Strophe Lite.app"
+            BlueprintName = "StropheLite"
             ReferencedContainer = "container:Strophe.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

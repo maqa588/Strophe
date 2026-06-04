@@ -21,7 +21,7 @@ struct SettingsPlaceholderView: View {
                     settingsPath.append(.version)
                 } label: {
                     Label {
-                        Text("关于 Strophe")
+                        Text("关于 \(AppIdentity.displayName)")
                             .foregroundStyle(Color.stropheText)
                     } icon: {
                         Image(systemName: "info.circle.fill")

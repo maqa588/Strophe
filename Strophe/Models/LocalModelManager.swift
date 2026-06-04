@@ -7,11 +7,6 @@
 
 import Foundation
 import Combine
-import Qwen3ASR
-import Qwen3TTS
-import SpeechVAD
-import SpeechEnhancement
-import AudioCommon   // HuggingFaceDownloader
 import HuggingFace
 import ZIPFoundation
 
@@ -273,7 +268,7 @@ final class LocalModelManager: ObservableObject {
     // MARK: - Directory Resolution
 
     /// Returns the *base* directory (`qwen3-speech` root) for the given type.
-    /// This is the `basePath` passed to `HuggingFaceDownloader.getCacheDirectory(basePath:)`.
+    /// This is the model storage root used by the local AI backend.
     /// Actual model weights live under `<base>/models/<org>/<repo>/`.
     func getBaseDirectory(for type: AIKitType) -> URL {
         if let ext = resolvedExternalURL() {
@@ -365,9 +360,43 @@ final class LocalModelManager: ObservableObject {
             let modelPath2 = directory.appendingPathComponent("Spleeter2.mlmodelc")
             return FileManager.default.fileExists(atPath: modelPath1.path) || FileManager.default.fileExists(atPath: modelPath2.path)
         }
-        guard HuggingFaceDownloader.weightsExist(in: directory) else { return false }
+        guard modelDirectoryHasWeights(directory) else { return false }
         guard let minimumBytes = minimumModelDirectoryBytes[modelName] else { return true }
         return directorySize(directory) >= minimumBytes
+    }
+
+    nonisolated private func modelDirectoryHasWeights(_ directory: URL) -> Bool {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: directory.path) else { return false }
+        guard let enumerator = fm.enumerator(
+            at: directory,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else { return false }
+
+        let weightExtensions: Set<String> = [
+            "safetensors", "bin", "gguf", "npy", "npz", "mlmodelc", "mlpackage"
+        ]
+        let requiredMetadata: Set<String> = [
+            "config.json", "tokenizer.json", "tokenizer_config.json", "vocab.json", "merges.txt"
+        ]
+        var foundWeight = false
+        var foundMetadata = false
+
+        for case let url as URL in enumerator {
+            let name = url.lastPathComponent
+            if requiredMetadata.contains(name) {
+                foundMetadata = true
+            }
+            if weightExtensions.contains(url.pathExtension.lowercased()) || name.hasSuffix(".mlmodelc") {
+                foundWeight = true
+            }
+            if foundWeight && foundMetadata {
+                return true
+            }
+        }
+
+        return foundWeight
     }
 
     nonisolated private func directorySize(_ directory: URL) -> Int64 {

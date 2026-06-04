@@ -81,7 +81,7 @@ struct StropheTabBar: View {
                 .onAppear {
                     containerWidth = proxy.size.width
                 }
-                .onChange(of: proxy.size.width) { _, newWidth in
+                .onChange(of: proxy.size.width) { newWidth in
                     containerWidth = newWidth
                 }
                 .stropheGlassCapsule(interactive: true, reduceTransparency: reduceTransparency)
@@ -92,7 +92,7 @@ struct StropheTabBar: View {
         .frame(maxWidth: isDesktop ? 360 : 430)
         .padding(.horizontal, isDesktop ? 20 : 16)
         .padding(.bottom, isDesktop ? 20 : 12)
-        .onChange(of: selectedTab) { _, newTab in
+        .onChange(of: selectedTab) { newTab in
             if tabs.contains(newTab) {
                 withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.72)) {
                     dragLocationX = nil

@@ -55,7 +55,7 @@ struct VideoPlayerView: View {
                         scrubContinuation?.yield(time)
                     }
                 }
-                .onChange(of: project.isUserSeekingTimeline) { _, isSeekingTimeline in
+                .onChange(of: project.isUserSeekingTimeline) { isSeekingTimeline in
                     guard isSeekingTimeline else { return }
                     Task { @MainActor in
                         await Task.yield()
@@ -73,7 +73,7 @@ struct VideoPlayerView: View {
                         }
                     }
                 }
-                .onChange(of: project.isScrubbing) { _, isScrubbing in
+                .onChange(of: project.isScrubbing) { isScrubbing in
                     if !isScrubbing {
                         isSeeking = true
                         project.isSeeking = true
@@ -95,10 +95,10 @@ struct VideoPlayerView: View {
         .onDisappear {
             suspendPlayerObservers()
         }
-        .onChange(of: project.videoURL) { _, newURL in
+        .onChange(of: project.videoURL) { newURL in
             setupPlayer(url: newURL)
         }
-        .onChange(of: project.mediaLoadError) { _, newError in
+        .onChange(of: project.mediaLoadError) { newError in
             if newError != nil {
                 setupPlayer(url: nil)
             }

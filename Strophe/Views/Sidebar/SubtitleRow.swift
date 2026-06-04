@@ -87,7 +87,6 @@ struct SubtitleRow: View, Equatable {
             Image(systemName: "record.circle")
                 .font(.caption)
                 .foregroundStyle(Color.stropheBlue)
-                .symbolEffect(.pulse, isActive: isActive)
         } else {
             Image(systemName: "circle")
                 .font(.caption)

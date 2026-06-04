@@ -28,7 +28,7 @@ struct VersionDetailView: View {
                         .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 4)
 
                     VStack(spacing: 6) {
-                        Text("Strophe")
+                        Text(AppIdentity.displayName)
                             .font(.system(.title2, design: .rounded))
                             .bold()
                             .foregroundStyle(Color.stropheText)
@@ -80,7 +80,7 @@ struct VersionDetailView: View {
         }
         .formStyle(.grouped)
         .background(Color.stropheBackground)
-        .navigationTitle("关于 Strophe")
+        .navigationTitle("关于 \(AppIdentity.displayName)")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

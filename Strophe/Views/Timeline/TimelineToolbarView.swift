@@ -117,7 +117,7 @@ struct TimelineToolbarView: View {
                     .onAppear {
                         availableWidth = geo.size.width
                     }
-                    .onChange(of: geo.size.width) { oldWidth, newWidth in
+                    .onChange(of: geo.size.width) { newWidth in
                         availableWidth = newWidth
                     }
             }

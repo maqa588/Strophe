@@ -18,6 +18,30 @@ extension AutoCaptionView {
                     Section {
                         runningStateView
                     }
+                } else if !isLocalAISupported {
+                    Section {
+                        LocalAIUnsupportedView()
+                    }
+
+                    Section {
+                        HStack {
+                            Text("模型选择")
+                            Spacer()
+                            Text("")
+                                .foregroundStyle(.secondary)
+                        }
+                        .disabled(true)
+
+                        HStack {
+                            Text("对齐器模型")
+                            Spacer()
+                            Text("")
+                                .foregroundStyle(.secondary)
+                        }
+                        .disabled(true)
+                    } header: {
+                        Text("语音识别配置")
+                    }
                 } else {
                     // Media source warning or info
                     Section {
@@ -172,10 +196,10 @@ extension AutoCaptionView {
                         ProgressView()
                     } else {
                         Button("开始") {
-                            startCaptioningProcess()
+                            handleStartButton()
                         }
                         .fontWeight(.bold)
-                        .disabled(project.videoURL == nil)
+                        .disabled(isLocalAISupported && project.videoURL == nil)
                     }
                 }
             }
@@ -213,6 +237,8 @@ extension AutoCaptionView {
             
             if isRunning {
                 runningStateView
+            } else if !isLocalAISupported {
+                unsupportedConfigurationForm
             } else {
                 configurationForm
             }
@@ -231,7 +257,7 @@ extension AutoCaptionView {
                 .disabled(isRunning)
                 .tint(Color.stropheText)
                 
-                Button(action: startCaptioningProcess) {
+                Button(action: handleStartButton) {
                     if isRunning {
                         ProgressView()
                             .controlSize(.small)
@@ -243,11 +269,54 @@ extension AutoCaptionView {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Color.stropheAccent)
-                .disabled(isRunning || project.videoURL == nil)
+                .disabled(isRunning || (isLocalAISupported && project.videoURL == nil))
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
         }
+    }
+
+    @ViewBuilder
+    var unsupportedConfigurationForm: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                LocalAIUnsupportedView()
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("语音识别配置")
+                        .font(.headline)
+                        .foregroundStyle(Color.stropheText)
+
+                    disabledEmptySettingRow(title: "模型选择")
+                    disabledEmptySettingRow(title: "对齐器模型")
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.stropheSecondaryBackground.opacity(0.5))
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.stropheBorder, lineWidth: 1)
+                )
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
+        }
+    }
+
+    @ViewBuilder
+    private func disabledEmptySettingRow(title: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(Color.stropheText)
+            Spacer()
+            Text("")
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 8)
+        .opacity(0.55)
+        .disabled(true)
     }
     
     @ViewBuilder

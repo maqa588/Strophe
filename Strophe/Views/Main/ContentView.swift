@@ -155,7 +155,7 @@ struct ContentView: View {
             Text(String(localized: "如果未保存，编辑的内容将会丢失。"))
         }
         #endif
-        .onChange(of: project.loadedPlayheadTime) { _, newValue in
+        .onChange(of: project.loadedPlayheadTime) { newValue in
             if let time = newValue {
                 pendingRestoreTime = time
                 isShowingRestoreTimeAlert = true
@@ -224,7 +224,7 @@ struct ContentView: View {
             }
         }
         .background(Color.stropheBackground)
-        .onChange(of: selectedTab) { _, _ in
+        .onChange(of: selectedTab) { _ in
             settingsPath.removeAll()
         }
     }

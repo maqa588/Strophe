@@ -29,6 +29,7 @@ struct AutoCaptionView: View {
     @State var currentStep: Int = 0
     @State var stepProgress: Double = 0.0
     @State var statusMessage: String = ""
+    @State var showUnsupportedLocalAIAlert: Bool = false
     
     let languages = [
         ("auto",  "自动检测"),
@@ -48,9 +49,35 @@ struct AutoCaptionView: View {
         mainContent
             .frame(width: 480, height: 600)
             .background(VisualEffectView(material: .sheet, blendingMode: .behindWindow))
+            .alert(AIBackendClient.unsupportedDeviceMessage, isPresented: $showUnsupportedLocalAIAlert) {
+                Button("好", role: .cancel) {}
+            } message: {
+                Text(AIBackendClient.cloudComingSoonMessage)
+            }
         #else
         iosBody
+            .alert(AIBackendClient.unsupportedDeviceMessage, isPresented: $showUnsupportedLocalAIAlert) {
+                Button("好", role: .cancel) {}
+            } message: {
+                Text(AIBackendClient.cloudComingSoonMessage)
+            }
         #endif
+    }
+
+    var isLocalAISupported: Bool {
+        AIBackendClient.isLocalDeviceSupported
+    }
+
+    var canStartCaptioning: Bool {
+        isLocalAISupported && project.videoURL != nil && !isRunning
+    }
+
+    func handleStartButton() {
+        guard isLocalAISupported else {
+            showUnsupportedLocalAIAlert = true
+            return
+        }
+        startCaptioningProcess()
     }
     
     func cleanSubtitleText(_ text: String) -> String {

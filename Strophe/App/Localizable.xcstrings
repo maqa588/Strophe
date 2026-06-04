@@ -142,6 +142,16 @@
         }
       }
     },
+    "%@ %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$@"
+          }
+        }
+      }
+    },
     "%lld" : {
       "localizations" : {
         "ar" : {
@@ -331,7 +341,11 @@
         }
       }
     },
+    "About" : {
+
+    },
     "About Strophe" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1813,7 +1827,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Strophe 活字"
+            "value" : "活字"
           }
         },
         "ko" : {
@@ -1825,13 +1839,53 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Strophe 活字"
+            "value" : "活字"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Strophe 活字"
+            "value" : "活字"
+          }
+        }
+      }
+    },
+    "Strophe Lite" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strophe Lite"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strophe Lite"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "活字 Lite"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strophe Lite"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "活字轻量版"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "活字輕量版"
           }
         }
       }
@@ -2862,7 +2916,11 @@
         }
       }
     },
+    "关于 %@" : {
+
+    },
     "关于 Strophe" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -10336,6 +10394,9 @@
           }
         }
       }
+    },
+    "语音识别配置" : {
+
     },
     "语音识别配置 (Qwen3-ASR)" : {
       "localizations" : {

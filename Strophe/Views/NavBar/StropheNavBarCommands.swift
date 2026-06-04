@@ -62,7 +62,7 @@ struct StropheNavBarCommands: Commands {
         }
         
         CommandGroup(replacing: .appInfo) {
-            Button(String(localized: "About Strophe")) {
+            Button("\(String(localized: "About")) \(AppIdentity.displayName)") {
                 NotificationCenter.default.post(name: .stropheShowAbout, object: nil)
             }
         }
