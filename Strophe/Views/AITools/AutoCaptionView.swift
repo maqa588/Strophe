@@ -14,6 +14,7 @@ struct AutoCaptionView: View {
     
     // Config states
     @State var selectedModel: String = "qwen3-asr-0.6b"
+    @State var enableCoreMLASRAcceleration: Bool = true
     @State var selectedAlignerModel: String = "qwen3-forced-aligner-0.6b-mlx-4bit"
     @State var enableAlignment: Bool = true
     @State var selectedLanguage: String = "auto"

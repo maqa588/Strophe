@@ -154,6 +154,37 @@ extension AutoCaptionView {
                     }
                 }
 
+                let useCoreMLASRAcceleration = enableCoreMLASRAcceleration && LocalModelManager.supportsCoreMLASRAcceleration(selectedModel)
+                let coreMLASRModelName = LocalModelManager.coreMLASRAccelerationModelName
+                if useCoreMLASRAcceleration && !modelManager.downloadedWhisperModels.contains(coreMLASRModelName) {
+                    statusMessage = "正在从 Hugging Face 下载 CoreML ASR 编码器 \(coreMLASRModelName)..."
+                    self.stepProgress = 0.0
+
+                    let downloadTask = Task {
+                        let coreMLModelId = "Whisper_\(coreMLASRModelName)"
+                        while !Task.isCancelled {
+                            try? await Task.sleep(nanoseconds: 200_000_000)
+                            await MainActor.run {
+                                if let progress = modelManager.downloadProgresses[coreMLModelId] {
+                                    self.stepProgress = progress * 0.95
+                                }
+                            }
+                        }
+                    }
+
+                    await modelManager.downloadModel(type: .whisper, modelName: coreMLASRModelName)
+                    downloadTask.cancel()
+
+                    let coreMLCheck = modelManager.downloadedWhisperModels.contains(coreMLASRModelName)
+                    if !coreMLCheck {
+                        throw NSError(
+                            domain: "AutoCaptionView",
+                            code: 10,
+                            userInfo: [NSLocalizedDescriptionKey: "CoreML ASR 编码器下载失败，请检查网络连接。"]
+                        )
+                    }
+                }
+
                 let needsAligner = enableAlignment || enableDiarization
                 let isAlignerDownloaded = modelManager.downloadedAlignerModels.contains(selectedAlignerModel)
                 if needsAligner && !isAlignerDownloaded {
@@ -315,12 +346,26 @@ extension AutoCaptionView {
                 // 1. 提取并采样音频数据
                 let whisperBaseDir = modelManager.getBaseDirectory(for: .whisper)
                 // 使用 Hub-style 路径 (base/models/org/repo)；fallback 到旧版扁平路径
-                let whisperModelURL: URL
+                let selectedASRModelURL: URL
                 if let hubDir = modelManager.getModelDirectory(for: selectedModel, type: .whisper) {
-                    whisperModelURL = hubDir
+                    selectedASRModelURL = hubDir
                 } else {
                     let folderName = LocalModelManager.whisperPresets.first(where: { $0.name == selectedModel })?.folderName ?? selectedModel
-                    whisperModelURL = whisperBaseDir.appendingPathComponent(folderName)
+                    selectedASRModelURL = whisperBaseDir.appendingPathComponent(folderName)
+                }
+                let whisperModelURL: URL
+                let asrDecoderModelURL: URL?
+                if useCoreMLASRAcceleration {
+                    if let hubDir = modelManager.getModelDirectory(for: coreMLASRModelName, type: .whisper) {
+                        whisperModelURL = hubDir
+                    } else {
+                        let folderName = LocalModelManager.coreMLASRAccelerationPreset.folderName
+                        whisperModelURL = whisperBaseDir.appendingPathComponent(folderName)
+                    }
+                    asrDecoderModelURL = selectedASRModelURL
+                } else {
+                    whisperModelURL = selectedASRModelURL
+                    asrDecoderModelURL = nil
                 }
 
                 let alignerBaseDir = modelManager.getBaseDirectory(for: .aligner)
@@ -365,6 +410,7 @@ extension AutoCaptionView {
                 let request = AIGenerateSubtitlesRequest(
                     audioURL: mediaURL,
                     whisperModelURL: whisperModelURL,
+                    asrDecoderModelURL: asrDecoderModelURL,
                     alignerModelURL: alignerModelURL,
                     vadModelURL: vadModelURL,
                     speakerModelURL: speakerModelURL,

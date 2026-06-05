@@ -10,6 +10,7 @@ import Foundation
 struct AIGenerateSubtitlesRequest: Sendable {
     let audioURL: URL
     let whisperModelURL: URL
+    let asrDecoderModelURL: URL?
     let alignerModelURL: URL
     let vadModelURL: URL
     let speakerModelURL: URL
@@ -266,6 +267,7 @@ actor AIBackendClient {
             preparedAudio16kURL: preparedAudio16kURL,
             preparedAudio48kURL: preparedAudio48kURL,
             whisperModelURL: request.whisperModelURL,
+            asrDecoderModelURL: request.asrDecoderModelURL,
             alignerModelURL: request.alignerModelURL,
             vadModelURL: request.vadModelURL,
             speakerModelURL: request.speakerModelURL,
@@ -291,6 +293,7 @@ actor AIBackendClient {
         let preparedAudio16kPath: String
         let preparedAudio48kPath: String?
         let whisperModelPath: String
+        let asrDecoderModelPath: String?
         let alignerModelPath: String
         let vadModelPath: String
         let speakerModelPath: String
@@ -339,6 +342,7 @@ actor AIBackendClient {
             preparedAudio16kPath: preparedAudio16kURL.path,
             preparedAudio48kPath: preparedAudio48kURL?.path,
             whisperModelPath: request.whisperModelURL.path,
+            asrDecoderModelPath: request.asrDecoderModelURL?.path,
             alignerModelPath: request.alignerModelURL.path,
             vadModelPath: request.vadModelURL.path,
             speakerModelPath: request.speakerModelURL.path,

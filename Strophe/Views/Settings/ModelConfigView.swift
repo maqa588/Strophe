@@ -117,6 +117,25 @@ struct ModelConfigView: View {
 
         if type == .whisper {
             Section {
+                let model = LocalModelManager.coreMLASRAccelerationPreset
+                let modelId = "\(type.rawValue)_\(model.name)"
+                let isDownloaded = modelManager.downloadedWhisperModels.contains(model.name)
+                let isDownloading = modelManager.activeDownloads.contains(modelId)
+                let progress = modelManager.downloadProgresses[modelId] ?? 0.0
+                modelRow(
+                    model: model,
+                    isDownloaded: isDownloaded,
+                    isDownloading: isDownloading,
+                    progress: progress,
+                    showsRepositoryLink: true
+                )
+            } header: {
+                Text("CoreML 加速组件")
+            } footer: {
+                Text("用于 qwen3-asr-0.6b 的 CoreML INT8 音频编码器加速；0.6B/1.7B MLX 模型仍可独立运行。")
+            }
+
+            Section {
                 let vadType = AIKitType.vad
                 let presets = LocalModelManager.presets(for: vadType)
                 let downloadedSet = modelManager.downloadedSet(for: vadType)

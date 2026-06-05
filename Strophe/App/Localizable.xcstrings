@@ -638,6 +638,15 @@
     "Copy Subtitle Blocks" : {
 
     },
+    "CoreML INT8 编码器尚未下载，开始生成时会自动下载。" : {
+
+    },
+    "CoreML INT8 编码器已下载，将与当前 MLX 模型混合使用。" : {
+
+    },
+    "CoreML 加速组件" : {
+
+    },
     "CRF" : {
       "localizations" : {
         "ar" : {
@@ -4011,6 +4020,9 @@
         }
       }
     },
+    "启用 CoreML 编码器加速" : {
+
+    },
     "启用对话人识别 (Pyannote)" : {
       "localizations" : {
         "ar" : {
@@ -5505,6 +5517,9 @@
           }
         }
       }
+    },
+    "当前 CoreML 编码器仅兼容 qwen3-asr-0.6b；该模型将使用 MLX 独立运行。" : {
+
     },
     "当前 V1 硬字幕导出暂不支持 %@ 容器。请先导出或转封装为 MP4/MOV。" : {
       "localizations" : {
@@ -8696,6 +8711,9 @@
           }
         }
       }
+    },
+    "用于 qwen3-asr-0.6b 的 CoreML INT8 音频编码器加速；0.6B/1.7B MLX 模型仍可独立运行。" : {
+
     },
     "目标码率" : {
       "localizations" : {

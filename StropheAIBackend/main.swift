@@ -11,6 +11,7 @@ private struct BackendRequest: Decodable {
     let preparedAudio16kPath: String
     let preparedAudio48kPath: String?
     let whisperModelPath: String
+    let asrDecoderModelPath: String?
     let alignerModelPath: String
     let vadModelPath: String
     let speakerModelPath: String
@@ -81,6 +82,7 @@ private func run() async -> Int32 {
             preparedAudio16kURL: URL(fileURLWithPath: request.preparedAudio16kPath),
             preparedAudio48kURL: request.preparedAudio48kPath.map { URL(fileURLWithPath: $0) },
             whisperModelURL: URL(fileURLWithPath: request.whisperModelPath),
+            asrDecoderModelURL: request.asrDecoderModelPath.map { URL(fileURLWithPath: $0) },
             alignerModelURL: URL(fileURLWithPath: request.alignerModelPath),
             vadModelURL: URL(fileURLWithPath: request.vadModelPath),
             speakerModelURL: URL(fileURLWithPath: request.speakerModelPath),

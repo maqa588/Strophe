@@ -8,6 +8,16 @@
 import SwiftUI
 
 extension AutoCaptionView {
+    var coreMLASRAccelerationBinding: Binding<Bool> {
+        Binding(
+            get: {
+                enableCoreMLASRAcceleration && LocalModelManager.supportsCoreMLASRAcceleration(selectedModel)
+            },
+            set: { newValue in
+                enableCoreMLASRAcceleration = newValue
+            }
+        )
+    }
     
     #if !os(macOS)
     @ViewBuilder
@@ -85,6 +95,21 @@ extension AutoCaptionView {
                         let isSelectedDownloaded = modelManager.downloadedWhisperModels.contains(selectedModel)
                         if !isSelectedDownloaded {
                             Text("提示：此模型尚未下载，开始生成时会从 Hugging Face 自动下载该模型。")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Toggle("启用 CoreML 编码器加速", isOn: coreMLASRAccelerationBinding)
+                            .tint(Color.stropheAccent)
+                            .disabled(!LocalModelManager.supportsCoreMLASRAcceleration(selectedModel))
+
+                        if enableCoreMLASRAcceleration && LocalModelManager.supportsCoreMLASRAcceleration(selectedModel) {
+                            let isCoreMLDownloaded = modelManager.downloadedWhisperModels.contains(LocalModelManager.coreMLASRAccelerationModelName)
+                            Text(isCoreMLDownloaded ? "CoreML INT8 编码器已下载，将与当前 MLX 模型混合使用。" : "CoreML INT8 编码器尚未下载，开始生成时会自动下载。")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else if !LocalModelManager.supportsCoreMLASRAcceleration(selectedModel) {
+                            Text("当前 CoreML 编码器仅兼容 qwen3-asr-0.6b；该模型将使用 MLX 独立运行。")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -390,6 +415,33 @@ extension AutoCaptionView {
                             }
                             .padding(.top, 2)
                         }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Toggle("启用 CoreML 编码器加速", isOn: coreMLASRAccelerationBinding)
+                                .toggleStyle(.switch)
+                                .tint(Color.stropheAccent)
+                                .disabled(!LocalModelManager.supportsCoreMLASRAcceleration(selectedModel))
+
+                            if enableCoreMLASRAcceleration && LocalModelManager.supportsCoreMLASRAcceleration(selectedModel) {
+                                let isCoreMLDownloaded = modelManager.downloadedWhisperModels.contains(LocalModelManager.coreMLASRAccelerationModelName)
+                                HStack(spacing: 6) {
+                                    Image(systemName: "cpu")
+                                        .foregroundStyle(.secondary)
+                                    Text(isCoreMLDownloaded ? "CoreML INT8 编码器已下载，将与当前 MLX 模型混合使用。" : "CoreML INT8 编码器尚未下载，开始生成时会自动下载。")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                }
+                            } else if !LocalModelManager.supportsCoreMLASRAcceleration(selectedModel) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "info.circle.fill")
+                                        .foregroundStyle(.secondary)
+                                    Text("当前 CoreML 编码器仅兼容 qwen3-asr-0.6b；该模型将使用 MLX 独立运行。")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .padding(.top, 2)
                     }
                     
                     // Language Selection

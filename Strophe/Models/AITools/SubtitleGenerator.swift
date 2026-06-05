@@ -321,19 +321,20 @@ actor SubtitleGenerator {
 
     nonisolated private func transcribeInChunks(
         model: Qwen3ASRModel,
+        coremlEncoder: CoreMLASREncoder?,
         samples: [Float],
         sampleRate: Int,
         language: String?,
         maxChunkDuration: Double = 12.0,
         maxTokens: Int = 448,
         progressCallback: (@Sendable (Int, Double, String) -> Void)?
-    ) -> [AIResultSegment] {
+    ) throws -> [AIResultSegment] {
         let chunkSize = max(1, Int(maxChunkDuration * Double(sampleRate)))
         let totalChunks = max(1, Int(ceil(Double(samples.count) / Double(chunkSize))))
         var segments: [AIResultSegment] = []
 
         for chunkIndex in 0..<totalChunks {
-            autoreleasepool {
+            try autoreleasepool {
                 let startSample = chunkIndex * chunkSize
                 let endSample = min(startSample + chunkSize, samples.count)
                 guard startSample < endSample else { return }
@@ -347,14 +348,25 @@ actor SubtitleGenerator {
                     "正在分块运行 Qwen3-ASR (\(chunkIndex + 1)/\(totalChunks))..."
                 )
 
-                let text = model.transcribe(
-                    audio: chunk,
-                    sampleRate: sampleRate,
-                    options: Qwen3DecodingOptions(
+                let text: String
+                if let coremlEncoder {
+                    text = try model.transcribe(
+                        audio: chunk,
+                        sampleRate: sampleRate,
+                        language: language,
                         maxTokens: maxTokens,
-                        language: language
+                        coremlEncoder: coremlEncoder
                     )
-                )
+                } else {
+                    text = model.transcribe(
+                        audio: chunk,
+                        sampleRate: sampleRate,
+                        options: Qwen3DecodingOptions(
+                            maxTokens: maxTokens,
+                            language: language
+                        )
+                    )
+                }
                 segments.append(contentsOf: makeCoarseSegments(
                     text: text,
                     duration: duration,
@@ -369,6 +381,7 @@ actor SubtitleGenerator {
 
     nonisolated private func transcribeSpeechIslands(
         model: Qwen3ASRModel,
+        coremlEncoder: CoreMLASREncoder?,
         samples: [Float],
         sampleRate: Int,
         language: String?,
@@ -376,10 +389,11 @@ actor SubtitleGenerator {
         maxChunkDuration: Double = 12.0,
         maxTokens: Int = 448,
         progressCallback: (@Sendable (Int, Double, String) -> Void)?
-    ) -> [AIResultSegment] {
+    ) throws -> [AIResultSegment] {
         guard !speechRanges.isEmpty else {
-            return transcribeInChunks(
+            return try transcribeInChunks(
                 model: model,
+                coremlEncoder: coremlEncoder,
                 samples: samples,
                 sampleRate: sampleRate,
                 language: language,
@@ -408,7 +422,7 @@ actor SubtitleGenerator {
 
             var startSample = islandStartSample
             while startSample < islandEndSample {
-                autoreleasepool {
+                try autoreleasepool {
                     let endSample = min(startSample + chunkSize, islandEndSample)
                     guard startSample < endSample else { return }
 
@@ -421,14 +435,25 @@ actor SubtitleGenerator {
                         "正在按语音岛运行 Qwen3-ASR (\(islandIndex + 1)/\(speechRanges.count), \(chunkIndex + 1)/\(totalChunks))..."
                     )
 
-                    let text = model.transcribe(
-                        audio: chunk,
-                        sampleRate: sampleRate,
-                        options: Qwen3DecodingOptions(
+                    let text: String
+                    if let coremlEncoder {
+                        text = try model.transcribe(
+                            audio: chunk,
+                            sampleRate: sampleRate,
+                            language: language,
                             maxTokens: maxTokens,
-                            language: language
+                            coremlEncoder: coremlEncoder
                         )
-                    )
+                    } else {
+                        text = model.transcribe(
+                            audio: chunk,
+                            sampleRate: sampleRate,
+                            options: Qwen3DecodingOptions(
+                                maxTokens: maxTokens,
+                                language: language
+                            )
+                        )
+                    }
                     segments.append(contentsOf: makeCoarseSegments(
                         text: text,
                         duration: duration,
@@ -446,6 +471,7 @@ actor SubtitleGenerator {
 
     nonisolated private func transcribeWithIsolatedASRModel(
         cacheDir: URL,
+        coremlEncoderCacheDir: URL?,
         samples: [Float],
         sampleRate: Int,
         language: String?,
@@ -458,8 +484,19 @@ actor SubtitleGenerator {
             cacheDir: cacheDir,
             offlineMode: true
         )
-        let segments = transcribeSpeechIslands(
+        let coremlEncoder: CoreMLASREncoder?
+        if let coremlEncoderCacheDir {
+            coremlEncoder = try await CoreMLASREncoder.fromPretrained(
+                cacheDir: coremlEncoderCacheDir,
+                offlineMode: true
+            )
+            try coremlEncoder?.warmUp()
+        } else {
+            coremlEncoder = nil
+        }
+        let segments = try transcribeSpeechIslands(
             model: asrModel,
+            coremlEncoder: coremlEncoder,
             samples: samples,
             sampleRate: sampleRate,
             language: language,
@@ -1401,6 +1438,7 @@ actor SubtitleGenerator {
     /// - Parameters:
     ///   - preparedAudio16kURL: 主 App 已解码并重采样的 16kHz 单声道 WAV
     ///   - whisperModelURL: 已下载 Whisper 模型的本地路径 URL (现映射为 Qwen3ASR 路径)
+    ///   - asrDecoderModelURL: 混合 ASR 时使用的 MLX decoder 模型目录；nil 时使用 whisperModelURL
     ///   - speakerModelURL: 已下载 Speaker 模型的本地路径 URL (现映射为 Pyannote 路径)
     ///   - whisperBaseDir: ASR 模型存储的书签根目录（用于安全域访问）
     ///   - speakerBaseDir: 声纹模型存储的书签根目录（用于安全域访问）
@@ -1414,6 +1452,7 @@ actor SubtitleGenerator {
         preparedAudio16kURL: URL,
         preparedAudio48kURL: URL?,
         whisperModelURL: URL,
+        asrDecoderModelURL: URL? = nil,
         alignerModelURL: URL,
         vadModelURL: URL,
         speakerModelURL: URL,
@@ -1433,6 +1472,7 @@ actor SubtitleGenerator {
     ) async throws -> [AIResultSegment] {
 
         let resolvedWhisperURL = whisperModelURL.resolvingSymlinksInPath()
+        let resolvedASRDecoderURL = (asrDecoderModelURL ?? whisperModelURL).resolvingSymlinksInPath()
         let resolvedAlignerURL = alignerModelURL.resolvingSymlinksInPath()
         let resolvedVADURL = vadModelURL.resolvingSymlinksInPath()
         let oldMLXCacheLimit = Memory.cacheLimit
@@ -1462,7 +1502,13 @@ actor SubtitleGenerator {
         let activeWhisperURL = try resolveModelURL(
             resolved: resolvedWhisperURL,
             tempDir: localTempDir,
-            label: "Qwen3-ASR"
+            label: asrDecoderModelURL == nil ? "Qwen3-ASR" : "Qwen3-ASR CoreML Encoder"
+        )
+
+        let activeASRDecoderURL = try resolveModelURL(
+            resolved: resolvedASRDecoderURL,
+            tempDir: localTempDir,
+            label: asrDecoderModelURL == nil ? "Qwen3-ASR Decoder" : "Qwen3-ASR MLX Decoder"
         )
 
         let activeAlignerURL = try resolveModelURL(
@@ -1588,11 +1634,12 @@ actor SubtitleGenerator {
 
         if referenceLines.isEmpty {
             print("🧠 正在加载 Qwen3-ASR 模型...")
-            progressCallback?(1, 0.2, "正在加载 Qwen3-ASR 端侧大模型 (ANE+GPU 加速)...")
+            progressCallback?(1, 0.2, asrDecoderModelURL == nil ? "正在加载 Qwen3-ASR 端侧大模型 (GPU 加速)..." : "正在加载 Qwen3-ASR 混合模型 (CoreML ANE + MLX GPU)...")
             print("✍️ 正在进行语音识别转写...")
             progressCallback?(1, 0.6, "正在运行 Qwen3-ASR 音频转写文字...")
             asrOnlySegments = try await transcribeWithIsolatedASRModel(
-                cacheDir: activeWhisperURL,
+                cacheDir: activeASRDecoderURL,
+                coremlEncoderCacheDir: asrDecoderModelURL == nil ? nil : activeWhisperURL,
                 samples: cleanSamples16k,
                 sampleRate: 16000,
                 language: languageHint,

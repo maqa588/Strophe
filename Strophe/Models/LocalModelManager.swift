@@ -9,6 +9,9 @@ import Foundation
 import Combine
 import HuggingFace
 import ZIPFoundation
+#if !STROPHE_LITE
+import Qwen3ASR
+#endif
 
 
 enum AIKitType: String, CaseIterable, Codable, Sendable {
@@ -42,11 +45,20 @@ struct AIModelInfo: Identifiable, Hashable, Sendable {
 // MARK: - Model presets
 
 extension LocalModelManager {
+    nonisolated static let coreMLASRAccelerationModelName = "qwen3-asr-coreml-int8"
+
     static let whisperPresets = [
-        AIModelInfo(name: "qwen3-asr-0.6b",      size: "1.2GB", description: "推荐 (端侧混合加速，中英日韩识别效果极佳)", folderName: "qwen3-asr-0.6b"),
-        AIModelInfo(name: "qwen3-asr-1.7b",      size: "3.4GB", description: "高精度 (智能优化，适合高配 Apple 芯片设备)",           folderName: "qwen3-asr-1.7b"),
+        AIModelInfo(name: "qwen3-asr-0.6b",      size: "680MB", description: "推荐 (MLX 4-bit；可启用 CoreML 编码器加速)", folderName: "qwen3-asr-0.6b"),
+        AIModelInfo(name: "qwen3-asr-1.7b",      size: "2.1GB", description: "高精度 (MLX 4-bit，适合高配 Apple 芯片设备)",           folderName: "qwen3-asr-1.7b"),
         AIModelInfo(name: "parakeet-tdt-0.6b",   size: "1.1GB", description: "极速转写 (高吞吐量快速解码)",    folderName: "parakeet-tdt-0.6b")
     ]
+
+    static let coreMLASRAccelerationPreset = AIModelInfo(
+        name: coreMLASRAccelerationModelName,
+        size: "180MB",
+        description: "CoreML INT8 音频编码器；可与 qwen3-asr-0.6b 组合使用以启用 ANE+GPU 混合加速",
+        folderName: coreMLASRAccelerationModelName
+    )
 
     static let alignerPresets = [
         AIModelInfo(name: "qwen3-forced-aligner-0.6b-mlx-4bit", size: "979MB", description: "推荐 (MLX 4-bit，80ms 词级时间戳)", folderName: "qwen3-forced-aligner-0.6b-mlx-4bit"),
@@ -82,11 +94,23 @@ extension LocalModelManager {
         case .other:   return otherPresets
         }
     }
+
+    static func downloadablePresets(for type: AIKitType) -> [AIModelInfo] {
+        switch type {
+        case .whisper: return whisperPresets + [coreMLASRAccelerationPreset]
+        default: return presets(for: type)
+        }
+    }
+
+    static func supportsCoreMLASRAcceleration(_ asrModelName: String) -> Bool {
+        asrModelName == "qwen3-asr-0.6b"
+    }
 }
 
 // MARK: - Model IDs (HuggingFace repo IDs)
 
 private let modelHFIds: [String: String] = [
+    "qwen3-asr-coreml-int8":      "aufklarer/Qwen3-ASR-CoreML",
     "qwen3-asr-0.6b":           "aufklarer/Qwen3-ASR-0.6B-MLX-4bit",
     "qwen3-asr-1.7b":           "aufklarer/Qwen3-ASR-1.7B-MLX-4bit",
     "parakeet-tdt-0.6b":        "aufklarer/parakeet-tdt-0.6b-mlx",
@@ -102,6 +126,7 @@ private let modelHFIds: [String: String] = [
 ]
 
 private let minimumModelDirectoryBytes: [String: Int64] = [
+    "qwen3-asr-coreml-int8": 120_000_000,
     "qwen3-asr-0.6b": 600_000_000,
     "qwen3-asr-1.7b": 1_800_000_000,
     "qwen3-forced-aligner-0.6b-mlx-4bit": 900_000_000,
@@ -109,8 +134,9 @@ private let minimumModelDirectoryBytes: [String: Int64] = [
 ]
 
 private let expectedModelSizesBytes: [String: Int64] = [
-    "qwen3-asr-0.6b": 1_200_000_000,
-    "qwen3-asr-1.7b": 3_400_000_000,
+    "qwen3-asr-coreml-int8": 180_000_000,
+    "qwen3-asr-0.6b": 680_000_000,
+    "qwen3-asr-1.7b": 2_100_000_000,
     "parakeet-tdt-0.6b": 1_100_000_000,
     "qwen3-forced-aligner-0.6b-mlx-4bit": 979_000_000,
     "qwen3-forced-aligner-0.6b-coreml-int4": 662_000_000,
@@ -336,7 +362,7 @@ final class LocalModelManager: ObservableObject {
             let base = self.getBaseDirectory(for: type)
             var found = Set<String>()
 
-            for preset in Self.presets(for: type) {
+            for preset in Self.downloadablePresets(for: type) {
                 // Check Hub-style path: base/models/org/repo
                 if let dir = self.getModelDirectory(for: preset.name, type: type) {
                     if self.modelLooksComplete(preset.name, in: dir) {
@@ -427,7 +453,7 @@ final class LocalModelManager: ObservableObject {
                 try? FileManager.default.removeItem(at: dir)
             }
             // Legacy flat directory
-            if let preset = Self.presets(for: type).first(where: { $0.name == modelName }) {
+            if let preset = Self.downloadablePresets(for: type).first(where: { $0.name == modelName }) {
                 let legacy = base.appendingPathComponent(preset.folderName)
                 if FileManager.default.fileExists(atPath: legacy.path) {
                     try? FileManager.default.removeItem(at: legacy)
@@ -457,7 +483,7 @@ final class LocalModelManager: ObservableObject {
     // MARK: - Download
 
     func downloadModel(type: AIKitType, modelName: String) async {
-        guard Self.presets(for: type).contains(where: { $0.name == modelName }) else { return }
+        guard Self.downloadablePresets(for: type).contains(where: { $0.name == modelName }) else { return }
 
         let modelId = "\(type.rawValue)_\(modelName)"
         guard !activeDownloads.contains(modelId) else { return }
@@ -716,7 +742,8 @@ final class LocalModelManager: ObservableObject {
                 of repoId: String,
                 to destination: URL,
                 progressWeightRange: ClosedRange<Double>,
-                progressLabel: String
+                progressLabel: String,
+                matching patterns: [String] = globs
             ) async throws {
                 let cache = HubCache(cacheDirectory: cacheDir)
 
@@ -741,7 +768,7 @@ final class LocalModelManager: ObservableObject {
                         of: Repo.ID(rawValue: repoId)!,
                         kind: .model,
                         to: destination,
-                        matching: globs,
+                        matching: patterns,
                         maxConcurrentDownloads: 1,
                         progressHandler: { progress in
                             let fraction = progress.fractionCompleted
@@ -815,6 +842,39 @@ final class LocalModelManager: ObservableObject {
                         progressWeightRange: 0.5...1.0,
                         progressLabel: "Downloading speaker embedding model..."
                     )
+                } else if modelName == Self.coreMLASRAccelerationModelName {
+                    #if STROPHE_LITE
+                    print("💾 LocalModelManager: Downloading model snapshot: \(hfId) -> \(targetModelDir.path)")
+                    try await downloadSnapshotWithAuthFallback(
+                        of: hfId,
+                        to: targetModelDir,
+                        progressWeightRange: 0.0...1.0,
+                        progressLabel: "Downloading model..."
+                    )
+                    #else
+                    func downloadCoreMLEncoder() async throws {
+                        _ = try await CoreMLASREncoder.fromPretrained(
+                            modelId: hfId,
+                            cacheDir: targetModelDir,
+                            offlineMode: false
+                        ) { fraction, label in
+                            progressCallback(max(fraction, 0.01), label)
+                        }
+                    }
+
+                    print("💾 LocalModelManager: Downloading CoreML ASR encoder: \(hfId) -> \(targetModelDir.path)")
+                    do {
+                        _ = try await retry({
+                            try await downloadCoreMLEncoder()
+                        }, maxTries: 3)
+                    } catch {
+                        removePartialDownloadArtifacts(for: hfId, destination: targetModelDir)
+                        print("🧹 LocalModelManager: Cleaned partial CoreML download for \(hfId), retrying once from scratch...")
+                        _ = try await retry({
+                            try await downloadCoreMLEncoder()
+                        }, maxTries: 2)
+                    }
+                    #endif
                 } else {
                     print("💾 LocalModelManager: Downloading model snapshot: \(hfId) -> \(targetModelDir.path)")
                     try await downloadSnapshotWithAuthFallback(
