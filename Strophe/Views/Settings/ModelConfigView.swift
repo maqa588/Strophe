@@ -296,7 +296,7 @@ struct ModelConfigView: View {
                     VStack(alignment: .trailing, spacing: 3) {
                         ProgressView(value: progress)
                             .frame(width: 72)
-                        Text("\(Int(progress * 100))%")
+                        Text(progress, format: .percent.precision(.fractionLength(0)))
                             .font(.system(size: 10, design: .monospaced))
                             .foregroundStyle(.secondary)
                     }

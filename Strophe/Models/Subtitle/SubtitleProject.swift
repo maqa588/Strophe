@@ -159,7 +159,9 @@ class SubtitleProject: ObservableObject {
                 referenceDate = .now
                 return
             }
-            updateActiveSlapBlock(currentTime: currentTime)
+            if !shouldDeferActiveSlapBlockTimingUpdates {
+                updateActiveSlapBlock(currentTime: currentTime)
+            }
             autoUpdateCurrentIndex()
             if let wData = waveformData {
                 let shouldLoadWaveformChunk = abs(wData.currentTime - currentTime) > 0.25 || isScrubbing

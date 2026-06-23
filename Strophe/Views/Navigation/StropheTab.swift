@@ -30,7 +30,7 @@ enum StropheTab: Int, CaseIterable, Hashable {
         switch self {
         case .scriptList:   return "doc.text"
         case .styleManager: return "textformat.alt"
-        case .subGroup:     return "rectangle.3.group.bubble"
+        case .subGroup:     return "square.stack.3d.up"
         case .editor:       return "waveform.and.mic"
         case .settings:     return "gear"
         }

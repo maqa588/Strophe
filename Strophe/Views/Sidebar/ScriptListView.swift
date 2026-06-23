@@ -142,11 +142,13 @@ struct ScriptListView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(Color.stropheAccent)
                 
+                #if !STROPHE_LITE
                 Button("Speech Recognition…") {
                     isShowingAutoCaption = true
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Color.stropheAccent)
+                #endif
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -158,134 +160,135 @@ struct ScriptListView: View {
         ScrollViewReader { scrollProxy in
             List(selection: $project.selectedIDs) {
                 ForEach(project.items) { item in
-                let group = project.subgroup(for: item, store: store)
-                let isLocked = item.isLocked || group?.isLocked == true
-                
-                SubtitleRow(
-                    item: item,
-                    isActive: item.id == project.scrollTargetID,
-                    isOverlapping: project.isItemOverlapping(id: item.id),
-                    group: group
-                )
-                .equatable()
-                .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
-                .listRowSeparator(.hidden)
-                .id(item.id)
-                .tag(item.id)
-                .onTapGestureIf(condition: project.isSubtitleMultiSelecting) {
-                    if project.selectedIDs.contains(item.id) {
-                        project.selectedIDs.remove(item.id)
-                        if project.selectedIDs.isEmpty {
-                            project.isSubtitleMultiSelecting = false
-                        }
-                    } else {
-                        project.selectedIDs.insert(item.id)
-                    }
-                }
-                .contextMenu {
-                    Button(action: {
-                        project.isSubtitleMultiSelecting = true
-                        if !project.selectedIDs.contains(item.id) {
+                    let group = project.subgroup(for: item, store: store)
+                    let isLocked = item.isLocked || group?.isLocked == true
+
+                    SubtitleRow(
+                        item: item,
+                        isActive: item.id == project.scrollTargetID,
+                        isOverlapping: project.isItemOverlapping(id: item.id),
+                        group: group
+                    )
+                    .equatable()
+                    .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
+                    .listRowSeparator(.hidden)
+                    .id(item.id)
+                    .tag(item.id)
+                    .onTapGestureIf(condition: project.isSubtitleMultiSelecting) {
+                        if project.selectedIDs.contains(item.id) {
+                            project.selectedIDs.remove(item.id)
+                            if project.selectedIDs.isEmpty {
+                                project.isSubtitleMultiSelecting = false
+                            }
+                        } else {
                             project.selectedIDs.insert(item.id)
                         }
-                    }) {
-                        Label("多选字幕块", systemImage: "checklist")
                     }
-
-                    Button(action: {
-                        editingItem = item
-                        editingText = project.items.first(where: { $0.id == item.id })?.text ?? item.text
-                        isEditingText = true
-                    }) {
-                        Label("编辑内容", systemImage: "pencil")
-                    }
-                    .disabled(isLocked)
-
-                    Button(action: {
-                        beginEditingTime(item)
-                    }) {
-                        Label("更改显示时间", systemImage: "clock")
-                    }
-                    .disabled(isLocked)
-                    
-                    Menu {
-                        ForEach(store.sortedGroups) { grp in
-                            Button(action: {
-                                if project.selectedIDs.count > 1, project.selectedIDs.contains(item.id) {
-                                    project.assignSelectedSubtitles(toGroup: grp.id)
-                                } else {
-                                    project.assignSubtitle(id: item.id, toGroup: grp.id)
-                                }
-                            }) {
-                                HStack {
-                                    if item.groupID == grp.id {
-                                        Image(systemName: "checkmark")
-                                    }
-                                    Text(grp.name)
-                                }
-                            }
-                        }
-                    } label: {
-                        Label("移动到分组", systemImage: "rectangle.3.group")
-                    }
-                    .disabled(isLocked)
-
-                    Menu {
+                    .contextMenu {
                         Button(action: {
-                            if project.selectedIDs.count > 1, project.selectedIDs.contains(item.id) {
-                                project.setSelectedSubtitleStyleOverride(styleID: nil)
-                            } else {
-                                project.followGroupStyle(id: item.id)
+                            project.isSubtitleMultiSelecting = true
+                            if !project.selectedIDs.contains(item.id) {
+                                project.selectedIDs.insert(item.id)
                             }
                         }) {
-                            HStack {
-                                if !item.hasIndependentPresentation {
-                                    Image(systemName: "checkmark")
+                            Label("多选字幕块", systemImage: "checklist")
+                        }
+
+                        Button(action: {
+                            editingItem = item
+                            editingText = project.items.first(where: { $0.id == item.id })?.text ?? item.text
+                            isEditingText = true
+                        }) {
+                            Label("编辑内容", systemImage: "pencil")
+                        }
+                        .disabled(isLocked)
+
+                        Button(action: {
+                            beginEditingTime(item)
+                        }) {
+                            Label("更改显示时间", systemImage: "clock")
+                        }
+                        .disabled(isLocked)
+
+                        Menu {
+                            ForEach(store.sortedGroups) { grp in
+                                Button(action: {
+                                    if project.selectedIDs.count > 1, project.selectedIDs.contains(item.id) {
+                                        project.assignSelectedSubtitles(toGroup: grp.id)
+                                    } else {
+                                        project.assignSubtitle(id: item.id, toGroup: grp.id)
+                                    }
+                                }) {
+                                    HStack {
+                                        if item.groupID == grp.id {
+                                            Image(systemName: "checkmark")
+                                        }
+                                        Text(grp.name)
+                                    }
                                 }
-                                Text("跟随小组样式")
                             }
+                        } label: {
+                            Label("移动到分组", systemImage: "square.stack.3d.up")
                         }
+                        .disabled(isLocked)
 
-                        if !store.styles.isEmpty {
-                            Divider()
-                        }
-
-                        ForEach(store.styles) { style in
+                        Menu {
                             Button(action: {
                                 if project.selectedIDs.count > 1, project.selectedIDs.contains(item.id) {
-                                    project.setSelectedSubtitleStyleOverride(styleID: style.id)
+                                    project.setSelectedSubtitleStyleOverride(styleID: nil)
                                 } else {
-                                    project.setSubtitleStyleOverride(id: item.id, styleID: style.id)
+                                    project.followGroupStyle(id: item.id)
                                 }
                             }) {
                                 HStack {
-                                    if item.styleID == style.id {
+                                    if !item.hasIndependentPresentation {
                                         Image(systemName: "checkmark")
                                     }
-                                    Text(style.name)
+                                    Text("跟随小组样式")
                                 }
                             }
+
+                            if !store.styles.isEmpty {
+                                Divider()
+                            }
+
+                            ForEach(store.styles) { style in
+                                Button(action: {
+                                    if project.selectedIDs.count > 1, project.selectedIDs.contains(item.id) {
+                                        project.setSelectedSubtitleStyleOverride(styleID: style.id)
+                                    } else {
+                                        project.setSubtitleStyleOverride(id: item.id, styleID: style.id)
+                                    }
+                                }) {
+                                    HStack {
+                                        if item.styleID == style.id {
+                                            Image(systemName: "checkmark")
+                                        }
+                                        Text(style.name)
+                                    }
+                                }
+                            }
+                        } label: {
+                            Label("设定样式", systemImage: "textformat")
                         }
-                    } label: {
-                        Label("设定样式", systemImage: "textformat")
-                    }
-                    .disabled(isLocked)
+                        .disabled(isLocked)
 
-                    Divider()
+                        Divider()
 
-                    Button(role: .destructive, action: {
-                        project.deleteSubtitle(id: item.id)
-                    }) {
-                        Label("删除字幕", systemImage: "trash")
+                        Button(role: .destructive, action: {
+                            project.deleteSubtitle(id: item.id)
+                        }) {
+                            Label("删除字幕", systemImage: "trash")
+                        }
+                        .disabled(isLocked)
                     }
-                    .disabled(isLocked)
+                    .disabled(project.editingMode == .creation)
                 }
-                .disabled(project.editingMode == .creation)
-            }
             }
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
             .background(Color.clear)
+            .venturaFixedListRowHeight(70)
             .onDeleteCommandIfSupported {
                 if !project.selectedIDs.isEmpty {
                     project.deleteSubtitles(ids: project.selectedIDs)

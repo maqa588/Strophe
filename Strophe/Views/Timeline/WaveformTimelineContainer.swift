@@ -125,16 +125,31 @@ struct WaveformTimelineContainer: View {
                         .clipped()
                         .frame(width: safeTotalWidth, height: waveHeight, alignment: .leading)
                     
-                    SubtitleBlocksLayer(
-                        project: project,
-                        pixelsPerSecond: safePixelsPerSecond,
-                        smoothTime: staticTime,
-                        visibleStartTime: visibleStartTime,
-                        viewWidth: safeViewWidth,
-                        workspaceDuration: safeWorkspaceDuration,
-                        scrollPageStartTime: $scrollPageStartTime
-                    )
-                    .frame(width: safeTotalWidth, height: waveHeight)
+                    if project.shouldDeferActiveSlapBlockTimingUpdates {
+                        TimelineView(.animation) { timeline in
+                            SubtitleBlocksLayer(
+                                project: project,
+                                pixelsPerSecond: safePixelsPerSecond,
+                                smoothTime: playbackTime(at: timeline.date, duration: safeDuration),
+                                visibleStartTime: visibleStartTime,
+                                viewWidth: safeViewWidth,
+                                workspaceDuration: safeWorkspaceDuration,
+                                scrollPageStartTime: $scrollPageStartTime
+                            )
+                        }
+                        .frame(width: safeTotalWidth, height: waveHeight)
+                    } else {
+                        SubtitleBlocksLayer(
+                            project: project,
+                            pixelsPerSecond: safePixelsPerSecond,
+                            smoothTime: staticTime,
+                            visibleStartTime: visibleStartTime,
+                            viewWidth: safeViewWidth,
+                            workspaceDuration: safeWorkspaceDuration,
+                            scrollPageStartTime: $scrollPageStartTime
+                        )
+                        .frame(width: safeTotalWidth, height: waveHeight)
+                    }
                     
                     if project.editingMode == .creation,
                        let startX = drawSubtitleStartLocation,

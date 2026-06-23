@@ -26,6 +26,13 @@ struct StropheApp: App {
     #endif
     
     init() {
+        #if os(macOS)
+        if #unavailable(macOS 14.0) {
+            // Ventura's NSTableView row-height estimation can request stale rows during SwiftUI List tab swaps.
+            UserDefaults.standard.set(false, forKey: "NSTableViewCanEstimateRowHeights")
+        }
+        #endif
+
         #if os(iOS)
         IOSStderrRedirector.install()
 

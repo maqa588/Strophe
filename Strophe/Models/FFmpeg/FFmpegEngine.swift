@@ -126,8 +126,11 @@ final class FrameQueue: @unchecked Sendable {
     private var currentFrameGeneration: Int = 0
 
 
-    
+    #if os(macOS)
+    nonisolated(unsafe) private var displayTimer: Timer? = nil
+    #else
     nonisolated(unsafe) private var displayLink: CADisplayLink? = nil
+    #endif
     
     override init() {
         let renderer = MetalVideoRenderer()
@@ -204,8 +207,13 @@ final class FrameQueue: @unchecked Sendable {
     deinit {
         diagTimer?.invalidate()
         diagTimer = nil
+        #if os(macOS)
+        displayTimer?.invalidate()
+        displayTimer = nil
+        #else
         displayLink?.invalidate()
         displayLink = nil
+        #endif
     }
     
     // MARK: - PlayerEngine Protocol
@@ -457,8 +465,7 @@ final class FrameQueue: @unchecked Sendable {
         rate = 0.0
         stopDisplayLink()
         
-        displayLink?.invalidate()
-        displayLink = nil
+        invalidateDisplayLink()
         
         Task {
             await core.stopDecodeLoop()
@@ -473,21 +480,46 @@ final class FrameQueue: @unchecked Sendable {
     // MARK: - Display Link
     
     private func startDisplayLink() {
+        #if os(macOS)
+        if displayTimer == nil {
+            let timer = Timer(
+                timeInterval: 1.0 / 120.0,
+                target: self,
+                selector: #selector(displayTimerFired(_:)),
+                userInfo: nil,
+                repeats: true
+            )
+            RunLoop.main.add(timer, forMode: .common)
+            displayTimer = timer
+        }
+        #else
         if displayLink == nil {
-            #if os(macOS)
-            let dl = metalRenderer.displayLink(target: self, selector: #selector(displayLinkFired(_:)))
-            #else
             let dl = CADisplayLink(target: self, selector: #selector(displayLinkFired(_:)))
-            #endif
             dl.add(to: .main, forMode: .common)
             displayLink = dl
         }
         updateDisplayLinkPreferredFrameRate()
         displayLink?.isPaused = false
+        #endif
     }
     
     private func stopDisplayLink() {
+        #if os(macOS)
+        displayTimer?.invalidate()
+        displayTimer = nil
+        #else
         displayLink?.isPaused = true
+        #endif
+    }
+
+    private func invalidateDisplayLink() {
+        #if os(macOS)
+        displayTimer?.invalidate()
+        displayTimer = nil
+        #else
+        displayLink?.invalidate()
+        displayLink = nil
+        #endif
     }
     
     private func updateDisplayLinkPreferredFrameRate() {
@@ -502,9 +534,16 @@ final class FrameQueue: @unchecked Sendable {
         #endif
     }
     
+    #if os(macOS)
+    @objc private func displayTimerFired(_ sender: Timer) {
+        renderTick()
+    }
+    #else
     @objc private func displayLinkFired(_ sender: CADisplayLink) {
         renderTick()
     }
+    #endif
+
     private func renderTick() {
         guard rate > 0 else {
             stopDisplayLink()

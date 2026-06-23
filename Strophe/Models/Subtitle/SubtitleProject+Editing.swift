@@ -324,6 +324,7 @@ extension SubtitleProject {
     
     func handleSlapKeyDown(key: String) {
         if activeSlapKey == key { return }
+        syncPlaybackClockFromEngine()
         
         if let currentActiveKey = activeSlapKey, currentActiveKey != key {
             finalizeActiveSlapBlock()
@@ -357,7 +358,9 @@ extension SubtitleProject {
     
     func handleSlapKeyUp(key: String) {
         if activeSlapKey == key {
+            syncPlaybackClockFromEngine()
             finalizeActiveSlapBlock()
+            syncPlaybackClockFromEngine()
         }
     }
     
@@ -386,6 +389,18 @@ extension SubtitleProject {
             let minDuration = videoFrameRate > 0 ? (1.0 / videoFrameRate) : 0.1
             items[index].endTime = snapToFrame(max(start + minDuration, currentTime))
         }
+    }
+
+    var shouldDeferActiveSlapBlockTimingUpdates: Bool {
+        #if os(macOS)
+        if #available(macOS 14.0, *) {
+            return false
+        } else {
+            return activeSlapSubtitleID != nil && activeEngine is FFmpegEngine
+        }
+        #else
+        return false
+        #endif
     }
     
     func sortItemsStable() {

@@ -9,15 +9,9 @@
 /* Begin PBXBuildFile section */
 		4C280D722FBAB0980096A4D3 /* AsyncAlgorithms in Frameworks */ = {isa = PBXBuildFile; productRef = 4C280D712FBAB0980096A4D3 /* AsyncAlgorithms */; };
 		4C289B512FBDE46700F034AD /* Strophe.icon in Resources */ = {isa = PBXBuildFile; fileRef = 4C289B502FBDE46700F034AD /* Strophe.icon */; };
+		4C2A00112FDE000100000011 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 4C2A00102FDE000100000010 /* InfoPlist.xcstrings */; };
+		4C2A00212FDE000100000021 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 4C2A00202FDE000100000020 /* InfoPlist.xcstrings */; };
 		4C5A10012FD1A00100A1001A /* Hub in Frameworks */ = {isa = PBXBuildFile; productRef = 4C5A10032FD1A00100A1003C /* Hub */; };
-		4C5A10112FD1A00100A1011A /* StropheAIBackend/main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C5A10212FD1A00100A1021A /* StropheAIBackend/main.swift */; };
-		4C5A10122FD1A00100A1012A /* Strophe/Models/AITools/SubtitleGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C5A10222FD1A00100A1022A /* Strophe/Models/AITools/SubtitleGenerator.swift */; };
-		4C5A101A2FD1A00100A101AA /* Spleeter in Frameworks */ = {isa = PBXBuildFile; productRef = 4C5A10312FD1A00100A1031A /* Spleeter */; };
-		4C5A101B2FD1A00100A101BA /* Qwen3ASR in Frameworks */ = {isa = PBXBuildFile; productRef = 4C5A10322FD1A00100A1032A /* Qwen3ASR */; };
-		4C5A101C2FD1A00100A101CA /* SpeechEnhancement in Frameworks */ = {isa = PBXBuildFile; productRef = 4C5A10332FD1A00100A1033A /* SpeechEnhancement */; };
-		4C5A101D2FD1A00100A101DA /* SpeechVAD in Frameworks */ = {isa = PBXBuildFile; productRef = 4C5A10342FD1A00100A1034A /* SpeechVAD */; };
-		4C5A101E2FD1A00100A101EA /* AudioCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 4C5A10352FD1A00100A1035A /* AudioCommon */; };
-		4C5A10612FD1B20100A1061A /* StropheAIBackend/BackendAudioIO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C5A10602FD1B20100A1060A /* StropheAIBackend/BackendAudioIO.swift */; };
 		4C5A10712FD1C00100A1071A /* Libswresample.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88C9042FBB72E300142A61 /* Libswresample.xcframework */; };
 		4C5A10722FD1C00100A1072A /* Libavcodec.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88C9022FBB72E300142A61 /* Libavcodec.xcframework */; };
 		4C5A10732FD1C00100A1073A /* Libavformat.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88C9032FBB72E300142A61 /* Libavformat.xcframework */; };
@@ -29,7 +23,6 @@
 		4C5A10792FD1C00100A1079A /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 4CCE16BA2FC9689700368AD7 /* ZIPFoundation */; };
 		4C5A107A2FD1C00100A107AA /* Strophe.icon in Resources */ = {isa = PBXBuildFile; fileRef = 4C289B502FBDE46700F034AD /* Strophe.icon */; };
 		4C5A107B2FD1C00100A107BA /* StropheAIBackend/BackendAudioIO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C5A10602FD1B20100A1060A /* StropheAIBackend/BackendAudioIO.swift */; };
-		4C5A107C2FD1C00100A107CA /* Strophe/Models/AITools/AIResultSegment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C5A107D2FD1C00100A107DA /* Strophe/Models/AITools/AIResultSegment.swift */; };
 		4C5A107E2FD1C00100A107EA /* Spleeter in Frameworks */ = {isa = PBXBuildFile; productRef = 4C5A10312FD1A00100A1031A /* Spleeter */; };
 		4C5A107F2FD1C00100A107FA /* Qwen3ASR in Frameworks */ = {isa = PBXBuildFile; productRef = 4C5A10322FD1A00100A1032A /* Qwen3ASR */; };
 		4C5A10802FD1C00100A1080A /* SpeechEnhancement in Frameworks */ = {isa = PBXBuildFile; productRef = 4C5A10332FD1A00100A1033A /* SpeechEnhancement */; };
@@ -46,13 +39,11 @@
 
 /* Begin PBXFileReference section */
 		4C289B502FBDE46700F034AD /* Strophe.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = Strophe.icon; sourceTree = "<group>"; };
-		4C3566352FB81D160046E36C /* StropheLite.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StropheLite.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		4C5A10202FD1A00100A1020A /* StropheAIBackend */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = StropheAIBackend; sourceTree = BUILT_PRODUCTS_DIR; };
-		4C5A10212FD1A00100A1021A /* StropheAIBackend/main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StropheAIBackend/main.swift; sourceTree = "<group>"; };
-		4C5A10222FD1A00100A1022A /* Strophe/Models/AITools/SubtitleGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Strophe/Models/AITools/SubtitleGenerator.swift; sourceTree = "<group>"; };
+		4C2A00102FDE000100000010 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; name = InfoPlist.xcstrings; path = AppNames/StropheLite/InfoPlist.xcstrings; sourceTree = "<group>"; };
+		4C2A00202FDE000100000020 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; name = InfoPlist.xcstrings; path = AppNames/Strophe/InfoPlist.xcstrings; sourceTree = "<group>"; };
+		4C3566352FB81D160046E36C /* Strophe Lite.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Strophe Lite.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		4C5A10602FD1B20100A1060A /* StropheAIBackend/BackendAudioIO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StropheAIBackend/BackendAudioIO.swift; sourceTree = "<group>"; };
 		4C5A10702FD1C00100A1070A /* Strophe.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Strophe.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		4C5A107D2FD1C00100A107DA /* Strophe/Models/AITools/AIResultSegment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Strophe/Models/AITools/AIResultSegment.swift; sourceTree = "<group>"; };
 		4C88C9012FBB72E300142A61 /* Libswscale.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libswscale.xcframework; path = ../FFmpegBuild/Sources/Libswscale.xcframework; sourceTree = "<group>"; };
 		4C88C9022FBB72E300142A61 /* Libavcodec.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libavcodec.xcframework; path = ../FFmpegBuild/Sources/Libavcodec.xcframework; sourceTree = "<group>"; };
 		4C88C9032FBB72E300142A61 /* Libavformat.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libavformat.xcframework; path = ../FFmpegBuild/Sources/Libavformat.xcframework; sourceTree = "<group>"; };
@@ -65,6 +56,7 @@
 		4C55AEDC2FBF1E20009D32E3 /* Exceptions for "Strophe" folder in "StropheLite" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				App/InfoPlist.xcstrings,
 				Info.plist,
 				Models/AITools/SubtitleGenerator.swift,
 				Models/Item.swift,
@@ -74,6 +66,7 @@
 		4C5A10832FD1C00100A1083A /* Exceptions for "Strophe" folder in "Strophe" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				App/InfoPlist.xcstrings,
 				Info.plist,
 				Models/Item.swift,
 			);
@@ -85,8 +78,8 @@
 		4C3566372FB81D160046E36C /* Strophe */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				4C55AEDC2FBF1E20009D32E3 /* Exceptions for "Strophe" folder in "StropheLite" target */,
 				4C5A10832FD1C00100A1083A /* Exceptions for "Strophe" folder in "Strophe" target */,
+				4C55AEDC2FBF1E20009D32E3 /* Exceptions for "Strophe" folder in "StropheLite" target */,
 			);
 			path = Strophe;
 			sourceTree = "<group>";
@@ -107,18 +100,6 @@
 				4C280D722FBAB0980096A4D3 /* AsyncAlgorithms in Frameworks */,
 				4C5A10012FD1A00100A1001A /* Hub in Frameworks */,
 				4CCE16BB2FC9689700368AD7 /* ZIPFoundation in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		4C5A10412FD1A00100A1041A /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				4C5A101A2FD1A00100A101AA /* Spleeter in Frameworks */,
-				4C5A101C2FD1A00100A101CA /* SpeechEnhancement in Frameworks */,
-				4C5A101D2FD1A00100A101DA /* SpeechVAD in Frameworks */,
-				4C5A101B2FD1A00100A101BA /* Qwen3ASR in Frameworks */,
-				4C5A101E2FD1A00100A101EA /* AudioCommon in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -150,9 +131,12 @@
 			isa = PBXGroup;
 			children = (
 				4C289B502FBDE46700F034AD /* Strophe.icon */,
+				4C2A00102FDE000100000010 /* InfoPlist.xcstrings */,
+				4C2A00202FDE000100000020 /* InfoPlist.xcstrings */,
 				4C3566372FB81D160046E36C /* Strophe */,
 				4C88C8FC2FBB71E500142A61 /* Frameworks */,
 				4C3566362FB81D160046E36C /* Products */,
+				4C6164A12FD910A200EB3244 /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -160,20 +144,17 @@
 			isa = PBXGroup;
 			children = (
 				4C5A10702FD1C00100A1070A /* Strophe.app */,
-				4C3566352FB81D160046E36C /* StropheLite.app */,
+				4C3566352FB81D160046E36C /* Strophe Lite.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		4C5A10242FD1A00100A1024A /* StropheAIBackend */ = {
+		4C6164A12FD910A200EB3244 /* Recovered References */ = {
 			isa = PBXGroup;
 			children = (
-				4C5A10212FD1A00100A1021A /* StropheAIBackend/main.swift */,
 				4C5A10602FD1B20100A1060A /* StropheAIBackend/BackendAudioIO.swift */,
-				4C5A10222FD1A00100A1022A /* Strophe/Models/AITools/SubtitleGenerator.swift */,
-				4C5A107D2FD1C00100A107DA /* Strophe/Models/AITools/AIResultSegment.swift */,
 			);
-			name = StropheAIBackend;
+			name = "Recovered References";
 			sourceTree = "<group>";
 		};
 		4C88C8FC2FBB71E500142A61 /* Frameworks */ = {
@@ -214,31 +195,8 @@
 				4CCE16BA2FC9689700368AD7 /* ZIPFoundation */,
 			);
 			productName = "Strophe Lite";
-			productReference = 4C3566352FB81D160046E36C /* StropheLite.app */;
+			productReference = 4C3566352FB81D160046E36C /* Strophe Lite.app */;
 			productType = "com.apple.product-type.application";
-		};
-		4C5A10402FD1A00100A1040A /* StropheAIBackend */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 4C5A10502FD1A00100A1050A /* Build configuration list for PBXNativeTarget "StropheAIBackend" */;
-			buildPhases = (
-				4C5A10422FD1A00100A1042A /* Sources */,
-				4C5A10412FD1A00100A1041A /* Frameworks */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = StropheAIBackend;
-			packageProductDependencies = (
-				4C5A10312FD1A00100A1031A /* Spleeter */,
-				4C5A10322FD1A00100A1032A /* Qwen3ASR */,
-				4C5A10332FD1A00100A1033A /* SpeechEnhancement */,
-				4C5A10342FD1A00100A1034A /* SpeechVAD */,
-				4C5A10352FD1A00100A1035A /* AudioCommon */,
-			);
-			productName = StropheAIBackend;
-			productReference = 4C5A10202FD1A00100A1020A /* StropheAIBackend */;
-			productType = "com.apple.product-type.tool";
 		};
 		4C5A10902FD1C00100A1090A /* Strophe */ = {
 			isa = PBXNativeTarget;
@@ -294,6 +252,8 @@
 			knownRegions = (
 				en,
 				Base,
+				"zh-Hans",
+				"zh-Hant",
 			);
 			mainGroup = 4C35662C2FB81D160046E36C;
 			minimizedProjectReferenceProxies = 1;
@@ -321,6 +281,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4C289B512FBDE46700F034AD /* Strophe.icon in Resources */,
+				4C2A00112FDE000100000011 /* InfoPlist.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -329,50 +290,17 @@
 			buildActionMask = 2147483647;
 			files = (
 				4C5A107A2FD1C00100A107AA /* Strophe.icon in Resources */,
+				4C2A00212FDE000100000021 /* InfoPlist.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
-
-/* Begin PBXShellScriptBuildPhase section */
-		4C5A10622FD1B20100A1062A /* Copy StropheAIBackend Helper */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(BUILT_PRODUCTS_DIR)/StropheAIBackend",
-			);
-			name = "Copy StropheAIBackend Helper";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/StropheAIBackend",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "if [ \"$PLATFORM_NAME\" != \"macosx\" ]; then\n    exit 0\nfi\n\nHELPER_SRC=\"$BUILT_PRODUCTS_DIR/StropheAIBackend\"\nHELPER_DST_DIR=\"$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Helpers\"\nHELPER_DST=\"$HELPER_DST_DIR/StropheAIBackend\"\n\ncase \" $ARCHS \" in\n    *\" arm64 \"*) ;;\n    *)\n        rm -f \"$HELPER_DST\"\n        exit 0\n        ;;\nesac\n\nif [ -x \"$HELPER_SRC\" ]; then\n    mkdir -p \"$HELPER_DST_DIR\"\n    cp -f \"$HELPER_SRC\" \"$HELPER_DST\"\n    chmod +x \"$HELPER_DST\"\nelse\n    echo \"warning: StropheAIBackend was not found at $HELPER_SRC; build the StropheAIBackend scheme first or provide STROPHE_AI_BACKEND_PATH.\"\nfi\n";
-		};
-/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		4C3566312FB81D160046E36C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		4C5A10422FD1A00100A1042A /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				4C5A10112FD1A00100A1011A /* StropheAIBackend/main.swift in Sources */,
-				4C5A10612FD1B20100A1061A /* StropheAIBackend/BackendAudioIO.swift in Sources */,
-				4C5A10122FD1A00100A1012A /* Strophe/Models/AITools/SubtitleGenerator.swift in Sources */,
-				4C5A107C2FD1C00100A107CA /* Strophe/Models/AITools/AIResultSegment.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -516,10 +444,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = Strophe;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = Strophe/Strophe.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 3XV7UWT8UV;
+				DEVELOPMENT_TEAM = QKDD87B4BH;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
@@ -551,7 +480,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = top.maqa.StropheLite;
 				PRODUCT_NAME = "Strophe Lite";
@@ -575,10 +504,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = Strophe;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = Strophe/Strophe.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 3XV7UWT8UV;
+				DEVELOPMENT_TEAM = QKDD87B4BH;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
@@ -610,7 +540,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = top.maqa.StropheLite;
 				PRODUCT_NAME = "Strophe Lite";
@@ -629,65 +559,13 @@
 			};
 			name = Release;
 		};
-		4C5A10512FD1A00100A1051A /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ARCHS = arm64;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 3XV7UWT8UV;
-				ENABLE_HARDENED_RUNTIME = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"@executable_path/../Frameworks",
-					"@executable_path",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = top.maqa.StropheAIBackend;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
-				SKIP_INSTALL = YES;
-				SUPPORTED_PLATFORMS = macosx;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_VERSION = 6.0;
-			};
-			name = Debug;
-		};
-		4C5A10522FD1A00100A1052A /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ARCHS = arm64;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 3XV7UWT8UV;
-				ENABLE_HARDENED_RUNTIME = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"@executable_path/../Frameworks",
-					"@executable_path",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = top.maqa.StropheAIBackend;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
-				SKIP_INSTALL = YES;
-				SUPPORTED_PLATFORMS = macosx;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_VERSION = 6.0;
-			};
-			name = Release;
-		};
 		4C5A10A12FD1C00100A10A1A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = Strophe;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = Strophe/Strophe.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
@@ -706,8 +584,8 @@
 				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
-				"EXCLUDED_ARCHS[sdk=macosx*]" = x86_64;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
+				"EXCLUDED_ARCHS[sdk=macosx*]" = x86_64;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Strophe/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Strophe;
@@ -753,6 +631,7 @@
 				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = Strophe;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = Strophe/Strophe.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
@@ -771,8 +650,8 @@
 				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
-				"EXCLUDED_ARCHS[sdk=macosx*]" = x86_64;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
+				"EXCLUDED_ARCHS[sdk=macosx*]" = x86_64;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Strophe/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Strophe;
@@ -830,15 +709,6 @@
 			buildConfigurations = (
 				4C3566432FB81D170046E36C /* Debug */,
 				4C3566442FB81D170046E36C /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		4C5A10502FD1A00100A1050A /* Build configuration list for PBXNativeTarget "StropheAIBackend" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				4C5A10512FD1A00100A1051A /* Debug */,
-				4C5A10522FD1A00100A1052A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -4,7 +4,7 @@
 
 **Strophe** is a high-performance, professional-grade subtitle authoring tool built natively for Apple platforms. It combines modern **Liquid Glass** design aesthetics with industrial-grade audio/video processing technology, delivering an ultra-smooth subtitling experience for creators.
 
-<img src="Strophe.icon/Assets/ChatGPT%20Image%202026年5月20日%2020_42_12.png" alt="Strophe Logo" width="300">
+<img src="Strophe.icon/Assets/ChatGPT%20Image%202026%E5%B9%B45%E6%9C%8820%E6%97%A5%2020_42_12.png" alt="Strophe Logo" width="300">
 
 ## ✨ Core Features
 

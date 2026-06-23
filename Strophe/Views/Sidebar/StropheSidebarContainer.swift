@@ -93,11 +93,13 @@ struct StropheSidebarContainer: View {
                         } label: {
                             Label("导入字幕文件", systemImage: "square.and.arrow.down")
                         }
+                        #if !STROPHE_LITE
                         Button {
                             NotificationCenter.default.post(name: .stropheStartSpeechRecognition, object: nil)
                         } label: {
                             Label("语音识别", systemImage: "waveform.and.mic")
                         }
+                        #endif
                     } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 14, weight: .medium))

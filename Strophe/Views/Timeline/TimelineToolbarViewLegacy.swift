@@ -211,14 +211,14 @@ struct EditingModeControlsLegacy: View {
             // ── 合并按钮 ──
             legacyActionButton(
                 action: onMerge,
-                icon: "arrow.trianglehead.merge",
+                icon: "arrow.down.right.and.arrow.up.left",
                 tipBinding: $showMergeTip,
                 hoverTask: $mergeHoverTask,
-                tooltipIcon: "arrow.trianglehead.merge",
+                tooltipIcon: "arrow.down.right.and.arrow.up.left",
                 tooltipTitle: String(localized: "合并字幕"),
                 tooltipMessage: String(localized: "将选中的连续字幕块合并为一个，文本与时间轴同时合并")
             ) {
-                Image(systemName: "arrow.trianglehead.merge")
+                Image(systemName: "arrow.down.right.and.arrow.up.left")
                     .font(.body.weight(.medium))
             }
 

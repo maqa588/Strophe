@@ -584,7 +584,7 @@ struct InteractiveSubtitleBlock: View {
                 beginEditingTime()
             }
 
-            popoverAction(icon: "rectangle.3.group", title: String(localized: "移动到分组"), showsChevron: true, disabled: isLocked) {
+            popoverAction(icon: "square.stack.3d.up", title: String(localized: "移动到分组"), showsChevron: true, disabled: isLocked) {
                 popoverMode = .groups
             }
 
@@ -1044,7 +1044,7 @@ extension InteractiveSubtitleBlock {
                 }
             }
         } label: {
-            Label(String(localized: "移动到分组"), systemImage: "rectangle.3.group")
+            Label(String(localized: "移动到分组"), systemImage: "square.stack.3d.up")
         }
         .disabled(isLocked)
 

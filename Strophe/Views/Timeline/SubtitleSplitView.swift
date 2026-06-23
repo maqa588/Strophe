@@ -7,6 +7,10 @@
 
 import SwiftUI
 
+#if os(macOS)
+import AppKit
+#endif
+
 /// 字幕切分交互视图：显示分词游标，让用户选择文本切分点
 struct SubtitleSplitView: View {
     let item: SubtitleItem
@@ -214,14 +218,16 @@ struct SubtitleSplitView: View {
         .frame(width: 440, height: 400)
         .background(VisualEffectView(material: .sheet, blendingMode: .behindWindow))
         .cornerRadius(16)
-        .onKeyPress(.leftArrow) {
-            if cursorPosition > 1 { cursorPosition -= 1 }
-            return .handled
-        }
-        .onKeyPress(.rightArrow) {
-            if cursorPosition < characters.count - 1 { cursorPosition += 1 }
-            return .handled
-        }
+        .background(
+            SubtitleSplitKeyMonitor(
+                moveLeft: {
+                    if cursorPosition > 1 { cursorPosition -= 1 }
+                },
+                moveRight: {
+                    if cursorPosition < characters.count - 1 { cursorPosition += 1 }
+                }
+            )
+        )
         #else
         // iOS/iPadOS: 全宽自适应，背景由系统 sheet 提供，无需手动设
         .frame(maxWidth: .infinity)
@@ -278,6 +284,82 @@ struct SubtitleSplitView: View {
         )
     }
 }
+
+#if os(macOS)
+private struct SubtitleSplitKeyMonitor: NSViewRepresentable {
+    let moveLeft: () -> Void
+    let moveRight: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(moveLeft: moveLeft, moveRight: moveRight)
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        context.coordinator.trackingView = view
+        context.coordinator.registerMonitor()
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.trackingView = nsView
+        context.coordinator.moveLeft = moveLeft
+        context.coordinator.moveRight = moveRight
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        coordinator.unregisterMonitor()
+    }
+
+    final class Coordinator {
+        weak var trackingView: NSView?
+        var moveLeft: () -> Void
+        var moveRight: () -> Void
+        private var monitor: Any?
+
+        init(moveLeft: @escaping () -> Void, moveRight: @escaping () -> Void) {
+            self.moveLeft = moveLeft
+            self.moveRight = moveRight
+        }
+
+        func registerMonitor() {
+            guard monitor == nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard let self,
+                      let window = trackingView?.window,
+                      event.window === window,
+                      !Self.isEditingText(in: window)
+                else {
+                    return event
+                }
+
+                switch event.keyCode {
+                case 123:
+                    moveLeft()
+                    return nil
+                case 124:
+                    moveRight()
+                    return nil
+                default:
+                    return event
+                }
+            }
+        }
+
+        func unregisterMonitor() {
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+                self.monitor = nil
+            }
+        }
+
+        private static func isEditingText(in window: NSWindow) -> Bool {
+            guard let responder = window.firstResponder else { return false }
+            return responder is NSTextView || responder is NSTextField
+        }
+    }
+}
+#endif
 
 // MARK: - WrappingHStack
 

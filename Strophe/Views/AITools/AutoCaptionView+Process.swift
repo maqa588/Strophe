@@ -31,7 +31,7 @@ extension AutoCaptionView {
                     .animation(.easeInOut, value: stepProgress)
                 
                 VStack(spacing: 4) {
-                    Text("\(Int(stepProgress * 100))%")
+                    Text(stepProgress, format: .percent.precision(.fractionLength(0)))
                         .font(.system(size: 28, weight: .bold, design: .rounded))
                         .foregroundStyle(Color.stropheText)
                     

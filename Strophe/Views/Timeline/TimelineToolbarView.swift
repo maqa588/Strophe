@@ -342,7 +342,7 @@ struct TimelineToolbarView: View {
 
                     // ── 合并按钮 ──
                     Button(action: { handleMergeAction() }) {
-                        Image(systemName: "arrow.trianglehead.merge")
+                        Image(systemName: "arrow.down.right.and.arrow.up.left")
                             .font(.body.weight(.medium))
                             .foregroundStyle(.primary)
                             .frame(width: 32, height: 28)
@@ -350,7 +350,7 @@ struct TimelineToolbarView: View {
                     .buttonStyle(.plain)
                     .glassEffect(.regular.interactive())
                     .popover(isPresented: $showMergeTip, arrowEdge: .top) {
-                        RichTooltipView(icon: "arrow.trianglehead.merge", title: String(localized: "合并字幕"), message: String(localized: "将选中的连续字幕块合并为一个，文本与时间轴同时合并"))
+                        RichTooltipView(icon: "arrow.down.right.and.arrow.up.left", title: String(localized: "合并字幕"), message: String(localized: "将选中的连续字幕块合并为一个，文本与时间轴同时合并"))
                     }
                     .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
                         #if os(iOS)

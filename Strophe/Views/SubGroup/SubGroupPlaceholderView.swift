@@ -77,6 +77,7 @@ struct SubGroupPlaceholderView: View {
         .listStyle(.sidebar)
         .scrollContentBackground(.hidden)
         .background(Color.clear)
+        .venturaFixedListRowHeight(76)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {

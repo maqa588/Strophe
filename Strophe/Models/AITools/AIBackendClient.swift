@@ -36,7 +36,7 @@ enum AIBackendAvailability: Sendable {
 actor AIBackendClient {
     static let shared = AIBackendClient()
     #if STROPHE_LITE
-    nonisolated static let unsupportedDeviceMessage = "您使用的是Strophe Lite(活字极速版)，无法使用本地AI功能，如果您的设备支持，请安装Strophe完整版，或者请等待云端AI功能实现"
+    nonisolated static let unsupportedDeviceMessage = "您使用的是 Strophe Lite（活字轻量版），无法使用本地 AI 功能。如果您的设备支持，请安装 Strophe 完整版，或者等待云端 AI 功能实现。"
     nonisolated static let cloudComingSoonMessage = unsupportedDeviceMessage
     #else
     nonisolated static let unsupportedDeviceMessage = "您的设备不支持本地AI运行"

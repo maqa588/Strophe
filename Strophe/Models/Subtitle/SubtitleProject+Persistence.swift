@@ -218,13 +218,20 @@ extension SubtitleProject {
     func createSecurityScopedBookmark(for url: URL) -> Data? {
         let resolvedURL = url.resolvingSymlinksInPath()
         #if os(macOS)
-        guard let bookmark = try? resolvedURL.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) else {
-            print("⚠️ Failed to create bookmark for: \(resolvedURL.path)")
+        let didAccess = resolvedURL.startAccessingSecurityScopedResource()
+        defer { if didAccess { resolvedURL.stopAccessingSecurityScopedResource() } }
+        let bookmark: Data
+        do {
+            bookmark = try resolvedURL.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+        } catch {
+            print("⚠️ Failed to create bookmark for: \(resolvedURL.path) — \(error.localizedDescription)")
             return nil
         }
         var isStale = false
-        guard (try? URL(resolvingBookmarkData: bookmark, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale)) != nil else {
-            print("⚠️ Created bookmark is invalid for: \(resolvedURL.path)")
+        do {
+            _ = try URL(resolvingBookmarkData: bookmark, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale)
+        } catch {
+            print("⚠️ Created bookmark is invalid for: \(resolvedURL.path) — \(error.localizedDescription)")
             return nil
         }
         return bookmark
@@ -248,7 +255,14 @@ extension SubtitleProject {
     
     func createProjectURLBookmark(_ url: URL) -> Data? {
         #if os(macOS)
-        return try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+        do {
+            return try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+        } catch {
+            print("⚠️ Failed to create project bookmark for: \(url.path) — \(error.localizedDescription)")
+            return nil
+        }
         #else
         return nil
         #endif
@@ -279,6 +293,10 @@ extension SubtitleProject {
                 resolvedURL = resolved
                 didAccess = resolved.startAccessingSecurityScopedResource()
             }
+        }
+        if resolvedURL == nil {
+            resolvedURL = url
+            didAccess = url.startAccessingSecurityScopedResource()
         }
         
         defer {

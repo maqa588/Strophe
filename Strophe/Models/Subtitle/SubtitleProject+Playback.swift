@@ -62,6 +62,16 @@ extension SubtitleProject {
         referenceDate = .now
     }
 
+    func syncPlaybackClockFromEngine() {
+        guard let eng = activeEngine else { return }
+        let engineTime = eng.currentTime
+        guard engineTime.isFinite else { return }
+        currentTime = engineTime
+        referenceTime = engineTime
+        referenceDate = .now
+        playbackRate = eng.rate
+    }
+
     func seek(to time: Double) {
         guard let eng = activeEngine else {
             self.currentTime = time

@@ -42,6 +42,7 @@ struct ContentView: View {
     #if os(macOS)
     @State private var isShowingSaveOnQuitAlert = false
     @State private var isQuittingAfterSave = false
+    @State private var keyboardMonitor: Any?
     #endif
 
     private var usesLiquidGlassNavigation: Bool {
@@ -165,6 +166,11 @@ struct ContentView: View {
         .onAppear {
             setupKeyboardMonitor()
         }
+        #if os(macOS)
+        .onDisappear {
+            removeKeyboardMonitor()
+        }
+        #endif
         .onReceive(NotificationCenter.default.publisher(for: .stropheOpenProject)) { _ in
             isShowingOpenProject = true
         }
@@ -291,11 +297,13 @@ struct ContentView: View {
                                 } label: {
                                     Label("导入字幕文件", systemImage: "square.and.arrow.down")
                                 }
+                                #if !STROPHE_LITE
                                 Button {
                                     NotificationCenter.default.post(name: .stropheStartSpeechRecognition, object: nil)
                                 } label: {
                                     Label("语音识别", systemImage: "waveform.and.mic")
                                 }
+                                #endif
                             } label: {
                                 Image(systemName: "plus")
                             }
@@ -329,7 +337,8 @@ struct ContentView: View {
 
     private func setupKeyboardMonitor() {
         #if os(macOS)
-        NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { event in
+        guard keyboardMonitor == nil else { return }
+        keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { event in
             if let keyWindow = NSApp.keyWindow,
                let responder = keyWindow.firstResponder {
                 let className = String(describing: type(of: responder))
@@ -346,7 +355,7 @@ struct ContentView: View {
             if let chars = event.charactersIgnoringModifiers?.lowercased(),
                chars == "j" || chars == "k" {
                 if project.editingMode == .creation {
-                    if isKeyDown { project.handleSlapKeyDown(key: chars) }
+                    if isKeyDown, !event.isARepeat { project.handleSlapKeyDown(key: chars) }
                     else if isKeyUp { project.handleSlapKeyUp(key: chars) }
                     return nil
                 }
@@ -402,6 +411,15 @@ struct ContentView: View {
         }
         #endif
     }
+
+    #if os(macOS)
+    private func removeKeyboardMonitor() {
+        if let keyboardMonitor {
+            NSEvent.removeMonitor(keyboardMonitor)
+            self.keyboardMonitor = nil
+        }
+    }
+    #endif
 
 
 

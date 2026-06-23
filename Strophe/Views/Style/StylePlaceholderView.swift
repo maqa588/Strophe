@@ -53,6 +53,7 @@ struct StylePlaceholderView: View {
         .listStyle(.sidebar)
         .scrollContentBackground(.hidden)
         .background(Color.clear)
+        .venturaFixedListRowHeight(44)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {

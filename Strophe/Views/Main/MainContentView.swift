@@ -283,7 +283,7 @@ struct MainContentView: View {
             }
             ProgressView(value: progress)
                 .frame(width: 220)
-            Text("\(Int((progress * 100).rounded()))%")
+            Text(progress, format: .percent.precision(.fractionLength(0)))
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(.secondary)
         }

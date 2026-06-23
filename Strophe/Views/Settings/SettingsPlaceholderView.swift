@@ -30,6 +30,7 @@ struct SettingsPlaceholderView: View {
                 }
             }
 
+            #if !STROPHE_LITE
             Section(header: Text("AI 引擎与模型管理")) {
                 Button {
                     settingsPath.append(.whisperConfig)
@@ -91,6 +92,7 @@ struct SettingsPlaceholderView: View {
                     }
                 }
             }
+            #endif
 
             Section(header: Text("存储与维护")) {
                 Button {
@@ -111,5 +113,6 @@ struct SettingsPlaceholderView: View {
         #else
         .listStyle(.automatic)
         #endif
+        .venturaFixedListRowHeight(36)
     }
 }
