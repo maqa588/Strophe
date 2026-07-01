@@ -57,14 +57,14 @@ struct StropheTabBar: View {
     #endif
 
     var body: some View {
-        if #available(iOS 26.0, macOS 26.0, *) {
+        if #available(anyAppleOS 26.0, *) {
             advancedLiquidGlassTabBar
         } else {
             ordinaryTabBar
         }
     }
 
-    @available(iOS 26.0, macOS 26.0, *)
+    @available(anyAppleOS 26.0, *)
     private var advancedLiquidGlassTabBar: some View {
         GlassEffectContainer(spacing: 8) {
             GeometryReader { proxy in
@@ -81,7 +81,7 @@ struct StropheTabBar: View {
                 .onAppear {
                     containerWidth = proxy.size.width
                 }
-                .onChange(of: proxy.size.width) { newWidth in
+                .stropheOnChange(of: proxy.size.width) { newWidth in
                     containerWidth = newWidth
                 }
                 .stropheGlassCapsule(interactive: true, reduceTransparency: reduceTransparency)
@@ -92,7 +92,7 @@ struct StropheTabBar: View {
         .frame(maxWidth: isDesktop ? 360 : 430)
         .padding(.horizontal, isDesktop ? 20 : 16)
         .padding(.bottom, isDesktop ? 20 : 12)
-        .onChange(of: selectedTab) { newTab in
+        .stropheOnChange(of: selectedTab) { newTab in
             if tabs.contains(newTab) {
                 withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.72)) {
                     dragLocationX = nil
@@ -102,7 +102,7 @@ struct StropheTabBar: View {
         }
     }
 
-    @available(iOS 26.0, macOS 26.0, *)
+    @available(anyAppleOS 26.0, *)
     private var movingSelectionThumb: some View {
         let outerPadding: CGFloat = 5
         let spacing: CGFloat = 4
@@ -137,7 +137,7 @@ struct StropheTabBar: View {
         .animation(reduceMotion ? nil : .interactiveSpring(response: 0.14, dampingFraction: 0.86), value: dragLocationX)
     }
 
-    @available(iOS 26.0, macOS 26.0, *)
+    @available(anyAppleOS 26.0, *)
     @ViewBuilder
     private func liquidGlassTabButton(for tab: StropheTab, index: Int) -> some View {
         let isActive = isTabVisuallyActive(index)
@@ -169,7 +169,7 @@ struct StropheTabBar: View {
         isDragging ? liveIndex == index : selectedIndex == index
     }
 
-    @available(iOS 26.0, macOS 26.0, *)
+    @available(anyAppleOS 26.0, *)
     private func selectTab(_ tab: StropheTab, at index: Int) {
         withAnimation(tabBarSpring) {
             selectedTab = tab
@@ -178,7 +178,7 @@ struct StropheTabBar: View {
         }
     }
 
-    @available(iOS 26.0, macOS 26.0, *)
+    @available(anyAppleOS 26.0, *)
     private var tabDragGesture: some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
@@ -242,7 +242,7 @@ struct StropheTabBar: View {
 }
 
 private extension View {
-    @available(iOS 26.0, macOS 26.0, *)
+    @available(anyAppleOS 26.0, *)
     @ViewBuilder
     func stropheGlassCapsule(interactive: Bool, reduceTransparency: Bool) -> some View {
         if reduceTransparency {

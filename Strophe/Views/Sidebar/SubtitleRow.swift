@@ -8,10 +8,20 @@
 import SwiftUI
 
 struct SubtitleRow: View, Equatable {
+    let project: SubtitleProject
     let item: SubtitleItem
     let isActive: Bool
     let isOverlapping: Bool
     let group: SubGroupItem?
+    let isSlapping: Bool
+
+    static func == (lhs: SubtitleRow, rhs: SubtitleRow) -> Bool {
+        lhs.item == rhs.item &&
+        lhs.isActive == rhs.isActive &&
+        lhs.isOverlapping == rhs.isOverlapping &&
+        lhs.group == rhs.group &&
+        lhs.isSlapping == rhs.isSlapping
+    }
 
     var body: some View {
         let groupColor = group?.color ?? Color.stropheBlue
@@ -46,7 +56,13 @@ struct SubtitleRow: View, Equatable {
 
                         HStack(spacing: 4) {
                             Text(formatTime(start))
-                            if let end = item.endTime {
+                            if isSlapping {
+                                Text("→")
+                                TimelineView(.animation) { timeline in
+                                    let smoothTime = playbackTime(at: timeline.date)
+                                    Text(formatTime(smoothTime))
+                                }
+                            } else if let end = item.endTime {
                                 Text("→")
                                 Text(formatTime(end))
                             }
@@ -75,7 +91,11 @@ struct SubtitleRow: View, Equatable {
 
     @ViewBuilder
     private var statusBadge: some View {
-        if isOverlapping {
+        if isSlapping {
+            Image(systemName: "record.circle")
+                .font(.caption)
+                .foregroundStyle(Color.stropheBlue)
+        } else if isOverlapping {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.caption)
                 .foregroundStyle(.yellow)
@@ -92,6 +112,15 @@ struct SubtitleRow: View, Equatable {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         }
+    }
+
+    private func playbackTime(at date: Date) -> Double {
+        let rawTime = project.referenceTime + date.timeIntervalSince(project.referenceDate) * project.playbackRate
+        let duration = project.activeEngine?.duration ?? 0
+        let clampedTime = rawTime.isFinite ? max(0, duration > 0 ? min(duration, rawTime) : rawTime) : project.currentTime
+        let start = item.startTime ?? 0
+        let minDuration = project.videoFrameRate > 0 ? (1.0 / project.videoFrameRate) : 0.1
+        return project.snapToFrame(max(start + minDuration, clampedTime))
     }
 
     private func formatTime(_ seconds: TimeInterval) -> String {

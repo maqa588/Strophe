@@ -14,12 +14,7 @@ struct StropheSidebarContainer: View {
     @Binding var settingsPath: [SettingsRoute]
 
     private var usesLiquidGlassNavigation: Bool {
-        #if os(iOS)
-        if #available(iOS 26.0, *) { return true }
-        #elseif os(macOS)
-        if #available(macOS 26.0, *) { return true }
-        #endif
-        return false
+        if #available(anyAppleOS 26.0, *) { true } else { false }
     }
     
     var body: some View {
@@ -31,11 +26,10 @@ struct StropheSidebarContainer: View {
             .hideSidebarSystemNavigationBar()
         #else
         // 📱 iPadOS/iOS 平台：保留你非常满意的精致悬浮玻璃卡片布局
-        if #available(iOS 26.0, macOS 26.0, *) {
+        if #available(anyAppleOS 26.0, *) {
             sidebarContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.leading, 12)
-                .padding(.bottom, 12)
                 .padding(.trailing, 4)
                 .glassEffect(.regular, in: .rect(cornerRadius: 18, style: .continuous))
                 .hideSidebarSystemNavigationBar()
@@ -43,7 +37,6 @@ struct StropheSidebarContainer: View {
             sidebarContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.leading, 12)
-                .padding(.bottom, 12)
                 .padding(.trailing, 4)
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .hideSidebarSystemNavigationBar()

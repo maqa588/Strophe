@@ -1,0 +1,82 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "ASS Subtitle" : {
+
+    },
+    "AVI Video" : {
+
+    },
+    "CFBundleDisplayName" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strophe"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "活字"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "活字"
+          }
+        }
+      }
+    },
+    "CFBundleName" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strophe"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "活字"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "活字"
+          }
+        }
+      }
+    },
+    "Flash Video" : {
+
+    },
+    "LRC Lyrics" : {
+
+    },
+    "Matroska Video" : {
+
+    },
+    "RealMedia Variable Bitrate Video" : {
+
+    },
+    "SRT Subtitle" : {
+
+    },
+    "Strophe Project" : {
+
+    },
+    "WebM Video" : {
+
+    },
+    "WebVTT Subtitle File" : {
+
+    }
+  },
+  "version" : "1.0"
+}

@@ -96,6 +96,7 @@ final class AVFoundationEngine: PlayerEngine {
     private let player = AVPlayer()
     private let playerLayer: AVPlayerLayer
     private let hostView: NativeView
+    private let seekCoordinator = AVPlayerSeekCoordinator()
 
     var playerRef: AVPlayer { player }
 
@@ -180,18 +181,22 @@ final class AVFoundationEngine: PlayerEngine {
     }
 
     func seek(to time: Double) async {
-        guard time.isFinite else { return }
-        let cmTime = CMTime(seconds: time, preferredTimescale: 600)
-        _ = await player.seek(to: cmTime, toleranceBefore: .zero, toleranceAfter: .zero)
+        await seek(
+            to: time,
+            toleranceBefore: .zero,
+            toleranceAfter: .zero
+        )
     }
 
     func seekVideoFrameOnly(to time: Double) async {
-        guard time.isFinite else { return }
-        let cmTime = CMTime(seconds: time, preferredTimescale: 600)
         await MainActor.run {
             player.rate = 0.0 // Pause during scrub to prevent rapid AudioQueue start/stop (-4 errors)
-            player.seek(to: cmTime, toleranceBefore: .zero, toleranceAfter: .zero)
         }
+        await seek(
+            to: time,
+            toleranceBefore: CMTime(value: 1, timescale: 30),
+            toleranceAfter: CMTime(value: 1, timescale: 30)
+        )
     }
 
     func stop() {
@@ -207,5 +212,37 @@ final class AVFoundationEngine: PlayerEngine {
 
     func removeTimeObserver(_ token: Any) {
         player.removeTimeObserver(token)
+    }
+
+    @discardableResult
+    private func seek(to time: Double, toleranceBefore: CMTime, toleranceAfter: CMTime) async -> Bool {
+        guard time.isFinite else { return false }
+        let token = await seekCoordinator.nextToken()
+        let cmTime = CMTime(seconds: time, preferredTimescale: 600)
+
+        await MainActor.run {
+            player.currentItem?.cancelPendingSeeks()
+        }
+
+        let finished = await player.seek(
+            to: cmTime,
+            toleranceBefore: toleranceBefore,
+            toleranceAfter: toleranceAfter
+        )
+        let isLatest = await seekCoordinator.isLatest(token)
+        return finished && isLatest
+    }
+}
+
+private actor AVPlayerSeekCoordinator {
+    private var token = 0
+
+    func nextToken() -> Int {
+        token += 1
+        return token
+    }
+
+    func isLatest(_ candidate: Int) -> Bool {
+        candidate == token
     }
 }

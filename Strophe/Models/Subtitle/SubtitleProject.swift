@@ -30,6 +30,8 @@ class SubtitleProject: ObservableObject {
     }
     @Published var showHardSubtitles: Bool = false
     @Published var isSeeking: Bool = false
+    var subtitleBoundarySeekTask: Task<Void, Never>? = nil
+    var subtitleBoundarySeekGeneration: UInt = 0
     @Published var editingMode: TimelineEditingMode = .selection
     @Published var selectedIDs: Set<UUID> = []
     @Published var isSubtitleMultiSelecting: Bool = false
@@ -86,6 +88,7 @@ class SubtitleProject: ObservableObject {
             }
             activeEngine?.stop()
             activeEngine = nil
+            activeEngineURL = nil
             waveformData?.cancelAllActiveTasks()
             waveformData = nil
         }
@@ -132,6 +135,7 @@ class SubtitleProject: ObservableObject {
     @Published var videoSize: CGSize = .zero
     
     var activeEngine: (any PlayerEngine)? = nil
+    var activeEngineURL: URL? = nil
     
     func snapToFrame(_ time: Double) -> Double {
         guard videoFrameRate > 0 else { return time }

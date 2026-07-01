@@ -146,7 +146,7 @@ final class FrameQueue: @unchecked Sendable {
         super.init()
         
         // Register callbacks safely on FFmpegDecoderCore actor asynchronously
-        Task {
+        Task { [coreInstance, weak self, weak ap] in
             await coreInstance.registerCallbacks(
                 onFrameReady: { [weak self] sendableBuffer, pts in
                     guard let self = self else { return }

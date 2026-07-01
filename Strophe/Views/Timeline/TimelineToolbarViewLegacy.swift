@@ -28,7 +28,7 @@ struct PlaybackControlsLegacy: View {
             .buttonStyle(.plain)
             .help(String(localized: "撤销"))
 
-            ScanButton(icon: "gobackward.5", isForward: false, project: project)
+            BoundarySeekButton(icon: "gobackward", direction: .left, project: project)
 
             Button(action: { project.togglePlayback() }) {
                 Image(systemName: playbackRate > 0 ? "pause.fill" : "play.fill")
@@ -40,7 +40,7 @@ struct PlaybackControlsLegacy: View {
             }
             .buttonStyle(.plain)
 
-            ScanButton(icon: "goforward.5", isForward: true, project: project)
+            BoundarySeekButton(icon: "goforward", direction: .right, project: project)
 
             Button(action: { project.redo() }) {
                 Image(systemName: "arrow.uturn.forward")

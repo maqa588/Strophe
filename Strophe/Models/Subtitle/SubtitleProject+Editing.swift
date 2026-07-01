@@ -392,15 +392,7 @@ extension SubtitleProject {
     }
 
     var shouldDeferActiveSlapBlockTimingUpdates: Bool {
-        #if os(macOS)
-        if #available(macOS 14.0, *) {
-            return false
-        } else {
-            return activeSlapSubtitleID != nil && activeEngine is FFmpegEngine
-        }
-        #else
-        return false
-        #endif
+        activeSlapSubtitleID != nil
     }
     
     func sortItemsStable() {

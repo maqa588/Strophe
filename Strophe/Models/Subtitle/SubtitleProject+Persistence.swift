@@ -19,6 +19,28 @@ extension SubtitleProject {
             replaceMedia(with: url)
         }
     }
+
+    func importMediaAsNewProject(from url: URL) {
+        pause()
+        stopAutoSave()
+        resetForNewMedia()
+        setDocumentName(url.deletingPathExtension().lastPathComponent)
+
+        if let cacheURL = cachedProjectURL(for: url) {
+            projectURL = cacheURL
+            projectURLBookmark = nil
+        }
+
+        prepareMediaAccess(for: url)
+        videoURL = url
+
+        if let cacheURL = projectURL {
+            Task { @MainActor in
+                try? await saveStrophe(to: cacheURL)
+                startAutoSave()
+            }
+        }
+    }
     
     func importStropheProject(from url: URL) async throws {
         try await loadStrophe(from: url)
@@ -73,6 +95,27 @@ extension SubtitleProject {
         projectURLBookmark = nil
         waveformData = nil
         markClean()
+    }
+
+    private func cachedProjectURL(for mediaURL: URL) -> URL? {
+        guard let cachesURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+
+        let projectCacheDirectory = cachesURL
+            .appendingPathComponent("Strophe", isDirectory: true)
+            .appendingPathComponent("ProjectCache", isDirectory: true)
+
+        do {
+            try FileManager.default.createDirectory(at: projectCacheDirectory, withIntermediateDirectories: true)
+        } catch {
+            print("⚠️ Failed to create project cache directory: \(error.localizedDescription)")
+            return nil
+        }
+
+        let baseName = mediaURL.deletingPathExtension().lastPathComponent
+        let fileName = baseName.isEmpty ? "Untitled.strophe" : "\(baseName).strophe"
+        return projectCacheDirectory.appendingPathComponent(fileName)
     }
     
     var stropheDocument: StropheProjectDocument {

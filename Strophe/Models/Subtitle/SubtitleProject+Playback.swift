@@ -6,8 +6,14 @@
 //
 
 import Foundation
+import Combine
 
 extension SubtitleProject {
+    enum SubtitleBoundaryDirection {
+        case left
+        case right
+    }
+
     func togglePlayback() {
         guard let eng = activeEngine else { return }
         if eng.rate == 0 {
@@ -48,6 +54,70 @@ extension SubtitleProject {
             self.currentTime = targetTime
             self.referenceTime = targetTime
             self.referenceDate = .now
+        }
+    }
+
+    func seekToSubtitleBoundary(_ direction: SubtitleBoundaryDirection) {
+        guard let targetTime = subtitleBoundaryTarget(from: currentTime, direction: direction) else { return }
+        seekTimelineImmediately(to: targetTime)
+    }
+
+    func seekByFrames(_ frameCount: Int) {
+        guard frameCount != 0 else { return }
+        let fps = videoFrameRate.isFinite && videoFrameRate > 0 ? videoFrameRate : 30.0
+        let targetTime = currentTime + Double(frameCount) / fps
+        seekTimelineImmediately(to: targetTime)
+    }
+
+    private func subtitleBoundaryTarget(from time: Double, direction: SubtitleBoundaryDirection) -> Double? {
+        let frameTolerance = videoFrameRate > 0 ? (1.0 / videoFrameRate) * 0.5 : 0.001
+        let edgeTolerance = max(frameTolerance, 0.001)
+
+        switch direction {
+        case .left:
+            let starts = timelineIndex.itemsByStartTime
+                .compactMap(\.startTime)
+                .filter(\.isFinite)
+            return starts.last(where: { $0 < time - edgeTolerance })
+
+        case .right:
+            let ends = timelineIndex.itemsByStartTime
+                .compactMap { item -> Double? in
+                    guard let start = item.startTime else { return nil }
+                    return item.endTime ?? start
+                }
+                .filter(\.isFinite)
+                .sorted()
+            return ends.first(where: { $0 > time + edgeTolerance })
+        }
+    }
+
+    private func seekTimelineImmediately(to time: Double) {
+        let duration = activeEngine?.duration ?? 0
+        let targetTime = max(0, (duration.isFinite && duration > 0) ? min(duration, time) : time)
+
+        subtitleBoundarySeekGeneration &+= 1
+        let generation = subtitleBoundarySeekGeneration
+        subtitleBoundarySeekTask?.cancel()
+
+        objectWillChange.send()
+        currentTime = targetTime
+        referenceTime = targetTime
+        referenceDate = .now
+
+        guard let eng = activeEngine else {
+            isSeeking = false
+            return
+        }
+
+        isSeeking = true
+        subtitleBoundarySeekTask = Task { @MainActor in
+            await eng.seek(to: targetTime)
+            guard subtitleBoundarySeekGeneration == generation else { return }
+            isSeeking = false
+            currentTime = targetTime
+            referenceTime = targetTime
+            referenceDate = .now
         }
     }
     

@@ -28,7 +28,7 @@ struct HardSubtitleOverlayView: View {
         .task {
             await refreshLoop()
         }
-        .onChange(of: store.activeGroupID) { _ in
+        .stropheOnChange(of: store.activeGroupID) { _ in
             refreshDisplayedCues(at: resolvedCurrentTime)
         }
         .onReceive(project.objectWillChange) { _ in
@@ -61,7 +61,9 @@ struct HardSubtitleOverlayView: View {
 
     private func subtitleView(for cue: ResolvedSubtitleCue, in size: CGSize) -> some View {
         let style = cue.style
-        let scale = max(0.42, min(size.height / 1080.0, 1.6))
+        let videoHeight = project.videoSize.height > 0 ? project.videoSize.height : 1080.0
+        let exportBaseScale = max(0.42, min(videoHeight / 1080.0, 2.2))
+        let scale = exportBaseScale * (size.height / videoHeight)
         let fontSize = max(14, style.fontSize * scale)
         let foreground = style.textColor.color
         let outline = style.outlineColor.color

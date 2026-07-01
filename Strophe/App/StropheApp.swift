@@ -35,13 +35,7 @@ struct StropheApp: App {
 
         #if os(iOS)
         IOSStderrRedirector.install()
-
-        do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
-            try AVAudioSession.sharedInstance().setActive(true)
-        } catch {
-            print("Failed to set audio session category: \(error)")
-        }
+        StropheAudioSession.configureForPlayback()
         #endif
         
         TempCleanupHelper.performStartupCleanupIfNeeded()
@@ -67,6 +61,37 @@ struct StropheApp: App {
 }
 
 #if os(iOS)
+private enum StropheAudioSession {
+    static func configureForPlayback() {
+        let session = AVAudioSession.sharedInstance()
+
+        do {
+            try session.setCategory(.playback, mode: .default)
+        } catch {
+            print("Failed to set audio session category: \(error)")
+            return
+        }
+
+        if #available(anyAppleOS 27.0, *) {
+            session.activate(options: []) { activated, error in
+                if let error {
+                    print("Failed to activate audio session: \(error)")
+                } else if !activated {
+                    print("Audio session activation did not complete")
+                }
+            }
+        } else {
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    try session.setActive(true)
+                } catch {
+                    print("Failed to activate audio session: \(error)")
+                }
+            }
+        }
+    }
+}
+
 private enum IOSStderrRedirector {
     static func install() {
         guard let cachesURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {

@@ -46,12 +46,7 @@ struct ContentView: View {
     #endif
 
     private var usesLiquidGlassNavigation: Bool {
-        #if os(iOS)
-        if #available(iOS 26.0, *) { return true }
-        #elseif os(macOS)
-        if #available(macOS 26.0, *) { return true }
-        #endif
-        return false
+        if #available(anyAppleOS 26.0, *) { true } else { false }
     }
 
     var body: some View {
@@ -156,7 +151,7 @@ struct ContentView: View {
             Text(String(localized: "如果未保存，编辑的内容将会丢失。"))
         }
         #endif
-        .onChange(of: project.loadedPlayheadTime) { newValue in
+        .stropheOnChange(of: project.loadedPlayheadTime) { newValue in
             if let time = newValue {
                 pendingRestoreTime = time
                 isShowingRestoreTimeAlert = true
@@ -199,13 +194,10 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .stropheShowSaveOnQuitAlert)) { _ in
             isShowingSaveOnQuitAlert = true
         }
-        .onReceive(NotificationCenter.default.publisher(for: .stropheShowAbout)) { _ in
-            selectedTab = .settings
-            DispatchQueue.main.async {
-                settingsPath = [.version]
-            }
-        }
         #endif
+        .onReceive(NotificationCenter.default.publisher(for: .stropheShowAbout)) { _ in
+            showAboutPage()
+        }
     }
 
     // MARK: - Wide Layout (iPad / macOS)
@@ -219,7 +211,7 @@ struct ContentView: View {
             // ── 左列：侧边栏容器 ──
             StropheSidebarContainer(project: project, selectedTab: $selectedTab, settingsPath: $settingsPath)
                 .navigationSplitViewColumnWidth(300)
-                .ignoresSafeArea(.container, edges: .top)
+                .ignoresSafeArea(.container, edges: [.top, .bottom])
         } detail: {
             // ── 右列：始终为编辑器（设置详情通过 settingsPath 覆盖在它上面） ──
             NavigationStack(path: $settingsPath) {
@@ -229,9 +221,12 @@ struct ContentView: View {
                     }
             }
         }
+        .navigationSplitViewStyle(.balanced)
         .background(Color.stropheBackground)
-        .onChange(of: selectedTab) { _ in
-            settingsPath.removeAll()
+        .stropheOnChange(of: selectedTab) { newValue in
+            if newValue != .settings {
+                settingsPath.removeAll()
+            }
         }
     }
 
@@ -333,6 +328,13 @@ struct ContentView: View {
         }
     }
 
+    private func showAboutPage() {
+        selectedTab = .settings
+        DispatchQueue.main.async {
+            settingsPath = [.version]
+        }
+    }
+
     // MARK: - Keyboard Monitor (macOS)
 
     private func setupKeyboardMonitor() {
@@ -380,6 +382,16 @@ struct ContentView: View {
                 if mod == .command, event.charactersIgnoringModifiers?.lowercased() == "v" {
                     guard project.canPasteSubtitleBlocks else { return event }
                     project.pasteSubtitleBlocksIntoActiveGroup(); return nil
+                }
+                if mod.isEmpty {
+                    switch event.keyCode {
+                    case 123:
+                        project.seekByFrames(-1); return nil
+                    case 124:
+                        project.seekByFrames(1); return nil
+                    default:
+                        break
+                    }
                 }
                 if mod == .option,
                    let rawKey = event.charactersIgnoringModifiers,

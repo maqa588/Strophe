@@ -18,7 +18,7 @@ struct SettingsPlaceholderView: View {
         List {
             Section(header: Text("关于")) {
                 Button {
-                    settingsPath.append(.version)
+                    open(.version)
                 } label: {
                     Label {
                         Text("关于 \(AppIdentity.displayName)")
@@ -33,7 +33,7 @@ struct SettingsPlaceholderView: View {
             #if !STROPHE_LITE
             Section(header: Text("AI 引擎与模型管理")) {
                 Button {
-                    settingsPath.append(.whisperConfig)
+                    open(.whisperConfig)
                 } label: {
                     Label {
                         Text("语音转写设置")
@@ -45,7 +45,7 @@ struct SettingsPlaceholderView: View {
                 }
 
                 Button {
-                    settingsPath.append(.alignerConfig)
+                    open(.alignerConfig)
                 } label: {
                     Label {
                         Text("强制对齐设置")
@@ -57,7 +57,7 @@ struct SettingsPlaceholderView: View {
                 }
                 
                 Button {
-                    settingsPath.append(.speakerConfig)
+                    open(.speakerConfig)
                 } label: {
                     Label {
                         Text("对话人识别设置")
@@ -69,7 +69,7 @@ struct SettingsPlaceholderView: View {
                 }
                 
                 Button {
-                    settingsPath.append(.ttsConfig)
+                    open(.ttsConfig)
                 } label: {
                     Label {
                         Text("文本转语音设置")
@@ -81,7 +81,7 @@ struct SettingsPlaceholderView: View {
                 }
 
                 Button {
-                    settingsPath.append(.otherConfig)
+                    open(.otherConfig)
                 } label: {
                     Label {
                         Text("智能降噪与辅助设置")
@@ -96,7 +96,7 @@ struct SettingsPlaceholderView: View {
 
             Section(header: Text("存储与维护")) {
                 Button {
-                    settingsPath.append(.cache)
+                    open(.cache)
                 } label: {
                     Label {
                         Text("清理缓存")
@@ -114,5 +114,9 @@ struct SettingsPlaceholderView: View {
         .listStyle(.automatic)
         #endif
         .venturaFixedListRowHeight(36)
+    }
+
+    private func open(_ route: SettingsRoute) {
+        settingsPath = [route]
     }
 }

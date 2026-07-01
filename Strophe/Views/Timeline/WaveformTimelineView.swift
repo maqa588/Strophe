@@ -37,7 +37,7 @@ struct WaveformTimelineView: View {
     #endif
     
     private var isCompact: Bool {
-        return availableWidth < 540
+        return availableWidth < 720
     }
     
     var body: some View {
@@ -64,7 +64,7 @@ struct WaveformTimelineView: View {
                 let waveHeight: CGFloat = 120
 
                 GeometryReader { timelineGeo in
-                    let contentWidth = timelineGeo.size.width
+                    let contentWidth = max(1, timelineGeo.size.width)
                     let visibleDuration = Double(max(1, contentWidth)) / safePPS
                     let trailingWorkspaceDuration = max(8.0, visibleDuration * 0.75)
                     let timelineWorkspaceDuration = safeDataDuration + trailingWorkspaceDuration
@@ -95,7 +95,7 @@ struct WaveformTimelineView: View {
                                 )
                             }
                             .padding(.bottom, 6)
-                            .onChange(of: pixelsPerSecond) { _ in
+                            .stropheOnChange(of: pixelsPerSecond) { _ in
                                 keepPlayheadInView(viewWidth: Double(contentWidth), duration: timelineWorkspaceDuration)
                             }
                         }
@@ -104,7 +104,7 @@ struct WaveformTimelineView: View {
                         .onAppear {
                             applyContentWidth(contentWidth, duration: data.duration)
                         }
-                        .onChange(of: contentWidth) { newWidth in
+                        .stropheOnChange(of: contentWidth) { newWidth in
                             applyContentWidth(newWidth, duration: data.duration)
                         }
                         .coordinateSpace(name: timelineScrollCoordinateSpaceName)
@@ -157,11 +157,11 @@ struct WaveformTimelineView: View {
         }
         .padding(.bottom, 12)
         .environment(\.layoutDirection, .leftToRight)
-        .onChange(of: project.videoURL) { _ in
+        .stropheOnChange(of: project.videoURL) { _ in
             scrollPageStartTime = 0
             viewportStartTime = 0
         }
-        .onChange(of: project.waveformData?.duration) { duration in
+        .stropheOnChange(of: project.waveformData?.duration) { duration in
             guard let duration, duration.isFinite else { return }
             // 宽度在 applyContentWidth 里已经正确，这里只重置滚动状态
             scrollPageStartTime = 0
@@ -171,7 +171,7 @@ struct WaveformTimelineView: View {
             pixelsPerSecond = Double(safeWidth) / safeDuration
             renderedPPS = pixelsPerSecond
         }
-        .onChange(of: project.currentTime) { _ in
+        .stropheOnChange(of: project.currentTime) { _ in
             guard project.playbackRate == 0 else { return }
             guard !project.isScrubbing && !isDraggingPlayhead && !isUserInteracting else { return }
             let rawDuration = project.waveformData?.duration ?? 1
@@ -179,8 +179,17 @@ struct WaveformTimelineView: View {
             centerPlayheadIfNeeded(viewWidth: Double(availableWidth), duration: duration)
         }
         .frame(height: isCompact ? 236 : 200)
+        .padding(.bottom, bottomScrollerClearance)
         .frame(maxWidth: .infinity)
         .background(Color.stropheSecondaryBackground)
+    }
+
+    private var bottomScrollerClearance: CGFloat {
+        #if os(macOS)
+        return 8
+        #else
+        return 0
+        #endif
     }
 
     private func scrollOffsetReader(pixelsPerSecond: Double, duration: Double, viewWidth: CGFloat) -> some View {
@@ -189,10 +198,10 @@ struct WaveformTimelineView: View {
                 .onAppear {
                     updateVisibleScrollStart(proxy: proxy, pixelsPerSecond: pixelsPerSecond, duration: duration, viewWidth: viewWidth)
                 }
-                .onChange(of: proxy.frame(in: .named(timelineScrollCoordinateSpaceName)).minX) { _ in
+                .stropheOnChange(of: proxy.frame(in: .named(timelineScrollCoordinateSpaceName)).minX) { _ in
                     updateVisibleScrollStart(proxy: proxy, pixelsPerSecond: pixelsPerSecond, duration: duration, viewWidth: viewWidth)
                 }
-                .onChange(of: pixelsPerSecond) { _ in
+                .stropheOnChange(of: pixelsPerSecond) { _ in
                     updateVisibleScrollStart(proxy: proxy, pixelsPerSecond: pixelsPerSecond, duration: duration, viewWidth: viewWidth)
                 }
         }

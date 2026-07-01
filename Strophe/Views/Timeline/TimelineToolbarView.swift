@@ -20,7 +20,11 @@ struct TimelineToolbarView: View {
     @State private var availableWidth: CGFloat = 800
     
     private var isCompact: Bool {
-        return availableWidth < 540
+        return availableWidth < 720
+    }
+
+    private var isVeryCompact: Bool {
+        return availableWidth < 430
     }
     
     // Local state variables for layout and rendering, keeping body evaluations isolated
@@ -79,9 +83,9 @@ struct TimelineToolbarView: View {
                     .padding(.bottom, 2)
                 }
                 
-                HStack {
+                HStack(spacing: isVeryCompact ? 6 : 10) {
                     mediaInfoSection
-                    Spacer()
+                    Spacer(minLength: isVeryCompact ? 4 : 8)
                     editingModeControls
                 }
             } else {
@@ -96,6 +100,7 @@ struct TimelineToolbarView: View {
                         #endif
                         mediaInfoSection
                     }
+                    .fixedSize(horizontal: true, vertical: false)
                     
                     Spacer()
                     
@@ -106,6 +111,7 @@ struct TimelineToolbarView: View {
                     Spacer()
                     
                     editingModeControls
+                        .fixedSize(horizontal: true, vertical: false)
                 }
             }
         }
@@ -117,7 +123,7 @@ struct TimelineToolbarView: View {
                     .onAppear {
                         availableWidth = geo.size.width
                     }
-                    .onChange(of: geo.size.width) { newWidth in
+                    .stropheOnChange(of: geo.size.width) { newWidth in
                         availableWidth = newWidth
                     }
             }
@@ -195,9 +201,11 @@ struct TimelineToolbarView: View {
     @ViewBuilder
     private var mediaInfoSection: some View {
         HStack(spacing: 6) {
-            Image(systemName: "waveform")
-                .font(.caption.bold())
-                .foregroundStyle(.secondary)
+            if !isVeryCompact {
+                Image(systemName: "waveform")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+            }
             
             if videoURL != nil {
                 if isAudioOnly {
@@ -207,12 +215,7 @@ struct TimelineToolbarView: View {
                     let rateString = isWhole ? "\(Int(khz)) kHz" : String(format: "%.1f kHz", khz)
                     
                     Text(rateString)
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.stropheBlue.opacity(0.15))
-                        .foregroundColor(.stropheBlue)
-                        .cornerRadius(4)
+                        .timelineInfoBadge(isCompact: isVeryCompact)
                 } else {
                     let displayFPS = videoFrameRate
                     let fpsString: String = {
@@ -229,20 +232,49 @@ struct TimelineToolbarView: View {
                     }()
                     
                     Text(fpsString)
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.stropheBlue.opacity(0.15))
-                        .foregroundColor(.stropheBlue)
-                        .cornerRadius(4)
+                        .timelineInfoBadge(isCompact: isVeryCompact)
+                }
+
+                TimelineView(.animation) { timeline in
+                    Text(formatPreciseTime(displayTimelineTime(at: timeline.date)))
+                        .timelineInfoBadge(
+                            foreground: Color.secondary,
+                            background: Color.primary.opacity(0.08),
+                            isCompact: isVeryCompact
+                        )
                 }
             }
         }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private func displayTimelineTime(at date: Date) -> Double {
+        let rawTime: Double
+        if project.playbackRate == 0 {
+            rawTime = project.currentTime
+        } else {
+            rawTime = project.referenceTime + date.timeIntervalSince(project.referenceDate) * project.playbackRate
+        }
+        let duration = project.activeEngine?.duration ?? waveformData?.duration ?? rawTime
+        let maxTime = duration.isFinite && duration > 0 ? duration : max(rawTime, 0)
+        return rawTime.clampedFinite(to: 0...maxTime)
+    }
+
+    private func formatPreciseTime(_ time: Double) -> String {
+        let safeTime = time.isFinite ? max(0, time) : 0
+        let totalMilliseconds = Int((safeTime * 1000).rounded())
+        let milliseconds = totalMilliseconds % 1000
+        let totalSeconds = totalMilliseconds / 1000
+        let seconds = totalSeconds % 60
+        let totalMinutes = totalSeconds / 60
+        let minutes = totalMinutes % 60
+        let hours = totalMinutes / 60
+        return String(format: "%02d:%02d:%02d.%03d", hours, minutes, seconds, milliseconds)
     }
     
     @ViewBuilder
     private var playbackControls: some View {
-        if #available(macOS 26.0, iOS 26.0, *) {
+        if #available(anyAppleOS 26.0, *) {
             GlassEffectContainer(spacing: 12) {
                 HStack(spacing: 0) {
                     Button(action: { project.undo() }) {
@@ -255,7 +287,7 @@ struct TimelineToolbarView: View {
                     .glassEffect(.regular.interactive())
                     .help(String(localized: "撤销"))
 
-                    ScanButton(icon: "gobackward.5", isForward: false, project: project)
+                    BoundarySeekButton(icon: "gobackward", direction: .left, project: project)
                         .glassEffect(.regular.interactive())
                     
                     Button(action: { project.togglePlayback() }) {
@@ -267,7 +299,7 @@ struct TimelineToolbarView: View {
                     .buttonStyle(.plain)
                     .glassEffect(.regular.interactive())
 
-                    ScanButton(icon: "goforward.5", isForward: true, project: project)
+                    BoundarySeekButton(icon: "goforward", direction: .right, project: project)
                         .glassEffect(.regular.interactive())
 
                     Button(action: { project.redo() }) {
@@ -309,7 +341,7 @@ struct TimelineToolbarView: View {
     
     @ViewBuilder
     private var editingModeControls: some View {
-        if #available(macOS 26.0, iOS 26.0, *) {
+        if #available(anyAppleOS 26.0, *) {
             GlassEffectContainer(spacing: 12) {
                 HStack(spacing: 0) {
                     // ── 切分按钮 ──
@@ -573,6 +605,22 @@ extension View {
             self
         }
     }
+
+    func timelineInfoBadge(
+        foreground: Color = Color.stropheBlue,
+        background: Color = Color.stropheBlue.opacity(0.15),
+        isCompact: Bool = false
+    ) -> some View {
+        self
+            .font(.system(size: isCompact ? 8 : 9, weight: .bold, design: .monospaced))
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.horizontal, isCompact ? 5 : 6)
+            .padding(.vertical, 2)
+            .background(background)
+            .foregroundColor(foreground)
+            .cornerRadius(4)
+    }
 }
 
 // MARK: - AirPlayRoutePicker ViewRepresentable
@@ -601,10 +649,10 @@ struct AirPlayRoutePicker: UIViewRepresentable {
 }
 #endif
 
-// MARK: - ScanButton for Hold-to-Scan Fast Forward / Rewind
-struct ScanButton: View {
+// MARK: - BoundarySeekButton for Hold-to-Seek Subtitle Edges
+struct BoundarySeekButton: View {
     let icon: String
-    let isForward: Bool
+    let direction: SubtitleProject.SubtitleBoundaryDirection
     let project: SubtitleProject
     
     @State private var timerTask: Task<Void, Never>? = nil
@@ -616,6 +664,7 @@ struct ScanButton: View {
             .frame(width: 32, height: 28)
             .foregroundColor(.primary)
             .contentShape(Rectangle())
+            .help(direction == .left ? String(localized: "字幕块左对齐") : String(localized: "字幕块右对齐"))
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in
@@ -633,15 +682,11 @@ struct ScanButton: View {
     private func startScanning() {
         timerTask?.cancel()
         timerTask = Task { @MainActor in
-            // 1. Initial wait of 350ms to distinguish tap from hold
+            project.seekToSubtitleBoundary(direction)
+
             try? await Task.sleep(nanoseconds: 350_000_000)
-            guard !Task.isCancelled else {
-                // Triggered single tap!
-                project.seekDelta(isForward ? 5.0 : -5.0)
-                return
-            }
+            guard !Task.isCancelled else { return }
             
-            // 2. We entered continuous scan mode!
             #if os(iOS)
             let generator = UIImpactFeedbackGenerator(style: .light)
             generator.prepare()
@@ -649,9 +694,8 @@ struct ScanButton: View {
             #endif
             
             while !Task.isCancelled {
-                // Skip by 1.0s every 100ms
-                project.seekDelta(isForward ? 1.0 : -1.0)
-                try? await Task.sleep(nanoseconds: 100_000_000)
+                project.seekToSubtitleBoundary(direction)
+                try? await Task.sleep(nanoseconds: 120_000_000)
             }
         }
     }

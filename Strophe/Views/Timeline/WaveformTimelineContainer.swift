@@ -32,7 +32,9 @@ struct WaveformTimelineContainer: View {
     
     private func triggerHapticFeedback() {
         #if os(macOS)
-        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+        DispatchQueue.main.async {
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+        }
         #elseif os(iOS)
         let generator = UIImpactFeedbackGenerator(style: .light)
         generator.impactOccurred()

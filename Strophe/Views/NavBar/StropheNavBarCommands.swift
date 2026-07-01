@@ -5,17 +5,35 @@ struct StropheNavBarCommands: Commands {
     
     var body: some Commands {
         CommandGroup(replacing: .undoRedo) {
+            EmptyView()
+        }
+
+        CommandMenu(String(localized: "时间轴")) {
             Button(String(localized: "Undo")) {
                 project.undo()
             }
             .keyboardShortcut("z", modifiers: .command)
-            .disabled(!project.canUndo)
+            .disabled(project.isEditingText || !project.canUndo)
 
             Button(String(localized: "Redo")) {
                 project.redo()
             }
             .keyboardShortcut("z", modifiers: [.command, .shift])
-            .disabled(!project.canRedo)
+            .disabled(project.isEditingText || !project.canRedo)
+
+            Divider()
+
+            Button(String(localized: "字幕块左对齐")) {
+                project.seekToSubtitleBoundary(.left)
+            }
+            .keyboardShortcut("[", modifiers: [])
+            .disabled(project.isEditingText || project.items.isEmpty)
+
+            Button(String(localized: "字幕块右对齐")) {
+                project.seekToSubtitleBoundary(.right)
+            }
+            .keyboardShortcut("]", modifiers: [])
+            .disabled(project.isEditingText || project.items.isEmpty)
         }
 
         CommandGroup(after: .pasteboard) {

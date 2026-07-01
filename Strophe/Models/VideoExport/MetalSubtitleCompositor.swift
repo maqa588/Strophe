@@ -133,7 +133,7 @@ nonisolated private struct SubtitleBitmapCacheKey: Hashable {
 nonisolated private enum SubtitleBitmapRenderer {
     static func makeImage(cue: ResolvedSubtitleCue, canvasSize: CGSize) -> CGImage? {
         let style = cue.style
-        let scale = max(0.5, min(canvasSize.height / 1080.0, 2.2))
+        let scale = max(0.42, min(canvasSize.height / 1080.0, 2.2))
         let fontSize = max(18, style.fontSize * scale)
         let maxTextWidth = max(240, canvasSize.width * 0.82)
         let paragraph = makeParagraphStyle()

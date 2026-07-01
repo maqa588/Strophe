@@ -10,10 +10,13 @@ struct VideoPlayerView: View {
     @State private var timeObserverToken: Any?
     @State private var timeObserverTask: Task<Void, Never>? = nil
     @State private var isSeeking = false
+    @State private var scrubResumeRate: Double?
     @State private var scrubContinuation: AsyncStream<Double>.Continuation?
     @State private var scrubTask: Task<Void, Never>?
     @State private var engine: PlayerEngine?
     @State private var currentURL: URL? = nil
+    @State private var setupGeneration: UInt = 0
+    @State private var setupTask: Task<Void, Never>? = nil
     @State private var showingCompatibilityAlert = false
     @State private var isRemoteVolumeAlert = false
     @State private var pendingCompatibilityURL: URL? = nil
@@ -33,18 +36,20 @@ struct VideoPlayerView: View {
                         let aspect = project.videoSize == .zero
                             ? 16.0 / 9.0
                             : project.videoSize.width / project.videoSize.height
-                        NativePlayerView(engine: engine)
-                            .aspectRatio(aspect, contentMode: .fit)
-                            .contentShape(Rectangle())
-                            .onTapGesture(count: 2) { project.togglePlayback() }
-                    }
+                        ZStack {
+                            NativePlayerView(engine: engine)
 
-                    // Subtitle overlay — stable view, never destroyed/recreated during playback.
-                    // Hard preview takes visual precedence so the two preview modes do not double-render.
-                    if project.showHardSubtitles {
-                        HardSubtitleOverlayView(project: project)
-                    } else if project.showSoftSubtitles {
-                        SubtitleOverlayView(project: project)
+                            // Subtitle overlay — stable view, never destroyed/recreated during playback.
+                            // Hard preview takes visual precedence so the two preview modes do not double-render.
+                            if project.showHardSubtitles {
+                                HardSubtitleOverlayView(project: project)
+                            } else if project.showSoftSubtitles {
+                                SubtitleOverlayView(project: project)
+                            }
+                        }
+                        .aspectRatio(aspect, contentMode: .fit)
+                        .contentShape(Rectangle())
+                        .onTapGesture(count: 2) { project.togglePlayback() }
                     }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .requestCurrentTime)) { _ in
@@ -55,7 +60,7 @@ struct VideoPlayerView: View {
                         scrubContinuation?.yield(time)
                     }
                 }
-                .onChange(of: project.isUserSeekingTimeline) { isSeekingTimeline in
+                .stropheOnChange(of: project.isUserSeekingTimeline) { isSeekingTimeline in
                     guard isSeekingTimeline else { return }
                     Task { @MainActor in
                         await Task.yield()
@@ -66,18 +71,26 @@ struct VideoPlayerView: View {
                         guard !isSeeking else { return }
                         isSeeking = true
                         project.isSeeking = true
-                        seekEngine(to: project.currentTime) {
+                        seekEngine(to: project.currentTime, resumeRate: nil) {
                             isSeeking = false
                             project.isSeeking = false
                             project.isUserSeekingTimeline = false
                         }
                     }
                 }
-                .onChange(of: project.isScrubbing) { isScrubbing in
-                    if !isScrubbing {
+                .stropheOnChange(of: project.isScrubbing) { isScrubbing in
+                    if isScrubbing {
+                        let activeRate = engine?.rate ?? project.playbackRate
+                        scrubResumeRate = activeRate > 0 ? activeRate : nil
+                        project.playbackRate = 0
+                        project.referenceTime = project.currentTime
+                        project.referenceDate = .now
+                    } else {
+                        let resumeRate = scrubResumeRate
+                        scrubResumeRate = nil
                         isSeeking = true
                         project.isSeeking = true
-                        seekEngine(to: project.currentTime) {
+                        seekEngine(to: project.currentTime, resumeRate: resumeRate) {
                             isSeeking = false
                             project.isSeeking = false
                             project.isUserSeekingTimeline = false
@@ -95,10 +108,10 @@ struct VideoPlayerView: View {
         .onDisappear {
             suspendPlayerObservers()
         }
-        .onChange(of: project.videoURL) { newURL in
+        .stropheOnChange(of: project.videoURL) { newURL in
             setupPlayer(url: newURL)
         }
-        .onChange(of: project.mediaLoadError) { newError in
+        .stropheOnChange(of: project.mediaLoadError) { newError in
             if newError != nil {
                 setupPlayer(url: nil)
             }
@@ -121,14 +134,23 @@ struct VideoPlayerView: View {
         ) { format in
             Button(isRemoteVolumeAlert ? String(localized: "继续导入") : String(localized: "我知道了"), role: .none) {
                 if let url = pendingCompatibilityURL {
+                    guard project.videoURL == url else {
+                        pendingCompatibilityURL = nil
+                        return
+                    }
                     // Approved format or remote share - proceed to load FFmpeg engine
                     currentURL = url
                     let ffmpegEngine = FFmpegEngine()
                     engine = ffmpegEngine
                     project.activeEngine = ffmpegEngine
+                    project.activeEngineURL = url
                     print("🎬 Using engine: FFmpegEngine (\(type(of: ffmpegEngine))) for \(url.lastPathComponent)")
                     Task {
                         await ffmpegEngine.load(url: url)
+                        guard project.videoURL == url else {
+                            ffmpegEngine.stop()
+                            return
+                        }
                         await ffmpegEngine.seek(to: project.currentTime.clampedFinite(to: 0...ffmpegEngine.duration))
                         setupScrubTask()
                         setupFrameRateDetection(url: url, engine: ffmpegEngine)
@@ -167,12 +189,22 @@ struct VideoPlayerView: View {
 
     // MARK: - Seeking via engine
 
-    private func seekEngine(to time: Double, completion: @escaping () -> Void) {
+    private func seekEngine(to time: Double, resumeRate: Double?, completion: @escaping () -> Void) {
         guard let eng = engine else { completion(); return }
         guard time.isFinite else { completion(); return }
         Task {
             await eng.seek(to: time)
-            await MainActor.run { completion() }
+            await MainActor.run {
+                if let resumeRate, resumeRate > 0 {
+                    eng.rate = resumeRate
+                    project.playbackRate = resumeRate
+                } else {
+                    project.playbackRate = eng.rate
+                }
+                project.referenceTime = time
+                project.referenceDate = .now
+                completion()
+            }
         }
     }
 
@@ -230,23 +262,12 @@ struct VideoPlayerView: View {
     // MARK: - Player Setup
 
     private func setupPlayer(url: URL?) {
+        setupGeneration &+= 1
+        let generation = setupGeneration
+        setupTask?.cancel()
+
         guard let url = url else {
-            // Stop old engine when clearing
-            engine?.stop()
-            engine = nil
-            currentURL = nil
-            project.activeEngine = nil
-            project.playbackRate = 0
-            
-            if let token = timeObserverToken {
-                timeObserverPlayer?.removeTimeObserver(token)
-                timeObserverToken = nil
-                timeObserverPlayer = nil
-            }
-            timeObserverTask?.cancel()
-            timeObserverTask = nil
-            scrubTask?.cancel()
-            scrubTask = nil
+            tearDownCurrentPlayer()
             return
         }
 
@@ -265,7 +286,8 @@ struct VideoPlayerView: View {
         // 🌟 Check if there is already an active engine for this video in the project context.
         // This occurs when SwiftUI transitions between horizontal size classes (compact/regular)
         // or layout orientations, which recreates the VideoPlayerView struct.
-        if let existingEngine = project.activeEngine {
+        if let existingEngine = project.activeEngine,
+           project.activeEngineURL == url {
             self.engine = existingEngine
             self.currentURL = url
             setupTimeObserver()
@@ -273,33 +295,25 @@ struct VideoPlayerView: View {
             return
         }
         
-        // *** CRITICAL: Stop the old engine before creating a new one! ***
-        // Without this, old FFmpegEngine instances keep their decode loops,
-        // display links, timers, and audio engines running as zombies,
-        // consuming CPU/GPU/memory and degrading FPS with each switch.
-        engine?.stop()
-        engine = nil
-        project.activeEngine = nil
-
-        if let token = timeObserverToken {
-            timeObserverPlayer?.removeTimeObserver(token)
-            timeObserverToken = nil
-            timeObserverPlayer = nil
-        }
-        timeObserverTask?.cancel()
-        timeObserverTask = nil
+        tearDownCurrentPlayer()
         project.videoSize = .zero  // reset so aspectRatio updates once new size is detected
 
-        Task { @MainActor in
+        setupTask = Task { @MainActor in
             let result = await FormatDetector.shared.detect(url: url)
+            guard !Task.isCancelled, setupGeneration == generation, project.videoURL == url else { return }
 
             if result.isAVFoundationCompatible {
-                currentURL = url
                 let avEngine = AVFoundationEngine()
-                engine = avEngine
-                project.activeEngine = avEngine
                 print("🎬 Using engine: AVFoundationEngine (\(type(of: avEngine))) for \(url.lastPathComponent)")
                 await avEngine.load(url: url)
+                guard !Task.isCancelled, setupGeneration == generation, project.videoURL == url else {
+                    avEngine.stop()
+                    return
+                }
+                currentURL = url
+                engine = avEngine
+                project.activeEngine = avEngine
+                project.activeEngineURL = url
                 await avEngine.seek(to: project.currentTime.clampedFinite(to: 0...avEngine.duration))
                 setupScrubTask()
 
@@ -315,6 +329,28 @@ struct VideoPlayerView: View {
                 self.showingCompatibilityAlert = true
             }
         }
+    }
+
+    private func tearDownCurrentPlayer() {
+        if let token = timeObserverToken {
+            timeObserverPlayer?.removeTimeObserver(token)
+            timeObserverToken = nil
+            timeObserverPlayer = nil
+        }
+        timeObserverTask?.cancel()
+        timeObserverTask = nil
+        scrubTask?.cancel()
+        scrubTask = nil
+        scrubContinuation = nil
+        pendingCompatibilityURL = nil
+        showingCompatibilityAlert = false
+
+        engine?.stop()
+        engine = nil
+        currentURL = nil
+        project.activeEngine = nil
+        project.activeEngineURL = nil
+        project.playbackRate = 0
     }
 
     private func suspendPlayerObservers() {

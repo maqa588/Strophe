@@ -88,7 +88,9 @@ struct InteractiveSubtitleBlock: View {
     
     private func triggerHapticFeedback() {
         #if os(macOS)
-        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+        DispatchQueue.main.async {
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+        }
         #elseif os(iOS)
         let generator = UIImpactFeedbackGenerator(style: .light)
         generator.impactOccurred()
@@ -321,10 +323,10 @@ struct InteractiveSubtitleBlock: View {
         } message: {
             Text("可输入秒数、MM:SS 或 HH:MM:SS")
         }
-        .onChange(of: isEditingText) { newValue in
+        .stropheOnChange(of: isEditingText) { newValue in
             project.isEditingText = newValue
         }
-        .onChange(of: isEditingTime) { newValue in
+        .stropheOnChange(of: isEditingTime) { newValue in
             project.isEditingText = newValue
         }
         .offset(x: currentX, y: 0)

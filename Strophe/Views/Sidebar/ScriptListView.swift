@@ -39,7 +39,7 @@ struct ScriptListView: View {
                 scriptText = ""
             }
         }
-        .onChange(of: isShowingInput) { newValue in
+        .stropheOnChange(of: isShowingInput) { newValue in
             project.isEditingText = newValue
         }
         .sheet(isPresented: $isEditingText) {
@@ -54,7 +54,7 @@ struct ScriptListView: View {
                 editingItem = nil
             }
         }
-        .onChange(of: isEditingText) { newValue in
+        .stropheOnChange(of: isEditingText) { newValue in
             if !newValue {
                 editingItem = nil
             }
@@ -72,7 +72,7 @@ struct ScriptListView: View {
         } message: {
             Text("可输入秒数、MM:SS 或 HH:MM:SS")
         }
-        .onChange(of: isEditingTime) { newValue in
+        .stropheOnChange(of: isEditingTime) { newValue in
             project.isEditingText = newValue
         }
         .confirmationDialog(String(localized: "Import Script"), isPresented: $isShowingImportOptions, titleVisibility: .visible) {
@@ -102,7 +102,7 @@ struct ScriptListView: View {
                 print("File import failed: \(error.localizedDescription)")
             }
         }
-        .onChange(of: isShowingFileImporter) { newValue in
+        .stropheOnChange(of: isShowingFileImporter) { newValue in
             project.isEditingText = newValue
         }
         .onReceive(NotificationCenter.default.publisher(for: .strophePasteScript)) { _ in
@@ -117,7 +117,7 @@ struct ScriptListView: View {
         .sheet(isPresented: $isShowingAutoCaption) {
             AutoCaptionView(project: project)
         }
-        .onChange(of: isShowingAutoCaption) { newValue in
+        .stropheOnChange(of: isShowingAutoCaption) { newValue in
             project.isEditingText = newValue
         }
     }
@@ -164,10 +164,12 @@ struct ScriptListView: View {
                     let isLocked = item.isLocked || group?.isLocked == true
 
                     SubtitleRow(
+                        project: project,
                         item: item,
                         isActive: item.id == project.scrollTargetID,
                         isOverlapping: project.isItemOverlapping(id: item.id),
-                        group: group
+                        group: group,
+                        isSlapping: item.id == project.activeSlapSubtitleID
                     )
                     .equatable()
                     .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
@@ -295,7 +297,7 @@ struct ScriptListView: View {
                     project.selectedIDs.removeAll()
                 }
             }
-            .onChange(of: project.scrollTargetID) { newID in
+            .stropheOnChange(of: project.scrollTargetID) { newID in
                 if let newID = newID {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                         scrollProxy.scrollTo(newID, anchor: .center)

@@ -23,6 +23,8 @@ struct MainContentView: View {
     @State private var hardSubtitleProgress: Double? = nil
     @State private var hardSubtitleExportMessage: String? = nil
     @State private var isShowingHardSubtitleExportAlert = false
+    @State private var isShowingDiscardProjectAlert = false
+    @State private var pendingMediaURL: URL? = nil
     
     var isCompact: Bool = false
     var path: Binding<NavigationPath> = .constant(NavigationPath())
@@ -239,6 +241,22 @@ struct MainContentView: View {
         } message: { message in
             Text(message)
         }
+        .alert(
+            String(localized: "是否要丢弃原工程？"),
+            isPresented: $isShowingDiscardProjectAlert
+        ) {
+            Button(String(localized: "确定")) {
+                if let url = pendingMediaURL {
+                    project.importMediaAsNewProject(from: url)
+                }
+                pendingMediaURL = nil
+            }
+            Button(String(localized: "取消"), role: .cancel) {
+                pendingMediaURL = nil
+            }
+        } message: {
+            Text(String(localized: "打开新视频会丢弃当前工程，并新建一个与视频文件同名的工程缓存。如果当前工程还没有保存，请先检查保存情况。"))
+        }
     }
 
     private var hardSubtitleDefaultFilename: String {
@@ -268,9 +286,18 @@ struct MainContentView: View {
             }
         } else {
             DispatchQueue.main.async {
-                project.importMedia(from: url)
+                if shouldConfirmDiscardCurrentProject {
+                    pendingMediaURL = url
+                    isShowingDiscardProjectAlert = true
+                } else {
+                    project.importMediaAsNewProject(from: url)
+                }
             }
         }
+    }
+
+    private var shouldConfirmDiscardCurrentProject: Bool {
+        project.videoURL != nil || project.projectURL != nil || !project.items.isEmpty || project.isDirty
     }
 
     private func hardSubtitleProgressView(progress: Double) -> some View {
