@@ -276,4 +276,66 @@ nonisolated class AudioExtractor {
         let outputFile = try AVAudioFile(forWriting: url, settings: format.settings)
         try outputFile.write(from: buffer)
     }
+
+    /// 将 Float32 单声道样本写成 ASR 服务端友好的 16-bit PCM WAV。
+    static func writeMonoPCM16Wav(samples: [Float], sampleRate: Int, to url: URL) throws {
+        guard !samples.isEmpty else {
+            throw NSError(
+                domain: "AudioExtractor",
+                code: 14,
+                userInfo: [NSLocalizedDescriptionKey: "无法写入空音频到 16-bit WAV。"]
+            )
+        }
+
+        try? FileManager.default.removeItem(at: url)
+
+        var data = Data()
+        let channels: UInt16 = 1
+        let bitsPerSample: UInt16 = 16
+        let bytesPerSample = Int(bitsPerSample / 8)
+        let sampleRateValue = UInt32(sampleRate)
+        let byteRate = sampleRateValue * UInt32(channels) * UInt32(bytesPerSample)
+        let blockAlign = channels * UInt16(bytesPerSample)
+        let pcmByteCount = UInt32(samples.count * bytesPerSample)
+        let riffChunkSize = UInt32(36) + pcmByteCount
+
+        func appendASCII(_ string: String) {
+            data.append(Data(string.utf8))
+        }
+
+        func appendLittleEndian<T: FixedWidthInteger>(_ value: T) {
+            var littleEndianValue = value.littleEndian
+            withUnsafeBytes(of: &littleEndianValue) { data.append(contentsOf: $0) }
+        }
+
+        appendASCII("RIFF")
+        appendLittleEndian(riffChunkSize)
+        appendASCII("WAVE")
+        appendASCII("fmt ")
+        appendLittleEndian(UInt32(16))
+        appendLittleEndian(UInt16(1))
+        appendLittleEndian(channels)
+        appendLittleEndian(sampleRateValue)
+        appendLittleEndian(byteRate)
+        appendLittleEndian(blockAlign)
+        appendLittleEndian(bitsPerSample)
+        appendASCII("data")
+        appendLittleEndian(pcmByteCount)
+
+        data.reserveCapacity(data.count + Int(pcmByteCount))
+        for sample in samples {
+            let normalized = sample.isFinite ? max(-1.0, min(1.0, sample)) : 0.0
+            let pcmValue: Int16
+            if normalized <= -1.0 {
+                pcmValue = Int16.min
+            } else if normalized >= 1.0 {
+                pcmValue = Int16.max
+            } else {
+                pcmValue = Int16((normalized * Float(Int16.max)).rounded())
+            }
+            appendLittleEndian(pcmValue)
+        }
+
+        try data.write(to: url, options: .atomic)
+    }
 }

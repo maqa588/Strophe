@@ -2,6 +2,14 @@ import SwiftUI
 import AVFoundation
 #if os(iOS)
 import Darwin
+import UIKit
+class StropheIOSAppDelegate: NSObject, UIApplicationDelegate {
+    weak var project: SubtitleProject?
+
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+        return true
+    }
+}
 #endif
 
 #if os(macOS)
@@ -23,6 +31,8 @@ struct StropheApp: App {
     @StateObject private var project = SubtitleProject()
     #if os(macOS)
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    #elseif os(iOS)
+    @UIApplicationDelegateAdaptor(StropheIOSAppDelegate.self) var appDelegate
     #endif
     
     init() {
@@ -43,19 +53,44 @@ struct StropheApp: App {
     }
     
     var body: some Scene {
-        WindowGroup {
-            ContentView(project: project)
-                #if os(macOS)
-                .onAppear { appDelegate.project = project }
-                #endif
-        }
         #if os(macOS)
+        Window("Welcome", id: "welcome") {
+            MacWelcomeSceneView(project: project)
+                .ignoresSafeArea()
+                .onAppear { appDelegate.project = project }
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
+        .defaultSize(width: 920, height: 620)
+
+        WindowGroup("Project", id: "editor") {
+            ContentView(project: project)
+                .onAppear { appDelegate.project = project }
+        }
         .defaultSize(width: 1200, height: 750)
-        #endif
-        #if os(macOS) || os(iOS)
         .commands {
             StropheNavBarCommands(project: project)
         }
+        
+        DocumentGroup(newDocument: StropheProjectDocument()) { file in
+            StropheDocumentEditorView(document: file.$document, fileURL: file.fileURL)
+        }
+        #else
+        #if os(iOS)
+        WindowGroup {
+            WelcomeRouterView(project: project)
+                .onAppear {
+                    appDelegate.project = project
+                }
+        }
+        .commands {
+            StropheNavBarCommands(project: project)
+        }
+        #else
+        WindowGroup {
+            WelcomeRouterView(project: project)
+        }
+        #endif
         #endif
     }
 }

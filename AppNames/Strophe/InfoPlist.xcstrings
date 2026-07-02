@@ -62,6 +62,18 @@
     "Matroska Video" : {
 
     },
+    "NSLocalNetworkUsageDescription" : {
+      "comment" : "Privacy - Local Network Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Strophe 需要访问局域网中的云端字幕识别服务。"
+          }
+        }
+      }
+    },
     "RealMedia Variable Bitrate Video" : {
 
     },

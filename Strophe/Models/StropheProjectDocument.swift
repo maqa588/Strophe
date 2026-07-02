@@ -10,8 +10,16 @@ struct StropheProjectDocument: FileDocument {
     static var readableContentTypes: [UTType] {
         [.stropheProject]
     }
+
+    static var writableContentTypes: [UTType] {
+        [.stropheProject]
+    }
     
     var data: StropheProjectData
+
+    init() {
+        self.data = .blank()
+    }
     
     init(data: StropheProjectData) {
         self.data = data

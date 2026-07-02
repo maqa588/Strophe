@@ -27,6 +27,7 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @ObservedObject var project: SubtitleProject
+    var embedsCompactEditorInNavigationStack = true
     @Environment(\.horizontalSizeClass) var sizeClass
 
     @State private var selectedTab: StropheTab = .editor
@@ -58,6 +59,7 @@ struct ContentView: View {
             }
         }
         .tint(Color.stropheAccent)
+        .stropheHardwareKeyboardMonitor(project: project)
         .overlay {
             if project.isLoadingProject {
                 projectLoadingOverlay
@@ -82,6 +84,7 @@ struct ContentView: View {
             if case .success(let url) = result {
                 Task {
                     try? await project.saveStrophe(to: url)
+                    WelcomeRecentProjectsStore.remember(url)
                     project.startAutoSave()
                     #if os(macOS)
                     if isQuittingAfterSave {
@@ -130,6 +133,7 @@ struct ContentView: View {
                 if let url = project.projectURL {
                     Task {
                         try? await project.saveStrophe(to: url)
+                        WelcomeRecentProjectsStore.remember(url)
                         project.markClean()
                         NSApplication.shared.reply(toApplicationShouldTerminate: true)
                     }
@@ -178,6 +182,7 @@ struct ContentView: View {
             if let url = project.projectURL {
                 Task {
                     try? await project.saveStrophe(to: url)
+                    WelcomeRecentProjectsStore.remember(url)
                 }
             } else {
                 let base = project.documentDisplayName
@@ -239,7 +244,11 @@ struct ContentView: View {
     private var compactLayout: some View {
         if selectedTab == .editor {
             // 编辑器全屏，不显示 TabBar
-            NavigationStack {
+            if embedsCompactEditorInNavigationStack {
+                NavigationStack {
+                    MainContentView(project: project, selectedTab: $selectedTab)
+                }
+            } else {
                 MainContentView(project: project, selectedTab: $selectedTab)
             }
         } else if usesLiquidGlassNavigation {
@@ -385,6 +394,10 @@ struct ContentView: View {
                 }
                 if mod.isEmpty {
                     switch event.keyCode {
+                    case 33:
+                        project.seekToSubtitleBoundary(.left); return nil
+                    case 30:
+                        project.seekToSubtitleBoundary(.right); return nil
                     case 123:
                         project.seekByFrames(-1); return nil
                     case 124:
@@ -531,6 +544,7 @@ struct ContentView: View {
         defer { project.isLoadingProject = false }
         do {
             try await project.importStropheProject(from: url)
+            WelcomeRecentProjectsStore.remember(url)
         } catch {
             print("Failed to open project: \(error.localizedDescription)")
         }

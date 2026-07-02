@@ -7,6 +7,11 @@
 
 import SwiftUI
 
+enum CaptionGenerationMode: Sendable {
+    case local
+    case cloud
+}
+
 struct AutoCaptionView: View {
     @ObservedObject var project: SubtitleProject
     @StateObject var modelManager = LocalModelManager.shared
@@ -27,10 +32,13 @@ struct AutoCaptionView: View {
     
     // UI steps & running state
     @State var isRunning: Bool = false
+    @State var runningMode: CaptionGenerationMode = .local
     @State var currentStep: Int = 0
     @State var stepProgress: Double = 0.0
     @State var statusMessage: String = ""
     @State var showUnsupportedLocalAIAlert: Bool = false
+    @State var showGenerationErrorAlert: Bool = false
+    @State var generationErrorMessage: String = ""
     
     let languages = [
         ("auto",  "自动检测"),
@@ -55,6 +63,11 @@ struct AutoCaptionView: View {
             } message: {
                 Text(AIBackendClient.cloudComingSoonMessage)
             }
+            .alert("生成失败", isPresented: $showGenerationErrorAlert) {
+                Button("好", role: .cancel) {}
+            } message: {
+                Text(generationErrorMessage)
+            }
         #else
         iosBody
             .alert(AIBackendClient.unsupportedDeviceMessage, isPresented: $showUnsupportedLocalAIAlert) {
@@ -62,23 +75,40 @@ struct AutoCaptionView: View {
             } message: {
                 Text(AIBackendClient.cloudComingSoonMessage)
             }
+            .alert("生成失败", isPresented: $showGenerationErrorAlert) {
+                Button("好", role: .cancel) {}
+            } message: {
+                Text(generationErrorMessage)
+            }
         #endif
+    }
+
+    var isLocalAIIncludedInBuild: Bool {
+        AIBackendClient.isLocalAIIncludedInBuild
     }
 
     var isLocalAISupported: Bool {
         AIBackendClient.isLocalDeviceSupported
     }
 
-    var canStartCaptioning: Bool {
-        isLocalAISupported && project.videoURL != nil && !isRunning
+    var canStartLocalCaptioning: Bool {
+        isLocalAIIncludedInBuild && isLocalAISupported && project.videoURL != nil && !isRunning
     }
 
-    func handleStartButton() {
-        guard isLocalAISupported else {
+    var canStartCloudCaptioning: Bool {
+        project.videoURL != nil && !isRunning
+    }
+
+    func handleStartLocalButton() {
+        guard isLocalAIIncludedInBuild, isLocalAISupported else {
             showUnsupportedLocalAIAlert = true
             return
         }
         startCaptioningProcess()
+    }
+
+    func handleStartCloudButton() {
+        startCloudCaptioningProcess()
     }
     
     func cleanSubtitleText(_ text: String) -> String {

@@ -41,26 +41,9 @@ extension AutoCaptionView {
                 }
             }
             
-            // Steps layout - 对应高精度 Golden Pipeline 的工作流步骤
+            // Steps layout - 对应本地 Golden Pipeline 或云端识别流程
             VStack(alignment: .leading, spacing: 14) {
-                let preprocessingTitle: String = {
-                    switch vocalPreprocessing {
-                    case "none": return "第一步: 提取音频..."
-                    case "separate": return "第一步: 伴奏人声分离 (Spleeter)..."
-                    default: return "第一步: 智能降噪 (DeepFilterNet3)..."
-                    }
-                }()
-                let stepTitles = enableDiarization ? [
-                    preprocessingTitle,
-                    "第二步: 语音识别转写 (Qwen3-ASR)...",
-                    "第三步: 毫秒级字词对齐 (ForcedAligner)...",
-                    "第四步: 发言角色声纹分离 (Pyannote)..."
-                ] : [
-                    preprocessingTitle,
-                    "第二步: 语音识别转写 (Qwen3-ASR)...",
-                    "第三步: 毫秒级字词对齐 (ForcedAligner)...",
-                    "第四步: 字幕片段整合输出..."
-                ]
+                let stepTitles = runningStepTitles
                 
                 ForEach(0..<4, id: \.self) { index in
                     HStack(spacing: 12) {
@@ -100,10 +83,45 @@ extension AutoCaptionView {
         }
         .padding(.vertical, 24)
     }
+
+    var runningStepTitles: [String] {
+        switch runningMode {
+        case .cloud:
+            return [
+                "第一步: 提取 16k 音频...",
+                "第二步: 上传云端服务...",
+                "第三步: 云端识别与对齐...",
+                "第四步: 写入字幕时间轴..."
+            ]
+        case .local:
+            let preprocessingTitle: String = {
+                switch vocalPreprocessing {
+                case "none": return "第一步: 提取音频..."
+                case "separate": return "第一步: 伴奏人声分离 (Spleeter)..."
+                default: return "第一步: 智能降噪 (DeepFilterNet3)..."
+                }
+            }()
+            if enableDiarization {
+                return [
+                    preprocessingTitle,
+                    "第二步: 语音识别转写 (Qwen3-ASR)...",
+                    "第三步: 毫秒级字词对齐 (ForcedAligner)...",
+                    "第四步: 发言角色声纹分离 (Pyannote)..."
+                ]
+            }
+            return [
+                preprocessingTitle,
+                "第二步: 语音识别转写 (Qwen3-ASR)...",
+                "第三步: 毫秒级字词对齐 (ForcedAligner)...",
+                "第四步: 字幕片段整合输出..."
+            ]
+        }
+    }
     
     func startCaptioningProcess() {
         guard let mediaURL = project.videoURL else { return }
         
+        runningMode = .local
         isRunning = true
         currentStep = 0
         stepProgress = 0.0
@@ -459,45 +477,19 @@ extension AutoCaptionView {
                     }
                 )
                 
-                let generatedSubtitles = results.enumerated().compactMap { index, seg -> SubtitleItem? in
-                    let cleaned = cleanSubtitleText(seg.text)
-                    
-                    // 去除可能存在的说话人标签后再检查是否为空
-                    var textWithoutSpeaker = cleaned
-                    if textWithoutSpeaker.hasPrefix("["), let endBracket = textWithoutSpeaker.firstIndex(of: "]") {
-                        let startIndex = textWithoutSpeaker.index(after: endBracket)
-                        textWithoutSpeaker = String(textWithoutSpeaker[startIndex...]).trimmingCharacters(in: .whitespacesAndNewlines)
-                    }
-                    
-                    // 如果字幕块最终只有“嗯啊呃”或标点符号（即剥离说话人标签后为空），则丢弃该字幕块
-                    if textWithoutSpeaker.isEmpty {
-                        return nil
-                    }
-                    
-                    return SubtitleItem(
-                        text: cleaned,
-                        startTime: seg.startTime,
-                        endTime: seg.endTime,
-                        originalIndex: index
+                let generatedSubtitles = subtitleItems(from: results)
+                guard !generatedSubtitles.isEmpty else {
+                    throw NSError(
+                        domain: "AutoCaptionView",
+                        code: 11,
+                        userInfo: [NSLocalizedDescriptionKey: "本地识别结果为空，未覆盖当前字幕。"]
                     )
                 }
                 
                 // 3. 部署到 Timeline 并注册撤销
                 await MainActor.run {
-                    let oldItems = project.items
-                    let oldSelectedIDs = project.selectedIDs
-                    project.items = generatedSubtitles
-                    project.undoManager.registerUndo(withTarget: project) { target in
-                        target.items = oldItems
-                        target.selectedIDs = oldSelectedIDs
-                        target.notifyChange()
-                    }
-                    project.undoManager.setActionName(String(localized: "AI 语音识别打轴"))
-                    project.currentIndex = 0
-                    project.notifyChange()
-                    
-                    stepProgress = 1.0
-                    statusMessage = "完成！成功生成 \(generatedSubtitles.count) 条字幕。"
+                    replaceProjectSubtitles(with: generatedSubtitles, actionName: String(localized: "本地 AI 语音识别打轴"))
+                    finishSuccessfulGeneration(message: "完成！本地生成 \(generatedSubtitles.count) 条字幕。")
                 }
                 
                 try? await Task.sleep(nanoseconds: 1_200_000_000)
@@ -508,10 +500,132 @@ extension AutoCaptionView {
                 
             } catch {
                 await MainActor.run {
-                    isRunning = false
-                    statusMessage = "生成失败: \(error.localizedDescription)"
+                    finishFailedGeneration(error)
                 }
             }
         }
+    }
+
+    func startCloudCaptioningProcess() {
+        guard let mediaURL = project.videoURL else { return }
+
+        runningMode = .cloud
+        isRunning = true
+        currentStep = 0
+        stepProgress = 0.0
+        statusMessage = "正在准备云端识别..."
+
+        Task {
+            do {
+                let request = AICloudGenerateSubtitlesRequest(
+                    mediaURL: mediaURL,
+                    endpointURL: AIBackendClient.defaultCloudTranscribeURL
+                )
+
+                let result = try await AIBackendClient.shared.generateCloudSubtitles(
+                    request: request,
+                    progressCallback: { step, subProgress, message in
+                        Task { @MainActor in
+                            self.currentStep = step
+                            self.statusMessage = message
+
+                            let overallProgress: Double
+                            switch step {
+                            case 0: overallProgress = 0.0 + subProgress * 0.20
+                            case 1: overallProgress = 0.20 + subProgress * 0.20
+                            case 2: overallProgress = 0.40 + subProgress * 0.55
+                            case 3: overallProgress = 0.95 + subProgress * 0.05
+                            default: overallProgress = subProgress
+                            }
+                            self.stepProgress = min(1.0, max(0.0, overallProgress))
+                        }
+                    }
+                )
+
+                let generatedSubtitles = subtitleItems(from: result.segments)
+                guard !generatedSubtitles.isEmpty else {
+                    throw NSError(
+                        domain: "AutoCaptionView",
+                        code: 12,
+                        userInfo: [NSLocalizedDescriptionKey: "云端识别结果为空，未覆盖当前字幕。"]
+                    )
+                }
+
+                await MainActor.run {
+                    let languageSuffix: String
+                    if let language = result.language, !language.isEmpty {
+                        languageSuffix = "识别语种：\(language)。"
+                    } else {
+                        languageSuffix = ""
+                    }
+                    replaceProjectSubtitles(with: generatedSubtitles, actionName: String(localized: "云端 AI 语音识别打轴"))
+                    finishSuccessfulGeneration(message: "完成！云端生成 \(generatedSubtitles.count) 条字幕。\(languageSuffix)")
+                }
+
+                try? await Task.sleep(nanoseconds: 1_200_000_000)
+
+                await MainActor.run {
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    finishFailedGeneration(error)
+                }
+            }
+        }
+    }
+
+    func subtitleItems(from results: [AIResultSegment]) -> [SubtitleItem] {
+        results.enumerated().compactMap { index, seg -> SubtitleItem? in
+            let cleaned = cleanSubtitleText(seg.text)
+
+            // 去除可能存在的说话人标签后再检查是否为空
+            var textWithoutSpeaker = cleaned
+            if textWithoutSpeaker.hasPrefix("["), let endBracket = textWithoutSpeaker.firstIndex(of: "]") {
+                let startIndex = textWithoutSpeaker.index(after: endBracket)
+                textWithoutSpeaker = String(textWithoutSpeaker[startIndex...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+
+            // 如果字幕块最终只有“嗯啊呃”或标点符号（即剥离说话人标签后为空），则丢弃该字幕块
+            if textWithoutSpeaker.isEmpty {
+                return nil
+            }
+
+            return SubtitleItem(
+                text: cleaned,
+                startTime: seg.startTime,
+                endTime: seg.endTime,
+                originalIndex: index
+            )
+        }
+    }
+
+    @MainActor
+    func replaceProjectSubtitles(with generatedSubtitles: [SubtitleItem], actionName: String) {
+        let oldItems = project.items
+        let oldSelectedIDs = project.selectedIDs
+        project.items = generatedSubtitles
+        project.undoManager.registerUndo(withTarget: project) { target in
+            target.items = oldItems
+            target.selectedIDs = oldSelectedIDs
+            target.notifyChange()
+        }
+        project.undoManager.setActionName(actionName)
+        project.currentIndex = 0
+        project.notifyChange()
+    }
+
+    @MainActor
+    func finishSuccessfulGeneration(message: String) {
+        stepProgress = 1.0
+        statusMessage = message
+    }
+
+    @MainActor
+    func finishFailedGeneration(_ error: Error) {
+        isRunning = false
+        generationErrorMessage = error.localizedDescription
+        statusMessage = "生成失败: \(error.localizedDescription)"
+        showGenerationErrorAlert = true
     }
 }

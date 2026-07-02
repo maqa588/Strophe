@@ -82,106 +82,20 @@ struct MainContentView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .toolbar {
-            // 💡 核心修复 3：左侧按钮组自适应，iPhone 下并排渲染“返回”与“文件夹”
-            ToolbarItemGroup(placement: .navigation) {
-                #if os(iOS)
-                if horizontalSizeClass == .compact {
-                    // 📱 iPhone 窄屏：[返回] 与 [文件夹] 纯图标并列呈现
-                    Button(action: {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            selectedTab = .scriptList
-                        }
-                    }) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 16, weight: .semibold))
-                    }
-                    .help(String(localized: "返回文稿列表"))
-
-                    Button(action: requestImportMedia) {
-                        Image(systemName: "folder")
-                    }
-                    .help(String(localized: "导入媒体文件"))
-                } else {
-                    // 📱 iPad 宽屏：文件夹
-                    Button(action: requestImportMedia) {
-                        Image(systemName: "folder")
-                    }
-                    .help(String(localized: "导入媒体文件"))
-                }
-                #else
-                // 💻 macOS 平台：文件夹（原生 Label）
-                Button(action: requestImportMedia) {
-                    Label("导入媒体", systemImage: "folder")
-                }
-                // 💡 核心修复：删除了 .labelStyle(.titleAndIcon)
-                .help(String(localized: "导入视频或音频文件到当前项目"))
-                #endif
-            }
-
-            #if os(iOS)
-            ToolbarItem(placement: .principal) {
-                Text(project.documentDisplayName.isEmpty ? String(localized: "Strophe") : project.documentDisplayName)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(project.videoURL != nil ? .primary : .secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            #endif
-
-            // Right side: save, export
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button(action: {
-                    NotificationCenter.default.post(name: .stropheSaveProject, object: nil)
-                }) {
-                    #if os(macOS)
-                    Label("保存", systemImage: "square.and.arrow.down")
-                    // 💡 核心修复：删除了 .labelStyle(.titleAndIcon)
-                    #else
-                    Image(systemName: "square.and.arrow.down")
-                    #endif
-                }
-                .help(String(localized: "保存当前工程文件"))
-                
-                
-                Menu {
-                    Menu("Soft Subtitles") {
-                        Button("SubRip (.srt)") {
-                            exportSubtitles(format: .srt)
-                        }
-                        Button("Advanced SubStation Alpha (.ass)") {
-                            exportSubtitles(format: .ass)
-                        }
-                        Button("Lyrics (.lrc)") {
-                            exportSubtitles(format: .lrc)
-                        }
-                        Button("WebVTT (.vtt)") {
-                            exportSubtitles(format: .vtt)
-                        }
-                    }
-                    
-                    Divider()
-                    
-                    Button("Strophe Project (.strophe)") {
-                        NotificationCenter.default.post(name: .stropheSaveProjectAs, object: nil)
-                    }
-                    
-                    Divider()
-                    
-                    Button("Hard Subtitled Video…") {
-                        isShowingHardSubtitleExportSettings = true
-                    }
-                    Button("Video Stream (Coming Soon)") {}.disabled(true)
-                    Button("Audio Stream (Coming Soon)") {}.disabled(true)
-                } label: {
-                    #if os(macOS)
-                    Label("导出", systemImage: "square.and.arrow.up")
-                    // 💡 核心修复：删除了 .labelStyle(.titleAndIcon)
-                    #else
-                    Image(systemName: "square.and.arrow.up")
-                    #endif
-                }
-                .help(String(localized: "导出字幕或分享项目"))
-            }
+            StropheMainToolbar(
+                project: project,
+                horizontalSizeClass: horizontalSizeClass,
+                onImportMedia: {
+                    requestImportMedia()
+                },
+                onExportSoftSubtitles: { format in
+                    exportSubtitles(format: format)
+                },
+                onExportHardSubtitles: {
+                    isShowingHardSubtitleExportSettings = true
+                },
+                selectedTab: $selectedTab
+            )
         }
         #if os(iOS)
         .sheet(isPresented: $isShowingImportMedia) {
@@ -248,6 +162,9 @@ struct MainContentView: View {
             Button(String(localized: "确定")) {
                 if let url = pendingMediaURL {
                     project.importMediaAsNewProject(from: url)
+                    if let projectURL = project.projectURL {
+                        WelcomeRecentProjectsStore.remember(projectURL)
+                    }
                 }
                 pendingMediaURL = nil
             }
@@ -291,6 +208,9 @@ struct MainContentView: View {
                     isShowingDiscardProjectAlert = true
                 } else {
                     project.importMediaAsNewProject(from: url)
+                    if let projectURL = project.projectURL {
+                        WelcomeRecentProjectsStore.remember(projectURL)
+                    }
                 }
             }
         }

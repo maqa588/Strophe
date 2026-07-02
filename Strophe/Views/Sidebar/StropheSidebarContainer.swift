@@ -73,35 +73,7 @@ struct StropheSidebarContainer: View {
         // On iPadOS, the navbar is now visible (we only hide its background via
         // .toolbarBackground(.hidden)), so .toolbar items render correctly here too.
         .toolbar {
-            if selectedTab == .editor || selectedTab == .scriptList {
-                ToolbarItem(placement: .primaryAction) {
-                    Menu {
-                        Button {
-                            NotificationCenter.default.post(name: .strophePasteScript, object: nil)
-                        } label: {
-                            Label("粘贴文稿", systemImage: "doc.on.clipboard")
-                        }
-                        Button {
-                            NotificationCenter.default.post(name: .stropheImportScriptFile, object: nil)
-                        } label: {
-                            Label("导入字幕文件", systemImage: "square.and.arrow.down")
-                        }
-                        #if !STROPHE_LITE
-                        Button {
-                            NotificationCenter.default.post(name: .stropheStartSpeechRecognition, object: nil)
-                        } label: {
-                            Label("语音识别", systemImage: "waveform.and.mic")
-                        }
-                        #endif
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 14, weight: .medium))
-                    }
-                    #if os(macOS)
-                    .help(String(localized: "粘贴或导入文稿"))
-                    #endif
-                }
-            }
+            StropheSidebarToolbar(selectedTab: selectedTab)
         }
     }
 

@@ -29,57 +29,37 @@ extension AutoCaptionView {
                         runningStateView
                     }
                 } else if !isLocalAISupported {
-                    Section {
-                        LocalAIUnsupportedView()
-                    }
+                    iosMediaSourceSection
+                    iosCloudRecognitionSection
 
-                    Section {
-                        HStack {
-                            Text("模型选择")
-                            Spacer()
-                            Text("")
-                                .foregroundStyle(.secondary)
+                    if isLocalAIIncludedInBuild {
+                        Section {
+                            LocalAIUnsupportedView()
                         }
-                        .disabled(true)
 
-                        HStack {
-                            Text("对齐器模型")
-                            Spacer()
-                            Text("")
-                                .foregroundStyle(.secondary)
+                        Section {
+                            HStack {
+                                Text("模型选择")
+                                Spacer()
+                                Text("")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .disabled(true)
+
+                            HStack {
+                                Text("对齐器模型")
+                                Spacer()
+                                Text("")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .disabled(true)
+                        } header: {
+                            Text("本地语音识别配置")
                         }
-                        .disabled(true)
-                    } header: {
-                        Text("语音识别配置")
                     }
                 } else {
-                    // Media source warning or info
-                    Section {
-                        if project.videoURL == nil {
-                            HStack(spacing: 12) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundStyle(.orange)
-                                    .font(.title2)
-                                
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("未加载媒体")
-                                        .fontWeight(.semibold)
-                                    Text("请先导入视频或音频文件再使用语音识别功能。")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        } else {
-                            HStack {
-                                Image(systemName: "play.rectangle.fill")
-                                    .foregroundStyle(Color.stropheAccent)
-                                Text("当前媒体: \(project.documentDisplayName)")
-                                    .font(.subheadline)
-                                    .lineLimit(1)
-                                    .foregroundStyle(Color.stropheText)
-                            }
-                        }
-                    }
+                    iosMediaSourceSection
+                    iosCloudRecognitionSection
                     
                     Section {
                         // Model Selection
@@ -220,16 +200,77 @@ extension AutoCaptionView {
                     if isRunning {
                         ProgressView()
                     } else {
-                        Button("开始") {
-                            handleStartButton()
+                        HStack(spacing: 10) {
+                            if isLocalAIIncludedInBuild {
+                                Button("本地") {
+                                    handleStartLocalButton()
+                                }
+                                .disabled(!canStartLocalCaptioning)
+                            }
+
+                            Button("云端") {
+                                handleStartCloudButton()
+                            }
+                            .fontWeight(.bold)
+                            .disabled(!canStartCloudCaptioning)
                         }
-                        .fontWeight(.bold)
-                        .disabled(isLocalAISupported && project.videoURL == nil)
                     }
                 }
             }
         }
         .navigationViewStyle(.stack)
+    }
+
+    @ViewBuilder
+    var iosMediaSourceSection: some View {
+        Section {
+            if project.videoURL == nil {
+                HStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .font(.title2)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("未加载媒体")
+                            .fontWeight(.semibold)
+                        Text("请先导入视频或音频文件再使用语音识别功能。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } else {
+                HStack {
+                    Image(systemName: "play.rectangle.fill")
+                        .foregroundStyle(Color.stropheAccent)
+                    Text("当前媒体: \(project.documentDisplayName)")
+                        .font(.subheadline)
+                        .lineLimit(1)
+                        .foregroundStyle(Color.stropheText)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    var iosCloudRecognitionSection: some View {
+        Section {
+            HStack {
+                Label("服务地址", systemImage: "cloud")
+                Spacer()
+                Text(AIBackendClient.defaultCloudBaseURL.absoluteString)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            HStack {
+                Text("字幕模式")
+                Spacer()
+                Text("完整句子")
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("云端识别")
+        }
     }
     #endif
     
@@ -262,8 +303,6 @@ extension AutoCaptionView {
             
             if isRunning {
                 runningStateView
-            } else if !isLocalAISupported {
-                unsupportedConfigurationForm
             } else {
                 configurationForm
             }
@@ -282,19 +321,23 @@ extension AutoCaptionView {
                 .disabled(isRunning)
                 .tint(Color.stropheText)
                 
-                Button(action: handleStartButton) {
-                    if isRunning {
-                        ProgressView()
-                            .controlSize(.small)
-                            .padding(.horizontal, 8)
-                    } else {
-                        Text("开始生成")
+                if isLocalAIIncludedInBuild {
+                    Button(action: handleStartLocalButton) {
+                        Text("本地生成字幕")
                             .fontWeight(.semibold)
                     }
+                    .buttonStyle(.bordered)
+                    .tint(Color.stropheText)
+                    .disabled(!canStartLocalCaptioning)
+                }
+
+                Button(action: handleStartCloudButton) {
+                    Text("云端生成字幕")
+                        .fontWeight(.semibold)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Color.stropheAccent)
-                .disabled(isRunning || (isLocalAISupported && project.videoURL == nil))
+                .disabled(!canStartCloudCaptioning)
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
@@ -302,46 +345,50 @@ extension AutoCaptionView {
     }
 
     @ViewBuilder
-    var unsupportedConfigurationForm: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                LocalAIUnsupportedView()
+    var cloudConfigurationCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("云端识别", systemImage: "cloud")
+                    .font(.headline)
+                    .foregroundStyle(Color.stropheText)
 
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("语音识别配置")
-                        .font(.headline)
-                        .foregroundStyle(Color.stropheText)
+                Spacer()
 
-                    disabledEmptySettingRow(title: "模型选择")
-                    disabledEmptySettingRow(title: "对齐器模型")
-                }
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.stropheSecondaryBackground.opacity(0.5))
-                .cornerRadius(12)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.stropheBorder, lineWidth: 1)
-                )
+                Text("可用")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.stropheAccent)
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
-        }
-    }
 
-    @ViewBuilder
-    private func disabledEmptySettingRow(title: String) -> some View {
-        HStack {
-            Text(title)
-                .font(.subheadline)
-                .foregroundStyle(Color.stropheText)
-            Spacer()
-            Text("")
-                .foregroundStyle(.secondary)
+            HStack {
+                Text("服务地址")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(AIBackendClient.defaultCloudBaseURL.absoluteString)
+                    .font(.caption)
+                    .foregroundStyle(Color.stropheText)
+                    .lineLimit(1)
+            }
+
+            HStack {
+                Text("字幕模式")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("完整句子")
+                    .font(.caption)
+                    .foregroundStyle(Color.stropheText)
+            }
         }
-        .padding(.vertical, 8)
-        .opacity(0.55)
-        .disabled(true)
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.stropheSecondaryBackground.opacity(0.5))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.stropheBorder, lineWidth: 1)
+        )
     }
     
     @ViewBuilder
@@ -382,10 +429,15 @@ extension AutoCaptionView {
                     .background(Color.stropheSecondaryBackground)
                     .cornerRadius(12)
                 }
+
+                cloudConfigurationCard
+
+                if isLocalAIIncludedInBuild {
+                    if isLocalAISupported {
                 
-                // Section 1: Qwen3-ASR Config
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("语音识别配置 (Qwen3-ASR)")
+                        // Section 1: Qwen3-ASR Config
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("语音识别配置 (Qwen3-ASR)")
                         .font(.headline)
                         .foregroundStyle(Color.stropheText)
                     
@@ -635,6 +687,10 @@ extension AutoCaptionView {
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(Color.stropheBorder, lineWidth: 1)
                 )
+                    } else {
+                        LocalAIUnsupportedView(detail: AIBackendClient.cloudComingSoonMessage)
+                    }
+                }
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 16)

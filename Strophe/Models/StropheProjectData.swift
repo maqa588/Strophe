@@ -95,6 +95,40 @@ nonisolated struct StropheProjectData: Sendable, Codable {
     }
 }
 
+extension StropheProjectData {
+    nonisolated static func blank() -> StropheProjectData {
+        let now = Date()
+        let metadata = StropheMetadata(
+            videoFrameRate: 30.0,
+            videoSize: nil,
+            isAudioOnly: false,
+            showSoftSubtitles: false,
+            editingModeRaw: "selection",
+            currentTime: 0,
+            createdAt: now,
+            modifiedAt: now
+        )
+        let defaultTrack = StropheTrack(
+            id: UUID(),
+            name: "Default Track",
+            language: nil,
+            isEnabled: true,
+            items: [],
+            parentTrackID: nil,
+            trackType: .primary
+        )
+        return StropheProjectData(
+            version: 1,
+            metadata: metadata,
+            media: nil,
+            tracks: [defaultTrack],
+            styles: [],
+            subgroupStyles: [],
+            subtitleGroups: []
+        )
+    }
+}
+
 extension StropheProjectData.StropheMetadata {
     var editingMode: TimelineEditingMode {
         TimelineEditingMode(rawValue: editingModeRaw) ?? .selection

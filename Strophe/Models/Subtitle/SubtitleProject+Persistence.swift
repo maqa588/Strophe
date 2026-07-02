@@ -47,6 +47,15 @@ extension SubtitleProject {
         startAutoSave()
     }
 
+    func importStropheDocument(_ document: StropheProjectDocument, from url: URL?, startsAutoSave: Bool) async throws {
+        try await loadStropheData(document.data, from: url)
+        if startsAutoSave {
+            startAutoSave()
+        } else {
+            stopAutoSave()
+        }
+    }
+
     func save(to url: URL) throws {
         let data = SubtitleProjectData(items: items, videoURL: videoURL)
         let encoder = JSONEncoder()
@@ -180,7 +189,11 @@ extension SubtitleProject {
             let decoder = JSONDecoder()
             return try decoder.decode(StropheProjectData.self, from: rawData)
         }.value
-        
+
+        try await loadStropheData(decoded, from: url)
+    }
+
+    func loadStropheData(_ decoded: StropheProjectData, from url: URL?) async throws {
         guard decoded.version == 1 else {
             throw NSError(domain: "Strophe", code: 1, userInfo: [NSLocalizedDescriptionKey: "Unsupported project version"])
         }
@@ -208,8 +221,13 @@ extension SubtitleProject {
         }
         
         projectURL = url
-        setDocumentName(url.deletingPathExtension().lastPathComponent)
-        projectURLBookmark = createProjectURLBookmark(url)
+        if let url {
+            setDocumentName(url.deletingPathExtension().lastPathComponent)
+            projectURLBookmark = createProjectURLBookmark(url)
+        } else {
+            setDocumentName("")
+            projectURLBookmark = nil
+        }
         
         mediaLoadError = nil
         
