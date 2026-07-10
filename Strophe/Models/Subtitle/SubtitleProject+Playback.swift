@@ -49,24 +49,29 @@ extension SubtitleProject {
 
         isSeeking = true
         Task { @MainActor in
-            await eng.seek(to: targetTime)
+            let finished = await eng.seek(to: targetTime)
             isSeeking = false
-            self.currentTime = targetTime
-            self.referenceTime = targetTime
+            let resolvedTime = eng.currentTime
+            if finished, resolvedTime.isFinite {
+                self.currentTime = resolvedTime
+                self.referenceTime = resolvedTime
+            } else {
+                syncPlaybackClockFromEngine()
+            }
             self.referenceDate = .now
         }
     }
 
     func seekToSubtitleBoundary(_ direction: SubtitleBoundaryDirection) {
         guard let targetTime = subtitleBoundaryTarget(from: currentTime, direction: direction) else { return }
-        seekTimelineImmediately(to: targetTime)
+        seekTimelineImmediately(to: targetTime, exact: false)
     }
 
     func seekByFrames(_ frameCount: Int) {
         guard frameCount != 0 else { return }
         let fps = videoFrameRate.isFinite && videoFrameRate > 0 ? videoFrameRate : 30.0
         let targetTime = currentTime + Double(frameCount) / fps
-        seekTimelineImmediately(to: targetTime)
+        seekTimelineImmediately(to: targetTime, exact: true)
     }
 
     private func subtitleBoundaryTarget(from time: Double, direction: SubtitleBoundaryDirection) -> Double? {
@@ -92,7 +97,7 @@ extension SubtitleProject {
         }
     }
 
-    private func seekTimelineImmediately(to time: Double) {
+    private func seekTimelineImmediately(to time: Double, exact: Bool) {
         let duration = activeEngine?.duration ?? 0
         let targetTime = max(0, (duration.isFinite && duration > 0) ? min(duration, time) : time)
 
@@ -112,11 +117,20 @@ extension SubtitleProject {
 
         isSeeking = true
         subtitleBoundarySeekTask = Task { @MainActor in
-            await eng.seek(to: targetTime)
+            let finished = if exact {
+                await eng.seekExactly(to: targetTime)
+            } else {
+                await eng.seek(to: targetTime)
+            }
             guard subtitleBoundarySeekGeneration == generation else { return }
             isSeeking = false
-            currentTime = targetTime
-            referenceTime = targetTime
+            let resolvedTime = eng.currentTime
+            if finished, resolvedTime.isFinite {
+                currentTime = resolvedTime
+                referenceTime = resolvedTime
+            } else {
+                syncPlaybackClockFromEngine()
+            }
             referenceDate = .now
         }
     }
@@ -153,10 +167,15 @@ extension SubtitleProject {
         
         isSeeking = true
         Task { @MainActor in
-            await eng.seek(to: time)
+            let finished = await eng.seek(to: time)
             isSeeking = false
-            self.currentTime = time
-            self.referenceTime = time
+            let resolvedTime = eng.currentTime
+            if finished, resolvedTime.isFinite {
+                self.currentTime = resolvedTime
+                self.referenceTime = resolvedTime
+            } else {
+                syncPlaybackClockFromEngine()
+            }
             self.referenceDate = .now
         }
     }

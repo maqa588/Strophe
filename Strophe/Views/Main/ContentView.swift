@@ -35,7 +35,12 @@ struct ContentView: View {
 
     @State private var isShowingSaveStrophe = false
     @State private var saveStropheDefaultName = "project"
+    @State private var cachedProjectURLPendingPromotion: URL? = nil
     @State private var isShowingOpenProject = false
+    @State private var isShowingReplaceMedia = false
+    @State private var isShowingSubtitleImporter = false
+    @State private var isShowingNewProjectAlert = false
+    @State private var fileActionError: String? = nil
     @State private var isShowingOverwriteAlert = false
     @State private var pendingStropheURL: URL? = nil
     @State private var isShowingRestoreTimeAlert = false
@@ -50,7 +55,8 @@ struct ContentView: View {
         if #available(anyAppleOS 26.0, *) { true } else { false }
     }
 
-    var body: some View {
+    @ViewBuilder
+    private var editorLayout: some View {
         Group {
             if sizeClass == .compact {
                 compactLayout       // iPhone
@@ -61,7 +67,7 @@ struct ContentView: View {
         .tint(Color.stropheAccent)
         .stropheHardwareKeyboardMonitor(project: project)
         .overlay {
-            if project.isLoadingProject {
+            if project.isLoadingProject && project.mediaLoadError == nil {
                 projectLoadingOverlay
             }
         }
@@ -70,11 +76,31 @@ struct ContentView: View {
                 restoreTimeOverlay
             }
         }
+    }
+
+    private var fileImportingEditor: some View {
+        editorLayout
         .fileImporter(
             isPresented: $isShowingOpenProject,
             allowedContentTypes: [.stropheProject],
             allowsMultipleSelection: false
         ) { handleOpenProject($0) }
+        .fileImporter(
+            isPresented: $isShowingReplaceMedia,
+            allowedContentTypes: UTType.allMediaTypes,
+            allowsMultipleSelection: false,
+            onCompletion: handleReplaceMedia
+        )
+        .fileImporter(
+            isPresented: $isShowingSubtitleImporter,
+            allowedContentTypes: UTType.allSubtitleTypes,
+            allowsMultipleSelection: false,
+            onCompletion: handleSubtitleImport
+        )
+    }
+
+    var body: some View {
+        fileImportingEditor
         .fileExporter(
             isPresented: $isShowingSaveStrophe,
             document: project.stropheDocument,
@@ -83,14 +109,29 @@ struct ContentView: View {
         ) { result in
             if case .success(let url) = result {
                 Task {
-                    try? await project.saveStrophe(to: url)
-                    WelcomeRecentProjectsStore.remember(url)
-                    project.startAutoSave()
+                    var didSave = false
+                    do {
+                        try await project.saveStrophe(to: url)
+                        didSave = true
+                        WelcomeRecentProjectsStore.remember(url)
+                        if let cachedURL = cachedProjectURLPendingPromotion,
+                           cachedURL.standardizedFileURL != url.standardizedFileURL {
+                            WelcomeRecentProjectsStore.remove(cachedURL, deletingCachedFile: true)
+                        }
+                        project.startAutoSave()
+                    } catch {
+                        print("⚠️ Failed to save Strophe project: \(error.localizedDescription)")
+                    }
+                    cachedProjectURLPendingPromotion = nil
                     #if os(macOS)
                     if isQuittingAfterSave {
-                        project.markClean()
                         isQuittingAfterSave = false
-                        NSApplication.shared.reply(toApplicationShouldTerminate: true)
+                        if didSave {
+                            project.markClean()
+                            NSApplication.shared.reply(toApplicationShouldTerminate: true)
+                        } else {
+                            NSApplication.shared.reply(toApplicationShouldTerminate: false)
+                        }
                     }
                     #endif
                 }
@@ -101,7 +142,19 @@ struct ContentView: View {
                     NSApplication.shared.reply(toApplicationShouldTerminate: false)
                 }
                 #endif
+                cachedProjectURLPendingPromotion = nil
             }
+        }
+        .alert(
+            String(localized: "是否新建工程？"),
+            isPresented: $isShowingNewProjectAlert
+        ) {
+            Button(String(localized: "新建工程"), role: .destructive) {
+                createNewProject()
+            }
+            Button(String(localized: "取消"), role: .cancel) {}
+        } message: {
+            Text(String(localized: "新建工程会清空当前视频、字幕和未保存的修改。"))
         }
         .alert(
             String(localized: "是否覆盖现有字幕？"),
@@ -121,6 +174,19 @@ struct ContentView: View {
         } message: {
             Text(String(localized: "导入该工程文件将覆盖你当前正在编辑的字幕。"))
         }
+        .alert(
+            String(localized: "无法完成操作"),
+            isPresented: Binding(
+                get: { fileActionError != nil },
+                set: { if !$0 { fileActionError = nil } }
+            )
+        ) {
+            Button(String(localized: "好"), role: .cancel) {
+                fileActionError = nil
+            }
+        } message: {
+            Text(fileActionError ?? "")
+        }
         #if os(macOS)
         .alert(
             String.localizedStringWithFormat(
@@ -130,7 +196,8 @@ struct ContentView: View {
             isPresented: $isShowingSaveOnQuitAlert
         ) {
             Button(String(localized: "保存")) {
-                if let url = project.projectURL {
+                if let url = project.projectURL,
+                   !SubtitleProject.isManagedProjectCacheURL(url) {
                     Task {
                         try? await project.saveStrophe(to: url)
                         WelcomeRecentProjectsStore.remember(url)
@@ -139,9 +206,7 @@ struct ContentView: View {
                     }
                 } else {
                     isQuittingAfterSave = true
-                    let base = project.documentDisplayName
-                    saveStropheDefaultName = base.isEmpty ? "project" : base
-                    isShowingSaveStrophe = true
+                    presentSaveStropheExporter()
                 }
             }
             Button(String(localized: "不保存"), role: .destructive) {
@@ -173,27 +238,25 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .stropheOpenProject)) { _ in
             isShowingOpenProject = true
         }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheNewProject)) { _ in
+            requestNewProject()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheReplaceMedia)) { _ in
+            isShowingReplaceMedia = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheImportScriptFile)) { _ in
+            isShowingSubtitleImporter = true
+        }
         .onReceive(NotificationCenter.default.publisher(for: .stropheOpenProjectWithURL)) { notification in
             if let url = notification.object as? URL {
                 handleOpenProject(.success([url]))
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .stropheSaveProject)) { _ in
-            if let url = project.projectURL {
-                Task {
-                    try? await project.saveStrophe(to: url)
-                    WelcomeRecentProjectsStore.remember(url)
-                }
-            } else {
-                let base = project.documentDisplayName
-                saveStropheDefaultName = base.isEmpty ? "project" : base
-                isShowingSaveStrophe = true
-            }
+            saveProject()
         }
         .onReceive(NotificationCenter.default.publisher(for: .stropheSaveProjectAs)) { _ in
-            let base = project.documentDisplayName
-            saveStropheDefaultName = base.isEmpty ? "project" : base
-            isShowingSaveStrophe = true
+            saveProjectAs()
         }
         #if os(macOS)
         .onReceive(NotificationCenter.default.publisher(for: .stropheShowSaveOnQuitAlert)) { _ in
@@ -203,6 +266,55 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .stropheShowAbout)) { _ in
             showAboutPage()
         }
+    }
+
+    private func presentSaveStropheExporter() {
+        let base = project.documentDisplayName
+        saveStropheDefaultName = base.isEmpty ? "project" : base
+        if let url = project.projectURL, SubtitleProject.isManagedProjectCacheURL(url) {
+            cachedProjectURLPendingPromotion = url
+        } else {
+            cachedProjectURLPendingPromotion = nil
+        }
+        isShowingSaveStrophe = true
+    }
+
+    private func saveProject() {
+        if let url = project.projectURL,
+           !SubtitleProject.isManagedProjectCacheURL(url) {
+            Task {
+                do {
+                    try await project.saveStrophe(to: url)
+                    WelcomeRecentProjectsStore.remember(url)
+                } catch {
+                    print("⚠️ Failed to save Strophe project: \(error.localizedDescription)")
+                }
+            }
+        } else {
+            presentSaveStropheExporter()
+        }
+    }
+
+    private func saveProjectAs() {
+        presentSaveStropheExporter()
+    }
+
+    private var hasCurrentProjectContent: Bool {
+        project.videoURL != nil || project.projectURL != nil || !project.items.isEmpty || project.isDirty
+    }
+
+    private func requestNewProject() {
+        if hasCurrentProjectContent {
+            isShowingNewProjectAlert = true
+        } else {
+            createNewProject()
+        }
+    }
+
+    private func createNewProject() {
+        project.createNewProject()
+        selectedTab = .editor
+        settingsPath.removeAll()
     }
 
     // MARK: - Wide Layout (iPad / macOS)
@@ -220,7 +332,12 @@ struct ContentView: View {
         } detail: {
             // ── 右列：始终为编辑器（设置详情通过 settingsPath 覆盖在它上面） ──
             NavigationStack(path: $settingsPath) {
-                MainContentView(project: project, selectedTab: $selectedTab)
+                MainContentView(
+                    project: project,
+                    selectedTab: $selectedTab,
+                    onSaveProject: saveProject,
+                    onSaveProjectAs: saveProjectAs
+                )
                     .navigationDestination(for: SettingsRoute.self) { route in
                         SettingsDetailView(route: route)
                     }
@@ -246,10 +363,20 @@ struct ContentView: View {
             // 编辑器全屏，不显示 TabBar
             if embedsCompactEditorInNavigationStack {
                 NavigationStack {
-                    MainContentView(project: project, selectedTab: $selectedTab)
+                    MainContentView(
+                        project: project,
+                        selectedTab: $selectedTab,
+                        onSaveProject: saveProject,
+                        onSaveProjectAs: saveProjectAs
+                    )
                 }
             } else {
-                MainContentView(project: project, selectedTab: $selectedTab)
+                MainContentView(
+                    project: project,
+                    selectedTab: $selectedTab,
+                    onSaveProject: saveProject,
+                    onSaveProjectAs: saveProjectAs
+                )
             }
         } else if usesLiquidGlassNavigation {
             ZStack(alignment: .bottom) {
@@ -301,13 +428,36 @@ struct ContentView: View {
                                 } label: {
                                     Label("导入字幕文件", systemImage: "square.and.arrow.down")
                                 }
-                                #if !STROPHE_LITE
                                 Button {
                                     NotificationCenter.default.post(name: .stropheStartSpeechRecognition, object: nil)
                                 } label: {
                                     Label("语音识别", systemImage: "waveform.and.mic")
                                 }
-                                #endif
+                                Divider()
+                                Menu {
+                                    Button {
+                                        NotificationCenter.default.post(name: .stropheStartSubtitleTranslation, object: nil)
+                                    } label: {
+                                        Label("字幕翻译助手", systemImage: "character.bubble")
+                                    }
+                                    Button {
+                                        NotificationCenter.default.post(name: .stropheStartBatchTranslation, object: nil)
+                                    } label: {
+                                        Label("批量翻译字幕", systemImage: "text.bubble")
+                                    }
+                                    Button {
+                                        NotificationCenter.default.post(name: .stropheConvertSelectedToPinyin, object: nil)
+                                    } label: {
+                                        Label("汉字转拼音", systemImage: "character.phonetic")
+                                    }
+                                    Button {
+                                        NotificationCenter.default.post(name: .stropheOpenAutoLineWrap, object: nil)
+                                    } label: {
+                                        Label("自动换行", systemImage: "return")
+                                    }
+                                } label: {
+                                    Label("语言处理", systemImage: "globe")
+                                }
                             } label: {
                                 Image(systemName: "plus")
                             }
@@ -318,7 +468,7 @@ struct ContentView: View {
             EmptyView()
         case .styleManager:
             NavigationStack {
-                StylePlaceholderView()
+                StylePlaceholderView(project: project)
                     .inlineNavigationTitle(String(localized: "样式"))
             }
         case .subGroup:
@@ -450,10 +600,39 @@ struct ContentView: View {
 
     // MARK: - File Handlers
 
+    private func handleReplaceMedia(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            project.replaceMedia(with: url)
+            selectedTab = .editor
+            settingsPath.removeAll()
+        case .failure(let error):
+            fileActionError = error.localizedDescription
+        }
+    }
+
+    private func handleSubtitleImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            do {
+                let rawText = try SubtitleEngine.loadRawText(from: url)
+                project.importScript(rawText)
+                selectedTab = .editor
+                settingsPath.removeAll()
+            } catch {
+                fileActionError = error.localizedDescription
+            }
+        case .failure(let error):
+            fileActionError = error.localizedDescription
+        }
+    }
+
     private func handleOpenProject(_ result: Result<[URL], Error>) {
         DispatchQueue.main.async {
             guard case .success(let urls) = result, let url = urls.first else { return }
-            if !project.items.isEmpty {
+            if hasCurrentProjectContent {
                 pendingStropheURL = url
                 isShowingOverwriteAlert = true
             } else {

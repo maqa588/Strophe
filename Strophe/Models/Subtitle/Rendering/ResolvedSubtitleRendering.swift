@@ -23,6 +23,54 @@ nonisolated struct ResolvedRGBAColor: Sendable, Equatable, Hashable {
     }
 }
 
+nonisolated enum SubtitlePlacementMetrics {
+    /// EBU R 95 / ITU-R BT.1848 safe areas for 16:9 television production.
+    static let actionSafeInsetRatio = 0.035
+    static let graphicsSafeInsetRatio = 0.05
+
+    static func placementRect(for canvasSize: CGSize, style: ResolvedSubtitleStyle) -> CGRect {
+        let left = canvasSize.width * clampedPercent(style.marginLeftPercent)
+        let right = canvasSize.width * clampedPercent(style.marginRightPercent)
+        let vertical = canvasSize.height * clampedPercent(style.marginVerticalPercent)
+
+        return CGRect(
+            x: left,
+            y: vertical,
+            width: max(0, canvasSize.width - left - right),
+            height: max(0, canvasSize.height - vertical * 2)
+        )
+    }
+
+    private static func clampedPercent(_ value: Double) -> CGFloat {
+        CGFloat(max(0, min(49, value)) / 100)
+    }
+}
+
+extension SubtitleStyle.Alignment {
+    var swiftUIAlignment: SwiftUI.Alignment {
+        switch self {
+        case .topLeft: return .topLeading
+        case .topCenter: return .top
+        case .topRight: return .topTrailing
+        case .middleLeft: return .leading
+        case .middleCenter: return .center
+        case .middleRight: return .trailing
+        case .bottomLeft: return .bottomLeading
+        case .bottomCenter: return .bottom
+        case .bottomRight: return .bottomTrailing
+        }
+    }
+
+    var swiftUITextAlignment: TextAlignment {
+        switch self {
+        case .topLeft, .middleLeft, .bottomLeft: return .leading
+        case .topCenter, .middleCenter, .bottomCenter: return .center
+        case .topRight, .middleRight, .bottomRight: return .trailing
+        }
+    }
+
+}
+
 nonisolated struct ResolvedSubtitleStyle: Sendable, Equatable, Hashable {
     var name: String
     var fontName: String?
@@ -35,7 +83,17 @@ nonisolated struct ResolvedSubtitleStyle: Sendable, Equatable, Hashable {
     var backgroundColor: ResolvedRGBAColor?
     var isBold: Bool
     var isItalic: Bool
+    var isUnderline: Bool
+    var isStrikethrough: Bool
     var isGlowing: Bool
+    var alignment: SubtitleStyle.Alignment
+    var marginLeftPercent: Double
+    var marginRightPercent: Double
+    var marginVerticalPercent: Double
+    var scaleX: Double
+    var scaleY: Double
+    var characterSpacing: Double
+    var rotationDegrees: Double
 
     static let fallback = ResolvedSubtitleStyle(
         name: "Default",
@@ -49,7 +107,17 @@ nonisolated struct ResolvedSubtitleStyle: Sendable, Equatable, Hashable {
         backgroundColor: nil,
         isBold: false,
         isItalic: false,
-        isGlowing: false
+        isUnderline: false,
+        isStrikethrough: false,
+        isGlowing: false,
+        alignment: .bottomCenter,
+        marginLeftPercent: 5,
+        marginRightPercent: 5,
+        marginVerticalPercent: 5,
+        scaleX: 1,
+        scaleY: 1,
+        characterSpacing: 0,
+        rotationDegrees: 0
     )
 }
 
@@ -61,6 +129,29 @@ nonisolated struct ResolvedSubtitleCue: Identifiable, Sendable, Equatable, Hasha
     var style: ResolvedSubtitleStyle
     var groupID: UUID?
     var trackIndex: Int
+}
+
+struct HardSubtitleBitmapView: View {
+    let text: String
+    let style: ResolvedSubtitleStyle
+    let canvasSize: CGSize
+    let displayScale: CGFloat
+
+    var body: some View {
+        if let image = SubtitleBitmapRenderer.makeImage(
+            text: text,
+            style: style,
+            canvasSize: canvasSize
+        ) {
+            Image(
+                decorative: image,
+                scale: max(0.0001, 1 / displayScale),
+                orientation: .up
+            )
+            .interpolation(.high)
+            .fixedSize()
+        }
+    }
 }
 
 extension Color {
@@ -248,11 +339,21 @@ extension SubtitleProject {
         resolved.fontSize = item.styleOverrides?.fontSize ?? subgroupStyle?.fontSize ?? inferredFontSize(from: subgroupStyle) ?? resolved.fontSize
         resolved.isBold = item.styleOverrides?.isBold ?? subgroupStyle?.isBold ?? resolved.isBold
         resolved.isItalic = item.styleOverrides?.isItalic ?? subgroupStyle?.isItalic ?? resolved.isItalic
+        resolved.isUnderline = subgroupStyle?.isUnderline ?? resolved.isUnderline
+        resolved.isStrikethrough = subgroupStyle?.isStrikethrough ?? resolved.isStrikethrough
         resolved.outlineColor = subgroupStyle?.outlineColor.resolvedRGBA ?? resolved.outlineColor
         resolved.outlineWidth = subgroupStyle?.outlineWidth ?? resolved.outlineWidth
         resolved.shadowColor = subgroupStyle?.shadowColor.resolvedRGBA ?? resolved.shadowColor
         resolved.shadowRadius = subgroupStyle?.shadowRadius ?? resolved.shadowRadius
         resolved.isGlowing = subgroupStyle?.isGlowing ?? resolved.isGlowing
+        resolved.alignment = subgroupStyle?.alignment ?? resolved.alignment
+        resolved.marginLeftPercent = subgroupStyle?.marginLeftPercent ?? resolved.marginLeftPercent
+        resolved.marginRightPercent = subgroupStyle?.marginRightPercent ?? resolved.marginRightPercent
+        resolved.marginVerticalPercent = subgroupStyle?.marginVerticalPercent ?? resolved.marginVerticalPercent
+        resolved.scaleX = subgroupStyle?.scaleX ?? resolved.scaleX
+        resolved.scaleY = subgroupStyle?.scaleY ?? resolved.scaleY
+        resolved.characterSpacing = subgroupStyle?.characterSpacing ?? resolved.characterSpacing
+        resolved.rotationDegrees = subgroupStyle?.rotationDegrees ?? resolved.rotationDegrees
         if let subgroupStyle, subgroupStyle.backgroundAlpha > 0 {
             resolved.backgroundColor = subgroupStyle.backgroundColor.resolvedRGBA.withAlpha(subgroupStyle.backgroundAlpha)
         }

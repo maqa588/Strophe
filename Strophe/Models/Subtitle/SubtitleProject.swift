@@ -86,9 +86,7 @@ class SubtitleProject: ObservableObject {
                 let parentDir = oldURL.deletingLastPathComponent()
                 try? FileManager.default.removeItem(at: parentDir)
             }
-            activeEngine?.stop()
-            activeEngine = nil
-            activeEngineURL = nil
+            resetPlayerEngine()
             waveformData?.cancelAllActiveTasks()
             waveformData = nil
         }
@@ -134,8 +132,71 @@ class SubtitleProject: ObservableObject {
     @Published var isAudioOnly: Bool = false
     @Published var videoSize: CGSize = .zero
     
-    var activeEngine: (any PlayerEngine)? = nil
-    var activeEngineURL: URL? = nil
+    private(set) var activeEngine: (any PlayerEngine)? = nil
+    private(set) var activeEngineURL: URL? = nil
+    private var playerEngineLoadTask: Task<(any PlayerEngine)?, Never>?
+    private var playerEngineLoadURL: URL?
+    private var playerEngineLoadGeneration: UInt = 0
+
+    func acquirePlayerEngine(
+        for url: URL,
+        makeEngine: @escaping @MainActor () -> any PlayerEngine
+    ) async -> (any PlayerEngine)? {
+        if let activeEngine, activeEngineURL == url {
+            return activeEngine
+        }
+
+        if let playerEngineLoadTask, playerEngineLoadURL == url {
+            return await playerEngineLoadTask.value
+        }
+
+        playerEngineLoadTask?.cancel()
+        playerEngineLoadGeneration &+= 1
+        let generation = playerEngineLoadGeneration
+        playerEngineLoadURL = url
+
+        let task = Task { @MainActor [weak self] () -> (any PlayerEngine)? in
+            guard let self, self.videoURL == url, !Task.isCancelled else { return nil }
+
+            let candidate = makeEngine()
+            let loaded = await candidate.load(url: url)
+            guard loaded, !Task.isCancelled, self.videoURL == url else {
+                candidate.stop()
+                return nil
+            }
+
+            // A completed engine always wins atomically on the project actor. Any
+            // overlapping view setup awaiting this URL receives this same instance.
+            if let activeEngine = self.activeEngine, self.activeEngineURL == url {
+                candidate.stop()
+                return activeEngine
+            }
+
+            self.activeEngine?.stop()
+            self.activeEngine = candidate
+            self.activeEngineURL = url
+            print("🎬 Project installed one \(type(of: candidate)) for \(url.lastPathComponent)")
+            return candidate
+        }
+
+        playerEngineLoadTask = task
+        let engine = await task.value
+        if playerEngineLoadGeneration == generation {
+            playerEngineLoadTask = nil
+            playerEngineLoadURL = nil
+        }
+        return engine
+    }
+
+    func resetPlayerEngine() {
+        playerEngineLoadGeneration &+= 1
+        playerEngineLoadTask?.cancel()
+        playerEngineLoadTask = nil
+        playerEngineLoadURL = nil
+        activeEngine?.stop()
+        activeEngine = nil
+        activeEngineURL = nil
+    }
     
     func snapToFrame(_ time: Double) -> Double {
         guard videoFrameRate > 0 else { return time }
@@ -203,14 +264,14 @@ class SubtitleProject: ObservableObject {
     
     func subtitleText(at time: Double) -> String? {
         if let activeID = activeSlapSubtitleID,
-           let item = items.first(where: { $0.id == activeID }),
+           let item = timelineIndex.item(id: activeID),
            !item.isHidden,
            subgroup(for: item)?.isOverlayEnabled != false {
             return item.text
         }
 
         let activeGroupID = StyleAndGroupStore.shared.activeGroupID
-        return items
+        return timelineIndex.visibleItems(in: time...time)
             .filter { item in
                 guard !item.isHidden, subgroup(for: item)?.isOverlayEnabled != false else { return false }
                 guard let start = item.startTime, let end = item.endTime else { return false }

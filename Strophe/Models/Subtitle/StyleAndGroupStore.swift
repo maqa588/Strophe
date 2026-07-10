@@ -57,6 +57,8 @@ struct SubgroupStyle: Identifiable, Equatable {
     var fontSize: Double = 58
     var isBold: Bool = true
     var isItalic: Bool = false
+    var isUnderline: Bool = false
+    var isStrikethrough: Bool = false
     var outlineColor: Color = .black
     var outlineWidth: Double = 4
     var shadowColor: Color = .black
@@ -64,6 +66,14 @@ struct SubgroupStyle: Identifiable, Equatable {
     var backgroundColor: Color = .black
     var backgroundAlpha: Double = 0
     var isGlowing: Bool = false
+    var alignment: SubtitleStyle.Alignment = .bottomCenter
+    var marginLeftPercent: Double = 5
+    var marginRightPercent: Double = 5
+    var marginVerticalPercent: Double = 5
+    var scaleX: Double = 1
+    var scaleY: Double = 1
+    var characterSpacing: Double = 0
+    var rotationDegrees: Double = 0
 }
 
 struct SubGroupItem: Identifiable, Equatable {
@@ -90,6 +100,8 @@ struct StoredSubgroupStyle: Codable, Sendable, Equatable {
     var fontSize: Double
     var isBold: Bool
     var isItalic: Bool
+    var isUnderline: Bool?
+    var isStrikethrough: Bool?
     var outlineColorHex: String
     var outlineWidth: Double
     var shadowColorHex: String
@@ -97,6 +109,14 @@ struct StoredSubgroupStyle: Codable, Sendable, Equatable {
     var backgroundColorHex: String
     var backgroundAlpha: Double
     var isGlowing: Bool
+    var alignment: SubtitleStyle.Alignment?
+    var marginLeftPercent: Double?
+    var marginRightPercent: Double?
+    var marginVerticalPercent: Double?
+    var scaleX: Double?
+    var scaleY: Double?
+    var characterSpacing: Double?
+    var rotationDegrees: Double?
 }
 
 struct StoredSubGroupItem: Codable, Sendable, Equatable {
@@ -239,13 +259,23 @@ class StyleAndGroupStore: ObservableObject {
                 fontSize: style.fontSize,
                 isBold: style.isBold,
                 isItalic: style.isItalic,
+                isUnderline: style.isUnderline,
+                isStrikethrough: style.isStrikethrough,
                 outlineColorHex: style.outlineColor.resolvedRGBA.hexString,
                 outlineWidth: style.outlineWidth,
                 shadowColorHex: style.shadowColor.resolvedRGBA.hexString,
                 shadowRadius: style.shadowRadius,
                 backgroundColorHex: style.backgroundColor.resolvedRGBA.hexString,
                 backgroundAlpha: style.backgroundAlpha,
-                isGlowing: style.isGlowing
+                isGlowing: style.isGlowing,
+                alignment: style.alignment,
+                marginLeftPercent: style.marginLeftPercent,
+                marginRightPercent: style.marginRightPercent,
+                marginVerticalPercent: style.marginVerticalPercent,
+                scaleX: style.scaleX,
+                scaleY: style.scaleY,
+                characterSpacing: style.characterSpacing,
+                rotationDegrees: style.rotationDegrees
             )
         }
     }
@@ -283,13 +313,23 @@ class StyleAndGroupStore: ObservableObject {
                     fontSize: stored.fontSize,
                     isBold: stored.isBold,
                     isItalic: stored.isItalic,
+                    isUnderline: stored.isUnderline ?? false,
+                    isStrikethrough: stored.isStrikethrough ?? false,
                     outlineColor: ResolvedRGBAColor(hex: stored.outlineColorHex)?.color ?? .black,
                     outlineWidth: stored.outlineWidth,
                     shadowColor: ResolvedRGBAColor(hex: stored.shadowColorHex)?.color ?? .black,
                     shadowRadius: stored.shadowRadius,
                     backgroundColor: ResolvedRGBAColor(hex: stored.backgroundColorHex)?.color ?? .black,
                     backgroundAlpha: stored.backgroundAlpha,
-                    isGlowing: stored.isGlowing
+                    isGlowing: stored.isGlowing,
+                    alignment: stored.alignment ?? .bottomCenter,
+                    marginLeftPercent: stored.marginLeftPercent ?? 5,
+                    marginRightPercent: stored.marginRightPercent ?? 5,
+                    marginVerticalPercent: stored.marginVerticalPercent ?? 5,
+                    scaleX: stored.scaleX ?? 1,
+                    scaleY: stored.scaleY ?? 1,
+                    characterSpacing: stored.characterSpacing ?? 0,
+                    rotationDegrees: stored.rotationDegrees ?? 0
                 )
             }
         }

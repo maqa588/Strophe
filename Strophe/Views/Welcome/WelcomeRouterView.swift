@@ -31,9 +31,11 @@ struct WelcomeRouterView: View {
             } else {
                 WelcomeView(
                     projects: recentStore.projects,
-                    isOpeningProject: project.isLoadingProject,
+                    isOpeningProject: project.isLoadingProject && project.mediaLoadError == nil,
                     onAction: handleAction,
-                    onRemoveRecentProject: recentStore.remove
+                    onRemoveRecentProject: { project, deletingCachedFile in
+                        recentStore.remove(project, deletingCachedFile: deletingCachedFile)
+                    }
                 )
             }
         }
@@ -104,12 +106,28 @@ struct WelcomeRouterView: View {
         .onOpenURL { url in
             handleExternalOpen(url)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheNewProject)) { _ in
+            guard !isEditorPresented else { return }
+            handleAction(.newProject)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheImportScriptFile)) { _ in
+            guard !isEditorPresented else { return }
+            handleAction(.importSubtitles)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheOpenProject)) { _ in
+            guard !isEditorPresented else { return }
+            handleAction(.openProject)
+        }
+    }
+
+    private var isEditorPresented: Bool {
+        opensEditorInPlace && isShowingEditor
     }
 
     private func handleAction(_ action: WelcomeAction) {
         switch action {
         case .newProject:
-            project.resetForNewMedia()
+            project.createNewProject()
             revealEditor()
         case .openMedia:
             isShowingMediaImporter = true
@@ -118,7 +136,7 @@ struct WelcomeRouterView: View {
         case .openProject:
             isShowingProjectImporter = true
         case .openRecent(let recentProject):
-            openProject(recentProject.url)
+            openRecentProject(recentProject)
         }
     }
 
@@ -158,6 +176,12 @@ struct WelcomeRouterView: View {
             }
             revealEditor()
         }
+    }
+
+    private func openRecentProject(_ recentProject: WelcomeRecentProject) {
+        // Try resolving the security-scoped bookmark first (needed for external drives / sandboxed access)
+        let resolvedURL = recentProject.resolveBookmark() ?? recentProject.url
+        openProject(resolvedURL)
     }
 
     private func openProject(_ url: URL) {

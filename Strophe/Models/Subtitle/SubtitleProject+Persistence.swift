@@ -8,7 +8,24 @@
 import Foundation
 import CoreGraphics
 
+#if os(macOS)
+private let bookmarkCreationOptions = URL.BookmarkCreationOptions.withSecurityScope
+private let bookmarkResolutionOptions = URL.BookmarkResolutionOptions.withSecurityScope
+#else
+private let bookmarkCreationOptions = URL.BookmarkCreationOptions()
+private let bookmarkResolutionOptions = URL.BookmarkResolutionOptions()
+#endif
+
 extension SubtitleProject {
+    func createNewProject() {
+        pause()
+        stopAutoSave()
+        mediaAccessURL?.stopAccessingSecurityScopedResource()
+        mediaAccessURL = nil
+        videoURL = nil
+        resetForNewMedia()
+    }
+
     func importMedia(from url: URL) {
         pause()
         if items.isEmpty {
@@ -106,17 +123,70 @@ extension SubtitleProject {
         markClean()
     }
 
+    nonisolated static var projectCacheDirectoryURL: URL? {
+        let fm = FileManager.default
+        
+        #if os(iOS)
+        // On iOS devices, the cachesDirectory can be purged by the system when storage is low.
+        // Therefore, we use applicationSupportDirectory to keep the project cache persistent.
+        guard let baseDirectoryURL = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        
+        // Migrate old caches if they exist
+        if let oldBaseURL = fm.urls(for: .cachesDirectory, in: .userDomainMask).first {
+            let oldProjectCacheDirectory = oldBaseURL
+                .appendingPathComponent("Strophe", isDirectory: true)
+                .appendingPathComponent("ProjectCache", isDirectory: true)
+            let newProjectCacheDirectory = baseDirectoryURL
+                .appendingPathComponent("Strophe", isDirectory: true)
+                .appendingPathComponent("ProjectCache", isDirectory: true)
+            
+            if fm.fileExists(atPath: oldProjectCacheDirectory.path) {
+                do {
+                    try fm.createDirectory(at: newProjectCacheDirectory, withIntermediateDirectories: true)
+                    let contents = try fm.contentsOfDirectory(at: oldProjectCacheDirectory, includingPropertiesForKeys: nil)
+                    for item in contents {
+                        let destination = newProjectCacheDirectory.appendingPathComponent(item.lastPathComponent)
+                        if !fm.fileExists(atPath: destination.path) {
+                            try fm.moveItem(at: item, to: destination)
+                        } else {
+                            try fm.removeItem(at: item) // Clean up old duplicate
+                        }
+                    }
+                    try fm.removeItem(at: oldProjectCacheDirectory) // Remove old empty folder
+                    print("✅ SubtitleProject: Migrated project caches from Caches to Application Support.")
+                } catch {
+                    print("⚠️ SubtitleProject: Failed to migrate project caches: \(error.localizedDescription)")
+                }
+            }
+        }
+        #else
+        guard let baseDirectoryURL = fm.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        #endif
+
+        return baseDirectoryURL
+            .appendingPathComponent("Strophe", isDirectory: true)
+            .appendingPathComponent("ProjectCache", isDirectory: true)
+    }
+
+    nonisolated static func isManagedProjectCacheURL(_ url: URL) -> Bool {
+        guard let projectCacheDirectory = projectCacheDirectoryURL else { return false }
+        let cachePath = projectCacheDirectory.standardizedFileURL.resolvingSymlinksInPath().path
+        let urlPath = url.standardizedFileURL.resolvingSymlinksInPath().path
+        return urlPath == cachePath || urlPath.hasPrefix(cachePath + "/")
+    }
+
     private func cachedProjectURL(for mediaURL: URL) -> URL? {
-        guard let cachesURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+        let fm = FileManager.default
+        guard let projectCacheDirectory = Self.projectCacheDirectoryURL else {
             return nil
         }
 
-        let projectCacheDirectory = cachesURL
-            .appendingPathComponent("Strophe", isDirectory: true)
-            .appendingPathComponent("ProjectCache", isDirectory: true)
-
         do {
-            try FileManager.default.createDirectory(at: projectCacheDirectory, withIntermediateDirectories: true)
+            try fm.createDirectory(at: projectCacheDirectory, withIntermediateDirectories: true)
         } catch {
             print("⚠️ Failed to create project cache directory: \(error.localizedDescription)")
             return nil
@@ -276,57 +346,48 @@ extension SubtitleProject {
         return url
     }
     
+
     func createSecurityScopedBookmark(for url: URL) -> Data? {
         let resolvedURL = url.resolvingSymlinksInPath()
-        #if os(macOS)
         let didAccess = resolvedURL.startAccessingSecurityScopedResource()
         defer { if didAccess { resolvedURL.stopAccessingSecurityScopedResource() } }
         let bookmark: Data
         do {
-            bookmark = try resolvedURL.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+            bookmark = try resolvedURL.bookmarkData(options: bookmarkCreationOptions, includingResourceValuesForKeys: nil, relativeTo: nil)
         } catch {
             print("⚠️ Failed to create bookmark for: \(resolvedURL.path) — \(error.localizedDescription)")
             return nil
         }
         var isStale = false
         do {
-            _ = try URL(resolvingBookmarkData: bookmark, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale)
+            _ = try URL(resolvingBookmarkData: bookmark, options: bookmarkResolutionOptions, relativeTo: nil, bookmarkDataIsStale: &isStale)
         } catch {
             print("⚠️ Created bookmark is invalid for: \(resolvedURL.path) — \(error.localizedDescription)")
             return nil
         }
         return bookmark
-        #else
-        return nil
-        #endif
     }
     
     func resolveSecurityScopedBookmark(_ bookmark: Data) -> URL? {
-        #if os(macOS)
         var isStale = false
-        if let resolved = try? URL(resolvingBookmarkData: bookmark, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale) {
+        if let resolved = try? URL(resolvingBookmarkData: bookmark, options: bookmarkResolutionOptions, relativeTo: nil, bookmarkDataIsStale: &isStale) {
             if isStale {
                 print("⚠️ Bookmark is stale")
             }
             return resolved
         }
-        #endif
         return nil
     }
     
     func createProjectURLBookmark(_ url: URL) -> Data? {
-        #if os(macOS)
         let didAccess = url.startAccessingSecurityScopedResource()
         defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
         do {
-            return try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+            return try url.bookmarkData(options: bookmarkCreationOptions, includingResourceValuesForKeys: nil, relativeTo: nil)
         } catch {
             print("⚠️ Failed to create project bookmark for: \(url.path) — \(error.localizedDescription)")
             return nil
         }
-        #else
-        return nil
-        #endif
     }
     
     func startAutoSave() {

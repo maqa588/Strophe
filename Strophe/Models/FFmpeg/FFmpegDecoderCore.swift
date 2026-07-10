@@ -11,6 +11,7 @@ import Libswresample
 nonisolated struct VideoFrame: @unchecked Sendable {
     let pixelBuffer: CVPixelBuffer
     let pts: Double
+    let generation: Int
 }
 
 // MARK: - SendablePixelBuffer
@@ -82,18 +83,17 @@ actor FFmpegDecoderCore {
     
     // Callbacks to push decoded frame, audio PCM, and state updates back to MainActor safely.
     var onFrameReady: (@MainActor @Sendable (SendablePixelBuffer, Double) -> Void)? = nil
-    var onAudioReady: (@MainActor @Sendable ([Float], [Float], Double?) -> Void)? = nil
+    var onAudioReady: (@Sendable ([Float], [Float], Double?, Int) -> Void)? = nil
     var onStateChanged: (@MainActor @Sendable (Double, Double, Double, CGSize, Double, Bool, Int32) -> Void)? = nil
     
     var decodeTask: Task<Void, Never>? = nil
-    var seekTargetTime: Double? = nil
     var activeSeekId: Int = 0
     
     // MARK: - Safe State Accessors
     
     func registerCallbacks(
         onFrameReady: @MainActor @Sendable @escaping (SendablePixelBuffer, Double) -> Void,
-        onAudioReady: @MainActor @Sendable @escaping ([Float], [Float], Double?) -> Void,
+        onAudioReady: @Sendable @escaping ([Float], [Float], Double?, Int) -> Void,
         onStateChanged: @MainActor @Sendable @escaping (Double, Double, Double, CGSize, Double, Bool, Int32) -> Void
     ) {
         self.onFrameReady = onFrameReady
@@ -107,15 +107,6 @@ actor FFmpegDecoderCore {
     
     func getIsSeekingActive() -> Bool {
         return isSeekingSessionActive
-    }
-    
-    func setIsPlaying(_ playing: Bool) {
-        let changed = self.isPlaying != playing
-        self.isPlaying = playing
-        if changed {
-            print("▶️ Playback state changed: playing=\(playing), vfqCount=\(videoFrameQueueCount)")
-        }
-        notifyStateChanged()
     }
     
     func setPlaybackRate(_ rate: Double) {
@@ -136,12 +127,12 @@ actor FFmpegDecoderCore {
         self.startPlaybackTime = time
     }
     
-    func decrementFrameQueueCount() {
-        self.videoFrameQueueCount = max(0, self.videoFrameQueueCount - 1)
-    }
-    
-    func decrementFrameQueueCount(by amount: Int) {
-        self.videoFrameQueueCount = max(0, self.videoFrameQueueCount - amount)
+    /// Acknowledges frames only when they belong to the currently active
+    /// generation. Delayed MainActor callbacks from before a seek must never
+    /// decrement the new seek's queue count.
+    func acknowledgeVideoFrames(_ amount: Int, generation: Int) {
+        guard generation == frameEmitGeneration, amount > 0 else { return }
+        videoFrameQueueCount = max(0, videoFrameQueueCount - amount)
     }
     
     func clearFrameQueueCount() {
@@ -157,11 +148,16 @@ actor FFmpegDecoderCore {
         self.frameEmitGeneration = generation
     }
 
-    func cancelActiveSeekSession() {
+    /// Atomically blocks decoding, invalidates older seeks, clears decoder
+    /// buffers, and installs the generation used by the next seek.
+    func prepareForSeek(generation: Int) -> Int {
         activeSeekId += 1
-        seekTargetTime = nil
-        isSeekingSessionActive = false
+        isSeekingSessionActive = true
+        isPlaying = false
+        playbackRate = 0
         videoFrameQueueCount = 0
+        frameEmitGeneration = generation
+
         if let vCtx = videoCodecContext {
             avcodec_flush_buffers(vCtx)
         }
@@ -169,10 +165,36 @@ actor FFmpegDecoderCore {
             avcodec_flush_buffers(aCtx)
         }
         notifyStateChanged()
+        return activeSeekId
     }
     
-    func getVideoFrameQueueCount() -> Int {
-        return self.videoFrameQueueCount
+    /// Repairs a starved decode loop without disturbing decoder timestamps.
+    /// This is intentionally a soft recovery: it reconciles backpressure state,
+    /// restores the expected play flag and restarts the loop only if it exited.
+    func recoverStarvedDecodeFlow(
+        generation: Int,
+        actualQueueCount: Int,
+        expectedRate: Double
+    ) -> (previousCount: Int, restarted: Bool, resumed: Bool)? {
+        guard generation == frameEmitGeneration, !isSeekingSessionActive else { return nil }
+
+        let previousCount = videoFrameQueueCount
+        let wasPlaying = isPlaying
+        videoFrameQueueCount = max(0, actualQueueCount)
+        playbackRate = expectedRate
+        isPlaying = expectedRate > 0
+
+        var restarted = false
+        if decodeTask == nil || decodeTask?.isCancelled == true {
+            startDecodeLoop()
+            restarted = true
+        }
+
+        let resumed = !wasPlaying && isPlaying
+        if resumed {
+            notifyStateChanged()
+        }
+        return (previousCount, restarted, resumed)
     }
     
     // Performs load session entirely off the MainActor
@@ -196,14 +218,13 @@ actor FFmpegDecoderCore {
     }
     
     // Performs seek session entirely off the MainActor
-    func seekSession(to time: Double, exact: Bool) async -> Double {
-        activeSeekId += 1
-        let seekId = activeSeekId
-        
-        self.isSeekingSessionActive = true
+    func seekSession(to time: Double, exact: Bool, seekId: Int) async -> Double? {
+        guard seekId == activeSeekId else { return nil }
+
+        isSeekingSessionActive = true
         defer {
             if seekId == activeSeekId {
-                self.isSeekingSessionActive = false
+                isSeekingSessionActive = false
                 notifyStateChanged()
             }
         }
@@ -211,13 +232,11 @@ actor FFmpegDecoderCore {
         // Yield to allow any other pending seeks to execute and update activeSeekId
         await Task.yield()
         if Task.isCancelled || seekId != activeSeekId {
-            return time
+            return nil
         }
         
-        self.seekTargetTime = time
-        // NOTE: generation is bumped by the caller (FFmpegEngine) via
-        // seekClearAndNewGeneration() BEFORE seekSession is called, so frames
-        // produced here already carry the new generation.
+        // prepareForSeek() installs the generation before this method runs, so
+        // every emitted frame belongs to this seek unless a newer seek wins.
         self.videoFrameQueueCount = 0
         
         if let ctx = self.formatContext {
@@ -235,7 +254,7 @@ actor FFmpegDecoderCore {
         }
         
         if Task.isCancelled || seekId != activeSeekId {
-            return time
+            return nil
         }
         
         self.startPlaybackTime = time
@@ -243,12 +262,10 @@ actor FFmpegDecoderCore {
         
         notifyStateChanged()
         
-        let actualPTS = await self.seekAndQueueSingleFrame(to: time, seekId: seekId, exact: exact)
-        
-        if seekId == activeSeekId {
-            self.startPlaybackTime = actualPTS
-        }
-        
+        let actualPTS = await seekAndQueueSingleFrame(to: time, seekId: seekId, exact: exact)
+
+        guard seekId == activeSeekId, !Task.isCancelled else { return nil }
+        startPlaybackTime = actualPTS
         return actualPTS
     }
     
@@ -624,7 +641,7 @@ actor FFmpegDecoderCore {
         while !Task.isCancelled {
             loopCounter += 1
             if loopCounter % 10 == 0 {
-                await Task.yield() // ⚡️ Yield the actor executor periodically to allow pending calls (e.g. decrementFrameQueueCount) to execute
+                await Task.yield() // Allow frame acknowledgements and seek commands onto the actor.
             }
 
             if !isPlaying || isSeekingSessionActive {
@@ -755,7 +772,7 @@ actor FFmpegDecoderCore {
                     }
                 } else {
                     // Decrement queue count if conversion fails
-                    await self.decrementFrameQueueCount()
+                    await self.acknowledgeVideoFrames(1, generation: gen)
                 }
             }
         }
@@ -934,10 +951,9 @@ actor FFmpegDecoderCore {
         if outSamples > 0 {
             let left = Array(UnsafeBufferPointer(start: leftBuffer, count: Int(outSamples)))
             let right = Array(UnsafeBufferPointer(start: rightBuffer, count: Int(outSamples)))
+            let generation = frameEmitGeneration
             let callback = self.onAudioReady
-            Task { @MainActor in
-                callback?(left, right, audioPTS)
-            }
+            callback?(left, right, audioPTS, generation)
         }
     }
     // MARK: - CVPixelBuffer Pool for software decode path

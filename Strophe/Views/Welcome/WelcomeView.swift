@@ -4,7 +4,7 @@ struct WelcomeView: View {
     let projects: [WelcomeRecentProject]
     let isOpeningProject: Bool
     let onAction: (WelcomeAction) -> Void
-    let onRemoveRecentProject: (WelcomeRecentProject) -> Void
+    let onRemoveRecentProject: (WelcomeRecentProject, Bool) -> Void
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -291,7 +291,7 @@ private struct WelcomeActionButton: View {
             }
             .padding(.horizontal, isCompact ? 20 : 16)
             .frame(height: isCompact ? 72 : 58)
-            .welcomeGlassCard(cornerRadius: isCompact ? 24 : 14, isHovering: isHovering)
+            .welcomeButtonCard(cornerRadius: isCompact ? 24 : 14, isHovering: isHovering)
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
@@ -301,8 +301,10 @@ private struct WelcomeActionButton: View {
 private struct WelcomeRecentProjectsPanel: View {
     let projects: [WelcomeRecentProject]
     let onOpen: (WelcomeRecentProject) -> Void
-    let onRemove: (WelcomeRecentProject) -> Void
+    let onRemove: (WelcomeRecentProject, Bool) -> Void
     var isCompact = false
+
+    @State private var pendingRemovalProject: WelcomeRecentProject?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -321,7 +323,7 @@ private struct WelcomeRecentProjectsPanel: View {
                             WelcomeRecentProjectRow(
                                 project: project,
                                 onOpen: { onOpen(project) },
-                                onRemove: { onRemove(project) }
+                                onRemove: { pendingRemovalProject = project }
                             )
                         }
                     }
@@ -332,6 +334,44 @@ private struct WelcomeRecentProjectsPanel: View {
         .padding(.horizontal, isCompact ? 0 : 24)
         .padding(.vertical, isCompact ? 4 : 28)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .alert(
+            removalAlertTitle,
+            isPresented: Binding(
+                get: { pendingRemovalProject != nil },
+                set: { if !$0 { pendingRemovalProject = nil } }
+            ),
+            presenting: pendingRemovalProject
+        ) { project in
+            if project.isInManagedProjectCache {
+                Button(String(localized: "删除工程缓存"), role: .destructive) {
+                    onRemove(project, true)
+                    pendingRemovalProject = nil
+                }
+            } else {
+                Button(String(localized: "从列表移除")) {
+                    onRemove(project, false)
+                    pendingRemovalProject = nil
+                }
+            }
+            Button(String(localized: "取消"), role: .cancel) {
+                pendingRemovalProject = nil
+            }
+        } message: { project in
+            if project.isInManagedProjectCache {
+                Text(String(localized: "这个项目位于 Strophe 工程缓存中。从列表移除会同时删除该缓存文件：\n\(project.path)"))
+            } else {
+                Text(String(localized: "只会从最近项目列表移除，不会删除磁盘上的文件：\n\(project.path)"))
+            }
+        }
+    }
+
+    private var removalAlertTitle: String {
+        guard let pendingRemovalProject else {
+            return String(localized: "从列表移除")
+        }
+        return pendingRemovalProject.isInManagedProjectCache
+            ? String(localized: "删除缓存项目？")
+            : String(localized: "从最近项目移除？")
     }
 
     private var emptyState: some View {
@@ -393,9 +433,11 @@ private struct WelcomeRecentProjectRow: View {
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .symbolRenderingMode(.monochrome)
+                    .foregroundStyle(Color.secondary)
                     .frame(width: 28, height: 28)
             }
+            .tint(Color.secondary)
             .opacity(isHovering ? 1 : 0.65)
         }
         .padding(.horizontal, 12)
@@ -415,22 +457,16 @@ private struct WelcomeRecentProjectRow: View {
 
 private extension View {
     @ViewBuilder
-    func welcomeGlassCard(cornerRadius: CGFloat, isHovering: Bool) -> some View {
-        if #available(anyAppleOS 26.0, *) {
-            self
-                .background(Color.white.opacity(isHovering ? 0.08 : 0.035))
-                .glassEffect(.regular.interactive(), in: .rect(cornerRadius: cornerRadius, style: .continuous))
-        } else {
-            self
-                .background(
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .stroke(Color.stropheBorder.opacity(isHovering ? 0.55 : 0.35), lineWidth: 1)
-                )
-        }
+    func welcomeButtonCard(cornerRadius: CGFloat, isHovering: Bool) -> some View {
+        self
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(isHovering ? Color.white.opacity(0.12) : Color.white.opacity(0.055))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(Color.stropheBorder.opacity(isHovering ? 0.5 : 0.25), lineWidth: 1)
+            )
     }
 }
 
@@ -445,6 +481,6 @@ private extension View {
         ],
         isOpeningProject: false,
         onAction: { _ in },
-        onRemoveRecentProject: { _ in }
+        onRemoveRecentProject: { _, _ in }
     )
 }

@@ -108,12 +108,16 @@ extension SubtitleProject {
         store.group(id: item.groupID) ?? store.activeGroup ?? store.groups.first
     }
 
+    func belongsToGroup(_ item: SubtitleItem, groupID: UUID, store: StyleAndGroupStore = .shared) -> Bool {
+        subgroup(for: item, store: store)?.id == groupID
+    }
+
     func cueCount(in groupID: UUID) -> Int {
-        items.filter { $0.groupID == groupID }.count
+        items.filter { belongsToGroup($0, groupID: groupID) }.count
     }
 
     func selectedCueCount(in groupID: UUID) -> Int {
-        items.filter { selectedIDs.contains($0.id) && $0.groupID == groupID }.count
+        items.filter { selectedIDs.contains($0.id) && belongsToGroup($0, groupID: groupID) }.count
     }
 
     func isLockedForEditing(_ item: SubtitleItem, store: StyleAndGroupStore = .shared) -> Bool {
@@ -148,13 +152,13 @@ extension SubtitleProject {
     }
 
     func selectAllCues(in groupID: UUID) {
-        selectedIDs = Set(items.filter { $0.groupID == groupID }.map(\.id))
+        selectedIDs = Set(items.filter { belongsToGroup($0, groupID: groupID) }.map(\.id))
     }
 
     func clearText(in groupID: UUID) {
         let oldItems = items
         let oldSelectedIDs = selectedIDs
-        for index in items.indices where items[index].groupID == groupID && !isLockedForEditing(items[index]) {
+        for index in items.indices where belongsToGroup(items[index], groupID: groupID) && !isLockedForEditing(items[index]) {
             items[index].text = ""
         }
         registerUndo(label: String(localized: "清空分组文字"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
@@ -165,9 +169,9 @@ extension SubtitleProject {
         let oldItems = items
         let oldSelectedIDs = selectedIDs
         items.removeAll { item in
-            item.groupID == groupID && !isLockedForEditing(item)
+            belongsToGroup(item, groupID: groupID) && !isLockedForEditing(item)
         }
-        selectedIDs.subtract(oldItems.filter { $0.groupID == groupID }.map(\.id))
+        selectedIDs.subtract(oldItems.filter { belongsToGroup($0, groupID: groupID) }.map(\.id))
         registerUndo(label: String(localized: "删除分组字幕"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
@@ -410,6 +414,179 @@ extension SubtitleProject {
         }
         notifyChange()
     }
+
+    func translationItem(sourceID: UUID, targetGroupID: UUID) -> SubtitleItem? {
+        items.first { $0.parentItemID == sourceID && $0.groupID == targetGroupID }
+    }
+
+    @discardableResult
+    func upsertTranslation(
+        sourceID: UUID,
+        targetGroupID: UUID,
+        text: String,
+        languageCode: String?
+    ) -> UUID? {
+        guard items.contains(where: { $0.id == sourceID }) else { return nil }
+        let oldItems = items
+        let oldSelectedIDs = selectedIDs
+        let translatedID = upsertTranslationWithoutUndo(
+            sourceID: sourceID,
+            targetGroupID: targetGroupID,
+            text: text,
+            languageCode: languageCode
+        )
+        registerUndo(label: String(localized: "翻译字幕"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        sortItemsStable()
+        notifyChange()
+        return translatedID
+    }
+
+    func applyBatchTranslations(
+        _ translations: [UUID: String],
+        targetGroupID: UUID,
+        languageCode: String?
+    ) {
+        guard !translations.isEmpty else { return }
+        let oldItems = items
+        let oldSelectedIDs = selectedIDs
+        for (sourceID, text) in translations {
+            _ = upsertTranslationWithoutUndo(
+                sourceID: sourceID,
+                targetGroupID: targetGroupID,
+                text: text,
+                languageCode: languageCode
+            )
+        }
+        registerUndo(label: String(localized: "批量翻译字幕"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        sortItemsStable()
+        notifyChange()
+    }
+
+    func convertSelectedSubtitlesToPinyin() {
+        let editableIDs = selectedIDs.filter { id in
+            items.first(where: { $0.id == id }).map { !isLockedForEditing($0) } ?? false
+        }
+        guard !editableIDs.isEmpty else { return }
+        let oldItems = items
+        let oldSelectedIDs = selectedIDs
+        for index in items.indices where editableIDs.contains(items[index].id) {
+            items[index].text = LanguageProcessingService.pinyinWithToneMarks(items[index].text)
+        }
+        registerUndo(label: String(localized: "汉字转拼音"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        notifyChange()
+    }
+
+    func autoWrapSelectedSubtitles(
+        maximumLength: Int,
+        languageMode: AutoWrapLanguageMode,
+        outputMode: AutoWrapOutputMode
+    ) {
+        let selected = items.filter { selectedIDs.contains($0.id) && !isLockedForEditing($0) }
+        guard !selected.isEmpty else { return }
+        let oldItems = items
+        let oldSelectedIDs = selectedIDs
+
+        switch outputMode {
+        case .insertLineBreaks:
+            for index in items.indices where selectedIDs.contains(items[index].id) && !isLockedForEditing(items[index]) {
+                let lines = LanguageProcessingService.wrappedLines(
+                    items[index].text,
+                    maximumLength: maximumLength,
+                    mode: languageMode
+                )
+                items[index].text = lines.joined(separator: "\n")
+            }
+        case .splitSubtitleBlocks:
+            let selectedIDSet = Set(selected.map(\.id))
+            var replacements: [UUID: [SubtitleItem]] = [:]
+            var newSelection: Set<UUID> = []
+            var nextOriginalIndex = (items.map(\.originalIndex).max() ?? 0) + 1
+            for item in selected {
+                let lines = LanguageProcessingService.wrappedLines(
+                    item.text,
+                    maximumLength: maximumLength,
+                    mode: languageMode
+                )
+                guard lines.count > 1 else { continue }
+                let totalWeight = max(1, lines.reduce(0) { $0 + max(1, $1.count) })
+                var consumedWeight = 0
+                var splitItems: [SubtitleItem] = []
+                for (lineIndex, line) in lines.enumerated() {
+                    var split = item
+                    if lineIndex > 0 {
+                        split.id = UUID()
+                        split.originalIndex = nextOriginalIndex
+                        nextOriginalIndex += 1
+                    }
+                    split.text = line
+                    if let start = item.startTime, let end = item.endTime, end > start {
+                        let duration = end - start
+                        let lineWeight = max(1, line.count)
+                        split.startTime = start + duration * Double(consumedWeight) / Double(totalWeight)
+                        consumedWeight += lineWeight
+                        split.endTime = lineIndex == lines.count - 1
+                            ? end
+                            : start + duration * Double(consumedWeight) / Double(totalWeight)
+                    }
+                    splitItems.append(split)
+                    newSelection.insert(split.id)
+                }
+                replacements[item.id] = splitItems
+            }
+            if !replacements.isEmpty {
+                var rebuilt: [SubtitleItem] = []
+                rebuilt.reserveCapacity(items.count + replacements.values.reduce(0) { $0 + $1.count - 1 })
+                for item in items {
+                    if let split = replacements[item.id] {
+                        rebuilt.append(contentsOf: split)
+                    } else {
+                        rebuilt.append(item)
+                        if selectedIDSet.contains(item.id) { newSelection.insert(item.id) }
+                    }
+                }
+                items = rebuilt
+                selectedIDs = newSelection
+            }
+        }
+
+        guard items != oldItems else { return }
+        registerUndo(label: String(localized: "自动换行"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        sortItemsStable()
+        notifyChange()
+    }
+
+    private func upsertTranslationWithoutUndo(
+        sourceID: UUID,
+        targetGroupID: UUID,
+        text: String,
+        languageCode: String?
+    ) -> UUID? {
+        guard let sourceIndex = items.firstIndex(where: { $0.id == sourceID }) else { return nil }
+        if let existingIndex = items.firstIndex(where: { $0.parentItemID == sourceID && $0.groupID == targetGroupID }) {
+            guard !isLockedForEditing(items[existingIndex]) else { return nil }
+            items[existingIndex].text = text
+            items[existingIndex].languageCode = languageCode
+            return items[existingIndex].id
+        }
+
+        let pairID = items[sourceIndex].bilingualPairID ?? UUID()
+        items[sourceIndex].bilingualPairID = pairID
+        let source = items[sourceIndex]
+        let targetTrack = StyleAndGroupStore.shared.sortedGroups.firstIndex(where: { $0.id == targetGroupID }) ?? source.trackIndex + 1
+        let translated = SubtitleItem(
+            text: text,
+            startTime: source.startTime,
+            endTime: source.endTime,
+            originalIndex: (items.map(\.originalIndex).max() ?? 0) + 1,
+            groupID: targetGroupID,
+            trackIndex: targetTrack,
+            parentItemID: source.id,
+            languageCode: languageCode,
+            bilingualPairID: pairID
+        )
+        items.append(translated)
+        return translated.id
+    }
     
     func deleteSubtitle(id: UUID) {
         let oldItems = items
@@ -628,22 +805,54 @@ extension SubtitleProject {
     }
     
     func autoUpdateCurrentIndex() {
+        let activeGroupID = StyleAndGroupStore.shared.activeGroupID
+        
         // Default to the current index and scroll target to maintain selection if no new block matches
         var targetIndex: Int = currentIndex
         var targetID: UUID? = (currentIndex >= 0 && currentIndex < items.count) ? items[currentIndex].id : scrollTargetID
+        
+        // Ensure the fallback targetID belongs to the active group if possible
+        if let tid = targetID, let item = items.first(where: { $0.id == tid }), let activeGroupID = activeGroupID {
+            if !belongsToGroup(item, groupID: activeGroupID) {
+                targetID = nil
+            }
+        }
         
         if let activeID = activeSlapSubtitleID {
             if let index = items.firstIndex(where: { $0.id == activeID }) {
                 targetIndex = index
                 targetID = activeID
             }
-        } else if let firstMatch = timelineIndex.visibleItems(in: currentTime...currentTime).first,
+        } else if let firstMatch = timelineIndex.visibleItems(in: currentTime...currentTime)
+            .first(where: { item in
+                if let activeGroupID = activeGroupID {
+                    return belongsToGroup(item, groupID: activeGroupID)
+                }
+                return true
+            }),
                   let index = timelineIndex.itemIndexByID[firstMatch.id] {
             targetIndex = index
             targetID = firstMatch.id
-        } else if let index = items.firstIndex(where: { $0.startTime == nil }) {
+        } else if let untimedItem = timelineIndex.untimedItems.first(where: { item in
+            activeGroupID == nil || belongsToGroup(item, groupID: activeGroupID!)
+        }), let index = timelineIndex.itemIndexByID[untimedItem.id] {
             targetIndex = index
-            targetID = items[index].id
+            targetID = untimedItem.id
+        } else if let activeGroupID = activeGroupID {
+            // Reuse the sorted index instead of allocating and scanning an entire
+            // active-group array on every playback tick between subtitle blocks.
+            if let lastPlayed = timelineIndex.lastTimedItem(
+                startingOnOrBefore: currentTime,
+                matching: { belongsToGroup($0, groupID: activeGroupID) }
+            ), let index = timelineIndex.itemIndexByID[lastPlayed.id] {
+                targetIndex = index
+                targetID = lastPlayed.id
+            } else if let firstUpcoming = timelineIndex.firstTimedItem(
+                matching: { belongsToGroup($0, groupID: activeGroupID) }
+            ), let index = timelineIndex.itemIndexByID[firstUpcoming.id] {
+                targetIndex = index
+                targetID = firstUpcoming.id
+            }
         }
         
         // Ensure index is within bounds if items changed

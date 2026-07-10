@@ -28,13 +28,24 @@ struct MainContentView: View {
     
     var isCompact: Bool = false
     var path: Binding<NavigationPath> = .constant(NavigationPath())
+    var onSaveProject: () -> Void
+    var onSaveProjectAs: () -> Void
     @Binding var selectedTab: StropheTab
 
-    init(project: SubtitleProject, selectedTab: Binding<StropheTab>, isCompact: Bool = false, path: Binding<NavigationPath> = .constant(NavigationPath())) {
+    init(
+        project: SubtitleProject,
+        selectedTab: Binding<StropheTab>,
+        isCompact: Bool = false,
+        path: Binding<NavigationPath> = .constant(NavigationPath()),
+        onSaveProject: @escaping () -> Void = {},
+        onSaveProjectAs: @escaping () -> Void = {}
+    ) {
         self.project = project
         self._selectedTab = selectedTab
         self.isCompact = isCompact
         self.path = path
+        self.onSaveProject = onSaveProject
+        self.onSaveProjectAs = onSaveProjectAs
     }
 
     private var stropheUTType: UTType {
@@ -85,15 +96,14 @@ struct MainContentView: View {
             StropheMainToolbar(
                 project: project,
                 horizontalSizeClass: horizontalSizeClass,
-                onImportMedia: {
-                    requestImportMedia()
-                },
                 onExportSoftSubtitles: { format in
                     exportSubtitles(format: format)
                 },
                 onExportHardSubtitles: {
                     isShowingHardSubtitleExportSettings = true
                 },
+                onSaveProject: onSaveProject,
+                onSaveProjectAs: onSaveProjectAs,
                 selectedTab: $selectedTab
             )
         }

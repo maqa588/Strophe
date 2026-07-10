@@ -52,10 +52,26 @@ struct SubtitleStyle: Codable, Sendable, Identifiable, Equatable {
     var backgroundColorHex: String?
     var backgroundAlpha: Double? // 0.0 to 1.0
     
-    enum Alignment: String, Codable, Sendable {
+    enum Alignment: String, CaseIterable, Codable, Sendable, Identifiable, Equatable {
         case topLeft, topCenter, topRight
         case middleLeft, middleCenter, middleRight
         case bottomLeft, bottomCenter, bottomRight
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .topLeft: return "左上"
+            case .topCenter: return "上中"
+            case .topRight: return "右上"
+            case .middleLeft: return "左中"
+            case .middleCenter: return "居中"
+            case .middleRight: return "右中"
+            case .bottomLeft: return "左下"
+            case .bottomCenter: return "底部居中"
+            case .bottomRight: return "右下"
+            }
+        }
     }
 }
 

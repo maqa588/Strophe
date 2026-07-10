@@ -28,9 +28,26 @@ extension AutoCaptionView {
                     Section {
                         runningStateView
                     }
-                } else if !isLocalAISupported {
+                } else if selectedGenerationMode == nil {
+                    iosMediaSourceSection
+                    iosRecognitionModeGuideSection
+                } else if selectedGenerationMode == .cloud {
                     iosMediaSourceSection
                     iosCloudRecognitionSection
+                    Section {
+                        Picker("提交语言", selection: $selectedLanguage) {
+                            ForEach(languages, id: \.0) { item in
+                                Text(item.1).tag(item.0)
+                            }
+                        }
+                        .pickerStyle(.navigationLink)
+                    } header: {
+                        Text("语言配置")
+                    } footer: {
+                        Text("推荐选择特定的语言以获得针对该语种特别优化过的生成效果；如不确定可选择“自动检测”。")
+                    }
+                } else if !isLocalAISupported {
+                    iosMediaSourceSection
 
                     if isLocalAIIncludedInBuild {
                         Section {
@@ -59,7 +76,6 @@ extension AutoCaptionView {
                     }
                 } else {
                     iosMediaSourceSection
-                    iosCloudRecognitionSection
                     
                     Section {
                         // Model Selection
@@ -190,30 +206,35 @@ extension AutoCaptionView {
             #endif
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("取消") {
-                        dismiss()
+                    if (selectedGenerationMode == .local || selectedGenerationMode == .cloud) && !isRunning {
+                        Button("返回") {
+                            selectedGenerationMode = nil
+                        }
+                    } else {
+                        Button("取消") {
+                            dismiss()
+                        }
+                        .disabled(isRunning)
                     }
-                    .disabled(isRunning)
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if isRunning {
                         ProgressView()
-                    } else {
-                        HStack(spacing: 10) {
-                            if isLocalAIIncludedInBuild {
-                                Button("本地") {
-                                    handleStartLocalButton()
-                                }
-                                .disabled(!canStartLocalCaptioning)
-                            }
-
-                            Button("云端") {
-                                handleStartCloudButton()
-                            }
-                            .fontWeight(.bold)
-                            .disabled(!canStartCloudCaptioning)
+                    } else if selectedGenerationMode == .local {
+                        Button("本地") {
+                            handleStartLocalButton()
                         }
+                        .fontWeight(.bold)
+                        .disabled(!canStartLocalCaptioning)
+                    } else if selectedGenerationMode == .cloud {
+                        Button("云端") {
+                            handleStartCloudButton()
+                        }
+                        .fontWeight(.bold)
+                        .disabled(!canStartCloudCaptioning)
+                    } else {
+                        EmptyView()
                     }
                 }
             }
@@ -272,6 +293,57 @@ extension AutoCaptionView {
             Text("云端识别")
         }
     }
+
+    @ViewBuilder
+    var iosRecognitionModeGuideSection: some View {
+        Section {
+            Button {
+                selectedGenerationMode = .cloud
+            } label: {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Label("云端识别", systemImage: "cloud.fill")
+                            .font(.headline)
+                        Spacer()
+                        Text(project.videoURL == nil ? "需要媒体" : "可用")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(project.videoURL == nil ? .secondary : Color.stropheAccent)
+                    }
+                    Text(cloudRecognitionDetailText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(!canStartCloudCaptioning)
+
+            Button {
+                handleChooseLocalButton()
+            } label: {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Label("本地识别", systemImage: "cpu")
+                            .font(.headline)
+                        Spacer()
+                        Text(localRecognitionStatusText)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(isLocalAIIncludedInBuild && isLocalAISupported ? Color.stropheAccent : .secondary)
+                    }
+                    Text(localRecognitionDetailText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(!isLocalAIIncludedInBuild || !isLocalAISupported)
+        } header: {
+            Text("选择识别方式")
+        } footer: {
+            Text("云端和本地识别均需先进行相关参数与提交语言配置。")
+        }
+    }
     #endif
     
     @ViewBuilder
@@ -303,6 +375,8 @@ extension AutoCaptionView {
             
             if isRunning {
                 runningStateView
+            } else if selectedGenerationMode == nil {
+                recognitionModeGuide
             } else {
                 configurationForm
             }
@@ -312,36 +386,138 @@ extension AutoCaptionView {
             
             // Bottom Actions
             HStack {
+                if (selectedGenerationMode == .local || selectedGenerationMode == .cloud) && !isRunning {
+                    Button("返回") {
+                        selectedGenerationMode = nil
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(Color.stropheText)
+                }
+
                 Spacer()
-                
+
                 Button("取消") {
                     dismiss()
                 }
                 .buttonStyle(.bordered)
                 .disabled(isRunning)
                 .tint(Color.stropheText)
-                
-                if isLocalAIIncludedInBuild {
+
+                if selectedGenerationMode == .local {
                     Button(action: handleStartLocalButton) {
                         Text("本地生成字幕")
                             .fontWeight(.semibold)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(Color.stropheText)
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color.stropheAccent)
                     .disabled(!canStartLocalCaptioning)
+                } else if selectedGenerationMode == .cloud {
+                    Button(action: handleStartCloudButton) {
+                        Text("云端生成字幕")
+                            .fontWeight(.semibold)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color.stropheAccent)
+                    .disabled(!canStartCloudCaptioning)
                 }
-
-                Button(action: handleStartCloudButton) {
-                    Text("云端生成字幕")
-                        .fontWeight(.semibold)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(Color.stropheAccent)
-                .disabled(!canStartCloudCaptioning)
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
         }
+    }
+
+    @ViewBuilder
+    var recognitionModeGuide: some View {
+        ScrollView {
+            VStack(spacing: 18) {
+                mediaStatusCard
+
+                Text("选择识别方式")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Color.stropheText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button(action: { selectedGenerationMode = .cloud }) {
+                    recognitionChoiceCard(
+                        title: "云端识别",
+                        systemImage: "cloud.fill",
+                        status: project.videoURL == nil ? "需要媒体" : "可用",
+                        detail: cloudRecognitionDetailText,
+                        isProminent: true,
+                        isAvailable: project.videoURL != nil
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(!canStartCloudCaptioning)
+
+                Button(action: handleChooseLocalButton) {
+                    recognitionChoiceCard(
+                        title: "本地识别",
+                        systemImage: "cpu",
+                        status: localRecognitionStatusText,
+                        detail: localRecognitionDetailText,
+                        isProminent: false,
+                        isAvailable: isLocalAIIncludedInBuild && isLocalAISupported
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(!isLocalAIIncludedInBuild || !isLocalAISupported)
+
+                Text("云端和本地识别均需先进行相关参数与提交语言配置。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 18)
+        }
+    }
+
+    @ViewBuilder
+    func recognitionChoiceCard(
+        title: String,
+        systemImage: String,
+        status: String,
+        detail: String,
+        isProminent: Bool,
+        isAvailable: Bool
+    ) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: systemImage)
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(isProminent && isAvailable ? Color.stropheAccent : .secondary)
+                .frame(width: 34, height: 34)
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 10) {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundStyle(Color.stropheText)
+
+                    Spacer()
+
+                    Text(status)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(isAvailable ? Color.stropheAccent : .secondary)
+                }
+
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.stropheSecondaryBackground.opacity(isProminent ? 0.7 : 0.5))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(isProminent && isAvailable ? Color.stropheAccent.opacity(0.55) : Color.stropheBorder, lineWidth: 1)
+        )
+        .opacity(isAvailable ? 1.0 : 0.62)
     }
 
     @ViewBuilder
@@ -388,51 +564,55 @@ extension AutoCaptionView {
         .overlay(
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.stropheBorder, lineWidth: 1)
-        )
+            )
+    }
+
+    @ViewBuilder
+    var mediaStatusCard: some View {
+        if project.videoURL == nil {
+            HStack(spacing: 12) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .font(.title2)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("未加载媒体")
+                        .fontWeight(.semibold)
+                    Text("请先导入视频或音频文件再使用语音识别功能。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.stropheSecondaryBackground)
+            .cornerRadius(12)
+        } else {
+            HStack {
+                Image(systemName: "play.rectangle.fill")
+                    .foregroundStyle(Color.stropheAccent)
+                Text("当前媒体: \(project.documentDisplayName)")
+                    .font(.subheadline)
+                    .lineLimit(1)
+                    .foregroundStyle(Color.stropheText)
+                Spacer()
+            }
+            .padding()
+            .frame(maxWidth: .infinity)
+            .background(Color.stropheSecondaryBackground)
+            .cornerRadius(12)
+        }
     }
     
     @ViewBuilder
     var configurationForm: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // Media Source Check
-                if project.videoURL == nil {
-                    HStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
-                            .font(.title2)
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("未加载媒体")
-                                .fontWeight(.semibold)
-                            Text("请先导入视频或音频文件再使用语音识别功能。")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.stropheSecondaryBackground)
-                    .cornerRadius(12)
-                } else {
-                    HStack {
-                        Image(systemName: "play.rectangle.fill")
-                            .foregroundStyle(Color.stropheAccent)
-                        Text("当前媒体: \(project.documentDisplayName)")
-                            .font(.subheadline)
-                            .lineLimit(1)
-                            .foregroundStyle(Color.stropheText)
-                        Spacer()
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(Color.stropheSecondaryBackground)
-                    .cornerRadius(12)
-                }
+                mediaStatusCard
 
-                cloudConfigurationCard
-
-                if isLocalAIIncludedInBuild {
+                if selectedGenerationMode == .cloud {
+                    cloudConfigurationForm
+                } else if isLocalAIIncludedInBuild {
                     if isLocalAISupported {
                 
                         // Section 1: Qwen3-ASR Config
@@ -695,5 +875,42 @@ extension AutoCaptionView {
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
         }
+    }
+
+    @ViewBuilder
+    var cloudConfigurationForm: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("云端语音识别配置")
+                .font(.headline)
+                .foregroundStyle(Color.stropheText)
+
+            cloudConfigurationCard
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("提交语言")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                
+                Picker("提交语言", selection: $selectedLanguage) {
+                    ForEach(languages, id: \.0) { item in
+                        Text(item.1).tag(item.0)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+            .padding(.top, 4)
+            
+            Text("提示：推荐选择特定的语言以获得针对该语种特别优化过的生成效果；如不确定可选择“自动检测”。")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.stropheSecondaryBackground.opacity(0.5))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.stropheBorder, lineWidth: 1)
+        )
     }
 }

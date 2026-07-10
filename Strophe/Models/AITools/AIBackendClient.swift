@@ -31,6 +31,7 @@ struct AIGenerateSubtitlesRequest: Sendable {
 struct AICloudGenerateSubtitlesRequest: Sendable {
     let mediaURL: URL
     let endpointURL: URL
+    let language: String
 }
 
 struct AICloudTranscriptionResult: Sendable {
@@ -239,8 +240,8 @@ actor AIBackendClient {
 
         progressCallback?(1, 0.05, "正在上传音频到云端识别服务...")
         let boundary = "StropheBoundary-\(UUID().uuidString)"
-        let body = try Self.makeCloudMultipartBody(audioURL: preparedAudio16kURL, boundary: boundary)
-        var urlRequest = URLRequest(url: try Self.cloudEndpointWithStreamParam(request.endpointURL))
+        let body = try Self.makeCloudMultipartBody(audioURL: preparedAudio16kURL, language: request.language, boundary: boundary)
+        var urlRequest = URLRequest(url: try Self.cloudEndpointWithStreamParam(request.endpointURL, language: request.language))
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         urlRequest.setValue(String(body.count), forHTTPHeaderField: "Content-Length")
@@ -383,7 +384,7 @@ actor AIBackendClient {
         let text: String
     }
 
-    private static func cloudEndpointWithStreamParam(_ endpointURL: URL) throws -> URL {
+    private static func cloudEndpointWithStreamParam(_ endpointURL: URL, language: String) throws -> URL {
         guard var components = URLComponents(url: endpointURL, resolvingAgainstBaseURL: false) else {
             throw NSError(
                 domain: "AIBackendClient",
@@ -395,6 +396,12 @@ actor AIBackendClient {
         var queryItems = components.queryItems ?? []
         if !queryItems.contains(where: { $0.name == "stream" }) {
             queryItems.append(URLQueryItem(name: "stream", value: "true"))
+        }
+        if !queryItems.contains(where: { $0.name == "language" }) {
+            queryItems.append(URLQueryItem(name: "language", value: language))
+        }
+        if !queryItems.contains(where: { $0.name == "lang" }) {
+            queryItems.append(URLQueryItem(name: "lang", value: language))
         }
         components.queryItems = queryItems
 
@@ -408,12 +415,20 @@ actor AIBackendClient {
         return url
     }
 
-    private static func makeCloudMultipartBody(audioURL: URL, boundary: String) throws -> Data {
+    private static func makeCloudMultipartBody(audioURL: URL, language: String, boundary: String) throws -> Data {
         var body = Data()
 
         func append(_ string: String) {
             body.append(Data(string.utf8))
         }
+
+        append("--\(boundary)\r\n")
+        append("Content-Disposition: form-data; name=\"language\"\r\n\r\n")
+        append("\(language)\r\n")
+
+        append("--\(boundary)\r\n")
+        append("Content-Disposition: form-data; name=\"lang\"\r\n\r\n")
+        append("\(language)\r\n")
 
         append("--\(boundary)\r\n")
         append("Content-Disposition: form-data; name=\"file\"; filename=\"\(audioURL.lastPathComponent)\"\r\n")

@@ -7,7 +7,28 @@ class StropheIOSAppDelegate: NSObject, UIApplicationDelegate {
     weak var project: SubtitleProject?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+        installMainMenuBarIfAvailable()
         return true
+    }
+
+    @available(iOS 26.0, *)
+    private func configureMainMenuBar() {
+        let configuration = UIMainMenuSystem.Configuration()
+        configuration.documentPreference = .removed
+        configuration.printingPreference = .removed
+        UIMainMenuSystem.shared.setBuildConfiguration(configuration)
+    }
+
+    func rebuildMainMenuBarIfAvailable() {
+        if #available(iOS 26.0, *) {
+            UIMainMenuSystem.shared.setNeedsRebuild()
+        }
+    }
+
+    private func installMainMenuBarIfAvailable() {
+        if #available(iOS 26.0, *) {
+            configureMainMenuBar()
+        }
     }
 }
 #endif
@@ -22,6 +43,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NotificationCenter.default.post(name: .stropheShowSaveOnQuitAlert, object: nil)
         return .terminateLater
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag {
+            // Re-show the welcome window when user clicks Dock icon with no visible windows
+            if let welcomeWindow = NSApplication.shared.windows.first(where: {
+                $0.identifier?.rawValue.contains("welcome") == true
+            }) {
+                welcomeWindow.makeKeyAndOrderFront(nil)
+                NSApplication.shared.activate(ignoringOtherApps: true)
+            }
+        }
+        return true
     }
 }
 #endif
@@ -71,16 +105,13 @@ struct StropheApp: App {
         .commands {
             StropheNavBarCommands(project: project)
         }
-        
-        DocumentGroup(newDocument: StropheProjectDocument()) { file in
-            StropheDocumentEditorView(document: file.$document, fileURL: file.fileURL)
-        }
         #else
         #if os(iOS)
         WindowGroup {
             WelcomeRouterView(project: project)
                 .onAppear {
                     appDelegate.project = project
+                    appDelegate.rebuildMainMenuBarIfAvailable()
                 }
         }
         .commands {
@@ -152,6 +183,8 @@ private enum IOSStderrRedirector {
 #endif
 
 extension Notification.Name {
+    static let stropheNewProject = Notification.Name("com.strophe.newProject")
+    static let stropheReplaceMedia = Notification.Name("com.strophe.replaceMedia")
     static let stropheOpenProject = Notification.Name("com.strophe.openProject")
     static let stropheImportMedia = Notification.Name("com.strophe.importMedia")
     static let stropheSaveProject = Notification.Name("com.strophe.saveProject")
@@ -160,7 +193,12 @@ extension Notification.Name {
     static let strophePasteScript = Notification.Name("com.strophe.pasteScript")
     static let stropheImportScriptFile = Notification.Name("com.strophe.importScriptFile")
     static let stropheStartSpeechRecognition = Notification.Name("com.strophe.startSpeechRecognition")
+    static let stropheStartSubtitleTranslation = Notification.Name("com.strophe.startSubtitleTranslation")
+    static let stropheStartBatchTranslation = Notification.Name("com.strophe.startBatchTranslation")
+    static let stropheConvertSelectedToPinyin = Notification.Name("com.strophe.convertSelectedToPinyin")
+    static let stropheOpenAutoLineWrap = Notification.Name("com.strophe.openAutoLineWrap")
     static let stropheOpenProjectWithURL = Notification.Name("com.strophe.openProjectWithURL")
     static let stropheShowSaveOnQuitAlert = Notification.Name("com.strophe.showSaveOnQuitAlert")
     static let stropheScrubTimeChanged = Notification.Name("com.strophe.scrubTimeChanged")
+    static let stropheShowWelcome = Notification.Name("com.strophe.showWelcome")
 }

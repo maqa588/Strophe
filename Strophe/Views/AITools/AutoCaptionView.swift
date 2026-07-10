@@ -31,6 +31,7 @@ struct AutoCaptionView: View {
     @State var referenceLyrics: String = ""
     
     // UI steps & running state
+    @State var selectedGenerationMode: CaptionGenerationMode? = nil
     @State var isRunning: Bool = false
     @State var runningMode: CaptionGenerationMode = .local
     @State var currentStep: Int = 0
@@ -97,6 +98,32 @@ struct AutoCaptionView: View {
 
     var canStartCloudCaptioning: Bool {
         project.videoURL != nil && !isRunning
+    }
+
+    var localRecognitionStatusText: String {
+        guard isLocalAIIncludedInBuild else { return "不可用" }
+        return isLocalAISupported ? "可用" : "不可用"
+    }
+
+    var localRecognitionDetailText: String {
+        guard isLocalAIIncludedInBuild else {
+            return AIBackendClient.unsupportedDeviceMessage
+        }
+        return isLocalAISupported
+            ? "使用端侧 Qwen3-ASR、ForcedAligner 与本地模型配置。"
+            : AIBackendClient.unsupportedDeviceMessage
+    }
+
+    var cloudRecognitionDetailText: String {
+        "提交到 \(AIBackendClient.defaultCloudTranscribeURL.absoluteString)，返回完整句子时间轴。"
+    }
+
+    func handleChooseLocalButton() {
+        guard isLocalAIIncludedInBuild, isLocalAISupported else {
+            showUnsupportedLocalAIAlert = true
+            return
+        }
+        selectedGenerationMode = .local
     }
 
     func handleStartLocalButton() {

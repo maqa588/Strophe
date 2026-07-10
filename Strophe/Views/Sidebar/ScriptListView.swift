@@ -17,6 +17,11 @@ struct ScriptListView: View {
     @State private var editingEndText = ""
     @State private var editingTimeItem: SubtitleItem? = nil
     @State private var isShowingAutoCaption = false
+    @State private var isShowingTranslationAssistant = false
+    @State private var translationStartItemID: UUID?
+    @State private var isShowingBatchTranslation = false
+    @State private var isShowingPinyinConversion = false
+    @State private var isShowingAutoLineWrap = false
     @ObservedObject private var store = StyleAndGroupStore.shared
     
     /// Legacy compact-mode support (iOS 17 / macOS 14 fallback).
@@ -108,17 +113,49 @@ struct ScriptListView: View {
         .onReceive(NotificationCenter.default.publisher(for: .strophePasteScript)) { _ in
             isShowingInput = true
         }
-        .onReceive(NotificationCenter.default.publisher(for: .stropheImportScriptFile)) { _ in
-            isShowingFileImporter = true
-        }
         .onReceive(NotificationCenter.default.publisher(for: .stropheStartSpeechRecognition)) { _ in
             isShowingAutoCaption = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheStartSubtitleTranslation)) { notification in
+            translationStartItemID = notification.object as? UUID
+            isShowingTranslationAssistant = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheStartBatchTranslation)) { _ in
+            isShowingBatchTranslation = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheConvertSelectedToPinyin)) { _ in
+            isShowingPinyinConversion = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheOpenAutoLineWrap)) { _ in
+            isShowingAutoLineWrap = true
         }
         .sheet(isPresented: $isShowingAutoCaption) {
             AutoCaptionView(project: project)
         }
         .stropheOnChange(of: isShowingAutoCaption) { newValue in
             project.isEditingText = newValue
+        }
+        .sheet(isPresented: $isShowingTranslationAssistant) {
+            SubtitleTranslationAssistantView(project: project, startItemID: translationStartItemID)
+        }
+        .sheet(isPresented: $isShowingBatchTranslation) {
+            BatchTranslationView(project: project)
+        }
+        .sheet(isPresented: $isShowingPinyinConversion) {
+            PinyinConversionSheet(project: project)
+        }
+        .sheet(isPresented: $isShowingAutoLineWrap) {
+            AutoLineWrapSheet(project: project)
+        }
+        .stropheOnChange(of: isShowingTranslationAssistant) { newValue in
+            project.isEditingText = newValue
+            if !newValue { translationStartItemID = nil }
+        }
+        .stropheOnChange(of: isShowingBatchTranslation) { project.isEditingText = $0 }
+        .stropheOnChange(of: isShowingPinyinConversion) { project.isEditingText = $0 }
+        .stropheOnChange(of: isShowingAutoLineWrap) { project.isEditingText = $0 }
+        .stropheOnChange(of: store.activeGroupID) { _ in
+            project.autoUpdateCurrentIndex()
         }
     }
 
@@ -142,13 +179,11 @@ struct ScriptListView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(Color.stropheAccent)
                 
-                #if !STROPHE_LITE
                 Button("Speech Recognition…") {
                     isShowingAutoCaption = true
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Color.stropheAccent)
-                #endif
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -159,7 +194,10 @@ struct ScriptListView: View {
     private var scriptList: some View {
         ScrollViewReader { scrollProxy in
             List(selection: $project.selectedIDs) {
-                ForEach(project.items) { item in
+                ForEach(project.items.filter { item in
+                    guard let activeGroupID = store.activeGroupID else { return true }
+                    return project.belongsToGroup(item, groupID: activeGroupID, store: store)
+                }) { item in
                     let group = project.subgroup(for: item, store: store)
                     let isLocked = item.isLocked || group?.isLocked == true
 
@@ -274,6 +312,12 @@ struct ScriptListView: View {
                             Label("设定样式", systemImage: "textformat")
                         }
                         .disabled(isLocked)
+
+                        Button {
+                            NotificationCenter.default.post(name: .stropheStartSubtitleTranslation, object: item.id)
+                        } label: {
+                            Label("从这里开始翻译", systemImage: "character.bubble")
+                        }
 
                         Divider()
 

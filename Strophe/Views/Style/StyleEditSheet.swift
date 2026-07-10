@@ -15,6 +15,7 @@ import UIKit
 struct StyleEditSheet: View {
     @Binding var isPresented: Bool
     @Binding var selectedStyleId: UUID?
+    @ObservedObject var project: SubtitleProject
     
     @ObservedObject var store = StyleAndGroupStore.shared
     
@@ -25,6 +26,8 @@ struct StyleEditSheet: View {
     @State private var fontSize: Double = 58
     @State private var isBold: Bool = true
     @State private var isItalic: Bool = false
+    @State private var isUnderline: Bool = false
+    @State private var isStrikethrough: Bool = false
     @State private var outlineColor: Color = .black
     @State private var outlineWidth: Double = 4
     @State private var shadowColor: Color = .black
@@ -32,11 +35,20 @@ struct StyleEditSheet: View {
     @State private var backgroundColor: Color = .black
     @State private var backgroundAlpha: Double = 0
     @State private var isGlowing: Bool = false
+    @State private var alignment: SubtitleStyle.Alignment = .bottomCenter
+    @State private var marginLeftPercent: Double = 5
+    @State private var marginRightPercent: Double = 5
+    @State private var marginVerticalPercent: Double = 5
+    @State private var scaleX: Double = 1
+    @State private var scaleY: Double = 1
+    @State private var characterSpacing: Double = 0
+    @State private var rotationDegrees: Double = 0
     @State private var previewText: String = "Strophe 活页@样式预览"
     @State private var showsCheckerboard = true
     @State private var showsSafeArea = true
     @State private var previewBackground: PreviewBackground = .neutral
     @State private var isShowingFontPicker = false
+    @State private var presetSnapshot: SubgroupStyle?
     
     private var currentFontDisplayName: String {
         if fontName.isEmpty {
@@ -50,6 +62,13 @@ struct StyleEditSheet: View {
     
     private var currentFontInfo: FontInfo? {
         FontCatalog.shared.fonts.first(where: { $0.id == fontName })
+    }
+
+    private var previewVideoSize: CGSize {
+        guard project.videoSize.width > 0, project.videoSize.height > 0 else {
+            return CGSize(width: 1920, height: 1080)
+        }
+        return project.videoSize
     }
 
     private enum PreviewBackground: String, CaseIterable, Identifiable {
@@ -130,6 +149,8 @@ struct StyleEditSheet: View {
                 VStack(spacing: 16) {
                     previewPanel
                     propertiesPanel
+                    alignmentPanel
+                    layoutTransformPanel
                     typographyPanel
                     visualEffectsPanel
                 }
@@ -166,46 +187,63 @@ struct StyleEditSheet: View {
         .onAppear {
             if let id = selectedStyleId,
                let style = store.styles.first(where: { $0.id == id }) {
-                name = style.name
-                description = style.description
-                textColor = style.color
-                fontName = style.fontName ?? ""
-                fontSize = style.fontSize
-                isBold = style.isBold
-                isItalic = style.isItalic
-                outlineColor = style.outlineColor
-                outlineWidth = style.outlineWidth
-                shadowColor = style.shadowColor
-                shadowRadius = style.shadowRadius
-                backgroundColor = style.backgroundColor
-                backgroundAlpha = style.backgroundAlpha
-                isGlowing = style.isGlowing
+                presetSnapshot = style
+                applyPreset(style)
             }
         }
     }
 
     private var previewPanel: some View {
         VStack(spacing: 10) {
-            ZStack {
-                if showsCheckerboard {
-                    CheckerboardPattern()
-                        .opacity(0.42)
+            GeometryReader { proxy in
+                let displayScale = proxy.size.height / previewVideoSize.height
+                let placementRect = SubtitlePlacementMetrics.placementRect(
+                    for: previewVideoSize,
+                    style: resolvedPreviewStyle
+                )
+
+                ZStack {
+                    if showsCheckerboard {
+                        CheckerboardPattern()
+                            .opacity(0.42)
+                    }
+
+                    previewBackground.color.opacity(showsCheckerboard ? 0.55 : 1)
+
+                    if showsSafeArea {
+                        Rectangle()
+                            .stroke(
+                                Color.orange.opacity(0.78),
+                                style: StrokeStyle(lineWidth: 1, dash: [5, 3])
+                            )
+                            .padding(.horizontal, proxy.size.width * SubtitlePlacementMetrics.actionSafeInsetRatio)
+                            .padding(.vertical, proxy.size.height * SubtitlePlacementMetrics.actionSafeInsetRatio)
+
+                        Rectangle()
+                            .stroke(Color.stropheAccent.opacity(0.82), lineWidth: 1)
+                            .padding(.horizontal, proxy.size.width * SubtitlePlacementMetrics.graphicsSafeInsetRatio)
+                            .padding(.vertical, proxy.size.height * SubtitlePlacementMetrics.graphicsSafeInsetRatio)
+                    }
+
+                    stylePreviewText(displayScale: displayScale)
+                        .frame(
+                            width: placementRect.width * displayScale,
+                            height: placementRect.height * displayScale,
+                            alignment: alignment.swiftUIAlignment
+                        )
+                        .position(
+                            x: placementRect.midX * displayScale,
+                            y: placementRect.midY * displayScale
+                        )
+
+                    previewResolutionBadge(displayScale: displayScale)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
-
-                previewBackground.color.opacity(showsCheckerboard ? 0.55 : 1)
-
-                if showsSafeArea {
-                    Rectangle()
-                        .stroke(Color.stropheAccent.opacity(0.82), lineWidth: 1)
-                        .padding(.horizontal, 28)
-                        .padding(.vertical, 18)
-                }
-
-                stylePreviewText
-                    .padding(.horizontal, 36)
             }
-            .frame(height: 210)
+            .aspectRatio(previewVideoSize.width / previewVideoSize.height, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .frame(maxWidth: .infinity, maxHeight: 320)
 
             HStack(spacing: 10) {
                 TextField("预览文本", text: $previewText)
@@ -213,12 +251,12 @@ struct StyleEditSheet: View {
                     .help("输入用于实时预览的样本文本，不会修改字幕内容")
 
                 Button {
-                    previewText = "Strophe 活页@样式预览"
+                    resetToPreset()
                 } label: {
                     Image(systemName: "arrow.counterclockwise")
                 }
                 .buttonStyle(.bordered)
-                .help("恢复默认预览文本")
+                .help("恢复当前 preset 的已保存值")
 
                 Toggle(isOn: $showsCheckerboard) {
                     Image(systemName: "checkerboard.rectangle")
@@ -230,7 +268,7 @@ struct StyleEditSheet: View {
                     Image(systemName: "rectangle.dashed")
                 }
                 .toggleStyle(.button)
-                .help("显示视频安全框")
+                .help("显示 EBU R95 / ITU-R BT.1848 动作安全区（3.5%）与图文安全区（5%）")
 
                 Picker("", selection: $previewBackground) {
                     ForEach(PreviewBackground.allCases) { mode in
@@ -245,8 +283,22 @@ struct StyleEditSheet: View {
         }
     }
 
-    private var stylePreviewText: some View {
-        let previewStyle = ResolvedSubtitleStyle(
+    private func previewResolutionBadge(displayScale: CGFloat) -> some View {
+        let width = Int(previewVideoSize.width.rounded())
+        let height = Int(previewVideoSize.height.rounded())
+        let percentage = displayScale * 100
+
+        return Text("\(width) × \(height)  ·  \(percentage, specifier: "%.1f")%")
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(.white.opacity(0.9))
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background(.black.opacity(0.48), in: Capsule())
+            .help("当前视频分辨率与预览缩放比例")
+    }
+
+    private var resolvedPreviewStyle: ResolvedSubtitleStyle {
+        ResolvedSubtitleStyle(
             name: name,
             fontName: fontName.isEmpty ? nil : fontName,
             fontSize: fontSize,
@@ -258,16 +310,157 @@ struct StyleEditSheet: View {
             backgroundColor: backgroundAlpha > 0 ? backgroundColor.resolvedRGBA.withAlpha(backgroundAlpha) : nil,
             isBold: isBold,
             isItalic: isItalic,
-            isGlowing: isGlowing
+            isUnderline: isUnderline,
+            isStrikethrough: isStrikethrough,
+            isGlowing: isGlowing,
+            alignment: alignment,
+            marginLeftPercent: marginLeftPercent,
+            marginRightPercent: marginRightPercent,
+            marginVerticalPercent: marginVerticalPercent,
+            scaleX: scaleX,
+            scaleY: scaleY,
+            characterSpacing: characterSpacing,
+            rotationDegrees: rotationDegrees
         )
+    }
 
-        return HardSubtitleStylePreviewText(text: previewText.isEmpty ? "Strophe 活页@样式预览" : previewText, style: previewStyle, scale: 0.74)
+    private func stylePreviewText(displayScale: CGFloat) -> some View {
+        HardSubtitleBitmapView(
+            text: previewText.isEmpty ? "Strophe 活页@样式预览" : previewText,
+            style: resolvedPreviewStyle,
+            canvasSize: previewVideoSize,
+            displayScale: displayScale
+        )
     }
 
     private var propertiesPanel: some View {
         editorSection("样式属性") {
             labeledTextField("名称", text: $name)
             labeledTextField("描述", text: $description)
+        }
+    }
+
+    private var alignmentPanel: some View {
+        editorSection("对齐与位置") {
+            HStack(alignment: .center, spacing: 18) {
+                VStack(spacing: 3) {
+                    ForEach(alignmentRows, id: \.self) { row in
+                        HStack(spacing: 3) {
+                            ForEach(row) { option in
+                                alignmentButton(option)
+                            }
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(alignment.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.stropheText)
+                    Text("位置会同步用于播放器预览和硬字幕烧录")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("橙色虚线：动作安全 3.5% · 红色实线：图文安全 5%")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+            }
+        }
+    }
+
+    private var alignmentRows: [[SubtitleStyle.Alignment]] {
+        [
+            [.topLeft, .topCenter, .topRight],
+            [.middleLeft, .middleCenter, .middleRight],
+            [.bottomLeft, .bottomCenter, .bottomRight]
+        ]
+    }
+
+    private func alignmentButton(_ option: SubtitleStyle.Alignment) -> some View {
+        Button {
+            alignment = option
+        } label: {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(alignment == option ? Color.stropheAccent.opacity(0.22) : Color.stropheSecondaryBackground.opacity(0.65))
+                .overlay {
+                    Circle()
+                        .fill(alignment == option ? Color.stropheAccent : Color.secondary)
+                        .frame(width: 7, height: 7)
+                        .padding(6)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: option.swiftUIAlignment)
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .stroke(alignment == option ? Color.stropheAccent : Color.stropheBorder, lineWidth: alignment == option ? 1.5 : 1)
+                }
+                .frame(width: 42, height: 30)
+        }
+        .buttonStyle(.plain)
+        .help(option.title)
+        .accessibilityLabel(option.title)
+        .accessibilityAddTraits(alignment == option ? .isSelected : [])
+    }
+
+    private var layoutTransformPanel: some View {
+        editorSection("边距与变换") {
+            compactValueSlider(
+                title: "垂直边距",
+                value: $marginVerticalPercent,
+                range: 0...25,
+                step: 0.1,
+                valueLabel: String(format: "%.1f%%", marginVerticalPercent),
+                help: "设置顶部或底部字幕到画面边缘的距离；5% 对应标准图文安全线"
+            )
+            compactValueSlider(
+                title: "左侧边距",
+                value: $marginLeftPercent,
+                range: 0...25,
+                step: 0.1,
+                valueLabel: String(format: "%.1f%%", marginLeftPercent),
+                help: "设置左对齐字幕到画面左边缘的距离"
+            )
+            compactValueSlider(
+                title: "右侧边距",
+                value: $marginRightPercent,
+                range: 0...25,
+                step: 0.1,
+                valueLabel: String(format: "%.1f%%", marginRightPercent),
+                help: "设置右对齐字幕到画面右边缘的距离"
+            )
+            compactValueSlider(
+                title: "横向缩放",
+                value: $scaleX,
+                range: 0.25...3,
+                step: 0.01,
+                valueLabel: "\(Int((scaleX * 100).rounded()))%",
+                help: "仅在水平方向缩放字幕"
+            )
+            compactValueSlider(
+                title: "纵向缩放",
+                value: $scaleY,
+                range: 0.25...3,
+                step: 0.01,
+                valueLabel: "\(Int((scaleY * 100).rounded()))%",
+                help: "仅在垂直方向缩放字幕"
+            )
+            compactValueSlider(
+                title: "字间距",
+                value: $characterSpacing,
+                range: -20...50,
+                step: 0.5,
+                valueLabel: String(format: "%.1f", characterSpacing),
+                help: "调整字符之间的距离"
+            )
+            compactValueSlider(
+                title: "旋转",
+                value: $rotationDegrees,
+                range: -180...180,
+                step: 1,
+                valueLabel: "\(Int(rotationDegrees.rounded()))°",
+                help: "围绕字幕中心旋转"
+            )
         }
     }
 
@@ -346,6 +539,16 @@ struct StyleEditSheet: View {
                 Toggle("I", isOn: $isItalic)
                     .toggleStyle(.button)
                     .help("斜体")
+                Toggle(isOn: $isUnderline) {
+                    Text("U").underline()
+                }
+                .toggleStyle(.button)
+                .help("下划线")
+                Toggle(isOn: $isStrikethrough) {
+                    Text("S").strikethrough()
+                }
+                .toggleStyle(.button)
+                .help("删除线")
                 Toggle("流光", isOn: $isGlowing)
                     .toggleStyle(.switch)
                     .tint(Color.stropheAccent)
@@ -449,6 +652,61 @@ struct StyleEditSheet: View {
         }
         .help(help)
     }
+
+    private func compactValueSlider(
+        title: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        step: Double,
+        valueLabel: String,
+        help: String
+    ) -> some View {
+        HStack(spacing: 12) {
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .frame(width: 72, alignment: .leading)
+
+            Slider(value: value, in: range, step: step)
+            Text(valueLabel)
+                .font(.caption.monospacedDigit())
+                .frame(width: 58, alignment: .trailing)
+        }
+        .help(help)
+    }
+
+    private func resetToPreset() {
+        guard let presetSnapshot else { return }
+        applyPreset(presetSnapshot)
+        previewText = "Strophe 活页@样式预览"
+    }
+
+    private func applyPreset(_ style: SubgroupStyle) {
+        name = style.name
+        description = style.description
+        textColor = style.color
+        fontName = style.fontName ?? ""
+        fontSize = style.fontSize
+        isBold = style.isBold
+        isItalic = style.isItalic
+        isUnderline = style.isUnderline
+        isStrikethrough = style.isStrikethrough
+        outlineColor = style.outlineColor
+        outlineWidth = style.outlineWidth
+        shadowColor = style.shadowColor
+        shadowRadius = style.shadowRadius
+        backgroundColor = style.backgroundColor
+        backgroundAlpha = style.backgroundAlpha
+        isGlowing = style.isGlowing
+        alignment = style.alignment
+        marginLeftPercent = style.marginLeftPercent
+        marginRightPercent = style.marginRightPercent
+        marginVerticalPercent = style.marginVerticalPercent
+        scaleX = style.scaleX
+        scaleY = style.scaleY
+        characterSpacing = style.characterSpacing
+        rotationDegrees = style.rotationDegrees
+    }
     
     private func saveStyle() {
         if let id = selectedStyleId,
@@ -460,6 +718,8 @@ struct StyleEditSheet: View {
             store.styles[index].fontSize = fontSize
             store.styles[index].isBold = isBold
             store.styles[index].isItalic = isItalic
+            store.styles[index].isUnderline = isUnderline
+            store.styles[index].isStrikethrough = isStrikethrough
             store.styles[index].outlineColor = outlineColor
             store.styles[index].outlineWidth = outlineWidth
             store.styles[index].shadowColor = shadowColor
@@ -467,63 +727,16 @@ struct StyleEditSheet: View {
             store.styles[index].backgroundColor = backgroundColor
             store.styles[index].backgroundAlpha = backgroundAlpha
             store.styles[index].isGlowing = isGlowing
+            store.styles[index].alignment = alignment
+            store.styles[index].marginLeftPercent = marginLeftPercent
+            store.styles[index].marginRightPercent = marginRightPercent
+            store.styles[index].marginVerticalPercent = marginVerticalPercent
+            store.styles[index].scaleX = scaleX
+            store.styles[index].scaleY = scaleY
+            store.styles[index].characterSpacing = characterSpacing
+            store.styles[index].rotationDegrees = rotationDegrees
         }
         isPresented = false
-    }
-}
-
-private struct HardSubtitleStylePreviewText: View {
-    let text: String
-    let style: ResolvedSubtitleStyle
-    let scale: CGFloat
-
-    var body: some View {
-        let fontSize = max(12, style.fontSize * scale)
-        ZStack {
-            if style.outlineWidth > 0 {
-                outlineText(fontSize: fontSize)
-            }
-            Text(text)
-                .font(previewFont(size: fontSize))
-                .fontWeight(style.isBold ? .bold : .semibold)
-                .italic(style.isItalic)
-                .foregroundStyle(style.textColor.color)
-                .shadow(color: style.shadowColor.color, radius: max(0, style.shadowRadius * scale), x: 0, y: max(0, style.shadowRadius * 0.35 * scale))
-        }
-        .padding(.horizontal, style.backgroundColor == nil ? 0 : 16)
-        .padding(.vertical, style.backgroundColor == nil ? 0 : 8)
-        .background {
-            if let background = style.backgroundColor {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(background.color)
-            }
-        }
-        .glow(color: style.isGlowing ? style.textColor.color.opacity(0.45) : .clear, radius: style.isGlowing ? 10 : 0)
-    }
-
-    private func previewFont(size: CGFloat) -> Font {
-        if let fontName = style.fontName, !fontName.isEmpty {
-            return .custom(fontName, size: size)
-        }
-        return .system(size: size, weight: style.isBold ? .bold : .semibold, design: .rounded)
-    }
-
-    private func outlineText(fontSize: CGFloat) -> some View {
-        let radius = max(1, style.outlineWidth * scale)
-        return ZStack {
-            Text(text).offset(x: -radius, y: 0)
-            Text(text).offset(x: radius, y: 0)
-            Text(text).offset(x: 0, y: -radius)
-            Text(text).offset(x: 0, y: radius)
-            Text(text).offset(x: -radius * 0.72, y: -radius * 0.72)
-            Text(text).offset(x: radius * 0.72, y: -radius * 0.72)
-            Text(text).offset(x: -radius * 0.72, y: radius * 0.72)
-            Text(text).offset(x: radius * 0.72, y: radius * 0.72)
-        }
-        .font(previewFont(size: fontSize))
-        .fontWeight(style.isBold ? .bold : .semibold)
-        .italic(style.isItalic)
-        .foregroundStyle(style.outlineColor.color)
     }
 }
 
@@ -544,4 +757,3 @@ private struct CheckerboardPattern: View {
         }
     }
 }
-

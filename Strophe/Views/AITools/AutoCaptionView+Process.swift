@@ -519,7 +519,8 @@ extension AutoCaptionView {
             do {
                 let request = AICloudGenerateSubtitlesRequest(
                     mediaURL: mediaURL,
-                    endpointURL: AIBackendClient.defaultCloudTranscribeURL
+                    endpointURL: AIBackendClient.defaultCloudTranscribeURL,
+                    language: selectedLanguage
                 )
 
                 let result = try await AIBackendClient.shared.generateCloudSubtitles(

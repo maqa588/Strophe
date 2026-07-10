@@ -1085,6 +1085,12 @@ extension InteractiveSubtitleBlock {
         }
         .disabled(isLocked)
 
+        Button {
+            NotificationCenter.default.post(name: .stropheStartSubtitleTranslation, object: item.id)
+        } label: {
+            Label(String(localized: "从这里开始翻译"), systemImage: "character.bubble")
+        }
+
         Divider()
 
         Button(role: .destructive) {

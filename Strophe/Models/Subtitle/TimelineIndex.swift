@@ -13,6 +13,7 @@ class TimelineIndex {
     private(set) var overlappingIntervals: [SubtitleProject.OverlapInterval] = []
     private(set) var overlappingItemIDs: Set<UUID> = []
     private(set) var itemIndexByID: [UUID: Int] = [:]
+    private(set) var untimedItems: [SubtitleItem] = []
     private var maxEndPrefixByStartTime: [Double] = []
     private var itemByID: [UUID: SubtitleItem] = [:]
     
@@ -25,6 +26,7 @@ class TimelineIndex {
         }
         
         let timedItems = items.filter { $0.startTime != nil }
+        self.untimedItems = items.filter { $0.startTime == nil }
         self.itemsByStartTime = timedItems.sorted { ($0.startTime ?? 0) < ($1.startTime ?? 0) }
         self.maxEndPrefixByStartTime = []
         self.maxEndPrefixByStartTime.reserveCapacity(itemsByStartTime.count)
@@ -133,6 +135,27 @@ class TimelineIndex {
         }
         return results
     }
+
+    func item(id: UUID) -> SubtitleItem? {
+        itemByID[id]
+    }
+
+    func lastTimedItem(
+        startingOnOrBefore time: Double,
+        matching predicate: (SubtitleItem) -> Bool
+    ) -> SubtitleItem? {
+        var index = firstIndexWithStart(greaterThan: time) - 1
+        while index >= 0 {
+            let item = itemsByStartTime[index]
+            if predicate(item) { return item }
+            index -= 1
+        }
+        return nil
+    }
+
+    func firstTimedItem(matching predicate: (SubtitleItem) -> Bool) -> SubtitleItem? {
+        itemsByStartTime.first(where: predicate)
+    }
     
     func nearestSnapPoint(to time: Double, ignoring ignoredItemID: UUID? = nil) -> Double? {
         let ignoredStart: Double?
@@ -201,6 +224,22 @@ class TimelineIndex {
             }
         }
 
+        return low
+    }
+
+    private func firstIndexWithStart(greaterThan time: Double) -> Int {
+        var low = 0
+        var high = itemsByStartTime.count
+
+        while low < high {
+            let mid = low + (high - low) / 2
+            let start = itemsByStartTime[mid].startTime ?? .infinity
+            if start <= time {
+                low = mid + 1
+            } else {
+                high = mid
+            }
+        }
         return low
     }
 

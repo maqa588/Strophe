@@ -84,7 +84,7 @@ struct StropheSidebarContainer: View {
             case .editor, .scriptList:
                 ScriptListView(project: project)
             case .styleManager:
-                StylePlaceholderView()
+                StylePlaceholderView(project: project)
             case .subGroup:
                 SubGroupPlaceholderView(project: project)
             case .settings:

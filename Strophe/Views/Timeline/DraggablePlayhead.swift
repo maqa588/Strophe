@@ -14,7 +14,7 @@ struct DraggablePlayhead: View {
     @Binding var dragStartTime: Double
     let pixelsPerSecond: Double
     let duration: Double
-    @ObservedObject var project: SubtitleProject
+    let project: SubtitleProject
 
     // 磁力吸附与防抖状态
     @State private var isSnapped = false
@@ -61,15 +61,10 @@ struct DraggablePlayhead: View {
                     let delta = Double(value.translation.width) / pixelsPerSecond
                     let rawProposedTime = (dragStartTime + delta).clamped(to: 0...duration)
                     
-                    // 获取项目中所有字幕块的起止时间作为磁吸候选点
-                    let snapCandidates = project.items.flatMap { [$0.startTime, $0.endTime] }.compactMap { $0 }
-                    
-                    var closestSnap: Double? = nil
-                    var minDistance = Double.infinity
-                    if let closest = snapCandidates.min(by: { abs($0 - rawProposedTime) < abs($1 - rawProposedTime) }) {
-                        closestSnap = closest
-                        minDistance = abs(closest - rawProposedTime)
-                    }
+                    // TimelineIndex performs a binary search instead of rebuilding
+                    // and scanning an edge array on every pointer event.
+                    let closestSnap = project.timelineIndex.nearestSnapPoint(to: rawProposedTime)
+                    let minDistance = closestSnap.map { abs($0 - rawProposedTime) } ?? .infinity
                     
                     // 10 像素磁吸，20 像素挣脱防抖阈值
                     let activeThreshold = isSnapped ? (20.0 / pixelsPerSecond) : (10.0 / pixelsPerSecond)

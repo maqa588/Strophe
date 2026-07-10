@@ -20,8 +20,13 @@ nonisolated final class AudioPlayer: @unchecked Sendable {
     /// this value, eliminating phantom time accumulated while FFmpeg was
     /// still decoding from an uncached position.
     private var sampleTimeOffset: Int64 = -1
+    private var schedulingGeneration: UInt = 0
     
     private let lock = NSLock()
+    private let schedulingQueue = DispatchQueue(
+        label: "com.strophe.ffmpeg.audio-scheduling",
+        qos: .userInitiated
+    )
     
     init() {
         setupAudioEngine()
@@ -100,39 +105,51 @@ nonisolated final class AudioPlayer: @unchecked Sendable {
                 elapsed = Double(corrected) / sampleRate
             }
         }
-        lock.unlock()
-        
-        // Call stop outside lock to allow scheduledBuffer's completion callback to acquire lock and run safely!
-        playerNode.stop()
-        
-        lock.lock()
+        let pausedSampleTime: Int64? = {
+            guard let nodeTime = playerNode.lastRenderTime,
+                  let playerTime = playerNode.playerTime(forNodeTime: nodeTime) else { return nil }
+            return playerTime.sampleTime
+        }()
         baseTime += elapsed
-        scheduledBufferCount = 0 // Reset buffer count since stop() clears all queued buffers
+        if let pausedSampleTime {
+            sampleTimeOffset = pausedSampleTime
+        }
         lock.unlock()
+
+        // Preserve scheduled buffers for ordinary pause/resume. A seek uses
+        // seek(to:) below, which deliberately stops and clears the node.
+        playerNode.pause()
     }
     
     func stop() {
-        playerNode.stop()
+        schedulingQueue.sync {
+            playerNode.stop()
+        }
         audioEngine.stop()
-        isEngineRunning = false
         lock.lock()
+        isEngineRunning = false
         shouldBePlaying = false
         totalSamplesScheduled = 0
         scheduledBufferCount = 0
         baseTime = 0.0
         sampleTimeOffset = -1
+        schedulingGeneration &+= 1
         lock.unlock()
     }
     
     func seek(to time: Double) {
-        playerNode.stop()
-        
-        lock.lock()
-        baseTime = time
-        totalSamplesScheduled = 0
-        scheduledBufferCount = 0
-        sampleTimeOffset = -1
-        lock.unlock()
+        schedulingQueue.sync {
+            // Stop outside the lock so completion handlers can finish safely.
+            playerNode.stop()
+
+            lock.lock()
+            baseTime = time
+            totalSamplesScheduled = 0
+            scheduledBufferCount = 0
+            sampleTimeOffset = -1
+            schedulingGeneration &+= 1
+            lock.unlock()
+        }
         
         if isEngineRunning {
             if !audioEngine.isRunning {
@@ -158,6 +175,30 @@ nonisolated final class AudioPlayer: @unchecked Sendable {
     // Convert PCM data into AVAudioPCMBuffer and schedule it on the player node
     func schedulePCMData(_ left: [Float], _ right: [Float], presentationTime: Double? = nil) {
         lock.lock()
+        let generation = schedulingGeneration
+        lock.unlock()
+
+        schedulingQueue.async { [weak self] in
+            self?.schedulePCMDataNow(
+                left,
+                right,
+                presentationTime: presentationTime,
+                generation: generation
+            )
+        }
+    }
+
+    private func schedulePCMDataNow(
+        _ left: [Float],
+        _ right: [Float],
+        presentationTime: Double?,
+        generation: UInt
+    ) {
+        lock.lock()
+        guard generation == schedulingGeneration else {
+            lock.unlock()
+            return
+        }
         
         let sampleCount = left.count
         guard sampleCount > 0 else {
@@ -165,11 +206,17 @@ nonisolated final class AudioPlayer: @unchecked Sendable {
             return
         }
         
-        if totalSamplesScheduled == 0, let presentationTime, presentationTime.isFinite {
-            baseTime = presentationTime
+        let isFirstBuffer = totalSamplesScheduled == 0
+        var leadingSilenceSamples = 0
+        if isFirstBuffer {
             sampleTimeOffset = -1
+            if let presentationTime, presentationTime.isFinite {
+                let gap = max(0, min(2.0, presentationTime - baseTime))
+                leadingSilenceSamples = Int((gap * sampleRate).rounded())
+            }
         }
-        scheduledBufferCount += 1
+        let buffersToSchedule = leadingSilenceSamples > 0 ? 2 : 1
+        scheduledBufferCount += buffersToSchedule
         let isPlayingState = shouldBePlaying
         let isCurrentlyPlaying = playerNode.isPlaying
         lock.unlock()
@@ -181,7 +228,7 @@ nonisolated final class AudioPlayer: @unchecked Sendable {
         
         guard let pcmBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(sampleCount)) else {
             lock.lock()
-            scheduledBufferCount = max(0, scheduledBufferCount - 1)
+            scheduledBufferCount = max(0, scheduledBufferCount - buffersToSchedule)
             lock.unlock()
             return
         }
@@ -203,15 +250,42 @@ nonisolated final class AudioPlayer: @unchecked Sendable {
         }
         
         let wrapper = WeakAudioPlayerWrapper(player: self)
+        if leadingSilenceSamples > 0,
+           let silenceBuffer = AVAudioPCMBuffer(
+               pcmFormat: format,
+               frameCapacity: AVAudioFrameCount(leadingSilenceSamples)
+           ) {
+            silenceBuffer.frameLength = AVAudioFrameCount(leadingSilenceSamples)
+            if let channels = silenceBuffer.floatChannelData {
+                memset(channels[0], 0, leadingSilenceSamples * MemoryLayout<Float>.size)
+                memset(channels[1], 0, leadingSilenceSamples * MemoryLayout<Float>.size)
+            }
+            playerNode.scheduleBuffer(silenceBuffer) {
+                guard let player = wrapper.player else { return }
+                player.lock.lock()
+                if generation == player.schedulingGeneration {
+                    player.scheduledBufferCount = max(0, player.scheduledBufferCount - 1)
+                }
+                player.lock.unlock()
+            }
+        } else if leadingSilenceSamples > 0 {
+            lock.lock()
+            scheduledBufferCount = max(0, scheduledBufferCount - 1)
+            lock.unlock()
+            leadingSilenceSamples = 0
+        }
+
         playerNode.scheduleBuffer(pcmBuffer) {
             guard let player = wrapper.player else { return }
             player.lock.lock()
-            player.scheduledBufferCount = max(0, player.scheduledBufferCount - 1)
+            if generation == player.schedulingGeneration {
+                player.scheduledBufferCount = max(0, player.scheduledBufferCount - 1)
+            }
             player.lock.unlock()
         }
         
         lock.lock()
-        totalSamplesScheduled += Int64(sampleCount)
+        totalSamplesScheduled += Int64(leadingSilenceSamples + sampleCount)
         lock.unlock()
         
         if isPlayingState && !isCurrentlyPlaying {

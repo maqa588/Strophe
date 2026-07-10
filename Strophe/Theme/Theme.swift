@@ -114,16 +114,16 @@ extension Color {
         dark: Color(red: 0.29, green: 0.27, blue: 0.25)   // #4A4540
     )
 
-    // 6. Waveform Peak (warm charcoal in light, warm copper in dark)
+    // 6. Waveform Peak (dark brownish-grey in light mode, light brownish-grey in dark mode to match warm brand style)
     static let stropheWaveformPeak = Color(
-        light: Color(red: 0.5, green: 0.45, blue: 0.4),   // warm brown-charcoal
-        dark: Color(red: 0.8, green: 0.6, blue: 0.45)     // warm copper-gold
+        light: Color(red: 0.45, green: 0.4, blue: 0.35).opacity(0.35),
+        dark: Color(red: 0.68, green: 0.62, blue: 0.55).opacity(0.35)
     )
 
-    // 7. Waveform RMS
+    // 7. Waveform RMS (matching warm brownish-grey tones with lower opacity)
     static let stropheWaveformRMS = Color(
-        light: Color(red: 0.7, green: 0.65, blue: 0.6).opacity(0.6),
-        dark: Color(red: 0.9, green: 0.8, blue: 0.7).opacity(0.6)
+        light: Color(red: 0.55, green: 0.5, blue: 0.45).opacity(0.18),
+        dark: Color(red: 0.75, green: 0.7, blue: 0.62).opacity(0.18)
     )
 
     // 8. Timeline top divider (soft dark overlay line, avoids harsh high-contrast white illusion)

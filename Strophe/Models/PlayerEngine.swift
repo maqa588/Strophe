@@ -7,7 +7,8 @@ typealias NativeView = NSView
 typealias NativeView = UIView
 #endif
 
-protocol PlayerEngine: AnyObject {
+@MainActor
+protocol PlayerEngine: AnyObject, Sendable {
     var playerView: NativeView { get }
     var currentTime: Double { get }
     var duration: Double { get }
@@ -16,11 +17,16 @@ protocol PlayerEngine: AnyObject {
     var videoSize: CGSize { get async }
     var isRenderingAndPlaying: Bool { get }
 
-    func load(url: URL) async
+    @discardableResult
+    func load(url: URL) async -> Bool
     func play()
     func pause()
-    func seek(to time: Double) async
-    func seekVideoFrameOnly(to time: Double) async
+    @discardableResult
+    func seek(to time: Double) async -> Bool
+    @discardableResult
+    func seekExactly(to time: Double) async -> Bool
+    @discardableResult
+    func seekVideoFrameOnly(to time: Double) async -> Bool
     func stop()
 }
 
@@ -92,11 +98,16 @@ final class AVPlayerHostView: UIView {
 }
 #endif
 
+@MainActor
 final class AVFoundationEngine: PlayerEngine {
     private let player = AVPlayer()
     private let playerLayer: AVPlayerLayer
     private let hostView: NativeView
-    private let seekCoordinator = AVPlayerSeekCoordinator()
+    private let engineID = UUID()
+    private var itemID: UUID?
+    private var seekGeneration: UInt = 0
+    private var nominalFrameRate: Double = 30.0
+    private var lastPreviewDiagnosticTime: CFAbsoluteTime = 0
 
     var playerRef: AVPlayer { player }
 
@@ -107,6 +118,8 @@ final class AVFoundationEngine: PlayerEngine {
         let view = AVPlayerHostView(playerLayer: layer)
         self.hostView = view
         self.playerLayer = layer
+
+        log("initialized")
     }
 
     var playerView: NativeView { hostView }
@@ -167,9 +180,42 @@ final class AVFoundationEngine: PlayerEngine {
         set { player.rate = Float(newValue.isFinite ? newValue : 0) }
     }
 
-    func load(url: URL) async {
+    @discardableResult
+    func load(url: URL) async -> Bool {
         let item = AVPlayerItem(url: url)
-        await MainActor.run { player.replaceCurrentItem(with: item) }
+        let newItemID = UUID()
+        itemID = newItemID
+        player.replaceCurrentItem(with: item)
+        logState("load requested", item: item)
+
+        let deadline = ContinuousClock.now + .seconds(15)
+        while item.status == .unknown, ContinuousClock.now < deadline {
+            guard !Task.isCancelled, player.currentItem === item, itemID == newItemID else {
+                logState("load cancelled or superseded", item: item)
+                return false
+            }
+            try? await Task.sleep(for: .milliseconds(25))
+        }
+
+        guard !Task.isCancelled, player.currentItem === item, itemID == newItemID else {
+            logState("load cancelled or superseded", item: item)
+            return false
+        }
+
+        guard item.status == .readyToPlay else {
+            logState(item.status == .failed ? "load failed" : "load timed out", item: item)
+            return false
+        }
+
+        if let videoTrack = try? await item.asset.loadTracks(withMediaType: .video).first,
+           let frameRate = try? await videoTrack.load(.nominalFrameRate),
+           frameRate.isFinite,
+           frameRate > 0 {
+            nominalFrameRate = Double(frameRate)
+        }
+
+        logState("ready to play", item: item)
+        return true
     }
 
     func play() {
@@ -180,28 +226,45 @@ final class AVFoundationEngine: PlayerEngine {
         player.rate = 0.0
     }
 
-    func seek(to time: Double) async {
-        await seek(
+    @discardableResult
+    func seek(to time: Double) async -> Bool {
+        let tolerance = halfFrameTolerance
+        return await seek(
             to: time,
-            toleranceBefore: .zero,
-            toleranceAfter: .zero
+            toleranceBefore: tolerance,
+            toleranceAfter: tolerance,
+            kind: .regular
         )
     }
 
-    func seekVideoFrameOnly(to time: Double) async {
-        await MainActor.run {
-            player.rate = 0.0 // Pause during scrub to prevent rapid AudioQueue start/stop (-4 errors)
-        }
+    @discardableResult
+    func seekExactly(to time: Double) async -> Bool {
         await seek(
             to: time,
-            toleranceBefore: CMTime(value: 1, timescale: 30),
-            toleranceAfter: CMTime(value: 1, timescale: 30)
+            toleranceBefore: .zero,
+            toleranceAfter: .zero,
+            kind: .exact
+        )
+    }
+
+    @discardableResult
+    func seekVideoFrameOnly(to time: Double) async -> Bool {
+        player.rate = 0.0 // Pause during scrub to prevent rapid AudioQueue start/stop (-4 errors)
+        let tolerance = halfFrameTolerance
+        return await seek(
+            to: time,
+            toleranceBefore: tolerance,
+            toleranceAfter: tolerance,
+            kind: .preview
         )
     }
 
     func stop() {
+        seekGeneration &+= 1
         player.pause()
         player.replaceCurrentItem(with: nil)
+        log("stopped item=\(shortID(itemID))")
+        itemID = nil
     }
 
     func addPeriodicTimeObserver(interval: CMTime, queue: DispatchQueue, using block: @escaping @Sendable (CMTime) -> Void) -> Any {
@@ -215,34 +278,90 @@ final class AVFoundationEngine: PlayerEngine {
     }
 
     @discardableResult
-    private func seek(to time: Double, toleranceBefore: CMTime, toleranceAfter: CMTime) async -> Bool {
-        guard time.isFinite else { return false }
-        let token = await seekCoordinator.nextToken()
-        let cmTime = CMTime(seconds: time, preferredTimescale: 600)
-
-        await MainActor.run {
-            player.currentItem?.cancelPendingSeeks()
+    private func seek(
+        to time: Double,
+        toleranceBefore: CMTime,
+        toleranceAfter: CMTime,
+        kind: SeekKind
+    ) async -> Bool {
+        guard time.isFinite, let item = player.currentItem, item.status == .readyToPlay else {
+            logState("seek rejected target=\(formatted(time))", item: player.currentItem)
+            return false
         }
+
+        seekGeneration &+= 1
+        let generation = seekGeneration
+        let cmTime = CMTime(seconds: time, preferredTimescale: 600)
 
         let finished = await player.seek(
             to: cmTime,
             toleranceBefore: toleranceBefore,
             toleranceAfter: toleranceAfter
         )
-        let isLatest = await seekCoordinator.isLatest(token)
-        return finished && isLatest
+        let isLatest = generation == seekGeneration
+        let succeeded = finished && isLatest && player.currentItem === item
+        if shouldLogSeek(kind: kind, succeeded: succeeded) {
+            logState(
+                "seek kind=\(kind.rawValue) target=\(formatted(time)) "
+                + "finished=\(finished) latest=\(isLatest) current=\(formatted(currentTime))",
+                item: item
+            )
+        }
+        return succeeded
     }
-}
 
-private actor AVPlayerSeekCoordinator {
-    private var token = 0
-
-    func nextToken() -> Int {
-        token += 1
-        return token
+    private enum SeekKind: String {
+        case regular
+        case exact
+        case preview
     }
 
-    func isLatest(_ candidate: Int) -> Bool {
-        candidate == token
+    private func shouldLogSeek(kind: SeekKind, succeeded: Bool) -> Bool {
+        guard kind == .preview, succeeded else { return true }
+        let now = CFAbsoluteTimeGetCurrent()
+        guard now - lastPreviewDiagnosticTime >= 0.5 else { return false }
+        lastPreviewDiagnosticTime = now
+        return true
+    }
+
+    private var halfFrameTolerance: CMTime {
+        let fps = nominalFrameRate.isFinite && nominalFrameRate > 0 ? nominalFrameRate : 30.0
+        return CMTime(seconds: 0.5 / fps, preferredTimescale: 60_000)
+    }
+
+    private func logState(_ event: String, item: AVPlayerItem?) {
+        let status: String
+        switch item?.status {
+        case .unknown: status = "unknown"
+        case .readyToPlay: status = "readyToPlay"
+        case .failed: status = "failed"
+        case nil: status = "nil"
+        @unknown default: status = "future"
+        }
+
+        let videoTracks = item?.tracks.filter {
+            $0.assetTrack?.mediaType == .video
+        } ?? []
+        let enabledVideoTracks = videoTracks.filter(\.isEnabled).count
+        let itemError = item?.error?.localizedDescription ?? "none"
+        let playerError = player.error?.localizedDescription ?? "none"
+        log(
+            "\(event) item=\(shortID(itemID)) status=\(status) "
+            + "videoTracks=\(videoTracks.count) enabledVideoTracks=\(enabledVideoTracks) "
+            + "readyForDisplay=\(playerLayer.isReadyForDisplay) "
+            + "itemError=\(itemError) playerError=\(playerError)"
+        )
+    }
+
+    private func log(_ message: String) {
+        print("🎞️ AVFoundationEngine[\(shortID(engineID))] \(message)")
+    }
+
+    private func shortID(_ id: UUID?) -> String {
+        id.map { String($0.uuidString.prefix(8)) } ?? "nil"
+    }
+
+    private func formatted(_ time: Double) -> String {
+        time.isFinite ? String(format: "%.3f", time) : "nonfinite"
     }
 }

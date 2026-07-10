@@ -138,20 +138,19 @@ struct VideoPlayerView: View {
                         pendingCompatibilityURL = nil
                         return
                     }
-                    // Approved format or remote share - proceed to load FFmpeg engine
-                    currentURL = url
-                    let ffmpegEngine = FFmpegEngine()
-                    engine = ffmpegEngine
-                    project.activeEngine = ffmpegEngine
-                    project.activeEngineURL = url
-                    print("🎬 Using engine: FFmpegEngine (\(type(of: ffmpegEngine))) for \(url.lastPathComponent)")
-                    Task {
-                        await ffmpegEngine.load(url: url)
-                        guard project.videoURL == url else {
-                            ffmpegEngine.stop()
-                            return
-                        }
-                        await ffmpegEngine.seek(to: project.currentTime.clampedFinite(to: 0...ffmpegEngine.duration))
+                    // Approved format or remote share - proceed to load the
+                    // project-owned FFmpeg engine.
+                    Task { @MainActor in
+                        guard let ffmpegEngine = await project.acquirePlayerEngine(
+                            for: url,
+                            makeEngine: { FFmpegEngine() }
+                        ), project.videoURL == url else { return }
+
+                        currentURL = url
+                        engine = ffmpegEngine
+                        _ = await ffmpegEngine.seek(
+                            to: project.currentTime.clampedFinite(to: 0...ffmpegEngine.duration)
+                        )
                         setupScrubTask()
                         setupFrameRateDetection(url: url, engine: ffmpegEngine)
                         // Window adjustment will happen automatically in setupFrameRateDetection after size is fetched
@@ -193,7 +192,7 @@ struct VideoPlayerView: View {
         guard let eng = engine else { completion(); return }
         guard time.isFinite else { completion(); return }
         Task {
-            await eng.seek(to: time)
+            let finished = await eng.seek(to: time)
             await MainActor.run {
                 if let resumeRate, resumeRate > 0 {
                     eng.rate = resumeRate
@@ -201,7 +200,15 @@ struct VideoPlayerView: View {
                 } else {
                     project.playbackRate = eng.rate
                 }
-                project.referenceTime = time
+                let resolvedTime = eng.currentTime
+                if finished, resolvedTime.isFinite {
+                    project.currentTime = resolvedTime
+                    project.referenceTime = resolvedTime
+                } else {
+                    // The UI may already contain the requested scrub/click time.
+                    // Roll it back to the engine clock when the seek was interrupted.
+                    project.syncPlaybackClockFromEngine()
+                }
                 project.referenceDate = .now
                 completion()
             }
@@ -267,6 +274,7 @@ struct VideoPlayerView: View {
         setupTask?.cancel()
 
         guard let url = url else {
+            project.resetPlayerEngine()
             tearDownCurrentPlayer()
             return
         }
@@ -303,18 +311,14 @@ struct VideoPlayerView: View {
             guard !Task.isCancelled, setupGeneration == generation, project.videoURL == url else { return }
 
             if result.isAVFoundationCompatible {
-                let avEngine = AVFoundationEngine()
-                print("🎬 Using engine: AVFoundationEngine (\(type(of: avEngine))) for \(url.lastPathComponent)")
-                await avEngine.load(url: url)
-                guard !Task.isCancelled, setupGeneration == generation, project.videoURL == url else {
-                    avEngine.stop()
-                    return
-                }
+                guard let avEngine = await project.acquirePlayerEngine(
+                    for: url,
+                    makeEngine: { AVFoundationEngine() }
+                ) else { return }
+                guard !Task.isCancelled, setupGeneration == generation, project.videoURL == url else { return }
                 currentURL = url
                 engine = avEngine
-                project.activeEngine = avEngine
-                project.activeEngineURL = url
-                await avEngine.seek(to: project.currentTime.clampedFinite(to: 0...avEngine.duration))
+                _ = await avEngine.seek(to: project.currentTime.clampedFinite(to: 0...avEngine.duration))
                 setupScrubTask()
 
                 setupFrameRateDetection(url: url, engine: avEngine)
@@ -345,11 +349,8 @@ struct VideoPlayerView: View {
         pendingCompatibilityURL = nil
         showingCompatibilityAlert = false
 
-        engine?.stop()
         engine = nil
         currentURL = nil
-        project.activeEngine = nil
-        project.activeEngineURL = nil
         project.playbackRate = 0
     }
 
@@ -522,7 +523,7 @@ struct VideoPlayerView: View {
                     continue
                 }
                 lastPreviewSeekTime = time
-                await eng.seekVideoFrameOnly(to: time)
+                _ = await eng.seekVideoFrameOnly(to: time)
             }
         }
     }

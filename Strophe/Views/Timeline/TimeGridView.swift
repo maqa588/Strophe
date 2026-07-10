@@ -10,6 +10,8 @@ import SwiftUI
 struct TimeGridView: View {
     let pixelsPerSecond: Double
     let duration: Double
+    let visibleStartTime: Double
+    let viewWidth: CGFloat
     
     var body: some View {
         Canvas { context, size in
@@ -17,8 +19,11 @@ struct TimeGridView: View {
             let candidateSteps: [Double] = [0.1, 0.5, 1, 2, 5, 10, 30, 60, 300, 600]
             let idealPixelSpacing: CGFloat = 80
             let step = candidateSteps.first(where: { ($0 * pixelsPerSecond) >= idealPixelSpacing }) ?? 600
+            let visibleDuration = Double(max(1, viewWidth)) / max(0.001, pixelsPerSecond)
+            let firstTick = max(0, floor(visibleStartTime / step) * step)
+            let lastTick = min(duration, visibleStartTime + visibleDuration + step)
             
-            for t in stride(from: 0, through: duration, by: step) {
+            for t in stride(from: firstTick, through: lastTick, by: step) {
                 let x = CGFloat(t * pixelsPerSecond)
                 
                 // 大刻度

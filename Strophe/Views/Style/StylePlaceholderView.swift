@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct StylePlaceholderView: View {
+    @ObservedObject var project: SubtitleProject
     @ObservedObject var store = StyleAndGroupStore.shared
     @State private var selectedStyleId: UUID? = nil
 
@@ -108,7 +109,11 @@ struct StylePlaceholderView: View {
             StyleCreateSheet(isPresented: $showingAddSheet, selectedStyleId: $selectedStyleId)
         }
         .sheet(isPresented: $showingEditSheet) {
-            StyleEditSheet(isPresented: $showingEditSheet, selectedStyleId: $selectedStyleId)
+            StyleEditSheet(
+                isPresented: $showingEditSheet,
+                selectedStyleId: $selectedStyleId,
+                project: project
+            )
         }
     }
 
@@ -165,6 +170,6 @@ struct StylePlaceholderView: View {
 }
 
 #Preview {
-    StylePlaceholderView()
+    StylePlaceholderView(project: SubtitleProject())
         .preferredColorScheme(.dark)
 }

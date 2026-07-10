@@ -49,27 +49,14 @@ struct WaveformTimelineContainer: View {
         )
     }
     
-    private var snapCandidates: [Double] {
-        project.items.flatMap { [$0.startTime, $0.endTime] }.compactMap { $0 }
-    }
-    
     private func snapCoordinate(_ x: CGFloat, threshold: CGFloat = 12.0) -> (val: CGFloat, snapped: Bool) {
         let safePixelsPerSecond = pixelsPerSecond.isFinite ? max(0.001, pixelsPerSecond) : 50.0
-        var closestSnap: CGFloat = x
-        var minDistance = CGFloat.infinity
-        
-        for candidateTime in snapCandidates {
-            guard candidateTime.isFinite else { continue }
+        let time = Double(x) / safePixelsPerSecond
+        if let candidateTime = project.timelineIndex.nearestSnapPoint(to: time), candidateTime.isFinite {
             let candidateX = CGFloat(candidateTime * safePixelsPerSecond)
-            let distance = abs(candidateX - x)
-            if distance < minDistance {
-                minDistance = distance
-                closestSnap = candidateX
+            if abs(candidateX - x) <= threshold {
+                return (candidateX, true)
             }
-        }
-        
-        if minDistance <= threshold {
-            return (closestSnap, true)
         }
         return (x, false)
     }
@@ -81,12 +68,15 @@ struct WaveformTimelineContainer: View {
         let safeViewWidth = viewWidth.isFinite ? max(1.0, viewWidth) : 1.0
         let safeTotalWidth = totalWidth.isFinite ? max(1.0, totalWidth) : 1.0
         let safeWorkspaceDuration = workspaceDuration.isFinite ? max(safeDuration, workspaceDuration) : safeDuration
-        let staticTime = project.currentTime.clampedFinite(to: 0.0...safeDuration)
-        
         return ZStack(alignment: .topLeading) {
             // ── 静态与波形图层 ──────────────────────────────
             VStack(spacing: 0) {
-                TimeGridView(pixelsPerSecond: safePixelsPerSecond, duration: safeDuration)
+                TimeGridView(
+                    pixelsPerSecond: safePixelsPerSecond,
+                    duration: safeDuration,
+                    visibleStartTime: visibleStartTime,
+                    viewWidth: safeViewWidth
+                )
                     .frame(width: safeTotalWidth, height: rulerHeight)
                     .contentShape(Rectangle())
                     .gesture(
@@ -127,31 +117,15 @@ struct WaveformTimelineContainer: View {
                         .clipped()
                         .frame(width: safeTotalWidth, height: waveHeight, alignment: .leading)
                     
-                    if project.shouldDeferActiveSlapBlockTimingUpdates {
-                        TimelineView(.animation) { timeline in
-                            SubtitleBlocksLayer(
-                                project: project,
-                                pixelsPerSecond: safePixelsPerSecond,
-                                smoothTime: playbackTime(at: timeline.date, duration: safeDuration),
-                                visibleStartTime: visibleStartTime,
-                                viewWidth: safeViewWidth,
-                                workspaceDuration: safeWorkspaceDuration,
-                                scrollPageStartTime: $scrollPageStartTime
-                            )
-                        }
-                        .frame(width: safeTotalWidth, height: waveHeight)
-                    } else {
-                        SubtitleBlocksLayer(
-                            project: project,
-                            pixelsPerSecond: safePixelsPerSecond,
-                            smoothTime: staticTime,
-                            visibleStartTime: visibleStartTime,
-                            viewWidth: safeViewWidth,
-                            workspaceDuration: safeWorkspaceDuration,
-                            scrollPageStartTime: $scrollPageStartTime
-                        )
-                        .frame(width: safeTotalWidth, height: waveHeight)
-                    }
+                    SubtitleBlocksLayer(
+                        project: project,
+                        pixelsPerSecond: safePixelsPerSecond,
+                        visibleStartTime: visibleStartTime,
+                        viewWidth: safeViewWidth,
+                        workspaceDuration: safeWorkspaceDuration,
+                        scrollPageStartTime: $scrollPageStartTime
+                    )
+                    .frame(width: safeTotalWidth, height: waveHeight)
                     
                     if project.editingMode == .creation,
                        let startX = drawSubtitleStartLocation,

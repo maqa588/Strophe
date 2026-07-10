@@ -24,42 +24,34 @@ final class FrameQueue: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         guard frames.count < capacity else { return false }
-        frames.append(frame)
+        if let last = frames.last, frame.pts < last.pts {
+            let insertionIndex = frames.firstIndex(where: { $0.pts > frame.pts }) ?? frames.endIndex
+            frames.insert(frame, at: insertionIndex)
+        } else {
+            frames.append(frame)
+        }
         return true
     }
 
-    func dequeueReady(before pts: Double) -> VideoFrame? {
-        lock.lock()
-        defer { lock.unlock() }
-        guard let idx = frames.firstIndex(where: { $0.pts <= pts }) else { return nil }
-        return frames.remove(at: idx)
-    }
-
-    func dequeueBestFrame(before pts: Double) -> (frame: VideoFrame?, droppedCount: Int) {
+    func dequeueBestFrame(
+        before pts: Double,
+        droppingFramesBefore stalePTS: Double
+    ) -> (frame: VideoFrame?, consumedCount: Int) {
         lock.lock()
         defer { lock.unlock() }
         
         guard let lastReadyIdx = frames.lastIndex(where: { $0.pts <= pts }) else {
             return (nil, 0)
         }
-        
-        let chosenFrame = frames[lastReadyIdx]
-        let droppedCount = lastReadyIdx
-        
-        if droppedCount > 0 {
-            frames.removeSubrange(0..<droppedCount)
-        }
-        
-        frames.remove(at: 0)
-        return (chosenFrame, droppedCount)
-    }
 
-    func dropBefore(_ pts: Double) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        let before = frames.count
-        frames.removeAll { $0.pts < pts - 0.1 }
-        return before - frames.count
+        // Prefer the oldest ready frame for stable cadence. Only catch up by
+        // dropping when video has fallen more than the bounded A/V lag behind.
+        let lastStaleIdx = frames.lastIndex(where: { $0.pts < stalePTS }) ?? 0
+        let chosenIndex = min(lastReadyIdx, lastStaleIdx)
+        let chosenFrame = frames[chosenIndex]
+        let consumedCount = chosenIndex + 1
+        frames.removeSubrange(0...chosenIndex)
+        return (chosenFrame, consumedCount)
     }
 
     var count: Int {
@@ -74,17 +66,6 @@ final class FrameQueue: @unchecked Sendable {
         frames.removeAll()
     }
 
-    func peekFirst() -> VideoFrame? {
-        lock.lock()
-        defer { lock.unlock() }
-        return frames.first
-    }
-
-    func peekLast() -> VideoFrame? {
-        lock.lock()
-        defer { lock.unlock() }
-        return frames.last
-    }
 }
 
 // MARK: - FFmpegEngine
@@ -119,7 +100,17 @@ final class FrameQueue: @unchecked Sendable {
     
     private let frameQueue = FrameQueue(capacity: FFmpegEngine.frameQueueCapacity)
     private var lastSeekTime: CFTimeInterval = 0
-    private var activeSeekTask: Task<Void, Never>? = nil
+    private var seekGeneration: UInt = 0
+    private var transportCommandGeneration: UInt = 0
+    private var lastFrameArrivalTime = CACurrentMediaTime()
+    private var lastStarvationRecoveryTime: CFTimeInterval = 0
+    private var isStarvationRecoveryPending = false
+    private var renderStatsStartTime = CACurrentMediaTime()
+    private var renderedFrameCount = 0
+    private var timingDroppedFrameCount = 0
+    private var displayTickCount = 0
+    private var emptyDisplayTickCount = 0
+    private var accumulatedPresentationLead = 0.0
     nonisolated(unsafe) private var diagTimer: Timer? = nil
 
     // Seek generation — incremented on every seek/load to discard stale pre-seek frames
@@ -128,6 +119,7 @@ final class FrameQueue: @unchecked Sendable {
 
     #if os(macOS)
     nonisolated(unsafe) private var displayTimer: Timer? = nil
+    nonisolated(unsafe) private var displayLinkStorage: AnyObject? = nil
     #else
     nonisolated(unsafe) private var displayLink: CADisplayLink? = nil
     #endif
@@ -154,17 +146,25 @@ final class FrameQueue: @unchecked Sendable {
                     // ── Stale-frame guard ──────────────────────────────────────────
                     // If the generation stamp doesn't match, this callback was queued
                     // BEFORE the most recent seek/load. We simply discard it.
-                    // DO NOT call decrementFrameQueueCount() here because the seek
-                    // that bumped the generation also explicitly zeroed vfqCount, 
-                    // which already accounted for the removal of these in-flight frames!
                     guard sendableBuffer.generation == self.currentFrameGeneration else {
+                        Task {
+                            await coreInstance.acknowledgeVideoFrames(
+                                1,
+                                generation: sendableBuffer.generation
+                            )
+                        }
                         return
                     }
+
+                    self.lastFrameArrivalTime = CACurrentMediaTime()
 
                     if self.cachedRate == 0 {
                         self.metalRenderer.update(with: sendableBuffer.buffer)
                         Task {
-                            await coreInstance.decrementFrameQueueCount()
+                            await coreInstance.acknowledgeVideoFrames(
+                                1,
+                                generation: sendableBuffer.generation
+                            )
                         }
                     } else {
                         // Log PTS vs clock mismatch when enqueueing
@@ -172,18 +172,23 @@ final class FrameQueue: @unchecked Sendable {
                         // if pts > clock + 2.0 {
                         //     print("⚠️ Frame PTS \(String(format: "%.3f", pts)) is \(String(format: "%.1f", pts - clock))s AHEAD of clock \(String(format: "%.3f", clock)) — queue may stall")
                         // }
-                        let frame = VideoFrame(pixelBuffer: sendableBuffer.buffer, pts: pts)
+                        let frame = VideoFrame(
+                            pixelBuffer: sendableBuffer.buffer,
+                            pts: pts,
+                            generation: sendableBuffer.generation
+                        )
                         let accepted = self.frameQueue.enqueue(frame)
                         if !accepted {
-                            // If the queue is unexpectedly full, we drop the frame.
-                            // DO NOT decrement vfqCount! This allows vfqCount to naturally
-                            // rise to maxCapacity and put the decode loop to sleep, breaking
-                            // any runaway loop caused by previous desynchronization.
-                            print("⚠️ Frame dropped because queue is full. Self-healing vfqCount.")
+                            Task {
+                                await coreInstance.acknowledgeVideoFrames(
+                                    1,
+                                    generation: sendableBuffer.generation
+                                )
+                            }
                         }
                     }
                 },
-                onAudioReady: { [weak ap] left, right, pts in
+                onAudioReady: { [weak ap] left, right, pts, _ in
                     ap?.schedulePCMData(left, right, presentationTime: pts)
                 },
                 onStateChanged: { [weak self] duration, fps, _, size, startPlaybackTime, _, audioIndex in
@@ -210,6 +215,10 @@ final class FrameQueue: @unchecked Sendable {
         #if os(macOS)
         displayTimer?.invalidate()
         displayTimer = nil
+        if #available(macOS 14.0, *) {
+            (displayLinkStorage as? CADisplayLink)?.invalidate()
+            displayLinkStorage = nil
+        }
         #else
         displayLink?.invalidate()
         displayLink = nil
@@ -275,46 +284,55 @@ final class FrameQueue: @unchecked Sendable {
             return cachedRate
         }
         set {
-            cachedRate = newValue
-            cachedIsPlaying = newValue > 0
-            
-            Task {
-                await core.setPlaybackRate(newValue)
-            }
-            
-            if cachedIsPlaying {
-                let resumeTime = currentTime
-                cachedStartSystemTime = CACurrentMediaTime()
-                cachedStartPlaybackTime = resumeTime
-                isPlaybackStartedPending = true // 🚀 Freeze systemClockTime and wait for hardware rendering start!
-                
-                let captureSystemTime = cachedStartSystemTime
-                let capturePlaybackTime = cachedStartPlaybackTime
-                let coreInstance = core
-                Task {
-                    await coreInstance.setStartSystemTime(captureSystemTime)
-                    await coreInstance.setStartPlaybackTime(capturePlaybackTime)
-                }
-                
-                audioPlayer.setRate(newValue)
-                audioPlayer.play()
-                startDisplayLink()
-            } else {
-                isPlaybackStartedPending = false // Clear pending
-                // Snapshot position at pause moment
-                cachedStartPlaybackTime = currentTime
-                let capturePlaybackTime = cachedStartPlaybackTime
-                let coreInstance = core
-                Task {
-                    await coreInstance.setStartPlaybackTime(capturePlaybackTime)
-                }
-                audioPlayer.pause()
-                stopDisplayLink()
+            let safeRate = newValue.isFinite && newValue > 0 ? newValue : 0
+            transportCommandGeneration &+= 1
+            let generation = transportCommandGeneration
+            applyLocalTransportRate(safeRate)
+
+            let coreInstance = core
+            Task { [weak self] in
+                guard let self, self.transportCommandGeneration == generation else { return }
+                await coreInstance.setPlaybackRate(safeRate)
             }
         }
     }
+
+    private func applyLocalTransportRate(_ newRate: Double) {
+        let previousRate = cachedRate
+        let clockBeforeChange = currentTime
+        cachedRate = newRate
+        cachedIsPlaying = newRate > 0
+        cachedStartSystemTime = CACurrentMediaTime()
+        cachedStartPlaybackTime = clockBeforeChange
+
+        if cachedIsPlaying {
+            if previousRate <= 0 {
+                lastFrameArrivalTime = cachedStartSystemTime
+                renderStatsStartTime = cachedStartSystemTime
+                renderedFrameCount = 0
+                timingDroppedFrameCount = 0
+                displayTickCount = 0
+                emptyDisplayTickCount = 0
+                accumulatedPresentationLead = 0
+            }
+            isPlaybackStartedPending = cachedAudioStreamIndex >= 0
+            audioPlayer.setRate(newRate)
+            audioPlayer.play()
+            startDisplayLink()
+        } else {
+            isPlaybackStartedPending = false
+            audioPlayer.pause()
+            stopDisplayLink()
+        }
+    }
+
+    private func pauseTransportForSeek() {
+        transportCommandGeneration &+= 1
+        applyLocalTransportRate(0)
+    }
     
-    func load(url: URL) async {
+    @discardableResult
+    func load(url: URL) async -> Bool {
         stopDisplayLink()
         frameQueue.removeAll()
         // Bump generation before load so any queued callbacks from a previous
@@ -337,6 +355,7 @@ final class FrameQueue: @unchecked Sendable {
         await core.setStartPlaybackTime(0.0)
         
         rate = 0.0
+        return !Task.isCancelled
     }
     
     func play() {
@@ -347,70 +366,61 @@ final class FrameQueue: @unchecked Sendable {
         rate = 0.0
     }
     
-    func seek(to time: Double) async {
-        activeSeekTask?.cancel()
-        await core.cancelActiveSeekSession()
-        
-        let task = Task {
-            // Capture playing state BEFORE any async calls that might trigger
-            // state callbacks that could overwrite our cached values
-            let wasPlaying = cachedIsPlaying || wasPlayingBeforeScrub
-            let targetRate = wasPlaying ? (rateBeforeScrub > 0 ? rateBeforeScrub : 1.0) : 0.0
-            
-            // Reset scrub state
-            isScrubbingActive = false
-            wasPlayingBeforeScrub = false
-            rateBeforeScrub = 0.0
-            
-            let countBefore = frameQueue.count
-            print("🔍 Seek triggered: frameQueue.count before clear = \(countBefore)")
-            if let lastFrame = frameQueue.peekLast() {
-                metalRenderer.update(with: lastFrame.pixelBuffer)
-            }
-            frameQueue.removeAll()
-            currentFrameGeneration += 1
-            await core.seekClearAndNewGeneration(generation: currentFrameGeneration)
-            await core.setIsPlaying(false)
-            
-            if Task.isCancelled { return }
-            
-            // Get the ACTUAL pts of the first decoded frame
-            let actualPTS = await core.seekSession(to: time, exact: true)
-            
-            if Task.isCancelled { return }
-            
-            // Set audio baseTime to EXACTLY the same value as video first-frame PTS
-            // This is the single source of truth
-            audioPlayer.seek(to: actualPTS)
-            
-            // Add a tiny delay to allow AVAudioPlayerNode's internal AudioQueue to fully stop
-            // before we potentially call play() below. This prevents kAudioQueueErr_InvalidRunState (-4).
-            try? await Task.sleep(nanoseconds: 50_000_000)
-            
-            // Reset the system clock baseline AFTER seek completes
-            cachedStartSystemTime = CACurrentMediaTime()
-            cachedStartPlaybackTime = actualPTS
-            lastSeekTime = cachedStartSystemTime
-            
-            // Notify core of new reference points
-            await core.setStartSystemTime(cachedStartSystemTime)
-            await core.setStartPlaybackTime(actualPTS)
-            
-            // Resume decode loop and audio together using saved state
-            await core.setIsPlaying(wasPlaying)
-            
-            if wasPlaying {
-                cachedStartSystemTime = CACurrentMediaTime()
-                self.rate = targetRate
-            }
+    @discardableResult
+    func seek(to time: Double) async -> Bool {
+        await performSeek(to: time, exact: true)
+    }
+
+    @discardableResult
+    func seekExactly(to time: Double) async -> Bool {
+        await performSeek(to: time, exact: true)
+    }
+
+    private func performSeek(to time: Double, exact: Bool) async -> Bool {
+        guard time.isFinite else { return false }
+
+        let wasPlaying = cachedIsPlaying || wasPlayingBeforeScrub
+        let targetRate = wasPlaying ? (rateBeforeScrub > 0 ? rateBeforeScrub : max(cachedRate, 1.0)) : 0.0
+
+        isScrubbingActive = false
+        wasPlayingBeforeScrub = false
+        rateBeforeScrub = 0
+
+        seekGeneration &+= 1
+        let operation = seekGeneration
+        pauseTransportForSeek()
+        frameQueue.removeAll()
+        currentFrameGeneration += 1
+        lastSeekTime = CACurrentMediaTime()
+        lastFrameArrivalTime = lastSeekTime
+
+        let seekID = await core.prepareForSeek(generation: currentFrameGeneration)
+        guard operation == seekGeneration, !Task.isCancelled else { return false }
+        guard let actualPTS = await core.seekSession(to: time, exact: exact, seekId: seekID) else {
+            return false
         }
-        activeSeekTask = task
-        _ = await task.result
+        guard operation == seekGeneration, !Task.isCancelled else { return false }
+
+        audioPlayer.seek(to: actualPTS)
+        cachedStartSystemTime = CACurrentMediaTime()
+        cachedStartPlaybackTime = actualPTS
+        lastSeekTime = cachedStartSystemTime
+        lastFrameArrivalTime = lastSeekTime
+        await core.setStartSystemTime(cachedStartSystemTime)
+        await core.setStartPlaybackTime(actualPTS)
+
+        transportCommandGeneration &+= 1
+        if wasPlaying {
+            applyLocalTransportRate(targetRate)
+            await core.setPlaybackRate(targetRate)
+        } else {
+            await core.setPlaybackRate(0)
+        }
+        return operation == seekGeneration
     }
     
-    func seekVideoFrameOnly(to time: Double) async {
-        activeSeekTask?.cancel()
-        
+    @discardableResult
+    func seekVideoFrameOnly(to time: Double) async -> Bool {
         // Capture playback state immediately before the sleep phase to ensure we capture
         // the true original state prior to the scrubbing session, and pause immediately.
         if !isScrubbingActive {
@@ -418,43 +428,26 @@ final class FrameQueue: @unchecked Sendable {
             wasPlayingBeforeScrub = cachedIsPlaying
             rateBeforeScrub = cachedRate
         }
-        rate = 0.0
-        await core.cancelActiveSeekSession()
-        
-        let task = Task {
-            // Cooperative sleep to debounce high-frequency timeline scrub events
-            do {
-                try await Task.sleep(nanoseconds: 15_000_000) // 15ms sleep
-            } catch {
-                return // Task was cancelled during sleep phase, abort.
-            }
-            
-            let countBefore = frameQueue.count
-            print("🔍 SeekVideoFrameOnly triggered: frameQueue.count before clear = \(countBefore)")
-            if let lastFrame = frameQueue.peekLast() {
-                metalRenderer.update(with: lastFrame.pixelBuffer)
-            }
-            frameQueue.removeAll()
-            currentFrameGeneration += 1
-            await core.seekClearAndNewGeneration(generation: currentFrameGeneration)
-            
-            if Task.isCancelled { return }
-            
-            // Pause audio stream during scrub previewing
-            audioPlayer.pause()
-            
-            // Asynchronously seek and decode a single preview frame without touching audio playback
-            let actualTime = await core.seekSession(to: time, exact: false)
-            
-            if Task.isCancelled { return }
-            
-            // Instantly align master playback time so timeline ruler updates dynamically while dragging
-            cachedStartPlaybackTime = actualTime
-            cachedStartSystemTime = CACurrentMediaTime()
-            lastSeekTime = cachedStartSystemTime
+
+        seekGeneration &+= 1
+        let operation = seekGeneration
+        pauseTransportForSeek()
+        frameQueue.removeAll()
+        currentFrameGeneration += 1
+        lastSeekTime = CACurrentMediaTime()
+        lastFrameArrivalTime = lastSeekTime
+
+        let seekID = await core.prepareForSeek(generation: currentFrameGeneration)
+        guard operation == seekGeneration, !Task.isCancelled else { return false }
+        guard let actualTime = await core.seekSession(to: time, exact: false, seekId: seekID) else {
+            return false
         }
-        activeSeekTask = task
-        _ = await task.result
+        guard operation == seekGeneration, !Task.isCancelled else { return false }
+
+        cachedStartPlaybackTime = actualTime
+        cachedStartSystemTime = CACurrentMediaTime()
+        lastSeekTime = cachedStartSystemTime
+        return true
     }
     
     func stop() {
@@ -481,9 +474,20 @@ final class FrameQueue: @unchecked Sendable {
     
     private func startDisplayLink() {
         #if os(macOS)
-        if displayTimer == nil {
+        if #available(macOS 14.0, *) {
+            if displayLinkStorage == nil {
+                let link = playerView.displayLink(
+                    target: self,
+                    selector: #selector(displayLinkFired(_:))
+                )
+                link.add(to: .main, forMode: .common)
+                displayLinkStorage = link
+            }
+            updateDisplayLinkPreferredFrameRate()
+            (displayLinkStorage as? CADisplayLink)?.isPaused = false
+        } else if displayTimer == nil {
             let timer = Timer(
-                timeInterval: 1.0 / 120.0,
+                timeInterval: 1.0 / 60.0,
                 target: self,
                 selector: #selector(displayTimerFired(_:)),
                 userInfo: nil,
@@ -505,8 +509,12 @@ final class FrameQueue: @unchecked Sendable {
     
     private func stopDisplayLink() {
         #if os(macOS)
-        displayTimer?.invalidate()
-        displayTimer = nil
+        if #available(macOS 14.0, *) {
+            (displayLinkStorage as? CADisplayLink)?.isPaused = true
+        } else {
+            displayTimer?.invalidate()
+            displayTimer = nil
+        }
         #else
         displayLink?.isPaused = true
         #endif
@@ -516,6 +524,10 @@ final class FrameQueue: @unchecked Sendable {
         #if os(macOS)
         displayTimer?.invalidate()
         displayTimer = nil
+        if #available(macOS 14.0, *) {
+            (displayLinkStorage as? CADisplayLink)?.invalidate()
+            displayLinkStorage = nil
+        }
         #else
         displayLink?.invalidate()
         displayLink = nil
@@ -523,7 +535,15 @@ final class FrameQueue: @unchecked Sendable {
     }
     
     private func updateDisplayLinkPreferredFrameRate() {
-        #if os(iOS)
+        #if os(macOS)
+        if #available(macOS 14.0, *) {
+            (displayLinkStorage as? CADisplayLink)?.preferredFrameRateRange = CAFrameRateRange(
+                minimum: 60,
+                maximum: 120,
+                preferred: Float(min(120, max(60, cachedFPS.rounded())))
+            )
+        }
+        #else
         guard let dl = displayLink else { return }
         if #available(iOS 15.0, *) {
             let range = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 0)
@@ -536,39 +556,115 @@ final class FrameQueue: @unchecked Sendable {
     
     #if os(macOS)
     @objc private func displayTimerFired(_ sender: Timer) {
-        renderTick()
-    }
-    #else
-    @objc private func displayLinkFired(_ sender: CADisplayLink) {
-        renderTick()
+        renderTick(presentationLead: fallbackPresentationLead)
     }
     #endif
 
-    private func renderTick() {
+    #if os(macOS)
+    @available(macOS 14.0, *)
+    #endif
+    @objc private func displayLinkFired(_ sender: CADisplayLink) {
+        let lead = max(0, min(0.05, sender.targetTimestamp - CACurrentMediaTime()))
+        renderTick(presentationLead: lead)
+    }
+
+    private var fallbackPresentationLead: Double {
+        let fps = cachedFPS.isFinite && cachedFPS > 0 ? cachedFPS : 60
+        return min(0.025, 0.75 / fps)
+    }
+
+    private func renderTick(presentationLead: Double) {
         guard rate > 0 else {
             stopDisplayLink()
             return
         }
-        let currentClock = currentTime
+        displayTickCount += 1
+        accumulatedPresentationLead += presentationLead
+        let currentClock = currentTime + presentationLead * rate
         
-        let result = frameQueue.dequeueBestFrame(before: currentClock + 0.005)
-        var consumed = 0
-        
+        let sourceFPS = cachedFPS.isFinite && cachedFPS > 0 ? cachedFPS : 60
+        let allowedVideoLag = max(0.025, 2.0 / sourceFPS)
+        let result = frameQueue.dequeueBestFrame(
+            before: currentClock,
+            droppingFramesBefore: currentClock - allowedVideoLag
+        )
         if let frame = result.frame {
             self.metalRenderer.update(with: frame.pixelBuffer)
-            consumed += 1
-        }
-        
-        consumed += result.droppedCount
-        
-        let fallbackDropped = frameQueue.dropBefore(currentClock)
-        consumed += fallbackDropped
-        
-        if consumed > 0 {
+            renderedFrameCount += 1
+            timingDroppedFrameCount += max(0, result.consumedCount - 1)
             let coreInstance = core
-            let consumedCount = consumed
+            let consumedCount = result.consumedCount
+            let generation = frame.generation
             Task {
-                await coreInstance.decrementFrameQueueCount(by: consumedCount)
+                await coreInstance.acknowledgeVideoFrames(
+                    consumedCount,
+                    generation: generation
+                )
+            }
+        } else {
+            emptyDisplayTickCount += 1
+            recoverStarvedDecodeFlowIfNeeded(currentClock: currentClock)
+        }
+        reportRenderStatsIfNeeded()
+    }
+
+    private func reportRenderStatsIfNeeded() {
+        let now = CACurrentMediaTime()
+        let elapsed = now - renderStatsStartTime
+        guard elapsed >= 5 else { return }
+
+        let renderedFPS = Double(renderedFrameCount) / elapsed
+        let averageLeadMS = displayTickCount > 0
+            ? accumulatedPresentationLead / Double(displayTickCount) * 1_000
+            : 0
+        print(
+            "📊 FFmpeg render: actual=\(String(format: "%.1f", renderedFPS))fps "
+            + "source=\(String(format: "%.2f", cachedFPS))fps "
+            + "queue=\(frameQueue.count) timingDrops=\(timingDroppedFrameCount) "
+            + "ticks=\(displayTickCount) emptyTicks=\(emptyDisplayTickCount) "
+            + "lead=\(String(format: "%.2f", averageLeadMS))ms"
+        )
+        renderStatsStartTime = now
+        renderedFrameCount = 0
+        timingDroppedFrameCount = 0
+        displayTickCount = 0
+        emptyDisplayTickCount = 0
+        accumulatedPresentationLead = 0
+    }
+
+    private func recoverStarvedDecodeFlowIfNeeded(currentClock: Double) {
+        let now = CACurrentMediaTime()
+        guard rate > 0,
+              frameQueue.count == 0,
+              currentClock < max(0, duration - 0.25),
+              now - lastFrameArrivalTime > 0.75,
+              now - lastSeekTime > 0.75,
+              now - lastStarvationRecoveryTime > 0.75,
+              !isStarvationRecoveryPending else { return }
+
+        isStarvationRecoveryPending = true
+        lastStarvationRecoveryTime = now
+        let generation = currentFrameGeneration
+        let expectedRate = rate
+        let actualCount = frameQueue.count
+        let coreInstance = core
+
+        Task { [weak self] in
+            let recovery = await coreInstance.recoverStarvedDecodeFlow(
+                generation: generation,
+                actualQueueCount: actualCount,
+                expectedRate: expectedRate
+            )
+            guard let self else { return }
+            self.isStarvationRecoveryPending = false
+            guard generation == self.currentFrameGeneration, let recovery else { return }
+
+            if recovery.previousCount != actualCount || recovery.restarted || recovery.resumed {
+                print(
+                    "🩹 FFmpeg decode starvation recovered: coreQueue=\(recovery.previousCount) "
+                    + "actualQueue=\(actualCount) restarted=\(recovery.restarted) "
+                    + "resumed=\(recovery.resumed)"
+                )
             }
         }
     }
