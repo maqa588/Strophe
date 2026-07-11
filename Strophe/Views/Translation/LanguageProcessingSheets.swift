@@ -38,7 +38,12 @@ struct PinyinConversionSheet: View {
                 }
             }
         }
+        #if os(macOS)
         .frame(minWidth: 480, minHeight: 300)
+        #else
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .presentationDetents([.medium])
+        #endif
     }
 }
 
@@ -115,6 +120,11 @@ struct AutoLineWrapSheet: View {
                 }
             }
         }
+        #if os(macOS)
         .frame(minWidth: 540, minHeight: 470)
+        #else
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .presentationDetents([.medium, .large])
+        #endif
     }
 }

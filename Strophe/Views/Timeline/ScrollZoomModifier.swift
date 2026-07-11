@@ -14,6 +14,9 @@ struct ScrollZoomModifier: NSViewRepresentable {
     let maxPPS: Double
     let playheadTime: Double
     @Binding var scrollPageStartTime: Double
+    @Binding var trackVerticalScale: CGFloat
+    @Binding var trackVerticalOffset: CGFloat
+    let trackCount: Int
     /// Called each time PPS changes so the parent can debounce the Canvas redraw.
     var onCommit: () -> Void = {}
 
@@ -26,6 +29,11 @@ struct ScrollZoomModifier: NSViewRepresentable {
         var maxPPS: Double = 1000
         var playheadTime: Double = 0
         var onPixelsPerSecondChange: ((Double) -> Void)?
+        var trackVerticalScale: CGFloat = 0.78
+        var trackVerticalOffset: CGFloat = 0
+        var trackCount: Int = 1
+        var onTrackVerticalScaleChange: ((CGFloat) -> Void)?
+        var onTrackVerticalOffsetChange: ((CGFloat) -> Void)?
         var onCommit: (() -> Void)?
 
         // The single registered monitor — kept for the lifetime of the NSView
@@ -45,6 +53,31 @@ struct ScrollZoomModifier: NSViewRepresentable {
             onCommit?()
         }
 
+        private func applyTrackZoomFactor(_ factor: CGFloat) {
+            let newScale = SubtitleTimelineTrackMetrics.clampedScale(trackVerticalScale * factor)
+            guard newScale != trackVerticalScale else { return }
+            let viewportCenter = trackVerticalOffset
+                + SubtitleTimelineTrackMetrics.viewportHeight / max(0.001, trackVerticalScale) * 0.5
+            let newOffset = SubtitleTimelineTrackMetrics.clampedOffset(
+                viewportCenter - SubtitleTimelineTrackMetrics.viewportHeight / newScale * 0.5,
+                trackCount: trackCount,
+                scale: newScale
+            )
+            onTrackVerticalScaleChange?(newScale)
+            onTrackVerticalOffsetChange?(newOffset)
+        }
+
+        private func applyTrackPan(_ delta: CGFloat) {
+            let proposed = trackVerticalOffset + delta / max(0.001, trackVerticalScale)
+            let newOffset = SubtitleTimelineTrackMetrics.clampedOffset(
+                proposed,
+                trackCount: trackCount,
+                scale: trackVerticalScale
+            )
+            guard newOffset != trackVerticalOffset else { return }
+            onTrackVerticalOffsetChange?(newOffset)
+        }
+
         private func isEventInsideTrackingView(_ event: NSEvent) -> Bool {
             guard let trackingView, let window = trackingView.window, event.window === window else {
                 return false
@@ -60,25 +93,48 @@ struct ScrollZoomModifier: NSViewRepresentable {
 
                 switch event.type {
                 case .scrollWheel:
-                    guard event.modifierFlags.contains(.option) else { return event }
                     guard self.isEventInsideTrackingView(event) else { return event }
                     let delta = event.scrollingDeltaY
                     guard delta != 0 else { return event }
+                    let usesTimeZoom = event.modifierFlags.contains(.option)
+                    let usesTrackZoom = event.modifierFlags.contains(.command)
+                    if !usesTimeZoom,
+                       !usesTrackZoom,
+                       abs(event.scrollingDeltaX) >= abs(delta) {
+                        return event
+                    }
+                    if !usesTimeZoom,
+                       !usesTrackZoom,
+                       SubtitleTimelineTrackMetrics.maximumOffset(
+                           trackCount: self.trackCount,
+                           scale: self.trackVerticalScale
+                       ) == 0 {
+                        return event
+                    }
 
                     DispatchQueue.main.async {
-                        let factor = delta > 0 ? 1.1 : 0.9
-                        self.applyZoomFactor(factor)
+                        if usesTimeZoom {
+                            self.applyZoomFactor(delta > 0 ? 1.1 : 0.9)
+                        } else if usesTrackZoom {
+                            self.applyTrackZoomFactor(delta > 0 ? 1.08 : 0.92)
+                        } else {
+                            self.applyTrackPan(-CGFloat(delta))
+                        }
                     }
-                    // Consume the event so the ScrollView doesn't also scroll vertically.
                     return nil
 
                 case .magnify:
                     guard self.isEventInsideTrackingView(event) else { return event }
                     let magnification = Double(event.magnification)
                     guard magnification != 0 else { return nil }
+                    let usesTrackZoom = event.modifierFlags.contains(.command)
 
                     DispatchQueue.main.async {
-                        self.applyZoomFactor(1.0 + magnification)
+                        if usesTrackZoom {
+                            self.applyTrackZoomFactor(CGFloat(1.0 + magnification))
+                        } else {
+                            self.applyZoomFactor(1.0 + magnification)
+                        }
                     }
                     return nil
 
@@ -110,9 +166,14 @@ struct ScrollZoomModifier: NSViewRepresentable {
         coord.minPPS = minPPS
         coord.maxPPS = maxPPS
         coord.playheadTime = playheadTime
+        coord.trackVerticalScale = trackVerticalScale
+        coord.trackVerticalOffset = trackVerticalOffset
+        coord.trackCount = trackCount
         coord.onPixelsPerSecondChange = { newPPS in
             pixelsPerSecond = newPPS
         }
+        coord.onTrackVerticalScaleChange = { trackVerticalScale = $0 }
+        coord.onTrackVerticalOffsetChange = { trackVerticalOffset = $0 }
         coord.onCommit = onCommit
 
         // Ensure the monitor is registered (e.g. after a window change)
@@ -132,6 +193,9 @@ struct ScrollZoomModifier: UIViewRepresentable {
     let maxPPS: Double
     let playheadTime: Double
     @Binding var scrollPageStartTime: Double
+    @Binding var trackVerticalScale: CGFloat
+    @Binding var trackVerticalOffset: CGFloat
+    let trackCount: Int
     var onCommit: () -> Void = {}
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -203,6 +267,9 @@ struct ScrollZoomModifier: View {
     let maxPPS: Double
     let playheadTime: Double
     @Binding var scrollPageStartTime: Double
+    @Binding var trackVerticalScale: CGFloat
+    @Binding var trackVerticalOffset: CGFloat
+    let trackCount: Int
     var onCommit: () -> Void = {}
     var body: some View { EmptyView() }
 }

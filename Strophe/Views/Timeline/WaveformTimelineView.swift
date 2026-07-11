@@ -11,6 +11,7 @@ private let timelineScrollCoordinateSpaceName = "timelineScrollCoordinateSpace"
 
 struct WaveformTimelineView: View {
     @ObservedObject var project: SubtitleProject
+    @ObservedObject private var groupStore = StyleAndGroupStore.shared
     
     // 渲染参数
     @State private var pixelsPerSecond: Double = 50
@@ -30,9 +31,12 @@ struct WaveformTimelineView: View {
     
     // Real-time dynamic layout width state
     @State private var availableWidth: CGFloat = 800
+    @State private var trackVerticalScale: CGFloat = 0.78
+    @State private var trackVerticalOffset: CGFloat = 0
 
     #if os(iOS)
     @State private var gestureZoomBasePPS: Double = 50.0
+    @State private var gestureZoomBaseTrackScale: CGFloat = 0.78
     @State private var isTouchZooming = false
     #endif
     
@@ -61,14 +65,19 @@ struct WaveformTimelineView: View {
                 let safeDataDuration = data.duration.isFinite ? max(0, data.duration) : 0
                 let safePPS = pixelsPerSecond.isFinite ? max(0.001, pixelsPerSecond) : minPPS
                 let rulerHeight: CGFloat = 25
-                let waveHeight: CGFloat = 120
+                let waveHeight = SubtitleTimelineTrackMetrics.totalHeight(
+                    trackCount: visibleTimelineTrackCount
+                )
 
                 GeometryReader { timelineGeo in
                     let contentWidth = max(1, timelineGeo.size.width)
                     let visibleDuration = Double(max(1, contentWidth)) / safePPS
                     let trailingWorkspaceDuration = max(8.0, visibleDuration * 0.75)
                     let timelineWorkspaceDuration = safeDataDuration + trailingWorkspaceDuration
-                    let totalWidth = CGFloat(max(1, timelineWorkspaceDuration * safePPS))
+                    // Never let the timeline content become narrower than its viewport
+                    // during split-view/window resizing; otherwise the uncovered right
+                    // side appears as a black rendering gap until the next zoom event.
+                    let totalWidth = max(contentWidth, CGFloat(max(1, timelineWorkspaceDuration * safePPS)))
 
                     ZStack(alignment: .top) {
                         ScrollView(.horizontal, showsIndicators: true) {
@@ -91,7 +100,9 @@ struct WaveformTimelineView: View {
                                     isUserInteracting: $isUserInteracting,
                                     drawSubtitleStartLocation: $drawSubtitleStartLocation,
                                     drawSubtitleCurrentLocation: $drawSubtitleCurrentLocation,
-                                    dragStartTime: $dragStartTime
+                                    dragStartTime: $dragStartTime,
+                                    trackVerticalScale: $trackVerticalScale,
+                                    trackVerticalOffset: $trackVerticalOffset
                                 )
                             }
                             .padding(.bottom, 6)
@@ -124,15 +135,20 @@ struct WaveformTimelineView: View {
                                     if !isTouchZooming {
                                         isTouchZooming = true
                                         gestureZoomBasePPS = pixelsPerSecond
+                                        gestureZoomBaseTrackScale = trackVerticalScale
                                     }
                                     let newPPS = gestureZoomBasePPS * Double(value)
                                     pixelsPerSecond = min(maxPPS, max(minPPS, newPPS))
+                                    trackVerticalScale = SubtitleTimelineTrackMetrics.clampedScale(
+                                        gestureZoomBaseTrackScale * sqrt(CGFloat(value))
+                                    )
                                     scheduleCanvasRedraw()
                                 }
                                 .onEnded { _ in
                                     guard isTouchZooming else { return }
                                     isTouchZooming = false
                                     gestureZoomBasePPS = pixelsPerSecond
+                                    gestureZoomBaseTrackScale = trackVerticalScale
                                     renderedPPS = pixelsPerSecond
                                 }
                         )
@@ -140,7 +156,19 @@ struct WaveformTimelineView: View {
                         #if os(macOS)
                         .onContinuousHover { _ in }
                         #endif
-                        .background(ScrollZoomModifier(pixelsPerSecond: $pixelsPerSecond, minPPS: minPPS, maxPPS: maxPPS, playheadTime: project.currentTime, scrollPageStartTime: $scrollPageStartTime, onCommit: scheduleCanvasRedraw))
+                        .background(
+                            ScrollZoomModifier(
+                                pixelsPerSecond: $pixelsPerSecond,
+                                minPPS: minPPS,
+                                maxPPS: maxPPS,
+                                playheadTime: project.currentTime,
+                                scrollPageStartTime: $scrollPageStartTime,
+                                trackVerticalScale: $trackVerticalScale,
+                                trackVerticalOffset: $trackVerticalOffset,
+                                trackCount: visibleTimelineTrackCount,
+                                onCommit: scheduleCanvasRedraw
+                            )
+                        )
                         
                         #if os(iOS)
                         if project.editingMode == .creation {
@@ -190,6 +218,10 @@ struct WaveformTimelineView: View {
         #else
         return 0
         #endif
+    }
+
+    private var visibleTimelineTrackCount: Int {
+        max(1, groupStore.sortedGroups.filter(\.isOverlayEnabled).count)
     }
 
     private func scrollOffsetReader(pixelsPerSecond: Double, duration: Double, viewWidth: CGFloat) -> some View {
@@ -273,8 +305,8 @@ struct WaveformTimelineView: View {
         
         availableWidth = width
         
-        if wasAtMin {
-            let newMin = Double(width) / safeDuration
+        let newMin = Double(width) / safeDuration
+        if wasAtMin || pixelsPerSecond < newMin {
             pixelsPerSecond = newMin
             renderedPPS = newMin
         }

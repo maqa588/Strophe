@@ -105,7 +105,11 @@ struct BatchTranslationView: View {
                 }
             }
         }
+        #if os(macOS)
         .frame(minWidth: 580, minHeight: 620)
+        #else
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        #endif
         .onDisappear { translationTask?.cancel() }
         .alert("批量翻译失败", isPresented: Binding(
             get: { errorMessage != nil },

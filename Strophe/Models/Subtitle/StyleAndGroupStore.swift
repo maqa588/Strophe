@@ -134,7 +134,8 @@ struct StoredSubGroupItem: Codable, Sendable, Equatable {
     var sortOrder: Int
 }
 
-class StyleAndGroupStore: ObservableObject {
+@MainActor
+final class StyleAndGroupStore: ObservableObject {
     static let shared = StyleAndGroupStore()
 
     private var cancellables = Set<AnyCancellable>()
@@ -237,9 +238,17 @@ class StyleAndGroupStore: ObservableObject {
     }
 
     func setActiveGroup(_ id: UUID) {
-        for index in groups.indices {
-            groups[index].isActive = groups[index].id == id
+        guard groups.contains(where: { $0.id == id }) else { return }
+        let updatedGroups = groups.map { group in
+            var updated = group
+            updated.isActive = group.id == id
+            return updated
         }
+        guard updatedGroups != groups else { return }
+        // Publish one coherent snapshot. Mutating @Published array elements in a
+        // loop emitted several intermediate states and could re-enter SwiftUI's
+        // AsyncRenderer while a group switch was still in progress.
+        groups = updatedGroups
     }
 
     func shortcutGroup(number: Int) -> SubGroupItem? {

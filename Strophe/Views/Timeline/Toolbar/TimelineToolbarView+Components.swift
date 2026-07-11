@@ -12,194 +12,11 @@ import UIKit
 #endif
 
 /// 时间轴上方独立的自定义功能工具栏
-struct TimelineToolbarView: View {
-    let project: SubtitleProject
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    
-    // Dynamic available width state to achieve fluid cross-platform responsiveness
-    @State private var availableWidth: CGFloat = 800
-    
-    private var isCompact: Bool {
-        return availableWidth < 720
-    }
-
-    private var isVeryCompact: Bool {
-        return availableWidth < 430
-    }
-    
-    // Local state variables for layout and rendering, keeping body evaluations isolated
-    @State private var targetSpeed: Double = 1.0
-    @State private var showSoftSubtitles: Bool = false
-    @State private var showHardSubtitles: Bool = false
-    @State private var editingMode: TimelineEditingMode = .selection
-    @State private var videoURL: URL? = nil
-    @State private var isAudioOnly: Bool = false
-    @State private var videoFrameRate: Double = 30.0
-    @State private var waveformData: WaveformData? = nil
-    @State private var playbackRate: Double = 0.0
-    @State private var isEditingText: Bool = false
-    
-    @State private var showSoftSubtitlesTip = false
-    @State private var showHardSubtitlesTip = false
-    @State private var showSelectionTip = false
-    @State private var showCreationTip = false
-    @State private var showSplitTip = false
-    @State private var showMergeTip = false
-    
-    // 用于 macOS 鼠标延时悬浮（0.5秒）的取消型 Task 实例
-    @State private var softSubtitlesHoverTask: Task<Void, Never>? = nil
-    @State private var hardSubtitlesHoverTask: Task<Void, Never>? = nil
-    @State private var selectionHoverTask: Task<Void, Never>? = nil
-    @State private var creationHoverTask: Task<Void, Never>? = nil
-    @State private var splitHoverTask: Task<Void, Never>? = nil
-    @State private var mergeHoverTask: Task<Void, Never>? = nil
-    
-    // 切分/合并操作状态
-    @State private var splitRequest: SplitRequest? = nil
-    @State private var mergeErrorMessage: String? = nil
-    @State private var splitErrorMessage: String? = nil
-    
-    var body: some View {
-        VStack(spacing: isCompact ? 8 : 0) {
-            if isCompact {
-                // Compact two-row layout for iPhone & narrow Mac windows
-                if videoURL != nil {
-                    HStack {
-                        #if !os(watchOS)
-                        AirPlayRoutePicker()
-                            .frame(width: 24, height: 24)
-                        #endif
-                        
-                        Spacer()
-                        
-                        playbackControls
-                        
-                        Spacer()
-                        
-                        // Balance empty spacer to center the playback controls perfectly
-                        Spacer()
-                            .frame(width: 24)
-                    }
-                    .padding(.bottom, 2)
-                }
-                
-                HStack(spacing: isVeryCompact ? 6 : 10) {
-                    mediaInfoSection
-                    Spacer(minLength: isVeryCompact ? 4 : 8)
-                    editingModeControls
-                }
-            } else {
-                // Regular one-row layout for Mac and iPad
-                HStack {
-                    HStack(spacing: 8) {
-                        #if !os(watchOS)
-                        if videoURL != nil {
-                            AirPlayRoutePicker()
-                                .frame(width: 24, height: 24)
-                        }
-                        #endif
-                        mediaInfoSection
-                    }
-                    .fixedSize(horizontal: true, vertical: false)
-                    
-                    Spacer()
-                    
-                    if videoURL != nil {
-                        playbackControls
-                    }
-                    
-                    Spacer()
-                    
-                    editingModeControls
-                        .fixedSize(horizontal: true, vertical: false)
-                }
-            }
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
-        .background(
-            GeometryReader { geo in
-                Color.clear
-                    .onAppear {
-                        availableWidth = geo.size.width
-                    }
-                    .stropheOnChange(of: geo.size.width) { newWidth in
-                        availableWidth = newWidth
-                    }
-            }
-        )
-        .onAppear {
-            syncStateFromProject()
-        }
-        .onReceive(project.objectWillChange) { _ in
-            // Dispatch to next runloop to read post-change published values
-            DispatchQueue.main.async {
-                syncStateFromProject()
-            }
-        }
-        .sheet(item: $splitRequest) { request in
-            SubtitleSplitView(
-                item: request.item,
-                splitTime: request.splitTime,
-                project: project,
-                onDismiss: { splitRequest = nil }
-            )
-        }
-        .alert(String(localized: "无法切分"), isPresented: Binding(
-            get: { splitErrorMessage != nil },
-            set: { if !$0 { splitErrorMessage = nil } }
-        )) {
-            Button(String(localized: "确定"), role: .cancel) { splitErrorMessage = nil }
-        } message: {
-            Text(splitErrorMessage ?? "")
-        }
-        .alert(String(localized: "无法合并"), isPresented: Binding(
-            get: { mergeErrorMessage != nil },
-            set: { if !$0 { mergeErrorMessage = nil } }
-        )) {
-            Button(String(localized: "确定"), role: .cancel) { mergeErrorMessage = nil }
-        } message: {
-            Text(mergeErrorMessage ?? "")
-        }
-    }
-    
-    private func syncStateFromProject() {
-        if targetSpeed != project.targetSpeed {
-            targetSpeed = project.targetSpeed
-        }
-        if showSoftSubtitles != project.showSoftSubtitles {
-            showSoftSubtitles = project.showSoftSubtitles
-        }
-        if showHardSubtitles != project.showHardSubtitles {
-            showHardSubtitles = project.showHardSubtitles
-        }
-        if editingMode != project.editingMode {
-            editingMode = project.editingMode
-        }
-        if videoURL != project.videoURL {
-            videoURL = project.videoURL
-        }
-        if isAudioOnly != project.isAudioOnly {
-            isAudioOnly = project.isAudioOnly
-        }
-        if videoFrameRate != project.videoFrameRate {
-            videoFrameRate = project.videoFrameRate
-        }
-        if waveformData !== project.waveformData {
-            waveformData = project.waveformData
-        }
-        if playbackRate != project.playbackRate {
-            playbackRate = project.playbackRate
-        }
-        if isEditingText != project.isEditingText {
-            isEditingText = project.isEditingText
-        }
-    }
-    
+extension TimelineToolbarView {
     // MARK: - Extracted Components
     
     @ViewBuilder
-    private var mediaInfoSection: some View {
+    var mediaInfoSection: some View {
         HStack(spacing: 6) {
             if !isVeryCompact {
                 Image(systemName: "waveform")
@@ -248,7 +65,7 @@ struct TimelineToolbarView: View {
         .fixedSize(horizontal: true, vertical: false)
     }
 
-    private func displayTimelineTime(at date: Date) -> Double {
+    func displayTimelineTime(at date: Date) -> Double {
         let rawTime: Double
         if project.playbackRate == 0 {
             rawTime = project.currentTime
@@ -260,7 +77,7 @@ struct TimelineToolbarView: View {
         return rawTime.clampedFinite(to: 0...maxTime)
     }
 
-    private func formatPreciseTime(_ time: Double) -> String {
+    func formatPreciseTime(_ time: Double) -> String {
         let safeTime = time.isFinite ? max(0, time) : 0
         let totalMilliseconds = Int((safeTime * 1000).rounded())
         let milliseconds = totalMilliseconds % 1000
@@ -273,7 +90,7 @@ struct TimelineToolbarView: View {
     }
     
     @ViewBuilder
-    private var playbackControls: some View {
+    var playbackControls: some View {
         if #available(anyAppleOS 26.0, *) {
             GlassEffectContainer(spacing: 12) {
                 HStack(spacing: 0) {
@@ -340,7 +157,7 @@ struct TimelineToolbarView: View {
     }
     
     @ViewBuilder
-    private var editingModeControls: some View {
+    var editingModeControls: some View {
         if #available(anyAppleOS 26.0, *) {
             GlassEffectContainer(spacing: 12) {
                 HStack(spacing: 0) {
@@ -539,169 +356,4 @@ struct TimelineToolbarView: View {
         }
     }
     
-    // MARK: - Split / Merge Actions
-    
-    private func handleSplitAction() {
-        switch project.validateSplitAtPlayhead() {
-        case .ready(let item):
-            splitRequest = SplitRequest(item: item, splitTime: project.currentTime)
-        case .noBlock:
-            splitErrorMessage = String(localized: "时间游标位置没有字幕块")
-        case .overlapping:
-            splitErrorMessage = String(localized: "请先解决重叠问题再拆分")
-        }
-    }
-    
-    private func handleMergeAction() {
-        if let error = project.mergeSelectedSubtitles() {
-            mergeErrorMessage = error
-        }
-    }
-}
-
-// MARK: - SplitRequest: Identifiable wrapper for .sheet(item:) API
-struct SplitRequest: Identifiable {
-    let id = UUID()
-    let item: SubtitleItem
-    let splitTime: TimeInterval
-}
-
-// MARK: - Rich Interactive Tooltip View
-struct RichTooltipView: View {
-    let icon: String
-    let title: String
-    let message: String
-    
-    var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: icon)
-                .font(.body)
-                .foregroundColor(Color.accentColor)
-                .padding(.top, 1)
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.subheadline.bold())
-                    .foregroundColor(.primary)
-                Text(message)
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(12)
-        .frame(width: 290)
-    }
-}
-
-// MARK: - View Extension for Conditional Shortcuts
-extension View {
-    @ViewBuilder
-    func keyboardShortcutIf(_ condition: Bool, _ key: KeyEquivalent, modifiers: EventModifiers = []) -> some View {
-        if condition {
-            self.keyboardShortcut(key, modifiers: modifiers)
-        } else {
-            self
-        }
-    }
-
-    func timelineInfoBadge(
-        foreground: Color = Color.stropheBlue,
-        background: Color = Color.stropheBlue.opacity(0.15),
-        isCompact: Bool = false
-    ) -> some View {
-        self
-            .font(.system(size: isCompact ? 8 : 9, weight: .bold, design: .monospaced))
-            .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
-            .padding(.horizontal, isCompact ? 5 : 6)
-            .padding(.vertical, 2)
-            .background(background)
-            .foregroundColor(foreground)
-            .cornerRadius(4)
-    }
-}
-
-// MARK: - AirPlayRoutePicker ViewRepresentable
-#if os(macOS)
-import AppKit
-import AVKit
-
-struct AirPlayRoutePicker: NSViewRepresentable {
-    func makeNSView(context: Context) -> AVRoutePickerView {
-        let picker = AVRoutePickerView()
-        picker.isRoutePickerButtonBordered = false
-        return picker
-    }
-    func updateNSView(_ nsView: AVRoutePickerView, context: Context) {}
-}
-#elseif os(iOS)
-import UIKit
-import AVKit
-
-struct AirPlayRoutePicker: UIViewRepresentable {
-    func makeUIView(context: Context) -> AVRoutePickerView {
-        let picker = AVRoutePickerView()
-        return picker
-    }
-    func updateUIView(_ uiView: AVRoutePickerView, context: Context) {}
-}
-#endif
-
-// MARK: - BoundarySeekButton for Hold-to-Seek Subtitle Edges
-struct BoundarySeekButton: View {
-    let icon: String
-    let direction: SubtitleProject.SubtitleBoundaryDirection
-    let project: SubtitleProject
-    
-    @State private var timerTask: Task<Void, Never>? = nil
-    @State private var isHolding = false
-    
-    var body: some View {
-        Image(systemName: icon)
-            .font(.body.weight(.medium))
-            .frame(width: 32, height: 28)
-            .foregroundColor(.primary)
-            .contentShape(Rectangle())
-            .help(direction == .left ? String(localized: "字幕块左对齐") : String(localized: "字幕块右对齐"))
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { _ in
-                        guard !isHolding else { return }
-                        isHolding = true
-                        startScanning()
-                    }
-                    .onEnded { _ in
-                        isHolding = false
-                        stopScanning()
-                    }
-            )
-    }
-    
-    private func startScanning() {
-        timerTask?.cancel()
-        timerTask = Task { @MainActor in
-            project.seekToSubtitleBoundary(direction)
-
-            try? await Task.sleep(nanoseconds: 350_000_000)
-            guard !Task.isCancelled else { return }
-            
-            #if os(iOS)
-            let generator = UIImpactFeedbackGenerator(style: .light)
-            generator.prepare()
-            generator.impactOccurred()
-            #endif
-            
-            while !Task.isCancelled {
-                project.seekToSubtitleBoundary(direction)
-                try? await Task.sleep(nanoseconds: 120_000_000)
-            }
-        }
-    }
-    
-    private func stopScanning() {
-        timerTask?.cancel()
-        timerTask = nil
-    }
 }

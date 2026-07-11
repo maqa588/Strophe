@@ -34,7 +34,7 @@ struct ContentView: View {
     @State private var settingsPath: [SettingsRoute] = []
 
     @State private var isShowingSaveStrophe = false
-    @State private var saveStropheDefaultName = "project"
+    @State private var saveStropheDefaultName = "project.strophe"
     @State private var cachedProjectURLPendingPromotion: URL? = nil
     @State private var isShowingOpenProject = false
     @State private var isShowingReplaceMedia = false
@@ -270,7 +270,8 @@ struct ContentView: View {
 
     private func presentSaveStropheExporter() {
         let base = project.documentDisplayName
-        saveStropheDefaultName = base.isEmpty ? "project" : base
+        let defaultName = base.isEmpty ? "project" : base
+        saveStropheDefaultName = defaultName.hasSuffix(".strophe") ? defaultName : "\(defaultName).strophe"
         if let url = project.projectURL, SubtitleProject.isManagedProjectCacheURL(url) {
             cachedProjectURLPendingPromotion = url
         } else {

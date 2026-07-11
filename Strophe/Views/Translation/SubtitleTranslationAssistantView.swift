@@ -117,7 +117,11 @@ struct SubtitleTranslationAssistantView: View {
                 }
             }
         }
+        #if os(macOS)
         .frame(minWidth: 680, minHeight: 560)
+        #else
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        #endif
         .onAppear(perform: initializePosition)
         .stropheOnChange(of: sourceGroupID) { _ in
             currentIndex = 0
@@ -140,7 +144,12 @@ struct SubtitleTranslationAssistantView: View {
                     }
                 }
             }
+            #if os(macOS)
             .frame(minWidth: 520, minHeight: 360)
+            #else
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .presentationDetents([.medium, .large])
+            #endif
         }
         #if os(iOS)
         .sheet(item: $dictionarySheetTerm) { term in
@@ -173,6 +182,13 @@ struct SubtitleTranslationAssistantView: View {
     }
 
     private var groupAndLanguagePickers: some View {
+        ViewThatFits(in: .horizontal) {
+            groupAndLanguagePickerGrid
+            compactGroupAndLanguagePickers
+        }
+    }
+
+    private var groupAndLanguagePickerGrid: some View {
         Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
             GridRow {
                 Text("原文小组").foregroundStyle(.secondary)
@@ -197,6 +213,43 @@ struct SubtitleTranslationAssistantView: View {
                     }
                 }
                 .labelsHidden()
+                Picker("目标语言", selection: $targetLanguage) {
+                    ForEach(SubtitleLanguage.allCases.filter { $0 != .auto }) { language in
+                        Text(language.title).tag(language)
+                    }
+                }
+                .labelsHidden()
+            }
+        }
+    }
+
+    private var compactGroupAndLanguagePickers: some View {
+        VStack(spacing: 12) {
+            LabeledContent("原文小组") {
+                Picker("原文小组", selection: $sourceGroupID) {
+                    ForEach(groupStore.sortedGroups) { group in
+                        Text(group.name).tag(group.id)
+                    }
+                }
+                .labelsHidden()
+            }
+            LabeledContent("原语言") {
+                Picker("原语言", selection: $sourceLanguage) {
+                    ForEach(SubtitleLanguage.allCases) { language in
+                        Text(language.title).tag(language)
+                    }
+                }
+                .labelsHidden()
+            }
+            LabeledContent("译文小组") {
+                Picker("译文小组", selection: $targetGroupID) {
+                    ForEach(groupStore.sortedGroups.filter { $0.id != sourceGroupID }) { group in
+                        Text(group.name).tag(group.id)
+                    }
+                }
+                .labelsHidden()
+            }
+            LabeledContent("目标语言") {
                 Picker("目标语言", selection: $targetLanguage) {
                     ForEach(SubtitleLanguage.allCases.filter { $0 != .auto }) { language in
                         Text(language.title).tag(language)

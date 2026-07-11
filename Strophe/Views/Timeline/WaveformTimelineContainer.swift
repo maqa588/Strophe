@@ -26,6 +26,8 @@ struct WaveformTimelineContainer: View {
     @Binding var drawSubtitleStartLocation: CGFloat?
     @Binding var drawSubtitleCurrentLocation: CGFloat?
     @Binding var dragStartTime: Double
+    @Binding var trackVerticalScale: CGFloat
+    @Binding var trackVerticalOffset: CGFloat
     
     @State private var isStartSnapped = false
     @State private var isEndSnapped = false
@@ -112,10 +114,10 @@ struct WaveformTimelineContainer: View {
                     let renderedWidth = CGFloat(safeDuration * safeRenderedPPS)
                     let scaleX = safePixelsPerSecond / safeRenderedPPS
                     WaveformCanvas(data: data, pixelsPerSecond: safeRenderedPPS)
-                        .frame(width: renderedWidth, height: waveHeight)
+                        .frame(width: renderedWidth, height: SubtitleTimelineTrackMetrics.viewportHeight)
                         .scaleEffect(x: scaleX, y: 1, anchor: .leading)
                         .clipped()
-                        .frame(width: safeTotalWidth, height: waveHeight, alignment: .leading)
+                        .frame(width: safeTotalWidth, height: waveHeight, alignment: .topLeading)
                     
                     SubtitleBlocksLayer(
                         project: project,
@@ -123,7 +125,9 @@ struct WaveformTimelineContainer: View {
                         visibleStartTime: visibleStartTime,
                         viewWidth: safeViewWidth,
                         workspaceDuration: safeWorkspaceDuration,
-                        scrollPageStartTime: $scrollPageStartTime
+                        scrollPageStartTime: $scrollPageStartTime,
+                        trackVerticalScale: $trackVerticalScale,
+                        trackVerticalOffset: $trackVerticalOffset
                     )
                     .frame(width: safeTotalWidth, height: waveHeight)
                     
@@ -137,8 +141,11 @@ struct WaveformTimelineContainer: View {
                         Rectangle()
                             .fill(Color.stropheBlue.opacity(0.3))
                             .overlay(Rectangle().stroke(Color.stropheBlue, lineWidth: 1))
-                            .frame(width: width, height: 30)
-                            .offset(x: minX, y: 35)
+                            .frame(
+                                width: width,
+                                height: SubtitleTimelineTrackMetrics.scaledBlockHeight(trackVerticalScale)
+                            )
+                            .offset(x: minX, y: activeTrackBlockY)
                     }
                 }
                 .overlay(
@@ -193,19 +200,7 @@ struct WaveformTimelineContainer: View {
                 )
             }
             .contentShape(Rectangle())
-            .onTapGesture(coordinateSpace: .local) { location in
-                guard project.editingMode == .selection else { return }
-                guard project.playbackRate == 0 else { return }
-                
-                let clickedTime = Double(location.x) / safePixelsPerSecond
-                let snappedTime = project.snapToFrame(clickedTime.clamped(to: 0...safeDuration))
-                
-                project.isUserSeekingTimeline = true
-                project.currentTime = snappedTime
-                project.referenceTime = snappedTime
-                project.referenceDate = .now
-            }
-            
+
             ScrollViewTracker(scrollPageStartTime: scrollPageStartTime, pixelsPerSecond: safePixelsPerSecond)
                 .frame(width: 0, height: 0)
                 .allowsHitTesting(false)
@@ -240,6 +235,17 @@ struct WaveformTimelineContainer: View {
             }
         }
         .frame(width: safeTotalWidth, height: rulerHeight + waveHeight)
+    }
+
+    private var activeTrackBlockY: CGFloat {
+        let store = StyleAndGroupStore.shared
+        let tracks = store.sortedGroups.filter(\.isOverlayEnabled)
+        let activeIndex = tracks.firstIndex(where: { $0.id == store.activeGroupID }) ?? 0
+        return SubtitleTimelineTrackMetrics.blockY(
+            trackIndex: activeIndex,
+            scale: trackVerticalScale,
+            offset: trackVerticalOffset
+        )
     }
 
     private func playbackTime(at date: Date, duration: Double) -> Double {

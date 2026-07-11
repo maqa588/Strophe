@@ -105,7 +105,10 @@ extension SubtitleProject {
     }
 
     func subgroup(for item: SubtitleItem, store: StyleAndGroupStore = .shared) -> SubGroupItem? {
-        store.group(id: item.groupID) ?? store.activeGroup ?? store.groups.first
+        // Legacy subtitle files can have a nil groupID. Their fallback must be
+        // stable: resolving them through activeGroup made every group switch look
+        // like the cues had physically moved to the newly active group.
+        store.group(id: item.groupID) ?? store.groups.first
     }
 
     func belongsToGroup(_ item: SubtitleItem, groupID: UUID, store: StyleAndGroupStore = .shared) -> Bool {
@@ -298,14 +301,18 @@ extension SubtitleProject {
     }
 
     func moveSelectedBlocks(by delta: TimeInterval) {
-        guard !selectedIDs.isEmpty else { return }
+        moveBlocks(ids: selectedIDs, by: delta)
+    }
+
+    func moveBlocks(ids: Set<UUID>, by delta: TimeInterval) {
+        guard !ids.isEmpty else { return }
         let oldSelectedIDs = selectedIDs
 
         var updatedItems = items
         var oldTimings: SubtitleTimingSnapshot = [:]
-        oldTimings.reserveCapacity(selectedIDs.count)
+        oldTimings.reserveCapacity(ids.count)
 
-        for index in updatedItems.indices where selectedIDs.contains(updatedItems[index].id) {
+        for index in updatedItems.indices where ids.contains(updatedItems[index].id) {
             if !isLockedForEditing(updatedItems[index]),
                let start = updatedItems[index].startTime,
                let end = updatedItems[index].endTime {
@@ -323,6 +330,36 @@ extension SubtitleProject {
         items = updatedItems
         autoUpdateCurrentIndex()
         registerTimingUndo(label: String(localized: "移动字幕块"), oldTimings: oldTimings, oldSelectedIDs: oldSelectedIDs)
+        notifyChange()
+    }
+
+    func moveBlocks(ids: Set<UUID>, by delta: TimeInterval, toGroup groupID: UUID) {
+        guard !ids.isEmpty else { return }
+        let oldItems = items
+        let oldSelectedIDs = selectedIDs
+        var didChange = false
+
+        for index in items.indices where ids.contains(items[index].id) {
+            guard !isLockedForEditing(items[index]),
+                  let start = items[index].startTime,
+                  let end = items[index].endTime else { continue }
+            let newStart = snapToFrame(max(0, start + delta))
+            let minDuration = videoFrameRate > 0 ? (1.0 / videoFrameRate) : 0.1
+            let newEnd = snapToFrame(max(newStart + minDuration, end + delta))
+            items[index].startTime = newStart
+            items[index].endTime = newEnd
+            items[index].groupID = groupID
+            didChange = true
+        }
+
+        guard didChange else { return }
+        sortItemsStable()
+        autoUpdateCurrentIndex()
+        registerUndo(
+            label: String(localized: "移动字幕块到分组"),
+            oldItems: oldItems,
+            oldSelectedIDs: oldSelectedIDs
+        )
         notifyChange()
     }
     

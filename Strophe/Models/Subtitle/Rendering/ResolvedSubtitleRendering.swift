@@ -315,7 +315,7 @@ extension SubtitleProject {
             return group
         }
 
-        return store.activeGroup ?? store.groups.first
+        return store.groups.first
     }
 
     private func resolvedStyle(
