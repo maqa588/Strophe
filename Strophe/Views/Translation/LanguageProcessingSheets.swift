@@ -14,10 +14,10 @@ struct PinyinConversionSheet: View {
                 Image(systemName: "character.phonetic")
                     .font(.system(size: 38))
                     .foregroundStyle(Color.stropheAccent)
-                Text("汉字转拼音")
+                Text("chinese_to_pinyin")
                     .font(.title2.bold())
                 Text(selectedCount == 0
-                     ? "请先在文稿或时间轴中选择要转换的字幕块。"
+                     ? "select_subtitle_blocks_first_hint"
                      : "将转换所选的 \(selectedCount) 个字幕块。拼音保留声调，非汉字内容保持不变。")
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
@@ -25,11 +25,11 @@ struct PinyinConversionSheet: View {
                 Spacer(minLength: 0)
             }
             .padding(28)
-            .navigationTitle("语言处理")
+            .navigationTitle("language_processing")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("应用") {
+                    Button("apply") {
                         project.convertSelectedSubtitlesToPinyin()
                         dismiss()
                     }
@@ -75,26 +75,26 @@ struct AutoLineWrapSheet: View {
                     Text("操作 \(selectedItems.count) 个对象（平均 \(averageLength) 字符，最大 \(maximumSourceLength) 字符）")
                         .foregroundStyle(.secondary)
                 }
-                Section("语言类型") {
-                    Picker("语言类型", selection: $languageMode) {
+                Section("language_type") {
+                    Picker("language_type", selection: $languageMode) {
                         ForEach(AutoWrapLanguageMode.allCases) { mode in Text(mode.title).tag(mode) }
                     }
                     .pickerStyle(.segmented)
                     Text(languageMode == .words
-                         ? "按空格识别单词，换行时不会切断单词。"
-                         : "按字符长度处理，适合中文、日文等连续型文本。")
+                         ? "process_by_spaces_explanation"
+                         : "process_by_char_length_explanation")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Section("换行方式") {
-                    Picker("换行方式", selection: $outputMode) {
+                Section("line_break_method") {
+                    Picker("line_break_method", selection: $outputMode) {
                         ForEach(AutoWrapOutputMode.allCases) { mode in Text(mode.title).tag(mode) }
                     }
                     .pickerStyle(.segmented)
                 }
-                Section("单行字符长度") {
+                Section("single_line_char_limit") {
                     Stepper(value: $maximumLength, in: 4...120) {
-                        LabeledContent("最大长度", value: "\(maximumLength)")
+                        LabeledContent("max_length", value: "\(maximumLength)")
                     }
                     Slider(value: Binding(
                         get: { Double(maximumLength) },
@@ -103,11 +103,11 @@ struct AutoLineWrapSheet: View {
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle("自动换行")
+            .navigationTitle("auto_line_wrap")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("应用") {
+                    Button("apply") {
                         project.autoWrapSelectedSubtitles(
                             maximumLength: maximumLength,
                             languageMode: languageMode,

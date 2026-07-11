@@ -146,21 +146,21 @@ struct ContentView: View {
             }
         }
         .alert(
-            String(localized: "是否新建工程？"),
+            String(localized: "new_project_confirm"),
             isPresented: $isShowingNewProjectAlert
         ) {
-            Button(String(localized: "新建工程"), role: .destructive) {
+            Button(String(localized: "new_project"), role: .destructive) {
                 createNewProject()
             }
-            Button(String(localized: "取消"), role: .cancel) {}
+            Button(String(localized: "cancel"), role: .cancel) {}
         } message: {
-            Text(String(localized: "新建工程会清空当前视频、字幕和未保存的修改。"))
+            Text(String(localized: "new_project_warning"))
         }
         .alert(
-            String(localized: "是否覆盖现有字幕？"),
+            String(localized: "overwrite_existing_subtitles"),
             isPresented: $isShowingOverwriteAlert
         ) {
-            Button(String(localized: "覆盖"), role: .destructive) {
+            Button(String(localized: "overwrite"), role: .destructive) {
                 if let url = pendingStropheURL {
                     Task {
                         await openProject(url)
@@ -168,20 +168,20 @@ struct ContentView: View {
                 }
                 pendingStropheURL = nil
             }
-            Button(String(localized: "取消"), role: .cancel) {
+            Button(String(localized: "cancel"), role: .cancel) {
                 pendingStropheURL = nil
             }
         } message: {
-            Text(String(localized: "导入该工程文件将覆盖你当前正在编辑的字幕。"))
+            Text(String(localized: "importing_this_project_file_will"))
         }
         .alert(
-            String(localized: "无法完成操作"),
+            String(localized: "operation_cannot_be_completed"),
             isPresented: Binding(
                 get: { fileActionError != nil },
                 set: { if !$0 { fileActionError = nil } }
             )
         ) {
-            Button(String(localized: "好"), role: .cancel) {
+            Button(String(localized: "ok"), role: .cancel) {
                 fileActionError = nil
             }
         } message: {
@@ -190,12 +190,12 @@ struct ContentView: View {
         #if os(macOS)
         .alert(
             String.localizedStringWithFormat(
-                String(localized: "是否保存“%@”工程？"),
+                String(localized: "save_project"),
                 project.documentDisplayName
             ),
             isPresented: $isShowingSaveOnQuitAlert
         ) {
-            Button(String(localized: "保存")) {
+            Button(String(localized: "save")) {
                 if let url = project.projectURL,
                    !SubtitleProject.isManagedProjectCacheURL(url) {
                     Task {
@@ -209,15 +209,15 @@ struct ContentView: View {
                     presentSaveStropheExporter()
                 }
             }
-            Button(String(localized: "不保存"), role: .destructive) {
+            Button(String(localized: "dont_save"), role: .destructive) {
                 project.markClean()
                 NSApplication.shared.reply(toApplicationShouldTerminate: true)
             }
-            Button(String(localized: "取消"), role: .cancel) {
+            Button(String(localized: "cancel"), role: .cancel) {
                 NSApplication.shared.reply(toApplicationShouldTerminate: false)
             }
         } message: {
-            Text(String(localized: "如果未保存，编辑的内容将会丢失。"))
+            Text(String(localized: "unsaved_changes_will_be_lost"))
         }
         #endif
         .stropheOnChange(of: project.loadedPlayheadTime) { newValue in
@@ -265,6 +265,13 @@ struct ContentView: View {
         #endif
         .onReceive(NotificationCenter.default.publisher(for: .stropheShowAbout)) { _ in
             showAboutPage()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheOpenModelSettings)) { notification in
+            let route = notification.object as? SettingsRoute ?? .whisperConfig
+            selectedTab = .settings
+            DispatchQueue.main.async {
+                settingsPath = [route]
+            }
         }
     }
 
@@ -415,49 +422,49 @@ struct ContentView: View {
         case .scriptList:
             NavigationStack {
                 ScriptListView(project: project)
-                    .inlineNavigationTitle(String(localized: "文稿"))
+                    .inlineNavigationTitle(String(localized: "script"))
                     .toolbar {
                         ToolbarItem(placement: .primaryAction) {
                             Menu {
                                 Button {
                                     NotificationCenter.default.post(name: .strophePasteScript, object: nil)
                                 } label: {
-                                    Label("粘贴文稿", systemImage: "doc.on.clipboard")
+                                    Label("paste_script", systemImage: "doc.on.clipboard")
                                 }
                                 Button {
                                     NotificationCenter.default.post(name: .stropheImportScriptFile, object: nil)
                                 } label: {
-                                    Label("导入字幕文件", systemImage: "square.and.arrow.down")
+                                    Label("import_subtitle_file", systemImage: "square.and.arrow.down")
                                 }
                                 Button {
                                     NotificationCenter.default.post(name: .stropheStartSpeechRecognition, object: nil)
                                 } label: {
-                                    Label("语音识别", systemImage: "waveform.and.mic")
+                                    Label("speech_recognition_2", systemImage: "waveform.and.mic")
                                 }
                                 Divider()
                                 Menu {
                                     Button {
                                         NotificationCenter.default.post(name: .stropheStartSubtitleTranslation, object: nil)
                                     } label: {
-                                        Label("字幕翻译助手", systemImage: "character.bubble")
+                                        Label("subtitle_translation_assistant", systemImage: "character.bubble")
                                     }
                                     Button {
                                         NotificationCenter.default.post(name: .stropheStartBatchTranslation, object: nil)
                                     } label: {
-                                        Label("批量翻译字幕", systemImage: "text.bubble")
+                                        Label("batch_translate_subtitles", systemImage: "text.bubble")
                                     }
                                     Button {
                                         NotificationCenter.default.post(name: .stropheConvertSelectedToPinyin, object: nil)
                                     } label: {
-                                        Label("汉字转拼音", systemImage: "character.phonetic")
+                                        Label("chinese_to_pinyin", systemImage: "character.phonetic")
                                     }
                                     Button {
                                         NotificationCenter.default.post(name: .stropheOpenAutoLineWrap, object: nil)
                                     } label: {
-                                        Label("自动换行", systemImage: "return")
+                                        Label("auto_line_wrap", systemImage: "return")
                                     }
                                 } label: {
-                                    Label("语言处理", systemImage: "globe")
+                                    Label("language_processing", systemImage: "globe")
                                 }
                             } label: {
                                 Image(systemName: "plus")
@@ -470,17 +477,17 @@ struct ContentView: View {
         case .styleManager:
             NavigationStack {
                 StylePlaceholderView(project: project)
-                    .inlineNavigationTitle(String(localized: "样式"))
+                    .inlineNavigationTitle(String(localized: "style"))
             }
         case .subGroup:
             NavigationStack {
                 SubGroupPlaceholderView(project: project)
-                    .inlineNavigationTitle(String(localized: "组别"))
+                    .inlineNavigationTitle(String(localized: "group"))
             }
         case .settings:
             NavigationStack(path: $settingsPath) {
                 SettingsPlaceholderView(settingsPath: $settingsPath)
-                    .inlineNavigationTitle(String(localized: "设置"))
+                    .inlineNavigationTitle(String(localized: "settings"))
                     .navigationDestination(for: SettingsRoute.self) { route in
                         SettingsDetailView(route: route)
                     }
@@ -652,9 +659,9 @@ struct ContentView: View {
             VStack(spacing: 10) {
                 ProgressView()
                     .controlSize(.small)
-                Text(String(localized: "正在打开项目"))
+                Text(String(localized: "opening_project"))
                     .font(.caption.weight(.semibold))
-                Text(String(localized: "正在读取字幕、重建时间轴索引并准备波形"))
+                Text(String(localized: "loading_subtitles_waveform"))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -674,23 +681,23 @@ struct ContentView: View {
 
             VStack(spacing: 20) {
                 VStack(spacing: 8) {
-                    Text(String(localized: "是否回到上次编辑位置？"))
+                    Text(String(localized: "resume_editing_position_confirm"))
                         .font(.headline)
                         .foregroundStyle(Color.stropheText)
 
-                    Text(String(localized: "该工程文件保存了上一次的时间轴位置，是否要跳转到该位置？"))
+                    Text(String(localized: "jump_to_last_position_confirm"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
 
                 HStack(spacing: 16) {
-                    Button(String(localized: "不恢复")) {
+                    Button(String(localized: "do_not_restore")) {
                         dismissRestoreTimePrompt()
                     }
                     .keyboardShortcut(.cancelAction)
 
-                    Button(String(localized: "恢复位置")) {
+                    Button(String(localized: "restore_position")) {
                         restorePendingTimelinePosition()
                     }
                     .buttonStyle(.borderedProminent)

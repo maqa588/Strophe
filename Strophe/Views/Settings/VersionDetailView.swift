@@ -33,7 +33,7 @@ struct VersionDetailView: View {
                             .bold()
                             .foregroundStyle(Color.stropheText)
 
-                        Text("智能音视频字幕同步工具")
+                        Text("smart_audiovideo_subtitle_sync_tool")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -44,31 +44,31 @@ struct VersionDetailView: View {
             }
 
             Section {
-                LabeledContent("版本") {
+                LabeledContent("version") {
                     Text("v\(appVersion) (\(buildNumber))")
                         .bold()
                         .foregroundStyle(Color.stropheText)
                 }
 
-                LabeledContent("技术架构") {
-                    Text("SwiftUI / AVFoundation")
+                LabeledContent("technical_architecture") {
+                    Text("engine_swiftui_avfoundation")
                         .font(.system(.body, design: .monospaced))
                         .foregroundStyle(Color.stropheText)
                 }
 
-                LabeledContent("许可证") {
-                    Text("Functional Source License")
+                LabeledContent("license") {
+                    Text("license_fsl")
                         .foregroundStyle(Color.stropheText)
                 }
             }
 
             Section(footer:
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Strophe 致力于为视频创作者提供最流畅、最高效的打轴与字幕导入/导出流程。通过极其贴合创作者习惯的快捷键操作与精细的音频波形显示，我们正在重新定义字幕制作体验。")
+                    Text("strophe_is_committed_to_providing")
                         .font(.footnote)
                         .lineSpacing(4)
 
-                    Text("© 2026 Strophe. All rights reserved.")
+                    Text("copyright_text")
                         .font(.caption2)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 8)

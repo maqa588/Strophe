@@ -133,7 +133,7 @@ extension SubtitleProject {
         let oldItems = items
         let oldSelectedIDs = selectedIDs
         items[index].groupID = groupID
-        registerUndo(label: String(localized: "移动到分组"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        registerUndo(label: String(localized: "move_to_group"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
 
@@ -144,7 +144,7 @@ extension SubtitleProject {
         for index in items.indices where selectedIDs.contains(items[index].id) && !isLockedForEditing(items[index]) {
             items[index].groupID = groupID
         }
-        registerUndo(label: String(localized: "移动到分组"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        registerUndo(label: String(localized: "move_to_group"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
 
@@ -164,7 +164,7 @@ extension SubtitleProject {
         for index in items.indices where belongsToGroup(items[index], groupID: groupID) && !isLockedForEditing(items[index]) {
             items[index].text = ""
         }
-        registerUndo(label: String(localized: "清空分组文字"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        registerUndo(label: String(localized: "clear_group_text"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
 
@@ -175,7 +175,7 @@ extension SubtitleProject {
             belongsToGroup(item, groupID: groupID) && !isLockedForEditing(item)
         }
         selectedIDs.subtract(oldItems.filter { belongsToGroup($0, groupID: groupID) }.map(\.id))
-        registerUndo(label: String(localized: "删除分组字幕"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        registerUndo(label: String(localized: "delete_group_subtitles"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
 
@@ -185,7 +185,7 @@ extension SubtitleProject {
         let oldItems = items
         let oldSelectedIDs = selectedIDs
         items[index].styleID = styleID
-        registerUndo(label: String(localized: "设置字幕样式"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        registerUndo(label: String(localized: "set_subtitle_style"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
 
@@ -196,7 +196,7 @@ extension SubtitleProject {
         for index in items.indices where selectedIDs.contains(items[index].id) && !isLockedForEditing(items[index]) {
             items[index].styleID = styleID
         }
-        registerUndo(label: String(localized: "设置字幕样式"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        registerUndo(label: String(localized: "set_subtitle_style"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
 
@@ -208,7 +208,7 @@ extension SubtitleProject {
         items[index].styleID = nil
         items[index].styleOverrides = nil
         items[index].positionOverride = nil
-        registerUndo(label: String(localized: "跟随小组样式"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        registerUndo(label: String(localized: "follow_group_style"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
     
@@ -230,7 +230,7 @@ extension SubtitleProject {
             )
         }
         self.currentIndex = 0
-        registerUndo(label: String(localized: "导入脚本"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        registerUndo(label: String(localized: "import_script_1"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
     
@@ -250,7 +250,7 @@ extension SubtitleProject {
         if currentIndex < items.count - 1 {
             currentIndex += 1
         }
-        registerUndo(label: String(localized: "标记时间"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        registerUndo(label: String(localized: "mark_time"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
     
@@ -274,12 +274,12 @@ extension SubtitleProject {
             items[index].endTime = snappedEnd
             items[index].groupID = items[index].groupID ?? activeGroupID
         } else {
-            let newBlock = SubtitleItem(text: String(localized: "待录入字幕"), startTime: snappedStart, endTime: snappedEnd, originalIndex: items.count, groupID: activeGroupID)
+            let newBlock = SubtitleItem(text: String(localized: "draft_subtitle"), startTime: snappedStart, endTime: snappedEnd, originalIndex: items.count, groupID: activeGroupID)
             items.append(newBlock)
         }
         
         sortItemsStable()
-        registerUndo(label: String(localized: "创建字幕块"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        registerUndo(label: String(localized: "create_subtitle_block"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
     
@@ -295,7 +295,7 @@ extension SubtitleProject {
             items[index].startTime = snappedStart
             items[index].endTime = snappedEnd
             sortItemsStable()
-            registerUndo(label: String(localized: "移动字幕块"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+            registerUndo(label: String(localized: "move_subtitle_block"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
             notifyChange()
         }
     }
@@ -329,7 +329,7 @@ extension SubtitleProject {
         updatedItems.sort(by: stableSubtitleSort)
         items = updatedItems
         autoUpdateCurrentIndex()
-        registerTimingUndo(label: String(localized: "移动字幕块"), oldTimings: oldTimings, oldSelectedIDs: oldSelectedIDs)
+        registerTimingUndo(label: String(localized: "move_subtitle_block"), oldTimings: oldTimings, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
 
@@ -356,7 +356,7 @@ extension SubtitleProject {
         sortItemsStable()
         autoUpdateCurrentIndex()
         registerUndo(
-            label: String(localized: "移动字幕块到分组"),
+            label: String(localized: "move_subtitle_block_to_group"),
             oldItems: oldItems,
             oldSelectedIDs: oldSelectedIDs
         )
@@ -386,14 +386,14 @@ extension SubtitleProject {
             activeSlapSubtitleID = items[index].id
         } else {
             let newID = UUID()
-            let newBlock = SubtitleItem(id: newID, text: String(localized: "待录入字幕"), startTime: startTime, endTime: endTime, originalIndex: items.count, groupID: activeGroupID)
+            let newBlock = SubtitleItem(id: newID, text: String(localized: "draft_subtitle"), startTime: startTime, endTime: endTime, originalIndex: items.count, groupID: activeGroupID)
             items.append(newBlock)
             activeSlapSubtitleID = newID
         }
         
         activeSlapKey = key
         sortItemsStable()
-        registerUndo(label: String(localized: "拍打创建"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        registerUndo(label: String(localized: "slap_create"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
     
@@ -419,7 +419,7 @@ extension SubtitleProject {
         activeSlapSubtitleID = nil
         
         sortItemsStable()
-        registerUndo(label: String(localized: "拍打结算"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        registerUndo(label: String(localized: "slap_finalize"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
     
@@ -447,7 +447,7 @@ extension SubtitleProject {
             let oldItems = items
             let oldSelectedIDs = selectedIDs
             items[index].text = text
-            registerUndo(label: String(localized: "编辑文本"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+            registerUndo(label: String(localized: "edit_text"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         }
         notifyChange()
     }
@@ -472,7 +472,7 @@ extension SubtitleProject {
             text: text,
             languageCode: languageCode
         )
-        registerUndo(label: String(localized: "翻译字幕"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        registerUndo(label: String(localized: "translate_subtitles"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         sortItemsStable()
         notifyChange()
         return translatedID
@@ -494,7 +494,7 @@ extension SubtitleProject {
                 languageCode: languageCode
             )
         }
-        registerUndo(label: String(localized: "批量翻译字幕"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        registerUndo(label: String(localized: "batch_translate_subtitles"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         sortItemsStable()
         notifyChange()
     }
@@ -509,7 +509,7 @@ extension SubtitleProject {
         for index in items.indices where editableIDs.contains(items[index].id) {
             items[index].text = LanguageProcessingService.pinyinWithToneMarks(items[index].text)
         }
-        registerUndo(label: String(localized: "汉字转拼音"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        registerUndo(label: String(localized: "chinese_to_pinyin"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
 
@@ -587,7 +587,7 @@ extension SubtitleProject {
         }
 
         guard items != oldItems else { return }
-        registerUndo(label: String(localized: "自动换行"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        registerUndo(label: String(localized: "auto_line_wrap"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         sortItemsStable()
         notifyChange()
     }
@@ -629,7 +629,7 @@ extension SubtitleProject {
         let oldItems = items
         let oldSelectedIDs = selectedIDs
         items.removeAll(where: { $0.id == id && !isLockedForEditing($0) })
-        registerUndo(label: String(localized: "删除字幕"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        registerUndo(label: String(localized: "delete_subtitle"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
     
@@ -637,7 +637,7 @@ extension SubtitleProject {
         let oldItems = items
         let oldSelectedIDs = selectedIDs
         items.removeAll(where: { ids.contains($0.id) && !isLockedForEditing($0) })
-        registerUndo(label: String(localized: "删除字幕"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        registerUndo(label: String(localized: "delete_subtitle"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
 
@@ -657,7 +657,7 @@ extension SubtitleProject {
         let cutIDs = Set(blocksToCut.map(\.id))
         items.removeAll { cutIDs.contains($0.id) }
         selectedIDs.subtract(cutIDs)
-        registerUndo(label: String(localized: "剪切字幕块"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        registerUndo(label: String(localized: "cut_subtitle_block"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
 
@@ -683,7 +683,7 @@ extension SubtitleProject {
         items.append(contentsOf: pastedItems)
         selectedIDs = newIDs
         sortItemsStable()
-        registerUndo(label: String(localized: "粘贴字幕块"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        registerUndo(label: String(localized: "paste_subtitle_block"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
 
@@ -767,7 +767,7 @@ extension SubtitleProject {
         
         sortItemsStable()
         selectedIDs = [items[index].id, rightItem.id]
-        registerUndo(label: String(localized: "切分字幕"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        registerUndo(label: String(localized: "split_subtitles"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
     
@@ -775,7 +775,7 @@ extension SubtitleProject {
     @discardableResult
     func mergeSelectedSubtitles() -> String? {
         guard selectedIDs.count >= 2 else {
-            return String(localized: "请至少选中两个字幕块才能合并")
+            return String(localized: "please_select_at_least_two")
         }
         
         // 取出被选中且已有时间的 items，按 startTime 排序
@@ -784,12 +784,12 @@ extension SubtitleProject {
             .sorted { ($0.startTime ?? .infinity) < ($1.startTime ?? .infinity) }
 
         guard selectedItems.allSatisfy({ !isLockedForEditing($0) }) else {
-            return String(localized: "选中的字幕块中包含锁定项目，无法合并")
+            return String(localized: "the_selected_subtitle_blocks_contain")
         }
         
         // 校验所有被选中的 item 都有时间信息
         guard selectedItems.allSatisfy({ $0.startTime != nil && $0.endTime != nil }) else {
-            return String(localized: "选中的字幕块中有未设置时间的项目，无法合并")
+            return String(localized: "the_selected_subtitle_blocks_contain_1")
         }
         
         // 连续性校验：检查选中项在 items 数组中的索引是否连续（中间没有未选中的 timed 字幕块）
@@ -806,7 +806,7 @@ extension SubtitleProject {
         if indicesInTimed.count >= 2 {
             for i in 1..<indicesInTimed.count {
                 if indicesInTimed[i] - indicesInTimed[i - 1] != 1 {
-                    return String(localized: "选中的字幕块不连续，请选择连续的字幕块进行合并")
+                    return String(localized: "the_selected_subtitle_blocks_are")
                 }
             }
         }
@@ -836,7 +836,7 @@ extension SubtitleProject {
         
         selectedIDs = [firstID]
         sortItemsStable()
-        registerUndo(label: String(localized: "合并字幕"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
+        registerUndo(label: String(localized: "merge_subtitles"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
         return nil
     }

@@ -25,34 +25,34 @@ struct StropheNavBarCommands: Commands {
         languageProcessingCommandMenu
 
         CommandGroup(replacing: .newItem) {
-            Button(String(localized: "新建工程")) {
+            Button(String(localized: "new_project")) {
                 NotificationCenter.default.post(name: .stropheNewProject, object: nil)
             }
             .keyboardShortcut("n", modifiers: .command)
 
-            Button(String(localized: "替换视频…")) {
+            Button(String(localized: "replace_video_ellipsis")) {
                 NotificationCenter.default.post(name: .stropheReplaceMedia, object: nil)
             }
             .disabled(project.videoURL == nil)
 
-            Button(String(localized: "导入字幕文件…")) {
+            Button(String(localized: "import_subtitle_file_ellipsis")) {
                 NotificationCenter.default.post(name: .stropheImportScriptFile, object: nil)
             }
 
-            Button(String(localized: "打开 Strophe 工程…")) {
+            Button(String(localized: "open_strophe_project_ellipsis")) {
                 NotificationCenter.default.post(name: .stropheOpenProject, object: nil)
             }
             .keyboardShortcut("o", modifiers: [.command, .shift])
         }
         
         CommandGroup(replacing: .saveItem) {
-            Button(String(localized: "Save")) {
+            Button(String(localized: "btn_save")) {
                 NotificationCenter.default.post(name: .stropheSaveProject, object: nil)
             }
             .keyboardShortcut("s", modifiers: .command)
             .disabled(!canSaveProject)
             
-            Button(String(localized: "Save As...")) {
+            Button(String(localized: "save_as")) {
                 NotificationCenter.default.post(name: .stropheSaveProjectAs, object: nil)
             }
             .keyboardShortcut("s", modifiers: [.command, .shift])
@@ -60,7 +60,7 @@ struct StropheNavBarCommands: Commands {
         }
         
         CommandGroup(replacing: .appInfo) {
-            Button("\(String(localized: "About")) \(AppIdentity.displayName)") {
+            Button("\(String(localized: "menu_about")) \(AppIdentity.displayName)") {
                 NotificationCenter.default.post(name: .stropheShowAbout, object: nil)
             }
         }
@@ -68,13 +68,13 @@ struct StropheNavBarCommands: Commands {
 
     @ViewBuilder
     private var timelineCommandItems: some View {
-        Button("Undo") {
+        Button("menu_undo") {
             project.undo()
         }
         .timelineShortcut("z", modifiers: .command)
         .disabled(project.isEditingText || !project.canUndo)
 
-        Button("Redo") {
+        Button("menu_redo") {
             project.redo()
         }
         .timelineShortcut("z", modifiers: [.command, .shift])
@@ -82,19 +82,19 @@ struct StropheNavBarCommands: Commands {
 
         Divider()
 
-        Button("剪切字幕块") {
+        Button("cut_subtitle_block") {
             project.cutSelectedSubtitleBlocks()
         }
         .timelineShortcut("x", modifiers: .command)
         .disabled(!project.canCutSelectedSubtitleBlocks)
 
-        Button("复制字幕块") {
+        Button("copy_subtitle_block") {
             project.copySelectedSubtitleBlocks()
         }
         .timelineShortcut("c", modifiers: .command)
         .disabled(!project.canCopySelectedSubtitleBlocks)
 
-        Button("粘贴字幕块") {
+        Button("paste_subtitle_block") {
             project.pasteSubtitleBlocksIntoActiveGroup()
         }
         .timelineShortcut("v", modifiers: .command)
@@ -102,13 +102,13 @@ struct StropheNavBarCommands: Commands {
 
         Divider()
 
-        Button("字幕块左对齐") {
+        Button("align_subtitle_block_left") {
             project.seekToSubtitleBoundary(.left)
         }
         .timelineShortcut("[", modifiers: [])
         .disabled(project.isEditingText || project.items.isEmpty)
 
-        Button("字幕块右对齐") {
+        Button("align_subtitle_block_right") {
             project.seekToSubtitleBoundary(.right)
         }
         .timelineShortcut("]", modifiers: [])
@@ -116,34 +116,34 @@ struct StropheNavBarCommands: Commands {
     }
 
     private var timelineCommandMenu: some Commands {
-        CommandMenu("时间轴") {
+        CommandMenu("timeline") {
             timelineCommandItems
         }
     }
 
     @ViewBuilder
     private var languageProcessingItems: some View {
-        Button("打开字幕翻译器…") {
+        Button("open_subtitle_translator_ellipsis") {
             NotificationCenter.default.post(name: .stropheStartSubtitleTranslation, object: nil)
         }
 
-        Button("批量翻译字幕…") {
+        Button("batch_translate_subtitles_ellipsis") {
             NotificationCenter.default.post(name: .stropheStartBatchTranslation, object: nil)
         }
 
         Divider()
 
-        Button("汉字转拼音…") {
+        Button("chinese_to_pinyin_ellipsis") {
             NotificationCenter.default.post(name: .stropheConvertSelectedToPinyin, object: nil)
         }
 
-        Button("自动换行…") {
+        Button("auto_line_wrap_ellipsis") {
             NotificationCenter.default.post(name: .stropheOpenAutoLineWrap, object: nil)
         }
     }
 
     private var languageProcessingCommandMenu: some Commands {
-        CommandMenu("语言处理") {
+        CommandMenu("language_processing") {
             languageProcessingItems
         }
     }
@@ -172,7 +172,7 @@ struct StropheMainToolbar: ToolbarContent {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 16, weight: .semibold))
                 }
-                .help(String(localized: "返回文稿列表"))
+                .help(String(localized: "return_to_document_list"))
 
             }
 
@@ -181,20 +181,20 @@ struct StropheMainToolbar: ToolbarContent {
             } label: {
                 Image(systemName: "folder")
             }
-            .help(String(localized: "工程文件操作"))
+            .help(String(localized: "project_file_operations"))
             #else
             Menu {
                 projectFileMenuItems
             } label: {
-                Label("工程", systemImage: "folder")
+                Label("project", systemImage: "folder")
             }
-            .help(String(localized: "工程文件操作"))
+            .help(String(localized: "project_file_operations"))
             #endif
         }
 
         #if os(iOS)
         ToolbarItem(placement: .principal) {
-            Text(project.documentDisplayName.isEmpty ? String(localized: "Strophe") : project.documentDisplayName)
+            Text(project.documentDisplayName.isEmpty ? String(localized: "app_name") : project.documentDisplayName)
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(project.videoURL != nil ? .primary : .secondary)
                 .lineLimit(1)
@@ -207,51 +207,51 @@ struct StropheMainToolbar: ToolbarContent {
             // Save Project Button
             Button(action: onSaveProject) {
                 #if os(macOS)
-                Label("保存", systemImage: "square.and.arrow.down")
+                Label("save", systemImage: "square.and.arrow.down")
                 #else
                 Image(systemName: "square.and.arrow.down")
                 #endif
             }
-            .help(String(localized: "保存当前工程文件"))
+            .help(String(localized: "save_current_project_file"))
 
             // Export Menu
             Menu {
-                Menu("Soft Subtitles") {
-                    Button("SubRip (.srt)") {
+                Menu("format_soft_subtitles") {
+                    Button("format_srt") {
                         onExportSoftSubtitles(.srt)
                     }
-                    Button("Advanced SubStation Alpha (.ass)") {
+                    Button("format_ass") {
                         onExportSoftSubtitles(.ass)
                     }
-                    Button("Lyrics (.lrc)") {
+                    Button("format_lrc") {
                         onExportSoftSubtitles(.lrc)
                     }
-                    Button("WebVTT (.vtt)") {
+                    Button("format_vtt") {
                         onExportSoftSubtitles(.vtt)
                     }
                 }
 
                 Divider()
 
-                Button("Strophe Project (.strophe)") {
+                Button("strophe_project_strophe") {
                     onSaveProjectAs()
                 }
 
                 Divider()
 
-                Button("Hard Subtitled Video…") {
+                Button("hard_subtitled_video_ellipsis") {
                     onExportHardSubtitles()
                 }
-                Button("Video Stream (Coming Soon)") {}.disabled(true)
-                Button("Audio Stream (Coming Soon)") {}.disabled(true)
+                Button("video_stream_coming_soon") {}.disabled(true)
+                Button("audio_stream_coming_soon") {}.disabled(true)
             } label: {
                 #if os(macOS)
-                Label("导出", systemImage: "square.and.arrow.up")
+                Label("export", systemImage: "square.and.arrow.up")
                 #else
                 Image(systemName: "square.and.arrow.up")
                 #endif
             }
-            .help(String(localized: "导出字幕或分享项目"))
+            .help(String(localized: "export_subtitles_or_share_project"))
         }
     }
 
@@ -260,26 +260,26 @@ struct StropheMainToolbar: ToolbarContent {
         Button {
             NotificationCenter.default.post(name: .stropheNewProject, object: nil)
         } label: {
-            Label("新建工程", systemImage: "plus.square")
+            Label("new_project", systemImage: "plus.square")
         }
 
         Button {
             NotificationCenter.default.post(name: .stropheReplaceMedia, object: nil)
         } label: {
-            Label("替换视频…", systemImage: "rectangle.2.swap")
+            Label("replace_video_ellipsis", systemImage: "rectangle.2.swap")
         }
         .disabled(project.videoURL == nil)
 
         Button {
             NotificationCenter.default.post(name: .stropheImportScriptFile, object: nil)
         } label: {
-            Label("导入字幕文件…", systemImage: "captions.bubble")
+            Label("import_subtitle_file_ellipsis", systemImage: "captions.bubble")
         }
 
         Button {
             NotificationCenter.default.post(name: .stropheOpenProject, object: nil)
         } label: {
-            Label("打开 Strophe 工程…", systemImage: "folder")
+            Label("open_strophe_project_ellipsis", systemImage: "folder")
         }
     }
 }
@@ -295,49 +295,49 @@ struct StropheSidebarToolbar: ToolbarContent {
                     Button {
                         NotificationCenter.default.post(name: .strophePasteScript, object: nil)
                     } label: {
-                        Label("粘贴文稿", systemImage: "doc.on.clipboard")
+                        Label("paste_script", systemImage: "doc.on.clipboard")
                     }
                     Button {
                         NotificationCenter.default.post(name: .stropheImportScriptFile, object: nil)
                     } label: {
-                        Label("导入字幕文件", systemImage: "square.and.arrow.down")
+                        Label("import_subtitle_file", systemImage: "square.and.arrow.down")
                     }
                     Button {
                         NotificationCenter.default.post(name: .stropheStartSpeechRecognition, object: nil)
                     } label: {
-                        Label("语音识别", systemImage: "waveform.and.mic")
+                        Label("speech_recognition_2", systemImage: "waveform.and.mic")
                     }
                     Divider()
                     Menu {
                         Button {
                             NotificationCenter.default.post(name: .stropheStartSubtitleTranslation, object: nil)
                         } label: {
-                            Label("字幕翻译助手", systemImage: "character.bubble")
+                            Label("subtitle_translation_assistant", systemImage: "character.bubble")
                         }
                         Button {
                             NotificationCenter.default.post(name: .stropheStartBatchTranslation, object: nil)
                         } label: {
-                            Label("批量翻译字幕", systemImage: "text.bubble")
+                            Label("batch_translate_subtitles", systemImage: "text.bubble")
                         }
                         Button {
                             NotificationCenter.default.post(name: .stropheConvertSelectedToPinyin, object: nil)
                         } label: {
-                            Label("汉字转拼音", systemImage: "character.phonetic")
+                            Label("chinese_to_pinyin", systemImage: "character.phonetic")
                         }
                         Button {
                             NotificationCenter.default.post(name: .stropheOpenAutoLineWrap, object: nil)
                         } label: {
-                            Label("自动换行", systemImage: "return")
+                            Label("auto_line_wrap", systemImage: "return")
                         }
                     } label: {
-                        Label("语言处理", systemImage: "globe")
+                        Label("language_processing", systemImage: "globe")
                     }
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 14, weight: .medium))
                 }
                 #if os(macOS)
-                .help(String(localized: "粘贴或导入文稿"))
+                .help(String(localized: "paste_or_import_script"))
                 #endif
             }
         }

@@ -45,11 +45,11 @@ public struct FontPickerView: View {
         VStack(spacing: 0) {
             // Header (macOS title or simple banner)
             HStack {
-                Text("选择字体")
+                Text("select_font")
                     .font(.headline)
                     .foregroundStyle(Color.stropheText)
                 Spacer()
-                Text("\(filteredFonts.count) 个可用")
+                Text("fonts_count_available \(filteredFonts.count)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -89,7 +89,7 @@ public struct FontPickerView: View {
                 .foregroundStyle(.secondary)
                 .font(.footnote)
             
-            TextField("搜索字体（中英文）...", text: $searchText)
+            TextField("search_fonts_placeholder", text: $searchText)
                 .textFieldStyle(.plain)
                 .font(.subheadline)
                 .disableAutocorrection(true)
@@ -188,7 +188,7 @@ public struct FontPickerView: View {
             Spacer()
             ProgressView()
                 .tint(Color.stropheAccent)
-            Text("正在扫描系统字体与语言包...")
+            Text("scanning_system_fonts")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             Spacer()
@@ -201,7 +201,7 @@ public struct FontPickerView: View {
             Image(systemName: "textformat.abc.dottedblock")
                 .font(.largeTitle)
                 .foregroundStyle(.secondary)
-            Text("没有找到符合条件的字体")
+            Text("no_matching_fonts_found")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             Spacer()
@@ -249,25 +249,25 @@ struct FontRow: View {
                     // Tag Pills
                     HStack(spacing: 4) {
                         if font.categories.contains(.sc) {
-                            tagBadge("简中")
+                            tagBadge("simplified_chinese")
                         }
                         if font.categories.contains(.tc) {
-                            tagBadge("繁中")
+                            tagBadge("traditional_chinese")
                         }
                         if font.categories.contains(.ja) {
-                            tagBadge("日文")
+                            tagBadge("japanese")
                         }
                         if font.categories.contains(.ko) {
-                            tagBadge("韩文")
+                            tagBadge("korean")
                         }
                         if font.categories.contains(.nerd) {
-                            tagBadge("Nerd", color: .indigo)
+                            tagBadge("tab_nerd", color: .indigo)
                         }
                         if font.categories.contains(.emoji) && font.id.contains("Emoji") {
                             tagBadge("Emoji", color: .orange)
                         }
                         if font.categories.contains(.monospace) {
-                            tagBadge("等宽", color: .blue)
+                            tagBadge("monospace", color: .blue)
                         }
                     }
                     

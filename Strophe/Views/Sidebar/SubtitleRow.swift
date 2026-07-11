@@ -46,7 +46,7 @@ struct SubtitleRow: View, Equatable {
                             Circle()
                                 .fill(groupColor)
                                 .frame(width: 6, height: 6)
-                            Text(group?.name ?? "未分组")
+                            Text(group?.name ?? "ungrouped")
                                 .lineLimit(1)
                         }
                         .foregroundStyle(groupColor)
@@ -57,13 +57,13 @@ struct SubtitleRow: View, Equatable {
                         HStack(spacing: 4) {
                             Text(formatTime(start))
                             if isSlapping {
-                                Text("→")
+                                Text("string")
                                 TimelineView(.animation) { timeline in
                                     let smoothTime = playbackTime(at: timeline.date)
                                     Text(formatTime(smoothTime))
                                 }
                             } else if let end = item.endTime {
-                                Text("→")
+                                Text("string")
                                 Text(formatTime(end))
                             }
                         }

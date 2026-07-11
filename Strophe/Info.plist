@@ -17,15 +17,11 @@
 			</array>
 		</dict>
 	</array>
-	<key>LSSupportsOpeningDocumentsInPlace</key>
-	<true/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>Strophe 需要访问局域网中的云端字幕识别服务。</string>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>

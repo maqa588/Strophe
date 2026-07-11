@@ -49,7 +49,7 @@ struct ScriptListView: View {
         }
         .sheet(isPresented: $isEditingText) {
             SubtitleTextEditSheet(
-                title: String(localized: "编辑字幕内容"),
+                title: String(localized: "edit_subtitle_content"),
                 text: $editingText,
                 isPresented: $isEditingText
             ) {
@@ -65,29 +65,29 @@ struct ScriptListView: View {
             }
             project.isEditingText = newValue
         }
-        .alert(String(localized: "更改显示时间"), isPresented: $isEditingTime) {
-            TextField("起始时间，例如 01:23.45", text: $editingStartText)
-            TextField("结束时间，例如 01:25.20", text: $editingEndText)
-            Button("确定") {
+        .alert(String(localized: "change_display_time"), isPresented: $isEditingTime) {
+            TextField("start_time_eg_012345", text: $editingStartText)
+            TextField("end_time_eg_012520", text: $editingEndText)
+            Button("ok_1") {
                 saveEditingTime()
             }
-            Button(String(localized: "Cancel"), role: .cancel) {
+            Button(String(localized: "btn_cancel"), role: .cancel) {
                 editingTimeItem = nil
             }
         } message: {
-            Text("可输入秒数、MM:SS 或 HH:MM:SS")
+            Text("can_enter_seconds_mmss_or")
         }
         .stropheOnChange(of: isEditingTime) { newValue in
             project.isEditingText = newValue
         }
-        .confirmationDialog(String(localized: "Import Script"), isPresented: $isShowingImportOptions, titleVisibility: .visible) {
-            Button(String(localized: "Paste Script Text")) {
+        .confirmationDialog(String(localized: "import_script"), isPresented: $isShowingImportOptions, titleVisibility: .visible) {
+            Button(String(localized: "paste_script_text")) {
                 isShowingInput = true
             }
-            Button(String(localized: "Import File…")) {
+            Button(String(localized: "import_file")) {
                 isShowingFileImporter = true
             }
-            Button(String(localized: "Cancel"), role: .cancel) {}
+            Button(String(localized: "btn_cancel"), role: .cancel) {}
         }
         .fileImporter(
             isPresented: $isShowingFileImporter,
@@ -165,21 +165,21 @@ struct ScriptListView: View {
             Image(systemName: "doc.text")
                 .font(.system(size: 36, weight: .semibold))
                 .foregroundStyle(.secondary)
-            Text("No Script")
+            Text("no_script")
                 .font(.headline)
-            Text("Paste your script to start marking timestamps.")
+            Text("paste_script_to_start")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
             VStack(spacing: 8) {
-                Button("Import Script…") {
+                Button("import_script_ellipsis") {
                     isShowingImportOptions = true
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Color.stropheAccent)
                 
-                Button("Speech Recognition…") {
+                Button("speech_recognition_1") {
                     isShowingAutoCaption = true
                 }
                 .buttonStyle(.borderedProminent)
@@ -231,7 +231,7 @@ struct ScriptListView: View {
                                 project.selectedIDs.insert(item.id)
                             }
                         }) {
-                            Label("多选字幕块", systemImage: "checklist")
+                            Label("multi_select_subtitle_blocks", systemImage: "checklist")
                         }
 
                         Button(action: {
@@ -239,14 +239,14 @@ struct ScriptListView: View {
                             editingText = project.items.first(where: { $0.id == item.id })?.text ?? item.text
                             isEditingText = true
                         }) {
-                            Label("编辑内容", systemImage: "pencil")
+                            Label("edit_content", systemImage: "pencil")
                         }
                         .disabled(isLocked)
 
                         Button(action: {
                             beginEditingTime(item)
                         }) {
-                            Label("更改显示时间", systemImage: "clock")
+                            Label("change_display_time", systemImage: "clock")
                         }
                         .disabled(isLocked)
 
@@ -268,7 +268,7 @@ struct ScriptListView: View {
                                 }
                             }
                         } label: {
-                            Label("移动到分组", systemImage: "square.stack.3d.up")
+                            Label("move_to_group", systemImage: "square.stack.3d.up")
                         }
                         .disabled(isLocked)
 
@@ -284,7 +284,7 @@ struct ScriptListView: View {
                                     if !item.hasIndependentPresentation {
                                         Image(systemName: "checkmark")
                                     }
-                                    Text("跟随小组样式")
+                                    Text("follow_group_style")
                                 }
                             }
 
@@ -309,14 +309,14 @@ struct ScriptListView: View {
                                 }
                             }
                         } label: {
-                            Label("设定样式", systemImage: "textformat")
+                            Label("set_style", systemImage: "textformat")
                         }
                         .disabled(isLocked)
 
                         Button {
                             NotificationCenter.default.post(name: .stropheStartSubtitleTranslation, object: item.id)
                         } label: {
-                            Label("从这里开始翻译", systemImage: "character.bubble")
+                            Label("start_translation_from_here", systemImage: "character.bubble")
                         }
 
                         Divider()
@@ -324,7 +324,7 @@ struct ScriptListView: View {
                         Button(role: .destructive, action: {
                             project.deleteSubtitle(id: item.id)
                         }) {
-                            Label("删除字幕", systemImage: "trash")
+                            Label("delete_subtitle", systemImage: "trash")
                         }
                         .disabled(isLocked)
                     }

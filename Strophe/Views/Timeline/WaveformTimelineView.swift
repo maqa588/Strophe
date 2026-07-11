@@ -318,7 +318,7 @@ struct WaveformTimelineView: View {
             Image(systemName: "waveform.path.badge.plus")
                 .font(.largeTitle)
                 .foregroundStyle(.tertiary)
-            Text(String(localized: "No Media Loaded"))
+            Text(String(localized: "no_media_loaded"))
                 .font(.headline)
                 .foregroundStyle(.secondary)
             Spacer()

@@ -145,19 +145,19 @@ struct TimelineToolbarView: View {
                 onDismiss: { splitRequest = nil }
             )
         }
-        .alert(String(localized: "无法切分"), isPresented: Binding(
+        .alert(String(localized: "cannot_split"), isPresented: Binding(
             get: { splitErrorMessage != nil },
             set: { if !$0 { splitErrorMessage = nil } }
         )) {
-            Button(String(localized: "确定"), role: .cancel) { splitErrorMessage = nil }
+            Button(String(localized: "ok_1"), role: .cancel) { splitErrorMessage = nil }
         } message: {
             Text(splitErrorMessage ?? "")
         }
-        .alert(String(localized: "无法合并"), isPresented: Binding(
+        .alert(String(localized: "cannot_merge"), isPresented: Binding(
             get: { mergeErrorMessage != nil },
             set: { if !$0 { mergeErrorMessage = nil } }
         )) {
-            Button(String(localized: "确定"), role: .cancel) { mergeErrorMessage = nil }
+            Button(String(localized: "ok_1"), role: .cancel) { mergeErrorMessage = nil }
         } message: {
             Text(mergeErrorMessage ?? "")
         }

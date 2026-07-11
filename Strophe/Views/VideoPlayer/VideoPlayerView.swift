@@ -2,7 +2,6 @@ import SwiftUI
 import AVFoundation
 import CoreImage
 import UniformTypeIdentifiers
-import AsyncAlgorithms
 
 struct VideoPlayerView: View {
     @ObservedObject var project: SubtitleProject
@@ -128,11 +127,11 @@ struct VideoPlayerView: View {
             return true
         }
         .alert(
-            isRemoteVolumeAlert ? String(localized: "远程文件加载提示") : String(localized: "格式兼容性提示"),
+            isRemoteVolumeAlert ? String(localized: "remote_file_loading_tip") : String(localized: "format_compatibility_notice"),
             isPresented: $showingCompatibilityAlert,
             presenting: incompatibleFormatName
         ) { format in
-            Button(isRemoteVolumeAlert ? String(localized: "继续导入") : String(localized: "我知道了"), role: .none) {
+            Button(isRemoteVolumeAlert ? String(localized: "continue_import") : String(localized: "got_it"), role: .none) {
                 if let url = pendingCompatibilityURL {
                     guard project.videoURL == url else {
                         pendingCompatibilityURL = nil
@@ -158,7 +157,7 @@ struct VideoPlayerView: View {
                 }
                 pendingCompatibilityURL = nil
             }
-            Button(isRemoteVolumeAlert ? String(localized: "取消导入") : String(localized: "放弃导入"), role: .cancel) {
+            Button(isRemoteVolumeAlert ? String(localized: "cancel_import") : String(localized: "cancel_import_1"), role: .cancel) {
                 // Restore previous valid URL, or nil if none was active
                 project.videoURL = currentURL
                 pendingCompatibilityURL = nil
@@ -229,11 +228,11 @@ struct VideoPlayerView: View {
                     .font(.system(size: 56, weight: .ultraLight))
                     .foregroundStyle(.secondary)
                 VStack(spacing: 6) {
-                    Text("No Media").font(.title3.bold())
-                    Text("Drop a video or audio file here, or click to import")
+                    Text("no_media").font(.title3.bold())
+                    Text("drop_media_prompt")
                         .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 }
-                Button(action: onImportMedia) { Label("Import Media…", systemImage: "plus.circle") }.buttonStyle(.borderedProminent)
+                Button(action: onImportMedia) { Label("import_media_ellipsis", systemImage: "plus.circle") }.buttonStyle(.borderedProminent)
             }
             .padding(40)
         }
@@ -253,12 +252,12 @@ struct VideoPlayerView: View {
                     .font(.system(size: 56, weight: .ultraLight))
                     .foregroundStyle(.orange)
                 VStack(spacing: 6) {
-                    Text(String(localized: "Media Not Found")).font(.title3.bold())
+                    Text(String(localized: "media_not_found")).font(.title3.bold())
                     Text(String(localized: "\"\(mediaName)\" could not be opened.\nPlease replace the media file below."))
                         .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 }
                 Button(action: { isShowingReplaceMedia = true }) {
-                    Label(String(localized: "Replace Media…"), systemImage: "arrow.triangle.2.circlepath")
+                    Label(String(localized: "replace_media_ellipsis"), systemImage: "arrow.triangle.2.circlepath")
                 }
                 .buttonStyle(.borderedProminent)
             }
@@ -326,11 +325,27 @@ struct VideoPlayerView: View {
                 // Window adjustment will happen automatically in setupFrameRateDetection after size is fetched
             } else {
                 // Not native AVFoundation compatible (MKV, WebM, RMVB, AVI, FLV etc.) or SMB remote share
-                // Show compatibility check alert before loading!
-                self.isRemoteVolumeAlert = result.isRemoteNetworkVolume
-                self.incompatibleFormatName = url.pathExtension.uppercased()
-                self.pendingCompatibilityURL = url
-                self.showingCompatibilityAlert = true
+                if result.isRemoteNetworkVolume {
+                    // Show remote network warning
+                    self.isRemoteVolumeAlert = true
+                    self.incompatibleFormatName = url.pathExtension.uppercased()
+                    self.pendingCompatibilityURL = url
+                    self.showingCompatibilityAlert = true
+                } else {
+                    // Local FFmpeg format - load directly!
+                    guard let ffmpegEngine = await project.acquirePlayerEngine(
+                        for: url,
+                        makeEngine: { FFmpegEngine() }
+                    ), project.videoURL == url else { return }
+
+                    currentURL = url
+                    engine = ffmpegEngine
+                    _ = await ffmpegEngine.seek(
+                        to: project.currentTime.clampedFinite(to: 0...ffmpegEngine.duration)
+                    )
+                    setupScrubTask()
+                    setupFrameRateDetection(url: url, engine: ffmpegEngine)
+                }
             }
         }
     }
@@ -510,7 +525,10 @@ struct VideoPlayerView: View {
         scrubTask = Task { [weak project, weak engine] in
             guard let project, let eng = engine else { return }
             var lastPreviewSeekTime: Double?
-            for await time in stream._throttle(for: Duration.milliseconds(30), latest: true) {
+            var pendingTime: Double?
+            var isProcessing = false
+
+            for await time in stream {
                 guard !Task.isCancelled else { break }
                 let shouldPreview = await MainActor.run {
                     project.isScrubbing
@@ -519,11 +537,26 @@ struct VideoPlayerView: View {
                     lastPreviewSeekTime = nil
                     continue
                 }
-                if let lastPreviewSeekTime, abs(lastPreviewSeekTime - time) < 0.001 {
-                    continue
+
+                pendingTime = time
+
+                guard !isProcessing else { continue }
+                isProcessing = true
+
+                while let currentPending = pendingTime {
+                    pendingTime = nil
+
+                    if let lastPreviewSeekTime, abs(lastPreviewSeekTime - currentPending) < 0.001 {
+                        // skip
+                    } else {
+                        lastPreviewSeekTime = currentPending
+                        _ = await eng.seekVideoFrameOnly(to: currentPending)
+                    }
+
+                    // Throttle delay: wait 30ms before processing the next item
+                    try? await Task.sleep(nanoseconds: 30_000_000)
                 }
-                lastPreviewSeekTime = time
-                _ = await eng.seekVideoFrameOnly(to: time)
+                isProcessing = false
             }
         }
     }

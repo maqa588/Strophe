@@ -17,13 +17,13 @@ struct StropheDocumentEditorView: View {
                 syncDocumentFromProject()
             }
             .alert(
-                String(localized: "无法打开项目"),
+                String(localized: "cannot_open_project"),
                 isPresented: Binding(
                     get: { loadErrorMessage != nil },
                     set: { if !$0 { loadErrorMessage = nil } }
                 )
             ) {
-                Button(String(localized: "好"), role: .cancel) {
+                Button(String(localized: "ok"), role: .cancel) {
                     loadErrorMessage = nil
                 }
             } message: {

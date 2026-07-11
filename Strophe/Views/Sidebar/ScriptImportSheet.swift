@@ -14,10 +14,10 @@ struct ScriptImportSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("Import Script")
+            Text("import_script")
                 .font(.title2.bold())
 
-            Text("Paste your script below. Each line becomes one subtitle segment.")
+            Text("paste_script_instructions")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
@@ -29,7 +29,7 @@ struct ScriptImportSheet: View {
                 .frame(minHeight: 240)
 
             HStack {
-                Button("Cancel") {
+                Button("btn_cancel") {
                     isPresented = false
                 }
                 .keyboardShortcut(.cancelAction)

@@ -61,7 +61,7 @@ struct MainContentView: View {
             title = videoName
         }
         if project.isDirty {
-            title += String(localized: " — Edited")
+            title += String(localized: "label_edited")
         }
         return title
     }
@@ -84,10 +84,10 @@ struct MainContentView: View {
             }
         }
         #if os(macOS)
-        .navigationTitle(String(localized: "Strophe"))
+        .navigationTitle(String(localized: "app_name"))
         .navigationSubtitle(navigationSubtitle)
         #else
-        .navigationTitle(project.documentDisplayName.isEmpty ? String(localized: "Strophe") : project.documentDisplayName)
+        .navigationTitle(project.documentDisplayName.isEmpty ? String(localized: "app_name") : project.documentDisplayName)
         #endif
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -157,19 +157,19 @@ struct MainContentView: View {
             }
         }
         .alert(
-            String(localized: "硬字幕导出"),
+            String(localized: "hard_subtitle_export"),
             isPresented: $isShowingHardSubtitleExportAlert,
             presenting: hardSubtitleExportMessage
         ) { _ in
-            Button(String(localized: "好"), role: .cancel) {}
+            Button(String(localized: "ok"), role: .cancel) {}
         } message: { message in
             Text(message)
         }
         .alert(
-            String(localized: "是否要丢弃原工程？"),
+            String(localized: "discard_original_project_confirm"),
             isPresented: $isShowingDiscardProjectAlert
         ) {
-            Button(String(localized: "确定")) {
+            Button(String(localized: "ok_1")) {
                 if let url = pendingMediaURL {
                     project.importMediaAsNewProject(from: url)
                     if let projectURL = project.projectURL {
@@ -178,11 +178,11 @@ struct MainContentView: View {
                 }
                 pendingMediaURL = nil
             }
-            Button(String(localized: "取消"), role: .cancel) {
+            Button(String(localized: "cancel"), role: .cancel) {
                 pendingMediaURL = nil
             }
         } message: {
-            Text(String(localized: "打开新视频会丢弃当前工程，并新建一个与视频文件同名的工程缓存。如果当前工程还没有保存，请先检查保存情况。"))
+            Text(String(localized: "open_new_video_warning"))
         }
     }
 
@@ -235,7 +235,7 @@ struct MainContentView: View {
             HStack(spacing: 8) {
                 ProgressView()
                     .controlSize(.small)
-                Text("正在导出硬字幕视频")
+                Text("exporting_hard_subtitled_video")
                     .font(.caption.weight(.semibold))
             }
             ProgressView(value: progress)

@@ -26,6 +26,7 @@ struct AIGenerateSubtitlesRequest: Sendable {
     let enableAlignment: Bool
     let vocalPreprocessing: String
     let referenceText: String?
+    let useVAD: Bool
 }
 
 struct AICloudGenerateSubtitlesRequest: Sendable {
@@ -50,28 +51,20 @@ actor AIBackendClient {
     nonisolated static var defaultCloudTranscribeURL: URL {
         defaultCloudBaseURL.appendingPathComponent("transcribe")
     }
-    #if STROPHE_LITE
-    nonisolated static let isLocalAIIncludedInBuild = false
-    nonisolated static let unsupportedDeviceMessage = "Strophe Lite 不包含本地 AI 模型与端侧推理功能。"
-    nonisolated static let cloudComingSoonMessage = "可以使用云端生成字幕。"
-    #else
+    #if STROPHE_LOCAL_AI
     nonisolated static let isLocalAIIncludedInBuild = true
+    #else
+    nonisolated static let isLocalAIIncludedInBuild = false
+    #endif
     nonisolated static let unsupportedDeviceMessage = "您的设备不支持本地AI运行"
     nonisolated static let cloudComingSoonMessage = "可以使用云端生成字幕，或在支持设备上使用本地生成。"
-    #endif
     private nonisolated static let eventPrefix = "STROPHE_AI_EVENT "
 
     nonisolated static func localDeviceSupport() -> AIBackendAvailability {
-        #if STROPHE_LITE
-        return .unavailable(unsupportedDeviceMessage)
-        #else
         if ProcessInfo.processInfo.physicalMemory < 3_700_000_000 {
             return .unavailable(unsupportedDeviceMessage)
         }
 
-        #if arch(x86_64)
-        return .unavailable(unsupportedDeviceMessage)
-        #else
         #if os(macOS)
         if #available(macOS 15.0, *) {
             return .available
@@ -84,8 +77,6 @@ actor AIBackendClient {
         } else {
             return .unavailable(unsupportedDeviceMessage)
         }
-        #endif
-        #endif
         #endif
     }
 
@@ -151,15 +142,6 @@ actor AIBackendClient {
         request: AIGenerateSubtitlesRequest,
         progressCallback: (@Sendable (Int, Double, String) -> Void)? = nil
     ) async throws -> [AIResultSegment] {
-        #if STROPHE_LITE
-        _ = request
-        progressCallback?(0, 0, Self.unsupportedDeviceMessage)
-        throw NSError(
-            domain: "AIBackendClient",
-            code: 10,
-            userInfo: [NSLocalizedDescriptionKey: Self.unsupportedDeviceMessage]
-        )
-        #else
         try Self.ensureLocalAIAvailable()
         #if STROPHE_LOCAL_AI
         #if os(macOS)
@@ -217,7 +199,6 @@ actor AIBackendClient {
             code: 3,
             userInfo: [NSLocalizedDescriptionKey: "iOS 本地 AI 后端尚未接入。"]
         )
-        #endif
         #endif
         #endif
         #endif
@@ -574,6 +555,21 @@ actor AIBackendClient {
         request: AIGenerateSubtitlesRequest,
         progressCallback: (@Sendable (Int, Double, String) -> Void)?
     ) async throws -> [AIResultSegment] {
+        let modelStorageRoot = request.modelStorageRoot
+        let hasModelStorageAccess = modelStorageRoot?.startAccessingSecurityScopedResource() ?? false
+        #if os(macOS)
+        if modelStorageRoot != nil && !hasModelStorageAccess {
+            throw NSError(
+                domain: "AIBackendClient.Storage",
+                code: 4,
+                userInfo: [NSLocalizedDescriptionKey: "外置模型目录权限已失效，请在模型设置中重新选择该目录。"]
+            )
+        }
+        #endif
+        defer {
+            if hasModelStorageAccess { modelStorageRoot?.stopAccessingSecurityScopedResource() }
+        }
+
         let temporaryDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("strophe_ai_local_\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
@@ -616,6 +612,7 @@ actor AIBackendClient {
             enableAlignment: request.enableAlignment,
             vocalPreprocessing: request.vocalPreprocessing,
             referenceText: request.referenceText,
+            useVAD: request.useVAD,
             progressCallback: progressCallback
         )
     }
@@ -642,6 +639,7 @@ actor AIBackendClient {
         let enableAlignment: Bool
         let vocalPreprocessing: String
         let referenceText: String?
+        let useVAD: Bool
     }
 
     private func runHelper(
@@ -690,7 +688,8 @@ actor AIBackendClient {
             prefixSpeakerName: request.prefixSpeakerName,
             enableAlignment: request.enableAlignment,
             vocalPreprocessing: request.vocalPreprocessing,
-            referenceText: request.referenceText
+            referenceText: request.referenceText,
+            useVAD: request.useVAD
         )
 
         let requestURL = temporaryDirectory.appendingPathComponent("request.json")

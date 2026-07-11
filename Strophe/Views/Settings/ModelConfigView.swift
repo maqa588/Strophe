@@ -12,12 +12,9 @@ struct ModelConfigView: View {
     let type: AIKitType
 
     @StateObject private var modelManager = LocalModelManager.shared
-    @State private var showModelFolderImporter = false
     @State private var showStorageFolderPicker = false
     @State private var errorMessage: String? = nil
     @State private var showError = false
-    @State private var hfTokenDraft: String = ""
-    @State private var showHfTokenSaved = false
 
     var body: some View {
         Form {
@@ -36,17 +33,6 @@ struct ModelConfigView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
-        .onAppear {
-            hfTokenDraft = modelManager.huggingFaceToken
-        }
-        // Model folder importer (both platforms)
-        .fileImporter(
-            isPresented: $showModelFolderImporter,
-            allowedContentTypes: [.folder],
-            allowsMultipleSelection: false
-        ) { result in
-            handleImport(result: result)
-        }
         // Storage location picker (pure SwiftUI, both platforms)
         .fileImporter(
             isPresented: $showStorageFolderPicker,
@@ -55,8 +41,8 @@ struct ModelConfigView: View {
         ) { result in
             handleStoragePick(result: result)
         }
-        .alert("错误", isPresented: $showError) {
-            Button("好", role: .cancel) {}
+        .alert("error", isPresented: $showError) {
+            Button("ok", role: .cancel) {}
         } message: {
             if let msg = errorMessage { Text(msg) }
         }
@@ -68,33 +54,12 @@ struct ModelConfigView: View {
         Section {
             storagePicker
         } header: {
-            Text("模型存储位置")
+            Text("model_storage_location")
         } footer: {
-            Text("选择外置硬盘可节省内置 SSD 空间，下载时模型会直接写入该目录。")
+            Text("selecting_an_external_hard_drive")
         }
 
-        Section {
-            Button(action: { showModelFolderImporter = true }) {
-                Label {
-                    Text("从本地文件夹导入模型...")
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.stropheAccent)
-                } icon: {
-                    Image(systemName: "folder.badge.plus")
-                        .foregroundStyle(Color.stropheAccent)
-                }
-            }
-            .buttonStyle(.plain)
-        } header: {
-            Text("本地手动导入")
-        }
         #endif
-
-        Section {
-            hfTokenSection
-        } footer: {
-            Text("部分模型属于受限仓库，需要 Hugging Face 访问令牌才能下载。可前往 huggingface.co/settings/tokens 获取。")
-        }
 
         Section {
             let presets = LocalModelManager.presets(for: type)
@@ -112,53 +77,9 @@ struct ModelConfigView: View {
                 )
             }
         } header: {
-            Text("可用模型库")
+            Text("available_models_library")
         }
 
-        if type == .whisper {
-            Section {
-                let model = LocalModelManager.coreMLASRAccelerationPreset
-                let modelId = "\(type.rawValue)_\(model.name)"
-                let isDownloaded = modelManager.downloadedWhisperModels.contains(model.name)
-                let isDownloading = modelManager.activeDownloads.contains(modelId)
-                let progress = modelManager.downloadProgresses[modelId] ?? 0.0
-                modelRow(
-                    model: model,
-                    isDownloaded: isDownloaded,
-                    isDownloading: isDownloading,
-                    progress: progress,
-                    showsRepositoryLink: true
-                )
-            } header: {
-                Text("CoreML 加速组件")
-            } footer: {
-                Text("用于 qwen3-asr-0.6b 的 CoreML INT8 音频编码器加速；0.6B/1.7B MLX 模型仍可独立运行。")
-            }
-
-            Section {
-                let vadType = AIKitType.vad
-                let presets = LocalModelManager.presets(for: vadType)
-                let downloadedSet = modelManager.downloadedSet(for: vadType)
-                ForEach(presets, id: \.name) { model in
-                    let modelId = "\(vadType.rawValue)_\(model.name)"
-                    let isDownloaded = downloadedSet.contains(model.name)
-                    let isDownloading = modelManager.activeDownloads.contains(modelId)
-                    let progress = modelManager.downloadProgresses[modelId] ?? 0.0
-                    modelRow(
-                        model: model,
-                        typeOverride: vadType,
-                        isDownloaded: isDownloaded,
-                        isDownloading: isDownloading,
-                        progress: progress,
-                        showsRepositoryLink: true
-                    )
-                }
-            } header: {
-                Text("语音活动检测 (VAD)")
-            } footer: {
-                Text("自动字幕会先用 VAD 生成 Speech Islands，再交给 ASR 与 ForcedAligner。")
-            }
-        }
     }
 
     // MARK: - Storage Picker
@@ -177,7 +98,7 @@ struct ModelConfigView: View {
                     .frame(width: 28)
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(hasExternal ? "外置硬盘" : "内置沙盒")
+                    Text(hasExternal ? "external_hard_drive" : "built_in_sandbox")
                         .font(.subheadline.weight(.semibold))
                     Text(summary)
                         .font(.caption)
@@ -192,7 +113,7 @@ struct ModelConfigView: View {
                 Button {
                     showStorageFolderPicker = true
                 } label: {
-                    Label("选择存储目录", systemImage: "folder.badge.plus")
+                    Label("select_storage_directory", systemImage: "folder.badge.plus")
                         .font(.callout)
                 }
                 .buttonStyle(.bordered)
@@ -201,11 +122,18 @@ struct ModelConfigView: View {
                     Button(role: .destructive) {
                         modelManager.clearExternalStorageBookmark()
                     } label: {
-                        Label("恢复默认", systemImage: "arrow.uturn.backward")
+                        Label("restore_defaults", systemImage: "arrow.uturn.backward")
                             .font(.callout)
                     }
                     .buttonStyle(.bordered)
                 }
+            }
+
+            if let storageError = modelManager.storageAccessError {
+                Label(storageError, systemImage: "externaldrive.badge.exclamationmark")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.vertical, 4)
@@ -221,42 +149,6 @@ struct ModelConfigView: View {
         // Show "…/penultimate/last"
         let tail = components.suffix(2).joined(separator: "/")
         return "…/" + tail
-    }
-
-    // MARK: - HF Token Section
-
-    @ViewBuilder
-    private var hfTokenSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                SecureField("hf_...", text: $hfTokenDraft)
-                    .textContentType(.password)
-                    .font(.system(.body, design: .monospaced))
-
-                Button("保存") {
-                    modelManager.huggingFaceToken = hfTokenDraft
-                    showHfTokenSaved = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                        showHfTokenSaved = false
-                    }
-                }
-                .buttonStyle(.bordered)
-                .disabled(hfTokenDraft == modelManager.huggingFaceToken)
-
-                if showHfTokenSaved {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                        .transition(.opacity)
-                }
-            }
-
-            if !modelManager.huggingFaceToken.isEmpty {
-                Label("Token 已保存", systemImage: "lock.shield.fill")
-                    .font(.caption)
-                    .foregroundStyle(.green)
-            }
-        }
-        .padding(.vertical, 2)
     }
 
     // MARK: - Model Row
@@ -341,24 +233,6 @@ struct ModelConfigView: View {
             }
         }
         .padding(.vertical, 4)
-    }
-
-    // MARK: - Import Handler
-
-    private func handleImport(result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            guard let url = urls.first else { return }
-            do {
-                try modelManager.importModel(type: type, from: url)
-            } catch {
-                errorMessage = error.localizedDescription
-                showError = true
-            }
-        case .failure(let error):
-            errorMessage = error.localizedDescription
-            showError = true
-        }
     }
 
     // MARK: - Storage Folder Pick Handler (pure SwiftUI, cross-platform)

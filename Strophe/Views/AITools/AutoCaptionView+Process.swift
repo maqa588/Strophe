@@ -234,34 +234,38 @@ extension AutoCaptionView {
                     }
                 }
                 
-                let vadModelName = "pyannote-segmentation-3.0-mlx"
-                let isVADDownloaded = modelManager.downloadedVADModels.contains(vadModelName)
-                if !isVADDownloaded {
-                    statusMessage = "正在从 Hugging Face 下载 Pyannote VAD 模型 \(vadModelName) (约 5.7MB)..."
-                    self.stepProgress = 0.0
+                if useVAD {
+                    let vadModelName = LocalModelManager.vadPresets.first?.name ?? "firered-vad-coreml"
+                    let isVADDownloaded = modelManager.downloadedVADModels.contains(vadModelName)
+                    if !isVADDownloaded {
+                        let displayName = (vadModelName == "firered-vad-coreml") ? "FireRed VAD" : "VAD"
+                        let approxSize = (vadModelName == "firered-vad-coreml") ? "约 2.2MB" : "约 5.7MB"
+                        statusMessage = "正在从 Hugging Face 下载 \(displayName) 模型 (\(approxSize))..."
+                        self.stepProgress = 0.0
 
-                    let downloadTask = Task {
-                        let vadModelId = "VADKit_\(vadModelName)"
-                        while !Task.isCancelled {
-                            try? await Task.sleep(nanoseconds: 200_000_000)
-                            await MainActor.run {
-                                if let progress = modelManager.downloadProgresses[vadModelId] {
-                                    self.stepProgress = progress * 0.95
+                        let downloadTask = Task {
+                            let vadModelId = "VADKit_\(vadModelName)"
+                            while !Task.isCancelled {
+                                try? await Task.sleep(nanoseconds: 200_000_000)
+                                await MainActor.run {
+                                    if let progress = modelManager.downloadProgresses[vadModelId] {
+                                        self.stepProgress = progress * 0.95
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    await modelManager.downloadModel(type: .vad, modelName: vadModelName)
-                    downloadTask.cancel()
+                        await modelManager.downloadModel(type: .vad, modelName: vadModelName)
+                        downloadTask.cancel()
 
-                    let vadCheck = modelManager.downloadedVADModels.contains(vadModelName)
-                    if !vadCheck {
-                        throw NSError(
-                            domain: "AutoCaptionView",
-                            code: 10,
-                            userInfo: [NSLocalizedDescriptionKey: "Pyannote VAD 模型下载失败，请检查网络连接。"]
-                        )
+                        let vadCheck = modelManager.downloadedVADModels.contains(vadModelName)
+                        if !vadCheck {
+                            throw NSError(
+                                domain: "AutoCaptionView",
+                                code: 10,
+                                userInfo: [NSLocalizedDescriptionKey: "\(displayName) 模型下载失败，请检查网络连接。"]
+                            )
+                        }
                     }
                 }
 
@@ -404,12 +408,12 @@ extension AutoCaptionView {
                 }
 
                 let vadBaseDir = modelManager.getBaseDirectory(for: .vad)
-                let vadPresetName = LocalModelManager.vadPresets.first?.name ?? "pyannote-segmentation-3.0-mlx"
+                let vadPresetName = LocalModelManager.vadPresets.first?.name ?? "firered-vad-coreml"
                 let vadModelURL: URL
                 if let hubDir = modelManager.getModelDirectory(for: vadPresetName, type: .vad) {
                     vadModelURL = hubDir
                 } else {
-                    let folderName = LocalModelManager.vadPresets.first?.folderName ?? "pyannote-segmentation-3.0-mlx"
+                    let folderName = LocalModelManager.vadPresets.first?.folderName ?? "firered-vad-coreml"
                     vadModelURL = vadBaseDir.appendingPathComponent(folderName)
                 }
 
@@ -443,7 +447,8 @@ extension AutoCaptionView {
                     prefixSpeakerName: prefixSpeakerName,
                     enableAlignment: enableAlignment,
                     vocalPreprocessing: vocalPreprocessing,
-                    referenceText: referenceLyrics
+                    referenceText: referenceLyrics,
+                    useVAD: useVAD
                 )
 
                 let results = try await AIBackendClient.shared.generateSubtitles(

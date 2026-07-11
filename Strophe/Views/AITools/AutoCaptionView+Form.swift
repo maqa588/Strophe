@@ -35,16 +35,16 @@ extension AutoCaptionView {
                     iosMediaSourceSection
                     iosCloudRecognitionSection
                     Section {
-                        Picker("提交语言", selection: $selectedLanguage) {
+                        Picker("submission_language", selection: $selectedLanguage) {
                             ForEach(languages, id: \.0) { item in
                                 Text(item.1).tag(item.0)
                             }
                         }
                         .pickerStyle(.navigationLink)
                     } header: {
-                        Text("语言配置")
+                        Text("language_config")
                     } footer: {
-                        Text("推荐选择特定的语言以获得针对该语种特别优化过的生成效果；如不确定可选择“自动检测”。")
+                        Text("recommend_specific_language_explanation")
                     }
                 } else if !isLocalAISupported {
                     iosMediaSourceSection
@@ -56,7 +56,7 @@ extension AutoCaptionView {
 
                         Section {
                             HStack {
-                                Text("模型选择")
+                                Text("model_selection")
                                 Spacer()
                                 Text("")
                                     .foregroundStyle(.secondary)
@@ -64,14 +64,14 @@ extension AutoCaptionView {
                             .disabled(true)
 
                             HStack {
-                                Text("对齐器模型")
+                                Text("aligner_model")
                                 Spacer()
                                 Text("")
                                     .foregroundStyle(.secondary)
                             }
                             .disabled(true)
                         } header: {
-                            Text("本地语音识别配置")
+                            Text("local_speech_recognition_config")
                         }
                     }
                 } else {
@@ -79,7 +79,7 @@ extension AutoCaptionView {
                     
                     Section {
                         // Model Selection
-                        Picker("模型选择", selection: $selectedModel) {
+                        Picker("model_selection", selection: $selectedModel) {
                             ForEach(LocalModelManager.whisperPresets, id: \.name) { model in
                                 let isDownloaded = modelManager.downloadedWhisperModels.contains(model.name)
                                 Text("\(model.name) (\(model.size)) \(isDownloaded ? "[已下载]" : "[未下载]")")
@@ -90,28 +90,28 @@ extension AutoCaptionView {
                         
                         let isSelectedDownloaded = modelManager.downloadedWhisperModels.contains(selectedModel)
                         if !isSelectedDownloaded {
-                            Text("提示：此模型尚未下载，开始生成时会从 Hugging Face 自动下载该模型。")
+                            Text("note_this_model_has_not")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
 
-                        Toggle("启用 CoreML 编码器加速", isOn: coreMLASRAccelerationBinding)
+                        Toggle("enable_coreml_encoder_acceleration", isOn: coreMLASRAccelerationBinding)
                             .tint(Color.stropheAccent)
                             .disabled(!LocalModelManager.supportsCoreMLASRAcceleration(selectedModel))
 
                         if enableCoreMLASRAcceleration && LocalModelManager.supportsCoreMLASRAcceleration(selectedModel) {
                             let isCoreMLDownloaded = modelManager.downloadedWhisperModels.contains(LocalModelManager.coreMLASRAccelerationModelName)
-                            Text(isCoreMLDownloaded ? "CoreML INT8 编码器已下载，将与当前 MLX 模型混合使用。" : "CoreML INT8 编码器尚未下载，开始生成时会自动下载。")
+                            Text(isCoreMLDownloaded ? "coreml_encoder_downloaded" : "coreml_encoder_not_downloaded")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         } else if !LocalModelManager.supportsCoreMLASRAcceleration(selectedModel) {
-                            Text("当前 CoreML 编码器仅兼容 qwen3-asr-0.6b；该模型将使用 MLX 独立运行。")
+                            Text("coreml_compatibility_explanation")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                         
                         // Language Selection
-                        Picker("识别语言", selection: $selectedLanguage) {
+                        Picker("recognition_language", selection: $selectedLanguage) {
                             ForEach(languages, id: \.0) { item in
                                 Text(item.1).tag(item.0)
                             }
@@ -120,27 +120,39 @@ extension AutoCaptionView {
                         
                         // Preprocessing Selection
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("人声预处理")
+                            Text("vocal_preprocessing")
                                 .font(.subheadline)
-                            Picker("预处理", selection: $vocalPreprocessing) {
-                                Text("不处理").tag("none")
-                                Text("智能降噪").tag("denoise")
-                                Text("人声分离").tag("separate")
+                            Picker("preprocessing", selection: $vocalPreprocessing) {
+                                Text("do_not_process").tag("none")
+                                Text("smart_noise_reduction").tag("denoise")
+                                Text("vocal_separation").tag("separate")
                             }
                             .pickerStyle(.segmented)
+                            .disabled(true)
                         }
                         .padding(.vertical, 4)
                     } header: {
-                        Text("语音识别配置 (Qwen3-ASR)")
+                        Text("speech_recognition_config_qwen3_asr")
+                    }
+                    
+                    Section {
+                        Toggle("use_voice_activity_detection", isOn: $useVAD)
+                            .tint(Color.stropheAccent)
+                        
+                        Text(LocalizedStringKey(useVAD ? "auto_caption_vad_explanation" : "disable_vad_explanation"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } header: {
+                        Text("voice_activity_detection")
                     }
                     
                     Section {
                         let alignerControlsEnabled = enableAlignment || enableDiarization
-                        Toggle("启用时间轴精修", isOn: $enableAlignment)
+                        Toggle("enable_timeline_refinement", isOn: $enableAlignment)
                             .tint(Color.stropheAccent)
 
                         // Aligner Model
-                        Picker("对齐器模型", selection: $selectedAlignerModel) {
+                        Picker("aligner_model", selection: $selectedAlignerModel) {
                             ForEach(LocalModelManager.alignerPresets, id: \.name) { model in
                                 let isDownloaded = modelManager.downloadedAlignerModels.contains(model.name)
                                 Text("\(model.name) (\(model.size)) \(isDownloaded ? "[已下载]" : "[未下载]")")
@@ -151,30 +163,32 @@ extension AutoCaptionView {
                         .disabled(!alignerControlsEnabled)
                         
                         if !enableAlignment && enableDiarization {
-                            Text("对话人识别仍会调用对齐器生成词级时间戳，但不会额外做时间轴精修。")
+                            Text("speaker_diarization_aligner_explanation")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         } else if !enableAlignment {
-                            Text("关闭后仅使用 VAD 与 Qwen3-ASR 生成粗略时间轴。")
+                            Text("close_vad_explanation")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         } else if selectedAlignerModel.contains("coreml") {
-                            Text("当前依赖暂未提供 CoreML ForcedAligner 推理接口；可下载备用，实际生成请先选 MLX 4-bit。")
+                            let precision = selectedAlignerModel.contains("fp16") ? "FP16" : (selectedAlignerModel.contains("int8") ? "INT8" : "INT4")
+                            Text("CoreML \(precision) 对齐器已启用")
                                 .font(.caption)
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(.secondary)
                         }
                     } header: {
-                        Text("强制对齐配置 (Qwen3-ForcedAligner)")
+                        Text("forced_alignment_config_qwen3_forcedaligner")
                     }
                     
                     Section {
-                        Toggle("启用对话人识别 (Pyannote)", isOn: $enableDiarization)
+                        Toggle("enable_speaker_diarization_pyannote", isOn: $enableDiarization)
                             .tint(Color.stropheAccent)
+                            .disabled(true)
                         
                         if enableDiarization {
-                            Picker("发言人数", selection: $speakerCountOption) {
-                                Text("自动检测").tag("auto")
-                                Text("指定人数").tag("custom")
+                            Picker("number_of_speakers", selection: $speakerCountOption) {
+                                Text("auto_detect").tag("auto")
+                                Text("specify_number_of_people").tag("custom")
                             }
                             .pickerStyle(.segmented)
                             
@@ -182,11 +196,11 @@ extension AutoCaptionView {
                                 Stepper("发言人数量: \(customSpeakerCount) 人", value: $customSpeakerCount, in: 1...10)
                             }
                             
-                            Toggle("在字幕中添加发言人前缀", isOn: $prefixSpeakerName)
+                            Toggle("add_speaker_prefix_in_subtitles", isOn: $prefixSpeakerName)
                                 .tint(Color.stropheAccent)
                         }
                     } header: {
-                        Text("对话人识别")
+                        Text("speaker_diarization")
                     }
                     
                     Section {
@@ -194,24 +208,24 @@ extension AutoCaptionView {
                             .frame(minHeight: 100)
                             .font(.system(.body, design: .rounded))
                     } header: {
-                        Text("参考歌词（可选）")
+                        Text("reference_lyrics_optional")
                     } footer: {
-                        Text("歌曲建议粘贴逐行歌词；系统会跳过自由识别，直接按这些歌词强制对齐。")
+                        Text("for_songs_it_is_recommended")
                     }
                 }
             }
-            .navigationTitle("AI 自动生成字幕")
+            .navigationTitle("ai_auto_subtitles")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     if (selectedGenerationMode == .local || selectedGenerationMode == .cloud) && !isRunning {
-                        Button("返回") {
+                        Button("back") {
                             selectedGenerationMode = nil
                         }
                     } else {
-                        Button("取消") {
+                        Button("cancel") {
                             dismiss()
                         }
                         .disabled(isRunning)
@@ -222,13 +236,13 @@ extension AutoCaptionView {
                     if isRunning {
                         ProgressView()
                     } else if selectedGenerationMode == .local {
-                        Button("本地") {
+                        Button("local") {
                             handleStartLocalButton()
                         }
                         .fontWeight(.bold)
                         .disabled(!canStartLocalCaptioning)
                     } else if selectedGenerationMode == .cloud {
-                        Button("云端") {
+                        Button("cloud") {
                             handleStartCloudButton()
                         }
                         .fontWeight(.bold)
@@ -252,9 +266,9 @@ extension AutoCaptionView {
                         .font(.title2)
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("未加载媒体")
+                        Text("no_media_loaded_1")
                             .fontWeight(.semibold)
-                        Text("请先导入视频或音频文件再使用语音识别功能。")
+                        Text("please_import_a_video_or")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -276,7 +290,7 @@ extension AutoCaptionView {
     var iosCloudRecognitionSection: some View {
         Section {
             HStack {
-                Label("服务地址", systemImage: "cloud")
+                Label("server_address", systemImage: "cloud")
                 Spacer()
                 Text(AIBackendClient.defaultCloudBaseURL.absoluteString)
                     .foregroundStyle(.secondary)
@@ -284,13 +298,13 @@ extension AutoCaptionView {
             }
 
             HStack {
-                Text("字幕模式")
+                Text("subtitle_mode")
                 Spacer()
-                Text("完整句子")
+                Text("full_sentence")
                     .foregroundStyle(.secondary)
             }
         } header: {
-            Text("云端识别")
+            Text("cloud_recognition")
         }
     }
 
@@ -302,10 +316,10 @@ extension AutoCaptionView {
             } label: {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Label("云端识别", systemImage: "cloud.fill")
+                        Label("cloud_recognition", systemImage: "cloud.fill")
                             .font(.headline)
                         Spacer()
-                        Text(project.videoURL == nil ? "需要媒体" : "可用")
+                        Text(LocalizedStringKey(project.videoURL == nil ? "media_required" : "available"))
                             .font(.caption)
                             .fontWeight(.semibold)
                             .foregroundStyle(project.videoURL == nil ? .secondary : Color.stropheAccent)
@@ -323,13 +337,13 @@ extension AutoCaptionView {
             } label: {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Label("本地识别", systemImage: "cpu")
+                        Label("local_recognition", systemImage: "cpu")
                             .font(.headline)
                         Spacer()
-                        Text(localRecognitionStatusText)
+                        Text(LocalizedStringKey(project.videoURL == nil ? "media_required" : localRecognitionStatusText))
                             .font(.caption)
                             .fontWeight(.semibold)
-                            .foregroundStyle(isLocalAIIncludedInBuild && isLocalAISupported ? Color.stropheAccent : .secondary)
+                            .foregroundStyle((isLocalAIIncludedInBuild && isLocalAISupported && project.videoURL != nil) ? Color.stropheAccent : .secondary)
                     }
                     Text(localRecognitionDetailText)
                         .font(.caption)
@@ -337,11 +351,11 @@ extension AutoCaptionView {
                 }
             }
             .buttonStyle(.plain)
-            .disabled(!isLocalAIIncludedInBuild || !isLocalAISupported)
+            .disabled(!isLocalAIIncludedInBuild || !isLocalAISupported || project.videoURL == nil)
         } header: {
-            Text("选择识别方式")
+            Text("select_recognition_method")
         } footer: {
-            Text("云端和本地识别均需先进行相关参数与提交语言配置。")
+            Text("config_required_for_recognition")
         }
     }
     #endif
@@ -351,7 +365,7 @@ extension AutoCaptionView {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Text("AI 自动生成字幕")
+                Text("ai_auto_subtitles")
                     .font(.title3)
                     .fontWeight(.bold)
                     .foregroundStyle(Color.stropheText)
@@ -378,7 +392,7 @@ extension AutoCaptionView {
             } else if selectedGenerationMode == nil {
                 recognitionModeGuide
             } else {
-                configurationForm
+                simpleConfigurationForm
             }
             
             Divider()
@@ -387,7 +401,7 @@ extension AutoCaptionView {
             // Bottom Actions
             HStack {
                 if (selectedGenerationMode == .local || selectedGenerationMode == .cloud) && !isRunning {
-                    Button("返回") {
+                    Button("back") {
                         selectedGenerationMode = nil
                     }
                     .buttonStyle(.bordered)
@@ -396,7 +410,7 @@ extension AutoCaptionView {
 
                 Spacer()
 
-                Button("取消") {
+                Button("cancel") {
                     dismiss()
                 }
                 .buttonStyle(.bordered)
@@ -405,7 +419,7 @@ extension AutoCaptionView {
 
                 if selectedGenerationMode == .local {
                     Button(action: handleStartLocalButton) {
-                        Text("本地生成字幕")
+                        Text("local_generate_subtitles")
                             .fontWeight(.semibold)
                     }
                     .buttonStyle(.borderedProminent)
@@ -413,7 +427,7 @@ extension AutoCaptionView {
                     .disabled(!canStartLocalCaptioning)
                 } else if selectedGenerationMode == .cloud {
                     Button(action: handleStartCloudButton) {
-                        Text("云端生成字幕")
+                        Text("cloud_generate_subtitles")
                             .fontWeight(.semibold)
                     }
                     .buttonStyle(.borderedProminent)
@@ -432,16 +446,16 @@ extension AutoCaptionView {
             VStack(spacing: 18) {
                 mediaStatusCard
 
-                Text("选择识别方式")
+                Text("select_recognition_method")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(Color.stropheText)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 Button(action: { selectedGenerationMode = .cloud }) {
                     recognitionChoiceCard(
-                        title: "云端识别",
+                        title: "cloud_recognition",
                         systemImage: "cloud.fill",
-                        status: project.videoURL == nil ? "需要媒体" : "可用",
+                        status: project.videoURL == nil ? "media_required" : "available",
                         detail: cloudRecognitionDetailText,
                         isProminent: true,
                         isAvailable: project.videoURL != nil
@@ -452,18 +466,18 @@ extension AutoCaptionView {
 
                 Button(action: handleChooseLocalButton) {
                     recognitionChoiceCard(
-                        title: "本地识别",
+                        title: "local_recognition",
                         systemImage: "cpu",
-                        status: localRecognitionStatusText,
+                        status: project.videoURL == nil ? "media_required" : localRecognitionStatusText,
                         detail: localRecognitionDetailText,
                         isProminent: false,
-                        isAvailable: isLocalAIIncludedInBuild && isLocalAISupported
+                        isAvailable: isLocalAIIncludedInBuild && isLocalAISupported && project.videoURL != nil
                     )
                 }
                 .buttonStyle(.plain)
-                .disabled(!isLocalAIIncludedInBuild || !isLocalAISupported)
+                .disabled(!isLocalAIIncludedInBuild || !isLocalAISupported || project.videoURL == nil)
 
-                Text("云端和本地识别均需先进行相关参数与提交语言配置。")
+                Text("config_required_for_recognition")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -490,13 +504,13 @@ extension AutoCaptionView {
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 10) {
-                    Text(title)
+                    Text(LocalizedStringKey(title))
                         .font(.headline)
                         .foregroundStyle(Color.stropheText)
 
                     Spacer()
 
-                    Text(status)
+                    Text(LocalizedStringKey(status))
                         .font(.caption)
                         .fontWeight(.semibold)
                         .foregroundStyle(isAvailable ? Color.stropheAccent : .secondary)
@@ -524,20 +538,20 @@ extension AutoCaptionView {
     var cloudConfigurationCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label("云端识别", systemImage: "cloud")
+                Label("cloud_recognition", systemImage: "cloud")
                     .font(.headline)
                     .foregroundStyle(Color.stropheText)
 
                 Spacer()
 
-                Text("可用")
+                Text("available")
                     .font(.caption)
                     .fontWeight(.semibold)
                     .foregroundStyle(Color.stropheAccent)
             }
 
             HStack {
-                Text("服务地址")
+                Text("server_address")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -548,11 +562,11 @@ extension AutoCaptionView {
             }
 
             HStack {
-                Text("字幕模式")
+                Text("subtitle_mode")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text("完整句子")
+                Text("full_sentence")
                     .font(.caption)
                     .foregroundStyle(Color.stropheText)
             }
@@ -576,9 +590,9 @@ extension AutoCaptionView {
                     .font(.title2)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("未加载媒体")
+                    Text("no_media_loaded_1")
                         .fontWeight(.semibold)
-                    Text("请先导入视频或音频文件再使用语音识别功能。")
+                    Text("please_import_a_video_or")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -617,17 +631,17 @@ extension AutoCaptionView {
                 
                         // Section 1: Qwen3-ASR Config
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("语音识别配置 (Qwen3-ASR)")
+                            Text("speech_recognition_config_qwen3_asr")
                         .font(.headline)
                         .foregroundStyle(Color.stropheText)
                     
                     // Model Selection
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("模型选择")
+                        Text("model_selection")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         
-                        Picker("模型", selection: $selectedModel) {
+                        Picker("model", selection: $selectedModel) {
                             ForEach(LocalModelManager.whisperPresets, id: \.name) { model in
                                 let isDownloaded = modelManager.downloadedWhisperModels.contains(model.name)
                                 Text("\(model.name) (\(model.size)) \(isDownloaded ? "[已下载]" : "[未下载]")")
@@ -641,7 +655,7 @@ extension AutoCaptionView {
                             HStack(spacing: 6) {
                                 Image(systemName: "info.circle.fill")
                                     .foregroundStyle(Color.stropheAccent)
-                                Text("提示：此模型尚未下载，开始生成时会从 Hugging Face 自动下载该模型。")
+                                Text("note_this_model_has_not")
                                     .font(.system(size: 11))
                                     .foregroundStyle(.secondary)
                             }
@@ -649,7 +663,7 @@ extension AutoCaptionView {
                         }
 
                         VStack(alignment: .leading, spacing: 6) {
-                            Toggle("启用 CoreML 编码器加速", isOn: coreMLASRAccelerationBinding)
+                            Toggle("enable_coreml_encoder_acceleration", isOn: coreMLASRAccelerationBinding)
                                 .toggleStyle(.switch)
                                 .tint(Color.stropheAccent)
                                 .disabled(!LocalModelManager.supportsCoreMLASRAcceleration(selectedModel))
@@ -659,7 +673,7 @@ extension AutoCaptionView {
                                 HStack(spacing: 6) {
                                     Image(systemName: "cpu")
                                         .foregroundStyle(.secondary)
-                                    Text(isCoreMLDownloaded ? "CoreML INT8 编码器已下载，将与当前 MLX 模型混合使用。" : "CoreML INT8 编码器尚未下载，开始生成时会自动下载。")
+                                    Text(isCoreMLDownloaded ? "coreml_encoder_downloaded" : "coreml_encoder_not_downloaded")
                                         .font(.system(size: 11))
                                         .foregroundStyle(.secondary)
                                 }
@@ -667,7 +681,7 @@ extension AutoCaptionView {
                                 HStack(spacing: 6) {
                                     Image(systemName: "info.circle.fill")
                                         .foregroundStyle(.secondary)
-                                    Text("当前 CoreML 编码器仅兼容 qwen3-asr-0.6b；该模型将使用 MLX 独立运行。")
+                                    Text("coreml_compatibility_explanation")
                                         .font(.system(size: 11))
                                         .foregroundStyle(.secondary)
                                 }
@@ -678,11 +692,11 @@ extension AutoCaptionView {
                     
                     // Language Selection
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("识别语言")
+                        Text("recognition_language")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         
-                        Picker("识别语言", selection: $selectedLanguage) {
+                        Picker("recognition_language", selection: $selectedLanguage) {
                             ForEach(languages, id: \.0) { item in
                                 Text(item.1).tag(item.0)
                             }
@@ -692,21 +706,22 @@ extension AutoCaptionView {
 
                     // Preprocessing Selection
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("人声预处理")
+                        Text("vocal_preprocessing")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         
-                        Picker("预处理", selection: $vocalPreprocessing) {
-                            Text("安静人声 (不处理)").tag("none")
-                            Text("嘈杂人声 (智能降噪)").tag("denoise")
-                            Text("背景音乐 (人声分离)").tag("separate")
+                        Picker("preprocessing", selection: $vocalPreprocessing) {
+                            Text("quiet_vocals_no_processing").tag("none")
+                            Text("noisy_vocals_smart_noise_reduction").tag("denoise")
+                            Text("background_music_vocal_separation").tag("separate")
                         }
                         .pickerStyle(.segmented)
+                        .disabled(true)
                     }
                     .padding(.top, 4)
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("参考歌词（可选）")
+                        Text("reference_lyrics_optional")
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
@@ -722,7 +737,7 @@ extension AutoCaptionView {
                                     .stroke(Color.stropheBorder, lineWidth: 1)
                             )
 
-                        Text("歌曲建议粘贴逐行歌词；系统会跳过自由识别，直接按这些歌词强制对齐。")
+                        Text("for_songs_it_is_recommended")
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                     }
@@ -737,11 +752,40 @@ extension AutoCaptionView {
                         .stroke(Color.stropheBorder, lineWidth: 1)
                 )
                 
+                // Section 1.5: Voice Activity Detection (VAD) Config
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("voice_activity_detection")
+                            .font(.headline)
+                            .foregroundStyle(Color.stropheText)
+
+                        Spacer()
+
+                        Toggle("", isOn: $useVAD)
+                            .toggleStyle(.switch)
+                            .tint(Color.stropheAccent)
+                    }
+
+                    Text(LocalizedStringKey(useVAD ? "auto_caption_vad_explanation" : "disable_vad_explanation"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.stropheSecondaryBackground.opacity(0.5))
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.stropheBorder, lineWidth: 1)
+                )
+                
+                
                 // Section 2: Pyannote Diarization Config
                 VStack(alignment: .leading, spacing: 12) {
                     let alignerControlsEnabled = enableAlignment || enableDiarization
                     HStack {
-                        Text("强制对齐配置 (Qwen3-ForcedAligner)")
+                        Text("forced_alignment_config_qwen3_forcedaligner")
                             .font(.headline)
                             .foregroundStyle(Color.stropheText)
 
@@ -753,11 +797,11 @@ extension AutoCaptionView {
                     }
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("对齐器模型")
+                        Text("aligner_model")
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                        Picker("对齐器模型", selection: $selectedAlignerModel) {
+                        Picker("aligner_model", selection: $selectedAlignerModel) {
                             ForEach(LocalModelManager.alignerPresets, id: \.name) { model in
                                 let isDownloaded = modelManager.downloadedAlignerModels.contains(model.name)
                                 Text("\(model.name) (\(model.size)) \(isDownloaded ? "[已下载]" : "[未下载]")")
@@ -771,7 +815,7 @@ extension AutoCaptionView {
                             HStack(spacing: 6) {
                                 Image(systemName: "person.2.wave.2")
                                     .foregroundStyle(.secondary)
-                                Text("对话人识别仍会调用对齐器生成词级时间戳，但不会额外做时间轴精修。")
+                                Text("speaker_diarization_aligner_explanation")
                                     .font(.system(size: 11))
                                     .foregroundStyle(.secondary)
                             }
@@ -780,16 +824,17 @@ extension AutoCaptionView {
                             HStack(spacing: 6) {
                                 Image(systemName: "clock.badge.xmark")
                                     .foregroundStyle(.secondary)
-                                Text("关闭后仅使用 VAD 与 Qwen3-ASR 生成粗略时间轴。")
+                                Text("close_vad_explanation")
                                     .font(.system(size: 11))
                                     .foregroundStyle(.secondary)
                             }
                             .padding(.top, 2)
                         } else if selectedAlignerModel.contains("coreml") {
+                            let precision = selectedAlignerModel.contains("fp16") ? "FP16" : "INT4"
                             HStack(spacing: 6) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundStyle(.orange)
-                                Text("当前依赖暂未提供 CoreML ForcedAligner 推理接口；可下载备用，实际生成请先选 MLX 4-bit。")
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(Color.stropheAccent)
+                                Text("CoreML \(precision) 对齐器已启用")
                                     .font(.system(size: 11))
                                     .foregroundStyle(.secondary)
                             }
@@ -809,7 +854,7 @@ extension AutoCaptionView {
                 // Section 3: Pyannote Diarization Config
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text("对话人识别 (Pyannote)")
+                        Text("speaker_diarization_pyannote")
                             .font(.headline)
                             .foregroundStyle(Color.stropheText)
                         
@@ -818,6 +863,7 @@ extension AutoCaptionView {
                         Toggle("", isOn: $enableDiarization)
                             .toggleStyle(.switch)
                             .tint(Color.stropheAccent)
+                            .disabled(true)
                     }
                     
                     if enableDiarization {
@@ -827,13 +873,13 @@ extension AutoCaptionView {
                             
                             // Speaker Count
                             VStack(alignment: .leading, spacing: 6) {
-                                Text("发言人数")
+                                Text("number_of_speakers")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 
                                 Picker("", selection: $speakerCountOption) {
-                                    Text("自动检测").tag("auto")
-                                    Text("指定人数").tag("custom")
+                                    Text("auto_detect").tag("auto")
+                                    Text("specify_number_of_people").tag("custom")
                                 }
                                 .pickerStyle(.segmented)
                                 
@@ -847,9 +893,9 @@ extension AutoCaptionView {
                             // Prefix Speaker name
                             Toggle(isOn: $prefixSpeakerName) {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("在字幕行中添加发言人前缀")
+                                    Text("add_speaker_prefix_to_subtitle")
                                         .font(.subheadline)
-                                    Text("例如: [Speaker 0] 你好，世界。")
+                                    Text("example_speaker_0_hello_world")
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                 }
@@ -880,18 +926,18 @@ extension AutoCaptionView {
     @ViewBuilder
     var cloudConfigurationForm: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("云端语音识别配置")
+            Text("cloud_speech_recognition_config")
                 .font(.headline)
                 .foregroundStyle(Color.stropheText)
 
             cloudConfigurationCard
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("提交语言")
+                Text("submission_language")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 
-                Picker("提交语言", selection: $selectedLanguage) {
+                Picker("submission_language", selection: $selectedLanguage) {
                     ForEach(languages, id: \.0) { item in
                         Text(item.1).tag(item.0)
                     }
@@ -900,7 +946,7 @@ extension AutoCaptionView {
             }
             .padding(.top, 4)
             
-            Text("提示：推荐选择特定的语言以获得针对该语种特别优化过的生成效果；如不确定可选择“自动检测”。")
+            Text("tip_recommend_specific_language_explanation")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }

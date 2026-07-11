@@ -43,7 +43,7 @@ struct StyleEditSheet: View {
     @State private var scaleY: Double = 1
     @State private var characterSpacing: Double = 0
     @State private var rotationDegrees: Double = 0
-    @State private var previewText: String = "Strophe 活页@样式预览"
+    @State private var previewText: String = String(localized: "style_preview_text_default")
     @State private var showsCheckerboard = true
     @State private var showsSafeArea = true
     @State private var previewBackground: PreviewBackground = .neutral
@@ -52,7 +52,7 @@ struct StyleEditSheet: View {
     
     private var currentFontDisplayName: String {
         if fontName.isEmpty {
-            return "系统默认 / PingFang SC"
+            return "system_default_pingfang_sc"
         }
         if let info = FontCatalog.shared.fonts.first(where: { $0.id == fontName }) {
             return info.localizedFamilyName
@@ -80,9 +80,9 @@ struct StyleEditSheet: View {
 
         var title: String {
             switch self {
-            case .neutral: return "中性"
-            case .dark: return "深色"
-            case .light: return "浅色"
+            case .neutral: return "background_neutral"
+            case .dark: return "background_dark"
+            case .light: return "background_light"
             }
         }
 
@@ -106,10 +106,10 @@ struct StyleEditSheet: View {
                 .background(Color.stropheBackground)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("取消") { isPresented = false }
+                        Button("cancel") { isPresented = false }
                     }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("保存") { saveStyle() }
+                        Button("save") { saveStyle() }
                             .fontWeight(.bold)
                             .disabled(name.isEmpty)
                     }
@@ -123,7 +123,7 @@ struct StyleEditSheet: View {
             #if os(macOS)
             // Header for macOS
             HStack {
-                Text("编辑样式")
+                Text("edit_style")
                     .font(.title3)
                     .fontWeight(.bold)
                     .foregroundStyle(Color.stropheText)
@@ -166,14 +166,14 @@ struct StyleEditSheet: View {
             HStack {
                 Spacer()
                 
-                Button("取消") {
+                Button("cancel") {
                     isPresented = false
                 }
                 .buttonStyle(.bordered)
                 .tint(Color.stropheText)
                 
                 Button(action: saveStyle) {
-                    Text("保存")
+                    Text("save")
                         .fontWeight(.bold)
                 }
                 .buttonStyle(.borderedProminent)
@@ -246,9 +246,9 @@ struct StyleEditSheet: View {
             .frame(maxWidth: .infinity, maxHeight: 320)
 
             HStack(spacing: 10) {
-                TextField("预览文本", text: $previewText)
+                TextField("preview_text", text: $previewText)
                     .textFieldStyle(.roundedBorder)
-                    .help("输入用于实时预览的样本文本，不会修改字幕内容")
+                    .help("enter_sample_text_for_live")
 
                 Button {
                     resetToPreset()
@@ -256,29 +256,29 @@ struct StyleEditSheet: View {
                     Image(systemName: "arrow.counterclockwise")
                 }
                 .buttonStyle(.bordered)
-                .help("恢复当前 preset 的已保存值")
+                .help(String(localized: "restore_current_preset_saved_values"))
 
                 Toggle(isOn: $showsCheckerboard) {
                     Image(systemName: "checkerboard.rectangle")
                 }
                 .toggleStyle(.button)
-                .help("显示透明棋盘背景")
+                .help(String(localized: "show_transparent_checkerboard_background"))
 
                 Toggle(isOn: $showsSafeArea) {
                     Image(systemName: "rectangle.dashed")
                 }
                 .toggleStyle(.button)
-                .help("显示 EBU R95 / ITU-R BT.1848 动作安全区（3.5%）与图文安全区（5%）")
+                .help(String(localized: "show_safe_areas_explanation"))
 
                 Picker("", selection: $previewBackground) {
                     ForEach(PreviewBackground.allCases) { mode in
-                        Text(mode.title).tag(mode)
+                        Text(LocalizedStringKey(mode.title)).tag(mode)
                     }
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
                 .frame(width: 86)
-                .help("切换预览背景亮度")
+                .help(String(localized: "toggle_preview_background_brightness"))
             }
         }
     }
@@ -294,7 +294,7 @@ struct StyleEditSheet: View {
             .padding(.horizontal, 7)
             .padding(.vertical, 4)
             .background(.black.opacity(0.48), in: Capsule())
-            .help("当前视频分辨率与预览缩放比例")
+            .help("current_video_resolution_preview_scale")
     }
 
     private var resolvedPreviewStyle: ResolvedSubtitleStyle {
@@ -326,7 +326,7 @@ struct StyleEditSheet: View {
 
     private func stylePreviewText(displayScale: CGFloat) -> some View {
         HardSubtitleBitmapView(
-            text: previewText.isEmpty ? "Strophe 活页@样式预览" : previewText,
+            text: previewText.isEmpty ? String(localized: "style_preview_text_default") : previewText,
             style: resolvedPreviewStyle,
             canvasSize: previewVideoSize,
             displayScale: displayScale
@@ -334,14 +334,14 @@ struct StyleEditSheet: View {
     }
 
     private var propertiesPanel: some View {
-        editorSection("样式属性") {
-            labeledTextField("名称", text: $name)
-            labeledTextField("描述", text: $description)
+        editorSection("style_properties") {
+            labeledTextField("name", text: $name)
+            labeledTextField("description", text: $description)
         }
     }
 
     private var alignmentPanel: some View {
-        editorSection("对齐与位置") {
+        editorSection("style_alignment_and_position") {
             HStack(alignment: .center, spacing: 18) {
                 VStack(spacing: 3) {
                     ForEach(alignmentRows, id: \.self) { row in
@@ -357,10 +357,10 @@ struct StyleEditSheet: View {
                     Text(alignment.title)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Color.stropheText)
-                    Text("位置会同步用于播放器预览和硬字幕烧录")
+                    Text("position_sync_explanation")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text("橙色虚线：动作安全 3.5% · 红色实线：图文安全 5%")
+                    Text("safe_area_legend")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -404,69 +404,69 @@ struct StyleEditSheet: View {
     }
 
     private var layoutTransformPanel: some View {
-        editorSection("边距与变换") {
+        editorSection("style_margins_and_transforms") {
             compactValueSlider(
-                title: "垂直边距",
+                title: "style_vertical_margin",
                 value: $marginVerticalPercent,
                 range: 0...25,
                 step: 0.1,
                 valueLabel: String(format: "%.1f%%", marginVerticalPercent),
-                help: "设置顶部或底部字幕到画面边缘的距离；5% 对应标准图文安全线"
+                help: "style_vertical_margin_help"
             )
             compactValueSlider(
-                title: "左侧边距",
+                title: "style_left_margin",
                 value: $marginLeftPercent,
                 range: 0...25,
                 step: 0.1,
                 valueLabel: String(format: "%.1f%%", marginLeftPercent),
-                help: "设置左对齐字幕到画面左边缘的距离"
+                help: "style_left_margin_help"
             )
             compactValueSlider(
-                title: "右侧边距",
+                title: "style_right_margin",
                 value: $marginRightPercent,
                 range: 0...25,
                 step: 0.1,
                 valueLabel: String(format: "%.1f%%", marginRightPercent),
-                help: "设置右对齐字幕到画面右边缘的距离"
+                help: "style_right_margin_help"
             )
             compactValueSlider(
-                title: "横向缩放",
+                title: "style_horizontal_scale",
                 value: $scaleX,
                 range: 0.25...3,
                 step: 0.01,
                 valueLabel: "\(Int((scaleX * 100).rounded()))%",
-                help: "仅在水平方向缩放字幕"
+                help: "style_horizontal_scale_help"
             )
             compactValueSlider(
-                title: "纵向缩放",
+                title: "style_vertical_scale",
                 value: $scaleY,
                 range: 0.25...3,
                 step: 0.01,
                 valueLabel: "\(Int((scaleY * 100).rounded()))%",
-                help: "仅在垂直方向缩放字幕"
+                help: "style_vertical_scale_help"
             )
             compactValueSlider(
-                title: "字间距",
+                title: "style_character_spacing",
                 value: $characterSpacing,
                 range: -20...50,
                 step: 0.5,
                 valueLabel: String(format: "%.1f", characterSpacing),
-                help: "调整字符之间的距离"
+                help: "style_character_spacing_help"
             )
             compactValueSlider(
-                title: "旋转",
+                title: "style_rotation",
                 value: $rotationDegrees,
                 range: -180...180,
                 step: 1,
                 valueLabel: "\(Int(rotationDegrees.rounded()))°",
-                help: "围绕字幕中心旋转"
+                help: "style_rotation_help"
             )
         }
     }
 
     private var typographyPanel: some View {
-        editorSection("字体") {
-            LabeledContent("字体") {
+        editorSection("font") {
+            LabeledContent("font") {
                 Button {
                     isShowingFontPicker = true
                 } label: {
@@ -478,13 +478,13 @@ struct StyleEditSheet: View {
                         if let info = currentFontInfo {
                             HStack(spacing: 4) {
                                 if info.categories.contains(.sc) {
-                                    Text("简中").font(.system(size: 9)).padding(.horizontal, 4).padding(.vertical, 1).background(Color.secondary.opacity(0.12)).cornerRadius(3)
+                                    Text("simplified_chinese").font(.system(size: 9)).padding(.horizontal, 4).padding(.vertical, 1).background(Color.secondary.opacity(0.12)).cornerRadius(3)
                                 }
                                 if info.categories.contains(.nerd) {
-                                    Text("Nerd").font(.system(size: 9)).padding(.horizontal, 4).padding(.vertical, 1).background(Color.indigo.opacity(0.12)).cornerRadius(3)
+                                    Text("tab_nerd").font(.system(size: 9)).padding(.horizontal, 4).padding(.vertical, 1).background(Color.indigo.opacity(0.12)).cornerRadius(3)
                                 }
                                 if info.categories.contains(.monospace) {
-                                    Text("等宽").font(.system(size: 9)).padding(.horizontal, 4).padding(.vertical, 1).background(Color.blue.opacity(0.12)).cornerRadius(3)
+                                    Text("monospace").font(.system(size: 9)).padding(.horizontal, 4).padding(.vertical, 1).background(Color.blue.opacity(0.12)).cornerRadius(3)
                                 }
                             }
                             .foregroundStyle(.secondary)
@@ -512,17 +512,17 @@ struct StyleEditSheet: View {
                         isShowingFontPicker = false
                     }
                 }
-                .help("选择硬字幕渲染字体；导出时会使用同一字体名生成字幕位图")
+                .help("select_hard_subtitle_rendering_font")
             }
 
-            LabeledContent("颜色") {
+            LabeledContent("color") {
                 ColorPicker("", selection: $textColor, supportsOpacity: true)
                     .labelsHidden()
-                    .help("设置字幕文字颜色")
+                    .help("set_subtitle_text_color")
             }
 
             HStack(spacing: 12) {
-                Text("字号")
+                Text("font_size")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .frame(width: 48, alignment: .leading)
@@ -533,61 +533,61 @@ struct StyleEditSheet: View {
             }
 
             HStack(spacing: 14) {
-                Toggle("B", isOn: $isBold)
+                Toggle("btn_bold", isOn: $isBold)
                     .toggleStyle(.button)
-                    .help("粗体")
-                Toggle("I", isOn: $isItalic)
+                    .help(String(localized: "bold"))
+                Toggle("btn_italic", isOn: $isItalic)
                     .toggleStyle(.button)
-                    .help("斜体")
+                    .help(String(localized: "italic"))
                 Toggle(isOn: $isUnderline) {
-                    Text("U").underline()
+                    Text("btn_underline").underline()
                 }
                 .toggleStyle(.button)
-                .help("下划线")
+                .help(String(localized: "underline"))
                 Toggle(isOn: $isStrikethrough) {
-                    Text("S").strikethrough()
+                    Text("btn_strikethrough").strikethrough()
                 }
                 .toggleStyle(.button)
-                .help("删除线")
-                Toggle("流光", isOn: $isGlowing)
+                .help(String(localized: "strikethrough"))
+                Toggle("glow_special_effect_glow", isOn: $isGlowing)
                     .toggleStyle(.switch)
                     .tint(Color.stropheAccent)
-                    .help("为字幕增加发光阴影")
+                    .help(String(localized: "add_glowing_shadow_for_subtitles"))
                 Spacer()
             }
         }
     }
 
     private var visualEffectsPanel: some View {
-        editorSection("描边、阴影与背景") {
+        editorSection("style_border_shadow_background") {
             compactColorSlider(
-                title: "描边",
+                title: "style_stroke",
                 color: $outlineColor,
                 value: $outlineWidth,
                 range: 0...16,
                 step: 0.5,
                 valueLabel: String(format: "%.1f", outlineWidth),
-                help: "设置字幕描边颜色和宽度"
+                help: "style_stroke_help"
             )
 
             compactColorSlider(
-                title: "阴影",
+                title: "style_shadow",
                 color: $shadowColor,
                 value: $shadowRadius,
                 range: 0...24,
                 step: 0.5,
                 valueLabel: String(format: "%.1f", shadowRadius),
-                help: "设置字幕阴影颜色和模糊距离"
+                help: "style_shadow_help"
             )
 
             compactColorSlider(
-                title: "背景",
+                title: "style_background",
                 color: $backgroundColor,
                 value: $backgroundAlpha,
                 range: 0...1,
                 step: 0.02,
                 valueLabel: "\(Int((backgroundAlpha * 100).rounded()))%",
-                help: "设置字幕背景框颜色和不透明度"
+                help: "style_background_help"
             )
         }
     }
@@ -650,7 +650,7 @@ struct StyleEditSheet: View {
                 .font(.caption.monospacedDigit())
                 .frame(width: 48, alignment: .trailing)
         }
-        .help(help)
+        .help(String(localized: String.LocalizationValue(help)))
     }
 
     private func compactValueSlider(
@@ -672,13 +672,13 @@ struct StyleEditSheet: View {
                 .font(.caption.monospacedDigit())
                 .frame(width: 58, alignment: .trailing)
         }
-        .help(help)
+        .help(String(localized: String.LocalizationValue(help)))
     }
 
     private func resetToPreset() {
         guard let presetSnapshot else { return }
         applyPreset(presetSnapshot)
-        previewText = "Strophe 活页@样式预览"
+        previewText = String(localized: "style_preview_text_default")
     }
 
     private func applyPreset(_ style: SubgroupStyle) {

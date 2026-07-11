@@ -41,21 +41,21 @@ struct BatchTranslationView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("翻译范围") {
-                    Picker("原文小组", selection: $sourceGroupID) {
+                Section("translation_scope") {
+                    Picker("original_text_group", selection: $sourceGroupID) {
                         ForEach(groupStore.sortedGroups) { group in Text(group.name).tag(group.id) }
                     }
-                    Picker("译文小组", selection: $targetGroupID) {
+                    Picker("translation_group", selection: $targetGroupID) {
                         ForEach(groupStore.sortedGroups.filter { $0.id != sourceGroupID }) { group in Text(group.name).tag(group.id) }
                     }
-                    LabeledContent("字幕数量", value: "\(sourceItems.count) 条")
+                    LabeledContent("subtitle_count", value: "\(sourceItems.count) 条")
                 }
 
-                Section("语言") {
-                    Picker("原语言", selection: $sourceLanguage) {
+                Section("language") {
+                    Picker("source_language", selection: $sourceLanguage) {
                         ForEach(SubtitleLanguage.allCases) { language in Text(language.title).tag(language) }
                     }
-                    Picker("目标语言", selection: $targetLanguage) {
+                    Picker("target_language", selection: $targetLanguage) {
                         ForEach(SubtitleLanguage.allCases.filter { $0 != .auto }) { language in Text(language.title).tag(language) }
                     }
                 }
@@ -63,9 +63,9 @@ struct BatchTranslationView: View {
                 TranslationProviderSettingsSection(settings: settings)
 
                 if isRunning || completedCount > 0 {
-                    Section("进度") {
+                    Section("progress") {
                         ProgressView(value: progress) {
-                            Text(isRunning ? "正在批量翻译" : "翻译完成")
+                            Text(isRunning ? "batch_translating" : "translation_completed")
                         } currentValueLabel: {
                             Text("\(completedCount) / \(sourceItems.count)")
                                 .monospacedDigit()
@@ -81,24 +81,24 @@ struct BatchTranslationView: View {
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle("批量翻译字幕")
+            .navigationTitle("batch_translate_subtitles")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") {
+                    Button("close") {
                         translationTask?.cancel()
                         dismiss()
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     if isRunning {
-                        Button("取消", role: .destructive) {
+                        Button("cancel", role: .destructive) {
                             translationTask?.cancel()
                         }
                     } else {
-                        Button("开始翻译", action: startTranslation)
+                        Button("start_translation", action: startTranslation)
                             .buttonStyle(.borderedProminent)
                             .disabled(sourceItems.isEmpty || targetGroupID == sourceGroupID)
                     }
@@ -111,11 +111,11 @@ struct BatchTranslationView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         #endif
         .onDisappear { translationTask?.cancel() }
-        .alert("批量翻译失败", isPresented: Binding(
+        .alert("batch_translation_failed", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
         )) {
-            Button("好", role: .cancel) {}
+            Button("ok", role: .cancel) {}
         } message: {
             Text(errorMessage ?? "未知错误")
         }

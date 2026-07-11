@@ -241,7 +241,7 @@ struct SubtitleBlocksLayer: View {
         .clipped()
         .sheet(isPresented: $isEditingText) {
             SubtitleTextEditSheet(
-                title: String(localized: "编辑字幕内容"),
+                title: String(localized: "edit_subtitle_content"),
                 text: $editingText,
                 isPresented: $isEditingText
             ) {
@@ -250,13 +250,13 @@ struct SubtitleBlocksLayer: View {
                 }
             }
         }
-        .alert("更改显示时间", isPresented: $isEditingTime) {
-            TextField("起始时间，例如 01:23.45", text: $editingStartText)
-            TextField("结束时间，例如 01:25.20", text: $editingEndText)
-            Button("确定") { saveEditingTime() }
-            Button("取消", role: .cancel) {}
+        .alert("change_display_time", isPresented: $isEditingTime) {
+            TextField("start_time_eg_012345", text: $editingStartText)
+            TextField("end_time_eg_012520", text: $editingEndText)
+            Button("ok_1") { saveEditingTime() }
+            Button("cancel", role: .cancel) {}
         } message: {
-            Text("可输入秒数、MM:SS 或 HH:MM:SS")
+            Text("can_enter_seconds_mmss_or")
         }
         #if os(iOS)
         .sheet(isPresented: $isShowingMobileBlockActions) {

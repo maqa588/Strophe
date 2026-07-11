@@ -136,10 +136,10 @@ extension SubtitleProject {
         // Migrate old caches if they exist
         if let oldBaseURL = fm.urls(for: .cachesDirectory, in: .userDomainMask).first {
             let oldProjectCacheDirectory = oldBaseURL
-                .appendingPathComponent("Strophe", isDirectory: true)
+                .appendingPathComponent("app_name", isDirectory: true)
                 .appendingPathComponent("ProjectCache", isDirectory: true)
             let newProjectCacheDirectory = baseDirectoryURL
-                .appendingPathComponent("Strophe", isDirectory: true)
+                .appendingPathComponent("app_name", isDirectory: true)
                 .appendingPathComponent("ProjectCache", isDirectory: true)
             
             if fm.fileExists(atPath: oldProjectCacheDirectory.path) {
@@ -168,7 +168,7 @@ extension SubtitleProject {
         #endif
 
         return baseDirectoryURL
-            .appendingPathComponent("Strophe", isDirectory: true)
+            .appendingPathComponent("app_name", isDirectory: true)
             .appendingPathComponent("ProjectCache", isDirectory: true)
     }
 
@@ -265,7 +265,7 @@ extension SubtitleProject {
 
     func loadStropheData(_ decoded: StropheProjectData, from url: URL?) async throws {
         guard decoded.version == 1 else {
-            throw NSError(domain: "Strophe", code: 1, userInfo: [NSLocalizedDescriptionKey: "Unsupported project version"])
+            throw NSError(domain: "app_name", code: 1, userInfo: [NSLocalizedDescriptionKey: "Unsupported project version"])
         }
         
         // Reset old project state first, which stops activeEngine, resets videoURL to nil, clears waveformData, etc.

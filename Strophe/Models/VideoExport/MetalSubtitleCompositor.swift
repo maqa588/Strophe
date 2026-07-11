@@ -12,11 +12,11 @@ enum SubtitleCompositorError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .outputPoolUnavailable:
-            return String(localized: "无法创建视频输出像素缓冲池。")
+            return String(localized: "unable_to_create_video_output")
         case .pixelBufferCreationFailed:
-            return String(localized: "无法创建视频输出帧。")
+            return String(localized: "unable_to_create_video_output_1")
         case .renderFailed:
-            return String(localized: "硬字幕帧合成失败。")
+            return String(localized: "hard_subtitle_frame_composition_failed")
         }
     }
 }

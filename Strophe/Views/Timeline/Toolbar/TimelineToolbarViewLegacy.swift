@@ -26,7 +26,7 @@ struct PlaybackControlsLegacy: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help(String(localized: "撤销"))
+            .help(String(localized: "undo"))
 
             BoundarySeekButton(icon: "gobackward", direction: .left, project: project)
 
@@ -51,7 +51,7 @@ struct PlaybackControlsLegacy: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help(String(localized: "重做"))
+            .help(String(localized: "redo"))
 
             Menu {
                 ForEach([0.5, 1.0, 1.25, 1.5, 2.0], id: \.self) { speed in
@@ -201,8 +201,8 @@ struct EditingModeControlsLegacy: View {
                 tipBinding: $showSplitTip,
                 hoverTask: $splitHoverTask,
                 tooltipIcon: "scissors",
-                tooltipTitle: String(localized: "切分字幕"),
-                tooltipMessage: String(localized: "以时间游标为分割点，将游标所在的字幕块拆分为两个独立字幕块")
+                tooltipTitle: String(localized: "split_subtitles"),
+                tooltipMessage: String(localized: "use_the_playhead_as_the")
             ) {
                 Image(systemName: "scissors")
                     .font(.body.weight(.medium))
@@ -215,8 +215,8 @@ struct EditingModeControlsLegacy: View {
                 tipBinding: $showMergeTip,
                 hoverTask: $mergeHoverTask,
                 tooltipIcon: "arrow.down.right.and.arrow.up.left",
-                tooltipTitle: String(localized: "合并字幕"),
-                tooltipMessage: String(localized: "将选中的连续字幕块合并为一个，文本与时间轴同时合并")
+                tooltipTitle: String(localized: "merge_subtitles"),
+                tooltipMessage: String(localized: "merge_the_selected_consecutive_subtitle")
             ) {
                 Image(systemName: "arrow.down.right.and.arrow.up.left")
                     .font(.body.weight(.medium))
@@ -230,8 +230,8 @@ struct EditingModeControlsLegacy: View {
                 tipBinding: $showSoftSubtitlesTip,
                 hoverTask: $softSubtitlesHoverTask,
                 tooltipIcon: "captions.bubble",
-                tooltipTitle: String(localized: "软字幕预览"),
-                tooltipMessage: String(localized: "软字幕预览提示信息"),
+                tooltipTitle: String(localized: "soft_subtitle_preview"),
+                tooltipMessage: String(localized: "click_to_toggle_real_time"),
                 shortcut: "s",
                 modifiers: [.option]
             ) {
@@ -247,8 +247,8 @@ struct EditingModeControlsLegacy: View {
                 tipBinding: $showHardSubtitlesTip,
                 hoverTask: $hardSubtitlesHoverTask,
                 tooltipIcon: "list.and.film",
-                tooltipTitle: String(localized: "硬字幕预览"),
-                tooltipMessage: String(localized: "点击开启/关闭视频硬字幕实时预览"),
+                tooltipTitle: String(localized: "hard_subtitle_preview"),
+                tooltipMessage: String(localized: "click_to_turn_onoff_the"),
                 shortcut: nil
             ) {
                 Image(systemName: "list.and.film")
@@ -262,8 +262,8 @@ struct EditingModeControlsLegacy: View {
                 tipBinding: $showSelectionTip,
                 hoverTask: $selectionHoverTask,
                 tooltipIcon: "cursorarrow",
-                tooltipTitle: String(localized: "选择工具"),
-                tooltipMessage: String(localized: "选择工具提示信息"),
+                tooltipTitle: String(localized: "selection_tool"),
+                tooltipMessage: String(localized: "edit_script_text_drag_timeline"),
                 shortcut: "v"
             ) {
                 Image(systemName: "cursorarrow")
@@ -277,8 +277,8 @@ struct EditingModeControlsLegacy: View {
                 tipBinding: $showCreationTip,
                 hoverTask: $creationHoverTask,
                 tooltipIcon: "hand.draw",
-                tooltipTitle: String(localized: "快速创建与拍打工具"),
-                tooltipMessage: String(localized: "快速创建与拍打工具提示信息"),
+                tooltipTitle: String(localized: "quick_creation_slap_tool"),
+                tooltipMessage: String(localized: "drag_timeline_to_create_subtitle"),
                 shortcut: "d"
             ) {
                 Image(systemName: "hand.draw")

@@ -20,9 +20,9 @@ extension TimelineToolbarView {
         case .ready(let item):
             splitRequest = SplitRequest(item: item, splitTime: project.currentTime)
         case .noBlock:
-            splitErrorMessage = String(localized: "时间游标位置没有字幕块")
+            splitErrorMessage = String(localized: "no_subtitle_block_at_playhead")
         case .overlapping:
-            splitErrorMessage = String(localized: "请先解决重叠问题再拆分")
+            splitErrorMessage = String(localized: "please_resolve_overlap_issues_before")
         }
     }
     

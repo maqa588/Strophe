@@ -28,7 +28,7 @@ extension SubtitleBlocksLayer {
                             project.isSubtitleMultiSelecting = true
                             isShowingMobileBlockActions = false
                         } label: {
-                            mobileActionLabel("多选字幕块", systemImage: "checklist")
+                            mobileActionLabel("multi_select_subtitle_blocks", systemImage: "checklist")
                         }
                         .buttonStyle(.plain)
                         Button {
@@ -39,26 +39,26 @@ extension SubtitleBlocksLayer {
                             project.isSubtitleMultiSelecting = project.selectedIDs.count > 1
                             isShowingMobileBlockActions = false
                         } label: {
-                            mobileActionLabel("选择同组全部", systemImage: "checkmark.square.stack")
+                            mobileActionLabel("select_all_in_group", systemImage: "checkmark.square.stack")
                         }
                         .buttonStyle(.plain)
                         Button {
                             performAfterDismissingMobileMenu { beginEditingText(item) }
                         } label: {
-                            mobileActionLabel("编辑内容", systemImage: "pencil")
+                            mobileActionLabel("edit_content", systemImage: "pencil")
                         }
                         .buttonStyle(.plain)
                         .disabled(locked)
                         Button {
                             performAfterDismissingMobileMenu { beginEditingTime(item) }
                         } label: {
-                            mobileActionLabel("更改显示时间", systemImage: "clock")
+                            mobileActionLabel("change_display_time", systemImage: "clock")
                         }
                         .buttonStyle(.plain)
                         .disabled(locked)
                     }
 
-                    Section(String(localized: "移动到分组")) {
+                    Section(String(localized: "move_to_group")) {
                         ForEach(renderModel.sortedGroups) { group in
                             Button(group.name) {
                                 if project.selectedIDs.count > 1, project.selectedIDs.contains(item.id) {
@@ -74,8 +74,8 @@ extension SubtitleBlocksLayer {
                         }
                     }
 
-                    Section(String(localized: "设定样式")) {
-                        Button(String(localized: "跟随小组样式")) {
+                    Section(String(localized: "set_style")) {
+                        Button(String(localized: "follow_group_style")) {
                             if project.selectedIDs.count > 1, project.selectedIDs.contains(item.id) {
                                 project.setSelectedSubtitleStyleOverride(styleID: nil)
                             } else {
@@ -100,10 +100,10 @@ extension SubtitleBlocksLayer {
                             isShowingMobileBlockActions = false
                             NotificationCenter.default.post(name: .stropheStartSubtitleTranslation, object: item.id)
                         } label: {
-                            mobileActionLabel("从这里开始翻译", systemImage: "character.bubble")
+                            mobileActionLabel("start_translation_from_here", systemImage: "character.bubble")
                         }
                         .buttonStyle(.plain)
-                        Button(String(localized: "删除字幕"), systemImage: "trash", role: .destructive) {
+                        Button(String(localized: "delete_subtitle"), systemImage: "trash", role: .destructive) {
                             if project.selectedIDs.count > 1, project.selectedIDs.contains(item.id) {
                                 project.deleteSubtitles(ids: project.selectedIDs)
                             } else {
@@ -114,11 +114,11 @@ extension SubtitleBlocksLayer {
                         .disabled(locked)
                     }
                 }
-                .navigationTitle(String(localized: "字幕块操作"))
+                .navigationTitle(String(localized: "subtitle_block_operations"))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button(String(localized: "完成")) { isShowingMobileBlockActions = false }
+                        Button(String(localized: "done")) { isShowingMobileBlockActions = false }
                             .foregroundStyle(.primary)
                     }
                 }
@@ -157,7 +157,7 @@ extension SubtitleBlocksLayer {
             if !project.selectedIDs.contains(item.id) { project.selectedIDs.insert(item.id) }
             project.isSubtitleMultiSelecting = true
         } label: {
-            Label(String(localized: "多选字幕块"), systemImage: "checklist")
+            Label(String(localized: "multi_select_subtitle_blocks"), systemImage: "checklist")
         }
 
         Button {
@@ -167,18 +167,18 @@ extension SubtitleBlocksLayer {
             }.map(\.id))
             project.isSubtitleMultiSelecting = project.selectedIDs.count > 1
         } label: {
-            Label(String(localized: "选择同组全部"), systemImage: "checkmark.square.stack")
+            Label(String(localized: "select_all_in_group"), systemImage: "checkmark.square.stack")
         }
 
         Divider()
 
         Button { beginEditingText(item) } label: {
-            Label(String(localized: "编辑内容"), systemImage: "pencil")
+            Label(String(localized: "edit_content"), systemImage: "pencil")
         }
         .disabled(locked)
 
         Button { beginEditingTime(item) } label: {
-            Label(String(localized: "更改显示时间"), systemImage: "clock")
+            Label(String(localized: "change_display_time"), systemImage: "clock")
         }
         .disabled(locked)
 
@@ -198,7 +198,7 @@ extension SubtitleBlocksLayer {
                 }
             }
         } label: {
-            Label(String(localized: "移动到分组"), systemImage: "square.stack.3d.up")
+            Label(String(localized: "move_to_group"), systemImage: "square.stack.3d.up")
         }
         .disabled(locked)
 
@@ -211,7 +211,7 @@ extension SubtitleBlocksLayer {
                 }
             } label: {
                 Label(
-                    String(localized: "跟随小组样式"),
+                    String(localized: "follow_group_style"),
                     systemImage: item.hasIndependentPresentation ? "link" : "checkmark.circle.fill"
                 )
             }
@@ -235,14 +235,14 @@ extension SubtitleBlocksLayer {
                 }
             }
         } label: {
-            Label(String(localized: "设定样式"), systemImage: "textformat")
+            Label(String(localized: "set_style"), systemImage: "textformat")
         }
         .disabled(locked)
 
         Button {
             NotificationCenter.default.post(name: .stropheStartSubtitleTranslation, object: item.id)
         } label: {
-            Label(String(localized: "从这里开始翻译"), systemImage: "character.bubble")
+            Label(String(localized: "start_translation_from_here"), systemImage: "character.bubble")
         }
 
         Divider()
@@ -254,7 +254,7 @@ extension SubtitleBlocksLayer {
                 project.deleteSubtitle(id: item.id)
             }
         } label: {
-            Label(String(localized: "删除字幕"), systemImage: "trash")
+            Label(String(localized: "delete_subtitle"), systemImage: "trash")
         }
         .disabled(locked)
     }

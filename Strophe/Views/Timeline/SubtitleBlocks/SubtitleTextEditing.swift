@@ -24,12 +24,12 @@ struct SubtitleTextEditSheet: View {
                 )
 
             HStack(spacing: 14) {
-                Button(String(localized: "Cancel")) {
+                Button(String(localized: "btn_cancel")) {
                     isPresented = false
                 }
                 .keyboardShortcut(.cancelAction)
 
-                Button(String(localized: "确定")) {
+                Button(String(localized: "ok_1")) {
                     onConfirm()
                     isPresented = false
                 }

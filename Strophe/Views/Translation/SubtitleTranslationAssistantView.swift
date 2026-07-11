@@ -66,8 +66,8 @@ struct SubtitleTranslationAssistantView: View {
                         Image(systemName: "captions.bubble")
                             .font(.system(size: 36))
                             .foregroundStyle(.secondary)
-                        Text("该小组没有原文字幕").font(.headline)
-                        Text("请选择包含字幕的原文小组。")
+                        Text("no_original_subtitles_in_group").font(.headline)
+                        Text("select_original_group_hint")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -95,24 +95,24 @@ struct SubtitleTranslationAssistantView: View {
                     }
                 }
             }
-            .navigationTitle("字幕翻译助手")
+            .navigationTitle("subtitle_translation_assistant")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("完成") { dismiss() }
+                    Button("done") { dismiss() }
                 }
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button {
                         isShowingReference.toggle()
                     } label: {
-                        Label("参考区域", systemImage: "sidebar.trailing")
+                        Label("reference_area", systemImage: "sidebar.trailing")
                     }
                     Button {
                         isShowingServiceSettings = true
                     } label: {
-                        Label("翻译服务", systemImage: "gearshape")
+                        Label("translation_service", systemImage: "gearshape")
                     }
                 }
             }
@@ -134,10 +134,10 @@ struct SubtitleTranslationAssistantView: View {
                     TranslationProviderSettingsSection(settings: settings)
                 }
                 .formStyle(.grouped)
-                .navigationTitle("翻译服务")
+                .navigationTitle("translation_service")
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("存储") {
+                        Button("storage") {
                             settings.save()
                             isShowingServiceSettings = false
                         }
@@ -157,11 +157,11 @@ struct SubtitleTranslationAssistantView: View {
                 .ignoresSafeArea()
         }
         #endif
-        .alert("翻译失败", isPresented: Binding(
+        .alert("translation_failed", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
         )) {
-            Button("好", role: .cancel) {}
+            Button("ok", role: .cancel) {}
         } message: {
             Text(errorMessage ?? "未知错误")
         }
@@ -191,14 +191,14 @@ struct SubtitleTranslationAssistantView: View {
     private var groupAndLanguagePickerGrid: some View {
         Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
             GridRow {
-                Text("原文小组").foregroundStyle(.secondary)
-                Picker("原文小组", selection: $sourceGroupID) {
+                Text("original_text_group").foregroundStyle(.secondary)
+                Picker("original_text_group", selection: $sourceGroupID) {
                     ForEach(groupStore.sortedGroups) { group in
                         Text(group.name).tag(group.id)
                     }
                 }
                 .labelsHidden()
-                Picker("原语言", selection: $sourceLanguage) {
+                Picker("source_language", selection: $sourceLanguage) {
                     ForEach(SubtitleLanguage.allCases) { language in
                         Text(language.title).tag(language)
                     }
@@ -206,14 +206,14 @@ struct SubtitleTranslationAssistantView: View {
                 .labelsHidden()
             }
             GridRow {
-                Text("译文小组").foregroundStyle(.secondary)
-                Picker("译文小组", selection: $targetGroupID) {
+                Text("translation_group").foregroundStyle(.secondary)
+                Picker("translation_group", selection: $targetGroupID) {
                     ForEach(groupStore.sortedGroups.filter { $0.id != sourceGroupID }) { group in
                         Text(group.name).tag(group.id)
                     }
                 }
                 .labelsHidden()
-                Picker("目标语言", selection: $targetLanguage) {
+                Picker("target_language", selection: $targetLanguage) {
                     ForEach(SubtitleLanguage.allCases.filter { $0 != .auto }) { language in
                         Text(language.title).tag(language)
                     }
@@ -225,32 +225,32 @@ struct SubtitleTranslationAssistantView: View {
 
     private var compactGroupAndLanguagePickers: some View {
         VStack(spacing: 12) {
-            LabeledContent("原文小组") {
-                Picker("原文小组", selection: $sourceGroupID) {
+            LabeledContent("original_text_group") {
+                Picker("original_text_group", selection: $sourceGroupID) {
                     ForEach(groupStore.sortedGroups) { group in
                         Text(group.name).tag(group.id)
                     }
                 }
                 .labelsHidden()
             }
-            LabeledContent("原语言") {
-                Picker("原语言", selection: $sourceLanguage) {
+            LabeledContent("source_language") {
+                Picker("source_language", selection: $sourceLanguage) {
                     ForEach(SubtitleLanguage.allCases) { language in
                         Text(language.title).tag(language)
                     }
                 }
                 .labelsHidden()
             }
-            LabeledContent("译文小组") {
-                Picker("译文小组", selection: $targetGroupID) {
+            LabeledContent("translation_group") {
+                Picker("translation_group", selection: $targetGroupID) {
                     ForEach(groupStore.sortedGroups.filter { $0.id != sourceGroupID }) { group in
                         Text(group.name).tag(group.id)
                     }
                 }
                 .labelsHidden()
             }
-            LabeledContent("目标语言") {
-                Picker("目标语言", selection: $targetLanguage) {
+            LabeledContent("target_language") {
+                Picker("target_language", selection: $targetLanguage) {
                     ForEach(SubtitleLanguage.allCases.filter { $0 != .auto }) { language in
                         Text(language.title).tag(language)
                     }
@@ -263,7 +263,7 @@ struct SubtitleTranslationAssistantView: View {
     private var sourceEditor: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Label("原文", systemImage: "text.quote")
+                Label("original_text", systemImage: "text.quote")
                     .font(.headline)
                 Spacer()
                 Text("\(currentItem?.text.count ?? 0) 字符")
@@ -274,7 +274,7 @@ struct SubtitleTranslationAssistantView: View {
                 } label: {
                     Image(systemName: "arrow.down")
                 }
-                .help("复制原文到译文")
+                .help("copy_original_to_translation")
             }
             Text(currentItem?.text ?? "")
                 .font(.title3)
@@ -288,7 +288,7 @@ struct SubtitleTranslationAssistantView: View {
     private var translationEditor: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Label("译文", systemImage: "character.bubble")
+                Label("translation_text", systemImage: "character.bubble")
                     .font(.headline)
                 Spacer()
                 Text("\(translationText.count) 字符")
@@ -298,7 +298,7 @@ struct SubtitleTranslationAssistantView: View {
                     Image(systemName: "xmark.circle.fill")
                 }
                 .buttonStyle(.plain)
-                .help("清空译文")
+                .help("clear_translation")
             }
             TranslationTextInput(
                 text: $translationText,
@@ -314,9 +314,9 @@ struct SubtitleTranslationAssistantView: View {
     private var commonPhrases: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("常用词汇").font(.subheadline.weight(.semibold))
+                Text("common_vocabulary").font(.subheadline.weight(.semibold))
                 Spacer()
-                TextField("添加词汇", text: $newPhrase)
+                TextField("add_vocabulary", text: $newPhrase)
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: 190)
                     .onSubmit(addPhrase)
@@ -325,7 +325,7 @@ struct SubtitleTranslationAssistantView: View {
                         for phrase in dropped { phrasesStore.add(phrase) }
                         return !dropped.isEmpty
                     }
-                    .help("添加词汇，也可以把选中的文字拖到这里")
+                    .help("add_vocabulary_drag_hint")
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack {
@@ -342,7 +342,7 @@ struct SubtitleTranslationAssistantView: View {
                         }
                         .buttonStyle(.bordered)
                         .contextMenu {
-                            Button("删除", role: .destructive) {
+                            Button("delete", role: .destructive) {
                                 phrasesStore.remove(at: IndexSet(integer: index))
                             }
                         }
@@ -354,22 +354,22 @@ struct SubtitleTranslationAssistantView: View {
 
     private var operationBar: some View {
         HStack(spacing: 10) {
-            Button(action: previous) { Label("上一句", systemImage: "chevron.left") }
+            Button(action: previous) { Label("previous_sentence", systemImage: "chevron.left") }
                 .disabled(currentIndex == 0)
-            Button(action: saveAndNext) { Label("保存并下一句", systemImage: "chevron.right") }
+            Button(action: saveAndNext) { Label("save_and_next_sentence", systemImage: "chevron.right") }
             Spacer()
-            Button(action: lookupCurrentText) { Label("词典", systemImage: "books.vertical") }
+            Button(action: lookupCurrentText) { Label("dictionary", systemImage: "books.vertical") }
             Button(action: machineTranslateCurrent) {
                 if isTranslating {
                     ProgressView().controlSize(.small)
                 } else {
-                    Label("翻译整句", systemImage: "sparkles")
+                    Label("translate_full_sentence", systemImage: "sparkles")
                 }
             }
             .disabled(isTranslating || currentItem == nil)
             .buttonStyle(.borderedProminent)
             .tint(Color.stropheAccent)
-            Button { insertPhrase("[标记]") } label: { Label("标记", systemImage: "bookmark") }
+            Button { insertPhrase("[标记]") } label: { Label("mark", systemImage: "bookmark") }
         }
         .labelStyle(.titleAndIcon)
     }
@@ -377,11 +377,11 @@ struct SubtitleTranslationAssistantView: View {
     private var statusBar: some View {
         HStack {
             Text(groupStore.group(id: sourceGroupID)?.name ?? "未指定小组")
-            Text("•")
+            Text("bullet_point")
             Text("\(min(currentIndex + 1, sourceItems.count)) / \(sourceItems.count)")
                 .monospacedDigit()
             Spacer()
-            Text("Return 保存并下一句")
+            Text("return_key_save_and_next")
         }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -389,7 +389,7 @@ struct SubtitleTranslationAssistantView: View {
 
     private var keyboardShortcutButtons: some View {
         Group {
-            Button("清空译文") { clearTranslation() }
+            Button("clear_translation") { clearTranslation() }
                 .keyboardShortcut(KeyEquivalent(Character("\u{F704}")), modifiers: [])
 
             ForEach(Array(phrasesStore.phrases.prefix(9).enumerated()), id: \.offset) { index, phrase in
@@ -404,10 +404,10 @@ struct SubtitleTranslationAssistantView: View {
 
     private var referencePane: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Apple 词典", systemImage: "character.book.closed")
+            Label("apple_dictionary", systemImage: "character.book.closed")
                 .font(.headline)
             HStack {
-                TextField("输入要查询的词", text: $dictionaryTerm)
+                TextField("input_query_word", text: $dictionaryTerm)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit(lookupDictionary)
                 Button(action: lookupDictionary) { Image(systemName: "magnifyingglass") }

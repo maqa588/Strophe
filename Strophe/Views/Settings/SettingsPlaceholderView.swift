@@ -16,7 +16,7 @@ struct SettingsPlaceholderView: View {
 
     var body: some View {
         List {
-            Section(header: Text("关于")) {
+            Section(header: Text("about")) {
                 Button {
                     open(.version)
                 } label: {
@@ -30,76 +30,48 @@ struct SettingsPlaceholderView: View {
                 }
             }
 
-            #if !STROPHE_LITE
-            Section(header: Text("AI 引擎与模型管理")) {
+            Section(header: Text("ai_engine_model_management")) {
                 Button {
                     open(.whisperConfig)
                 } label: {
                     Label {
-                        Text("语音转写设置")
+                        Text("speech_transcription_settings")
                             .foregroundStyle(Color.stropheText)
                     } icon: {
                         Image(systemName: "waveform")
                             .foregroundStyle(Color.stropheAccent)
                     }
                 }
-
                 Button {
                     open(.alignerConfig)
                 } label: {
                     Label {
-                        Text("强制对齐设置")
+                        Text("forced_alignment_settings")
                             .foregroundStyle(Color.stropheText)
                     } icon: {
                         Image(systemName: "timeline.selection")
                             .foregroundStyle(Color.stropheAccent)
                     }
                 }
-                
                 Button {
-                    open(.speakerConfig)
+                    open(.vadConfig)
                 } label: {
                     Label {
-                        Text("对话人识别设置")
+                        Text("voice_activity_detection_settings")
                             .foregroundStyle(Color.stropheText)
                     } icon: {
-                        Image(systemName: "person.2.wave.2")
-                            .foregroundStyle(Color.stropheAccent)
-                    }
-                }
-                
-                Button {
-                    open(.ttsConfig)
-                } label: {
-                    Label {
-                        Text("文本转语音设置")
-                            .foregroundStyle(Color.stropheText)
-                    } icon: {
-                        Image(systemName: "speaker.wave.2")
-                            .foregroundStyle(Color.stropheAccent)
-                    }
-                }
-
-                Button {
-                    open(.otherConfig)
-                } label: {
-                    Label {
-                        Text("智能降噪与辅助设置")
-                            .foregroundStyle(Color.stropheText)
-                    } icon: {
-                        Image(systemName: "sparkles")
+                        Image(systemName: "waveform.circle")
                             .foregroundStyle(Color.stropheAccent)
                     }
                 }
             }
-            #endif
 
-            Section(header: Text("存储与维护")) {
+            Section(header: Text("storage_maintenance")) {
                 Button {
                     open(.cache)
                 } label: {
                     Label {
-                        Text("清理缓存")
+                        Text("clear_cache")
                             .foregroundStyle(Color.stropheText)
                     } icon: {
                         Image(systemName: "trash.fill")

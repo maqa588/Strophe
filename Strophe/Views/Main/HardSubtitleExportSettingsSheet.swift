@@ -19,7 +19,7 @@ struct HardSubtitleExportSettingsSheet: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Text("硬字幕视频导出")
+                Text("hard_subtitled_video_export")
                     .font(.title3)
                     .fontWeight(.bold)
                     .foregroundStyle(Color.stropheText)
@@ -44,16 +44,16 @@ struct HardSubtitleExportSettingsSheet: View {
                 VStack(spacing: 20) {
                     // Section 1: Output Format Card
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("输出格式")
+                        Text("output_format")
                             .font(.headline)
                             .foregroundStyle(Color.stropheText)
                         
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("视频编码")
+                            Text("video_encoding")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             
-                            Picker("编码", selection: $settings.codec) {
+                            Picker("encoding", selection: $settings.codec) {
                                 ForEach(HardSubtitleVideoCodec.allCases) { codec in
                                     Text(codec.displayName).tag(codec)
                                 }
@@ -67,9 +67,9 @@ struct HardSubtitleExportSettingsSheet: View {
                         
                         Toggle(isOn: $settings.usesDisplayAspect) {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("按显示比例输出")
+                                Text("output_by_aspect_ratio")
                                     .font(.subheadline)
-                                Text("开启后会读取视频的像素宽高比和 clean aperture。比如存储为 1920×1080、显示为 4:3 的视频，会按 1440×1080 这类真实显示尺寸重新合成，避免画面被挤歪。")
+                                Text("if_enabled_the_videos_pixel")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
@@ -83,9 +83,9 @@ struct HardSubtitleExportSettingsSheet: View {
 
                             Toggle(isOn: $settings.usesExperimentalNV12PixelBuffers) {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("NV12 像素缓冲")
+                                    Text("nv12_pixel_buffer")
                                         .font(.subheadline)
-                                    Text("实验选项。尝试用更接近硬件编码器的 YUV 缓冲写入 H.264/H.265；若导出失败或颜色异常，请关闭。")
+                                    Text("experimental_yuv_buffer_explanation")
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                 }
@@ -105,22 +105,22 @@ struct HardSubtitleExportSettingsSheet: View {
                     
                     // Section 2: Quality Card
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("质量")
+                        Text("quality")
                             .font(.headline)
                             .foregroundStyle(Color.stropheText)
                         
                         if settings.codec.isProRes {
-                            Text("ProRes 使用 Apple 固定的中间片编码参数，适合继续剪辑或高质量归档；码率由 ProRes 规格和画面尺寸决定。")
+                            Text("prores_coding_explanation")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         } else {
                             VStack(alignment: .leading, spacing: 12) {
                                 VStack(alignment: .leading, spacing: 6) {
-                                    Text("控制方式")
+                                    Text("control_method")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                     
-                                    Picker("控制方式", selection: $settings.qualityMode) {
+                                    Picker("control_method", selection: $settings.qualityMode) {
                                         ForEach(HardSubtitleVideoQualityMode.allCases) { mode in
                                             Text(mode.title).tag(mode)
                                         }
@@ -132,7 +132,7 @@ struct HardSubtitleExportSettingsSheet: View {
                                 if settings.qualityMode == .crfLike {
                                     VStack(alignment: .leading, spacing: 8) {
                                         HStack {
-                                            Text("CRF (画质系数)")
+                                            Text("crf_constant_rate_factor")
                                                 .font(.subheadline)
                                             Spacer()
                                             Text("\(Int(settings.crfLikeValue.rounded()))")
@@ -141,14 +141,14 @@ struct HardSubtitleExportSettingsSheet: View {
                                         }
                                         Slider(value: $settings.crfLikeValue, in: 16...34, step: 1)
                                             .tint(Color.stropheAccent)
-                                        Text("数字越小画质越高，导出速度也会相应变慢，同时文件会变大。")
+                                        Text("crf_value_explanation")
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
                                     }
                                 } else {
                                     VStack(alignment: .leading, spacing: 8) {
                                         HStack {
-                                            Text("目标码率")
+                                            Text("target_bitrate")
                                                 .font(.subheadline)
                                             Spacer()
                                             Text("\(settings.targetBitrateMbps, specifier: "%.1f") Mbps")
@@ -157,7 +157,7 @@ struct HardSubtitleExportSettingsSheet: View {
                                         }
                                         Slider(value: $settings.targetBitrateMbps, in: 0.5...80, step: 0.5)
                                             .tint(Color.stropheAccent)
-                                        Text("适合需要接近参考软件码率或控制最终文件大小时使用。")
+                                        Text("suitable_when_needing_to_approach")
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
                                     }
@@ -167,11 +167,11 @@ struct HardSubtitleExportSettingsSheet: View {
                                     .background(Color.stropheBorder)
                                 
                                 VStack(alignment: .leading, spacing: 6) {
-                                    Text("速度 / 体积")
+                                    Text("speed_size")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                     
-                                    Picker("速度 / 体积", selection: $settings.speedPreset) {
+                                    Picker("speed_size", selection: $settings.speedPreset) {
                                         ForEach(HardSubtitleVideoSpeedPreset.allCases) { preset in
                                             Text(preset.title).tag(preset)
                                         }
@@ -185,9 +185,9 @@ struct HardSubtitleExportSettingsSheet: View {
 
                                 Toggle(isOn: $settings.usesMultiPassEncoding) {
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text("2-pass 多遍编码")
+                                        Text("export_2pass_encoding")
                                             .font(.subheadline)
-                                        Text("默认关闭。开启后会让 VideoToolbox 在支持时进行多遍分析，导出更慢，但低运动画面和目标码率模式通常更容易压出更小体积。")
+                                        Text("multipass_videotoolbox_explanation")
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
                                     }
@@ -218,13 +218,13 @@ struct HardSubtitleExportSettingsSheet: View {
             HStack {
                 Spacer()
                 
-                Button("取消") {
+                Button("cancel") {
                     dismiss()
                 }
                 .buttonStyle(.bordered)
                 .tint(Color.stropheText)
                 
-                Button("继续") {
+                Button("continue") {
                     dismiss()
                     onContinue()
                 }
@@ -242,37 +242,37 @@ struct HardSubtitleExportSettingsSheet: View {
     private var iOSContent: some View {
         NavigationStack {
             Form {
-                Section("输出格式") {
-                    Picker("视频编码", selection: $settings.codec) {
+                Section("output_format") {
+                    Picker("video_encoding", selection: $settings.codec) {
                         ForEach(HardSubtitleVideoCodec.allCases) { codec in
                             Text(codec.displayName).tag(codec)
                         }
                     }
 
-                    Toggle("按显示比例输出", isOn: $settings.usesDisplayAspect)
+                    Toggle("output_by_aspect_ratio", isOn: $settings.usesDisplayAspect)
 
-                    Text("开启后会读取视频的像素宽高比和 clean aperture。比如存储为 1920×1080、显示为 4:3 的视频，会按 1440×1080 这类真实显示尺寸重新合成，避免画面被挤歪。")
+                    Text("if_enabled_the_videos_pixel")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
                     if !settings.codec.isProRes {
-                        Toggle("NV12 像素缓冲", isOn: $settings.usesExperimentalNV12PixelBuffers)
+                        Toggle("nv12_pixel_buffer", isOn: $settings.usesExperimentalNV12PixelBuffers)
 
-                        Text("实验选项。尝试用更接近硬件编码器的 YUV 缓冲写入 H.264/H.265；若导出失败或颜色异常，请关闭。")
+                        Text("experimental_yuv_buffer_explanation")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
                 }
 
                 if settings.codec.isProRes {
-                    Section("质量") {
-                        Text("ProRes 使用 Apple 固定的中间片编码参数，适合继续剪辑或高质量归档；码率由 ProRes 规格和画面尺寸决定。")
+                    Section("quality") {
+                        Text("prores_coding_explanation")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
                 } else {
-                    Section("质量") {
-                        Picker("控制方式", selection: $settings.qualityMode) {
+                    Section("quality") {
+                        Picker("control_method", selection: $settings.qualityMode) {
                             ForEach(HardSubtitleVideoQualityMode.allCases) { mode in
                                 Text(mode.title).tag(mode)
                             }
@@ -282,62 +282,62 @@ struct HardSubtitleExportSettingsSheet: View {
                         if settings.qualityMode == .crfLike {
                             VStack(alignment: .leading, spacing: 10) {
                                 HStack {
-                                    Text("CRF")
+                                    Text("crf")
                                     Spacer()
                                     Text("\(Int(settings.crfLikeValue.rounded()))")
                                         .font(.body.monospacedDigit())
                                         .foregroundStyle(.secondary)
                                 }
                                 Slider(value: $settings.crfLikeValue, in: 16...34, step: 1)
-                                Text("数字越小画质越高，导出速度也会相应变慢，同时文件会变大。")
+                                Text("crf_value_explanation")
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
                             }
                         } else {
                             VStack(alignment: .leading, spacing: 10) {
                                 HStack {
-                                    Text("目标码率")
+                                    Text("target_bitrate")
                                     Spacer()
                                     Text("\(settings.targetBitrateMbps, specifier: "%.1f") Mbps")
                                         .font(.body.monospacedDigit())
                                         .foregroundStyle(.secondary)
                                 }
                                 Slider(value: $settings.targetBitrateMbps, in: 0.5...80, step: 0.5)
-                                Text("适合需要接近参考软件码率或控制最终文件大小时使用。")
+                                Text("suitable_when_needing_to_approach")
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
                             }
                         }
 
-                        Picker("速度 / 体积", selection: $settings.speedPreset) {
+                        Picker("speed_size", selection: $settings.speedPreset) {
                             ForEach(HardSubtitleVideoSpeedPreset.allCases) { preset in
                                 Text(preset.title).tag(preset)
                             }
                         }
                         .pickerStyle(.segmented)
 
-                        Toggle("2-pass 多遍编码", isOn: $settings.usesMultiPassEncoding)
+                        Toggle("export_2pass_encoding", isOn: $settings.usesMultiPassEncoding)
 
-                        Text("默认关闭。开启后会让 VideoToolbox 在支持时进行多遍分析，导出更慢，但低运动画面和目标码率模式通常更容易压出更小体积。")
+                        Text("multipass_videotoolbox_explanation")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
 
                     }
                 }
             }
-            .navigationTitle("硬字幕视频导出")
+            .navigationTitle("hard_subtitled_video_export")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") {
+                    Button("cancel") {
                         dismiss()
                     }
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("继续") {
+                    Button("continue") {
                         dismiss()
                         onContinue()
                     }

@@ -18,17 +18,18 @@ struct AutoCaptionView: View {
     @Environment(\.dismiss) var dismiss
     
     // Config states
-    @State var selectedModel: String = "qwen3-asr-0.6b"
+    @State var selectedModel: String = LocalModelManager.coreMLASRAccelerationModelName
     @State var enableCoreMLASRAcceleration: Bool = true
-    @State var selectedAlignerModel: String = "qwen3-forced-aligner-0.6b-mlx-4bit"
+    @State var selectedAlignerModel: String = "qwen3-forced-aligner-0.6b-coreml-int8"
     @State var enableAlignment: Bool = true
     @State var selectedLanguage: String = "auto"
     @State var enableDiarization: Bool = false
     @State var speakerCountOption: String = "auto" // "auto" or "custom"
     @State var customSpeakerCount: Int = 2
     @State var prefixSpeakerName: Bool = false
-    @State var vocalPreprocessing: String = "denoise"
+    @State var vocalPreprocessing: String = "none"
     @State var referenceLyrics: String = ""
+    @State var useVAD: Bool = true
     
     // UI steps & running state
     @State var selectedGenerationMode: CaptionGenerationMode? = nil
@@ -42,7 +43,7 @@ struct AutoCaptionView: View {
     @State var generationErrorMessage: String = ""
     
     let languages = [
-        ("auto",  "自动检测"),
+        ("auto",  "auto_detect"),
         ("zh",    "简体中文 (Simplified Chinese)"),
         ("zh-TW", "繁體中文 (Traditional Chinese)"),
         ("en",    "英文 (English)"),
@@ -60,24 +61,24 @@ struct AutoCaptionView: View {
             .frame(width: 480, height: 600)
             .background(VisualEffectView(material: .sheet, blendingMode: .behindWindow))
             .alert(AIBackendClient.unsupportedDeviceMessage, isPresented: $showUnsupportedLocalAIAlert) {
-                Button("好", role: .cancel) {}
+                Button("ok", role: .cancel) {}
             } message: {
                 Text(AIBackendClient.cloudComingSoonMessage)
             }
-            .alert("生成失败", isPresented: $showGenerationErrorAlert) {
-                Button("好", role: .cancel) {}
+            .alert("generation_failed", isPresented: $showGenerationErrorAlert) {
+                Button("ok", role: .cancel) {}
             } message: {
                 Text(generationErrorMessage)
             }
         #else
-        iosBody
+        simpleIOSBody
             .alert(AIBackendClient.unsupportedDeviceMessage, isPresented: $showUnsupportedLocalAIAlert) {
-                Button("好", role: .cancel) {}
+                Button("ok", role: .cancel) {}
             } message: {
                 Text(AIBackendClient.cloudComingSoonMessage)
             }
-            .alert("生成失败", isPresented: $showGenerationErrorAlert) {
-                Button("好", role: .cancel) {}
+            .alert("generation_failed", isPresented: $showGenerationErrorAlert) {
+                Button("ok", role: .cancel) {}
             } message: {
                 Text(generationErrorMessage)
             }
@@ -93,7 +94,13 @@ struct AutoCaptionView: View {
     }
 
     var canStartLocalCaptioning: Bool {
-        isLocalAIIncludedInBuild && isLocalAISupported && project.videoURL != nil && !isRunning
+        isLocalAIIncludedInBuild && isLocalAISupported && areRequiredLocalModelsDownloaded && project.videoURL != nil && !isRunning
+    }
+
+    var areRequiredLocalModelsDownloaded: Bool {
+        modelManager.downloadedWhisperModels.contains(LocalModelManager.coreMLASRAccelerationModelName)
+            && modelManager.downloadedAlignerModels.contains(selectedAlignerModel)
+            && (!useVAD || modelManager.downloadedVADModels.contains("firered-vad-coreml"))
     }
 
     var canStartCloudCaptioning: Bool {
@@ -101,8 +108,8 @@ struct AutoCaptionView: View {
     }
 
     var localRecognitionStatusText: String {
-        guard isLocalAIIncludedInBuild else { return "不可用" }
-        return isLocalAISupported ? "可用" : "不可用"
+        guard isLocalAIIncludedInBuild else { return "unavailable" }
+        return isLocalAISupported ? "available" : "unavailable"
     }
 
     var localRecognitionDetailText: String {
@@ -131,6 +138,7 @@ struct AutoCaptionView: View {
             showUnsupportedLocalAIAlert = true
             return
         }
+        guard areRequiredLocalModelsDownloaded else { return }
         startCaptioningProcess()
     }
 
@@ -158,7 +166,10 @@ struct AutoCaptionView: View {
         for char in toReplaceWithSpace {
             result = result.replacingOccurrences(of: char, with: " ")
         }
-        
+
+        // 剔除 Qwen3-ASR 偶发泄漏的 prompt 指令 "language None"
+        result = result.replacingOccurrences(of: "language None", with: "", options: .caseInsensitive)
+
         // Collapse multiple spaces into one
         while result.contains("  ") {
             result = result.replacingOccurrences(of: "  ", with: " ")

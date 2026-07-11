@@ -28,21 +28,21 @@ enum HardSubtitleVideoExportError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingMedia:
-            return String(localized: "当前项目没有可导出的视频。")
+            return String(localized: "the_current_project_has_no")
         case .missingVideoTrack:
-            return String(localized: "当前媒体没有视频轨道。")
+            return String(localized: "the_current_media_has_no")
         case .unsupportedInput(let ext):
             return String(localized: "当前 V1 硬字幕导出暂不支持 \(ext.uppercased()) 容器。请先导出或转封装为 MP4/MOV。")
         case .cannotCreateReader:
-            return String(localized: "无法创建 AVAssetReader。")
+            return String(localized: "unable_to_create_avassetreader")
         case .cannotCreateWriter:
-            return String(localized: "无法创建 AVAssetWriter。")
+            return String(localized: "unable_to_create_avassetwriter")
         case .cannotStartReading(let message):
             return String(localized: "无法开始读取视频：\(message)")
         case .cannotStartWriting(let message):
             return String(localized: "无法开始写入视频：\(message)")
         case .cancelled:
-            return String(localized: "硬字幕导出已取消。")
+            return String(localized: "hard_subtitle_export_cancelled")
         case .writerFailed(let message):
             return String(localized: "视频写入失败：\(message)")
         case .readerFailed(let message):
@@ -166,7 +166,7 @@ enum HardSubtitleVideoQualityMode: String, CaseIterable, Identifiable, Sendable 
     var title: String {
         switch self {
         case .crfLike: return "类 CRF"
-        case .bitrate: return "目标码率"
+        case .bitrate: return "target_bitrate"
         }
     }
 }

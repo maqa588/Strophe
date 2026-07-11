@@ -22,12 +22,12 @@ struct SubGroupPlaceholderView: View {
                         Button {
                             setActive(group.id)
                         } label: {
-                            Label("设为默认新建组", systemImage: "circle.fill")
+                            Label("set_as_default_new_group", systemImage: "circle.fill")
                         }
                         Button {
                             project.selectAllCues(in: group.id)
                         } label: {
-                            Label("选择此组全部字幕", systemImage: "checklist")
+                            Label("select_all_subtitles_in_this", systemImage: "checklist")
                         }
                         Divider()
                         Menu {
@@ -43,33 +43,33 @@ struct SubGroupPlaceholderView: View {
                                 }
                             }
                         } label: {
-                            Label("修改默认样式", systemImage: "textformat")
+                            Label("modify_default_style", systemImage: "textformat")
                         }
                         Button {
                             toggleOverlay(group.id)
                         } label: {
-                            Label(group.isOverlayEnabled ? "隐藏此组" : "显示此组", systemImage: group.isOverlayEnabled ? "eye.slash" : "eye")
+                            Label(group.isOverlayEnabled ? "hide_this_group" : "show_this_group", systemImage: group.isOverlayEnabled ? "eye.slash" : "eye")
                         }
                         Button {
                             toggleLocked(group.id)
                         } label: {
-                            Label(group.isLocked ? "解锁此组" : "锁定此组", systemImage: group.isLocked ? "lock.open" : "lock")
+                            Label(group.isLocked ? "unlock_this_group" : "lock_this_group", systemImage: group.isLocked ? "lock.open" : "lock")
                         }
                         Divider()
                         Button {
                             project.clearText(in: group.id)
                         } label: {
-                            Label("清空组内文字", systemImage: "text.badge.xmark")
+                            Label("clear_text_within_group", systemImage: "text.badge.xmark")
                         }
                         Button(role: .destructive) {
                             project.deleteCues(in: group.id)
                         } label: {
-                            Label("删除组内字幕块", systemImage: "rectangle.stack.badge.minus")
+                            Label("delete_subtitle_blocks_within_group", systemImage: "rectangle.stack.badge.minus")
                         }
                         Button(role: .destructive) {
                             deleteGroup(group.id)
                         } label: {
-                            Label("删除分组", systemImage: "trash")
+                            Label("delete_group", systemImage: "trash")
                         }
                     }
             }
@@ -85,7 +85,7 @@ struct SubGroupPlaceholderView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
-                .help("新建分组")
+                .help("new_group")
             }
         }
         .sheet(isPresented: $showingAddSheet) {
@@ -111,7 +111,7 @@ struct SubGroupPlaceholderView: View {
                         .font(.system(size: 14))
                 }
                 .buttonStyle(.plain)
-                .help("设为活动分组")
+                .help("set_as_active_group")
 
                 // Name
                 HStack(spacing: 5) {
@@ -129,7 +129,7 @@ struct SubGroupPlaceholderView: View {
                 Spacer()
 
                 if group.isActive {
-                    Text("活动")
+                    Text("active")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(Color.stropheAccent)
                         .padding(.vertical, 2)
@@ -142,7 +142,7 @@ struct SubGroupPlaceholderView: View {
                 // Subname + cue count
                 HStack(spacing: 5) {
                     Text(group.subName.isEmpty ? group.role.title : group.subName)
-                    Text("·")
+                    Text("dot_separator")
                     Text("\(project.cueCount(in: group.id))")
                 }
                 .font(.system(size: 11))
@@ -188,7 +188,7 @@ struct SubGroupPlaceholderView: View {
                             .foregroundStyle(group.isOverlayEnabled ? Color.blue : Color.secondary.opacity(0.4))
                     }
                     .buttonStyle(.plain)
-                    .help(group.isOverlayEnabled ? "隐藏此组字幕" : "显示此组字幕")
+                    .help(group.isOverlayEnabled ? "hide_subtitles_of_this_group" : "show_subtitles_of_this_group")
 
                     // Lock toggle
                     Button { toggleLocked(group.id) } label: {
@@ -197,7 +197,7 @@ struct SubGroupPlaceholderView: View {
                             .foregroundStyle(group.isLocked ? Color.yellow : Color.secondary.opacity(0.45))
                     }
                     .buttonStyle(.plain)
-                    .help(group.isLocked ? "解锁此组" : "锁定此组")
+                    .help(group.isLocked ? "unlock_this_group" : "lock_this_group")
 
                     // Flag
                     Button { toggleFlag(group.id) } label: {
@@ -206,7 +206,7 @@ struct SubGroupPlaceholderView: View {
                             .foregroundStyle(group.isFlagged ? Color.stropheAccent : Color.secondary.opacity(0.4))
                     }
                     .buttonStyle(.plain)
-                    .help(group.isFlagged ? "取消标记" : "标记分组")
+                    .help(group.isFlagged ? "cancel_tag" : "tag_group")
                 }
             }
             .padding(.leading, 13)

@@ -12,7 +12,5 @@ enum SettingsRoute: Hashable {
     case cache
     case whisperConfig
     case alignerConfig
-    case speakerConfig
-    case ttsConfig
-    case otherConfig
+    case vadConfig
 }

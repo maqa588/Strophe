@@ -88,13 +88,13 @@ struct WelcomeRouterView: View {
         )
         #endif
         .alert(
-            String(localized: "无法完成操作"),
+            String(localized: "operation_cannot_be_completed"),
             isPresented: Binding(
                 get: { errorMessage != nil },
                 set: { if !$0 { errorMessage = nil } }
             )
         ) {
-            Button(String(localized: "好"), role: .cancel) {
+            Button(String(localized: "ok"), role: .cancel) {
                 errorMessage = nil
             }
         } message: {
@@ -269,7 +269,7 @@ private struct PixelStyleCloseButton: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
-        .accessibilityLabel(String(localized: "关闭"))
+        .accessibilityLabel(String(localized: "close"))
     }
 }
 

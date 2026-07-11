@@ -159,7 +159,7 @@ struct StropheTabBar: View {
         .scaleEffect(isActive ? 1.07 : 1.0)
         .animation(tabBarSpring, value: isActive)
         .accessibilityLabel(tab.title)
-        .accessibilityValue(isActive ? Text("已选择") : Text(""))
+        .accessibilityValue(isActive ? Text("selected") : Text(""))
         #if os(macOS)
         .help(tab.title)
         #endif
@@ -233,7 +233,7 @@ struct StropheTabBar: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(tab.title)
-                .accessibilityValue(selectedTab == tab ? Text("已选择") : Text(""))
+                .accessibilityValue(selectedTab == tab ? Text("selected") : Text(""))
             }
         }
         .padding(.horizontal, 16)

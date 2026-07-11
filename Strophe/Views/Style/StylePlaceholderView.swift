@@ -34,20 +34,20 @@ struct StylePlaceholderView: View {
                         selectedStyleId = style.id
                         showingEditSheet = true
                     } label: {
-                        Label("编辑样式", systemImage: "slider.horizontal.3")
+                        Label("edit_style", systemImage: "slider.horizontal.3")
                     }
                     Button {
                         let copy = duplicate(style)
                         store.styles.append(copy)
                         selectedStyleId = copy.id
                     } label: {
-                        Label("复制", systemImage: "doc.on.doc")
+                        Label("copy", systemImage: "doc.on.doc")
                     }
                     Divider()
                     Button(role: .destructive) {
                         deleteStyle(id: style.id)
                     } label: {
-                        Label("删除", systemImage: "trash")
+                        Label("delete", systemImage: "trash")
                     }
                 }
         }
@@ -61,7 +61,7 @@ struct StylePlaceholderView: View {
                     Button {
                         showingAddSheet = true
                     } label: {
-                        Label("新建样式", systemImage: "plus")
+                        Label("new_style", systemImage: "plus")
                     }
 
                     Divider()
@@ -71,7 +71,7 @@ struct StylePlaceholderView: View {
                             showingEditSheet = true
                         }
                     } label: {
-                        Label("编辑样式", systemImage: "pencil")
+                        Label("edit_style", systemImage: "pencil")
                     }
                     .disabled(selectedStyleId == nil)
 
@@ -83,7 +83,7 @@ struct StylePlaceholderView: View {
                             selectedStyleId = copy.id
                         }
                     } label: {
-                        Label("复制样式", systemImage: "doc.on.doc")
+                        Label("copy_style", systemImage: "doc.on.doc")
                     }
                     .disabled(selectedStyleId == nil)
 
@@ -92,14 +92,14 @@ struct StylePlaceholderView: View {
                     Button(role: .destructive) {
                         if let id = selectedStyleId { deleteStyle(id: id) }
                     } label: {
-                        Label("删除样式", systemImage: "trash")
+                        Label("delete_style", systemImage: "trash")
                     }
                     .disabled(selectedStyleId == nil)
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
                 .menuStyle(.button)
-                .help("样式操作")
+                .help("style_operations")
             }
         }
         .onAppear {
@@ -163,7 +163,7 @@ struct StylePlaceholderView: View {
     private func duplicate(_ style: SubgroupStyle) -> SubgroupStyle {
         var copy = style
         copy.id = UUID()
-        copy.name = "\(style.name) 副本"
+        copy.name = String(localized: "style_name_copy_suffix_pattern \(style.name)")
         return copy
     }
 

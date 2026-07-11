@@ -74,7 +74,7 @@ enum SubtitleLanguage: String, CaseIterable, Identifiable, Sendable {
 
     nonisolated var title: String {
         switch self {
-        case .auto: return "自动检测"
+        case .auto: return "auto_detect"
         case .chineseSimplified: return "简体中文"
         case .chineseTraditional: return "繁体中文"
         case .english: return "英语"

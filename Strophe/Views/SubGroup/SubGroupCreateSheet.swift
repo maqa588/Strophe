@@ -40,10 +40,10 @@ struct SubGroupCreateSheet: View {
                 .background(Color.stropheBackground)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("取消") { isPresented = false }
+                        Button("cancel") { isPresented = false }
                     }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("创建") { createGroup() }
+                        Button("create") { createGroup() }
                             .fontWeight(.bold)
                             .disabled(name.isEmpty)
                     }
@@ -57,7 +57,7 @@ struct SubGroupCreateSheet: View {
             #if os(macOS)
             // Header for macOS
             HStack {
-                Text("新建分组")
+                Text("new_group")
                     .font(.title3)
                     .fontWeight(.bold)
                     .foregroundStyle(Color.stropheText)
@@ -83,35 +83,35 @@ struct SubGroupCreateSheet: View {
                 VStack(spacing: 20) {
                     // Section 1: Properties
                     VStack(alignment: .leading, spacing: 14) {
-                        Text("分组信息")
+                        Text("group_info")
                             .font(.subheadline)
                             .fontWeight(.bold)
                             .foregroundStyle(Color.stropheText)
                         
                         VStack(spacing: 12) {
                             HStack(spacing: 12) {
-                                Text("名称")
+                                Text("name")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                                     .frame(width: 50, alignment: .leading)
                                 
-                                TextField("分组名称", text: $name)
+                                TextField("group_name", text: $name)
                                     .textFieldStyle(.roundedBorder)
                                     .font(.subheadline)
                             }
                             
                             HStack(spacing: 12) {
-                                Text("子标题")
+                                Text("subtitle")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                                     .frame(width: 50, alignment: .leading)
                                 
-                                TextField("子标题，例如：默认分组", text: $subName)
+                                TextField("subtitle_eg_default_group", text: $subName)
                                     .textFieldStyle(.roundedBorder)
                                     .font(.subheadline)
                             }
 
-                            LabeledContent("角色") {
+                            LabeledContent("role") {
                                 Picker("", selection: $role) {
                                     ForEach(SubtitleGroupRole.allCases) { role in
                                         Text(role.title).tag(role)
@@ -121,7 +121,7 @@ struct SubGroupCreateSheet: View {
                                 .pickerStyle(.menu)
                             }
 
-                            LabeledContent("样式") {
+                            LabeledContent("style") {
                                 Picker("", selection: $selectedStyleName) {
                                     ForEach(store.styles) { style in
                                         Text(style.name).tag(style.name)
@@ -143,7 +143,7 @@ struct SubGroupCreateSheet: View {
                     
                     // Section 2: Color Picker
                     VStack(alignment: .leading, spacing: 14) {
-                        Text("代表颜色")
+                        Text("representative_color")
                             .font(.subheadline)
                             .fontWeight(.bold)
                             .foregroundStyle(Color.stropheText)
@@ -192,14 +192,14 @@ struct SubGroupCreateSheet: View {
             HStack {
                 Spacer()
                 
-                Button("取消") {
+                Button("cancel") {
                     isPresented = false
                 }
                 .buttonStyle(.bordered)
                 .tint(Color.stropheText)
                 
                 Button(action: createGroup) {
-                    Text("创建")
+                    Text("create")
                         .fontWeight(.bold)
                 }
                 .buttonStyle(.borderedProminent)

@@ -9,11 +9,7 @@ import Foundation
 import SwiftUI
 
 enum AppIdentity {
-    #if STROPHE_LITE
-    static let displayNameKey = "Strophe Lite"
-    #else
-    static let displayNameKey = "Strophe"
-    #endif
+    static let displayNameKey = "app_name"
 
     static var displayName: String {
         String(localized: String.LocalizationValue(displayNameKey))

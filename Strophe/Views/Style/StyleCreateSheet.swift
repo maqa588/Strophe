@@ -14,7 +14,7 @@ struct StyleCreateSheet: View {
     @ObservedObject var store = StyleAndGroupStore.shared
     
     @State private var name: String = ""
-    @State private var description: String = "58 pt,平方-简"
+    @State private var description: String = String(localized: "style_description_default_value")
     @State private var colorIndex: Int = 0
     @State private var isGlowing: Bool = false
     
@@ -38,10 +38,10 @@ struct StyleCreateSheet: View {
                 .background(Color.stropheBackground)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("取消") { isPresented = false }
+                        Button("cancel") { isPresented = false }
                     }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("创建") { createStyle() }
+                        Button("create") { createStyle() }
                             .fontWeight(.bold)
                             .disabled(name.isEmpty)
                     }
@@ -55,7 +55,7 @@ struct StyleCreateSheet: View {
             #if os(macOS)
             // Header for macOS
             HStack {
-                Text("新建样式")
+                Text("new_style")
                     .font(.title3)
                     .fontWeight(.bold)
                     .foregroundStyle(Color.stropheText)
@@ -81,36 +81,36 @@ struct StyleCreateSheet: View {
                 VStack(spacing: 20) {
                     // Section 1: Properties
                     VStack(alignment: .leading, spacing: 14) {
-                        Text("样式属性")
+                        Text("style_properties")
                             .font(.subheadline)
                             .fontWeight(.bold)
                             .foregroundStyle(Color.stropheText)
                         
                         VStack(spacing: 12) {
                             HStack(spacing: 12) {
-                                Text("名称")
+                                Text("name")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                                     .frame(width: 40, alignment: .leading)
                                 
-                                TextField("样式名称", text: $name)
+                                TextField("style_name", text: $name)
                                     .textFieldStyle(.roundedBorder)
                                     .font(.subheadline)
                             }
                             
                             HStack(spacing: 12) {
-                                Text("描述")
+                                Text("description")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                                     .frame(width: 40, alignment: .leading)
                                 
-                                TextField("样式描述，例如：58 pt,平方-简", text: $description)
+                                TextField("style_description_eg_58_pt", text: $description)
                                     .textFieldStyle(.roundedBorder)
                                     .font(.subheadline)
                             }
                             
                             Toggle(isOn: $isGlowing) {
-                                Text("流光特效 (Glow)")
+                                Text("glow_special_effect_glow")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                             }
@@ -130,7 +130,7 @@ struct StyleCreateSheet: View {
                     
                     // Section 2: Color Picker
                     VStack(alignment: .leading, spacing: 14) {
-                        Text("代表颜色")
+                        Text("representative_color")
                             .font(.subheadline)
                             .fontWeight(.bold)
                             .foregroundStyle(Color.stropheText)
@@ -183,14 +183,14 @@ struct StyleCreateSheet: View {
             HStack {
                 Spacer()
                 
-                Button("取消") {
+                Button("cancel") {
                     isPresented = false
                 }
                 .buttonStyle(.bordered)
                 .tint(Color.stropheText)
                 
                 Button(action: createStyle) {
-                    Text("创建")
+                    Text("create")
                         .fontWeight(.bold)
                 }
                 .buttonStyle(.borderedProminent)

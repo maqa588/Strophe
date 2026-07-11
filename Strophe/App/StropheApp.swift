@@ -57,6 +57,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         return true
     }
+
+    func application(_ sender: NSApplication, shouldRestoreState coder: NSCoder) -> Bool {
+        return false
+    }
 }
 #endif
 
@@ -88,7 +92,7 @@ struct StropheApp: App {
     
     var body: some Scene {
         #if os(macOS)
-        Window("Welcome", id: "welcome") {
+        Window("title_welcome", id: "welcome") {
             MacWelcomeSceneView(project: project)
                 .ignoresSafeArea()
                 .onAppear { appDelegate.project = project }
@@ -97,7 +101,7 @@ struct StropheApp: App {
         .windowResizability(.contentSize)
         .defaultSize(width: 920, height: 620)
 
-        WindowGroup("Project", id: "editor") {
+        WindowGroup("tab_project", id: "editor") {
             ContentView(project: project)
                 .onAppear { appDelegate.project = project }
         }
@@ -193,6 +197,7 @@ extension Notification.Name {
     static let strophePasteScript = Notification.Name("com.strophe.pasteScript")
     static let stropheImportScriptFile = Notification.Name("com.strophe.importScriptFile")
     static let stropheStartSpeechRecognition = Notification.Name("com.strophe.startSpeechRecognition")
+    static let stropheOpenModelSettings = Notification.Name("com.strophe.openModelSettings")
     static let stropheStartSubtitleTranslation = Notification.Name("com.strophe.startSubtitleTranslation")
     static let stropheStartBatchTranslation = Notification.Name("com.strophe.startBatchTranslation")
     static let stropheConvertSelectedToPinyin = Notification.Name("com.strophe.convertSelectedToPinyin")

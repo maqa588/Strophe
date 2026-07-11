@@ -100,7 +100,7 @@ struct WelcomeView: View {
             VStack(spacing: 10) {
                 ProgressView()
                     .controlSize(.small)
-                Text(String(localized: "正在打开项目"))
+                Text(String(localized: "opening_project"))
                     .font(.caption.weight(.semibold))
             }
             .padding(14)
@@ -122,12 +122,12 @@ private struct WelcomeActionsPanel: View {
                 WelcomeBrandMark()
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("活字")
+                    Text("strophe_chinese_name")
                         .font(.system(size: 52, weight: .bold, design: .rounded))
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
 
-                    Text("字幕打轴、转写与校准")
+                    Text("subtitle_timing_transcription_calibration")
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }
@@ -135,32 +135,32 @@ private struct WelcomeActionsPanel: View {
 
             VStack(spacing: 10) {
                 WelcomeActionButton(
-                    title: String(localized: "新建字幕项目"),
-                    subtitle: String(localized: "从空白时间轴开始"),
+                    title: String(localized: "new_subtitle_project"),
+                    subtitle: String(localized: "start_from_blank_timeline"),
                     systemImage: "plus.square.on.square"
                 ) {
                     onAction(.newProject)
                 }
 
                 WelcomeActionButton(
-                    title: String(localized: "打开视频 / 音频"),
-                    subtitle: String(localized: "自动创建 .strophe 工程缓存"),
+                    title: String(localized: "open_video_audio"),
+                    subtitle: String(localized: "auto_create_project_cache"),
                     systemImage: "play.rectangle"
                 ) {
                     onAction(.openMedia)
                 }
 
                 WelcomeActionButton(
-                    title: String(localized: "导入字幕文件"),
-                    subtitle: String(localized: "支持 SRT、ASS、LRC、WebVTT"),
+                    title: String(localized: "import_subtitle_file"),
+                    subtitle: String(localized: "supported_formats_hint"),
                     systemImage: "captions.bubble"
                 ) {
                     onAction(.importSubtitles)
                 }
 
                 WelcomeActionButton(
-                    title: String(localized: "打开 Strophe 工程"),
-                    subtitle: String(localized: "选择 .strophe 文件"),
+                    title: String(localized: "open_strophe_project"),
+                    subtitle: String(localized: "select_strophe_file"),
                     systemImage: "folder"
                 ) {
                     onAction(.openProject)
@@ -182,12 +182,12 @@ private struct CompactWelcomeActionsPanel: View {
                 WelcomeBrandMark(size: 104)
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("活字")
+                    Text("strophe_chinese_name")
                         .font(.system(size: 58, weight: .heavy, design: .rounded))
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
 
-                    Text("字幕打轴、转写与校准")
+                    Text("subtitle_timing_transcription_calibration")
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }
@@ -195,8 +195,8 @@ private struct CompactWelcomeActionsPanel: View {
 
             VStack(spacing: 12) {
                 WelcomeActionButton(
-                    title: String(localized: "新建字幕项目"),
-                    subtitle: String(localized: "从空白时间轴开始"),
+                    title: String(localized: "new_subtitle_project"),
+                    subtitle: String(localized: "start_from_blank_timeline"),
                     systemImage: "plus.square.on.square",
                     isCompact: true
                 ) {
@@ -204,8 +204,8 @@ private struct CompactWelcomeActionsPanel: View {
                 }
 
                 WelcomeActionButton(
-                    title: String(localized: "打开视频 / 音频"),
-                    subtitle: String(localized: "自动创建 .strophe 工程缓存"),
+                    title: String(localized: "open_video_audio"),
+                    subtitle: String(localized: "auto_create_project_cache"),
                     systemImage: "play.rectangle",
                     isCompact: true
                 ) {
@@ -213,8 +213,8 @@ private struct CompactWelcomeActionsPanel: View {
                 }
 
                 WelcomeActionButton(
-                    title: String(localized: "导入字幕文件"),
-                    subtitle: String(localized: "支持 SRT、ASS、LRC、WebVTT"),
+                    title: String(localized: "import_subtitle_file"),
+                    subtitle: String(localized: "supported_formats_hint"),
                     systemImage: "captions.bubble",
                     isCompact: true
                 ) {
@@ -222,8 +222,8 @@ private struct CompactWelcomeActionsPanel: View {
                 }
 
                 WelcomeActionButton(
-                    title: String(localized: "打开 Strophe 工程"),
-                    subtitle: String(localized: "选择 .strophe 文件"),
+                    title: String(localized: "open_strophe_project"),
+                    subtitle: String(localized: "select_strophe_file"),
                     systemImage: "folder",
                     isCompact: true
                 ) {
@@ -309,7 +309,7 @@ private struct WelcomeRecentProjectsPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
-                Text(String(localized: "最近项目"))
+                Text(String(localized: "recent_projects"))
                     .font(isCompact ? .largeTitle.weight(.bold) : .title3.weight(.semibold))
                 Spacer()
             }
@@ -343,17 +343,17 @@ private struct WelcomeRecentProjectsPanel: View {
             presenting: pendingRemovalProject
         ) { project in
             if project.isInManagedProjectCache {
-                Button(String(localized: "删除工程缓存"), role: .destructive) {
+                Button(String(localized: "delete_project_cache"), role: .destructive) {
                     onRemove(project, true)
                     pendingRemovalProject = nil
                 }
             } else {
-                Button(String(localized: "从列表移除")) {
+                Button(String(localized: "remove_from_list")) {
                     onRemove(project, false)
                     pendingRemovalProject = nil
                 }
             }
-            Button(String(localized: "取消"), role: .cancel) {
+            Button(String(localized: "cancel"), role: .cancel) {
                 pendingRemovalProject = nil
             }
         } message: { project in
@@ -367,11 +367,11 @@ private struct WelcomeRecentProjectsPanel: View {
 
     private var removalAlertTitle: String {
         guard let pendingRemovalProject else {
-            return String(localized: "从列表移除")
+            return String(localized: "remove_from_list")
         }
         return pendingRemovalProject.isInManagedProjectCache
-            ? String(localized: "删除缓存项目？")
-            : String(localized: "从最近项目移除？")
+            ? String(localized: "delete_cached_project_confirm")
+            : String(localized: "remove_from_recent_projects_confirm")
     }
 
     private var emptyState: some View {
@@ -379,9 +379,9 @@ private struct WelcomeRecentProjectsPanel: View {
             Image(systemName: "clock.arrow.circlepath")
                 .font(.system(size: 30, weight: .semibold))
                 .foregroundStyle(.secondary)
-            Text(String(localized: "暂无最近项目"))
+            Text(String(localized: "no_recent_projects"))
                 .font(.headline)
-            Text(String(localized: "打开或保存 .strophe 工程后会显示在这里。"))
+            Text(String(localized: "open_save_project_hint"))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -408,7 +408,7 @@ private struct WelcomeRecentProjectRow: View {
                         .frame(width: 24)
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(project.name.isEmpty ? String(localized: "未命名项目") : project.name)
+                        Text(project.name.isEmpty ? String(localized: "unnamed_project") : project.name)
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(Color.stropheText)
                             .lineLimit(1)
@@ -428,7 +428,7 @@ private struct WelcomeRecentProjectRow: View {
 
             Menu {
                 Button(role: .destructive, action: onRemove) {
-                    Label(String(localized: "从列表移除"), systemImage: "xmark")
+                    Label(String(localized: "remove_from_list"), systemImage: "xmark")
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")

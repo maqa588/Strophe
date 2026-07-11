@@ -63,7 +63,7 @@ struct SubtitleSplitView: View {
                 Image(systemName: "scissors")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(Color.stropheAccent)
-                Text(String(localized: "切分字幕"))
+                Text(String(localized: "split_subtitles"))
                     .font(.headline)
                 Spacer()
                 Button(action: onDismiss) {
@@ -82,7 +82,7 @@ struct SubtitleSplitView: View {
             // ── Main scrollable area ──────────────────────────────
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 16) {
-                    Text(String(localized: "点击字符间隔移动分词游标"))
+                    Text(String(localized: "click_character_spacing_to_move"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -127,7 +127,7 @@ struct SubtitleSplitView: View {
                                 Circle()
                                     .fill(Color.stropheBlue)
                                     .frame(width: 8, height: 8)
-                                Text(String(localized: "左半"))
+                                Text(String(localized: "left_half"))
                                     .font(.caption.bold())
                                     .foregroundStyle(.secondary)
                             }
@@ -155,7 +155,7 @@ struct SubtitleSplitView: View {
                                 Circle()
                                     .fill(Color.orange)
                                     .frame(width: 8, height: 8)
-                                Text(String(localized: "右半"))
+                                Text(String(localized: "right_half"))
                                     .font(.caption.bold())
                                     .foregroundStyle(.secondary)
                             }
@@ -183,7 +183,7 @@ struct SubtitleSplitView: View {
             // ── 操作按钮 ─────────────────────────────────────────
             HStack(spacing: 12) {
                 Button(action: onDismiss) {
-                    Text(String(localized: "取消"))
+                    Text(String(localized: "cancel"))
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
@@ -200,7 +200,7 @@ struct SubtitleSplitView: View {
                     )
                     onDismiss()
                 }) {
-                    Text(String(localized: "确认切分"))
+                    Text(String(localized: "confirm_split"))
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)

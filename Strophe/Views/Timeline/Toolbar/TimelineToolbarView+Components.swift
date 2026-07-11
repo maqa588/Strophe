@@ -102,7 +102,7 @@ extension TimelineToolbarView {
                     }
                     .buttonStyle(.plain)
                     .glassEffect(.regular.interactive())
-                    .help(String(localized: "撤销"))
+                    .help(String(localized: "undo"))
 
                     BoundarySeekButton(icon: "gobackward", direction: .left, project: project)
                         .glassEffect(.regular.interactive())
@@ -127,7 +127,7 @@ extension TimelineToolbarView {
                     }
                     .buttonStyle(.plain)
                     .glassEffect(.regular.interactive())
-                    .help(String(localized: "重做"))
+                    .help(String(localized: "redo"))
 
                     Menu {
                         ForEach([0.5, 1.0, 1.25, 1.5, 2.0], id: \.self) { speed in
@@ -171,7 +171,7 @@ extension TimelineToolbarView {
                     .buttonStyle(.plain)
                     .glassEffect(.regular.interactive())
                     .popover(isPresented: $showSplitTip, arrowEdge: .top) {
-                        RichTooltipView(icon: "scissors", title: String(localized: "切分字幕"), message: String(localized: "以时间游标为分割点，将游标所在的字幕块拆分为两个独立字幕块"))
+                        RichTooltipView(icon: "scissors", title: String(localized: "split_subtitles"), message: String(localized: "use_the_playhead_as_the"))
                     }
                     .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
                         #if os(iOS)
@@ -199,7 +199,7 @@ extension TimelineToolbarView {
                     .buttonStyle(.plain)
                     .glassEffect(.regular.interactive())
                     .popover(isPresented: $showMergeTip, arrowEdge: .top) {
-                        RichTooltipView(icon: "arrow.down.right.and.arrow.up.left", title: String(localized: "合并字幕"), message: String(localized: "将选中的连续字幕块合并为一个，文本与时间轴同时合并"))
+                        RichTooltipView(icon: "arrow.down.right.and.arrow.up.left", title: String(localized: "merge_subtitles"), message: String(localized: "merge_the_selected_consecutive_subtitle"))
                     }
                     .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
                         #if os(iOS)
@@ -228,7 +228,7 @@ extension TimelineToolbarView {
                     .keyboardShortcutIf(!isEditingText, "s", modifiers: [.option])
                     .glassEffect(.regular.interactive())
                     .popover(isPresented: $showSoftSubtitlesTip, arrowEdge: .top) {
-                        RichTooltipView(icon: "captions.bubble", title: String(localized: "软字幕预览"), message: String(localized: "软字幕预览提示信息"))
+                        RichTooltipView(icon: "captions.bubble", title: String(localized: "soft_subtitle_preview"), message: String(localized: "click_to_toggle_real_time"))
                     }
                     .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
                         #if os(iOS)
@@ -256,7 +256,7 @@ extension TimelineToolbarView {
                     .buttonStyle(.plain)
                     .glassEffect(.regular.interactive())
                     .popover(isPresented: $showHardSubtitlesTip, arrowEdge: .top) {
-                        RichTooltipView(icon: "list.and.film", title: String(localized: "硬字幕预览"), message: String(localized: "点击开启/关闭视频硬字幕实时预览"))
+                        RichTooltipView(icon: "list.and.film", title: String(localized: "hard_subtitle_preview"), message: String(localized: "click_to_turn_onoff_the"))
                     }
                     .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
                         #if os(iOS)
@@ -284,7 +284,7 @@ extension TimelineToolbarView {
                     .keyboardShortcutIf(!isEditingText, "v", modifiers: [])
                     .glassEffect(.regular.interactive())
                     .popover(isPresented: $showSelectionTip, arrowEdge: .top) {
-                        RichTooltipView(icon: "cursorarrow", title: String(localized: "选择工具"), message: String(localized: "选择工具提示信息"))
+                        RichTooltipView(icon: "cursorarrow", title: String(localized: "selection_tool"), message: String(localized: "edit_script_text_drag_timeline"))
                     }
                     .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
                         #if os(iOS)
@@ -312,7 +312,7 @@ extension TimelineToolbarView {
                     .keyboardShortcutIf(!isEditingText, "d", modifiers: [])
                     .glassEffect(.regular.interactive())
                     .popover(isPresented: $showCreationTip, arrowEdge: .top) {
-                        RichTooltipView(icon: "hand.draw", title: String(localized: "快速创建与拍打工具"), message: String(localized: "快速创建与拍打工具提示信息"))
+                        RichTooltipView(icon: "hand.draw", title: String(localized: "quick_creation_slap_tool"), message: String(localized: "drag_timeline_to_create_subtitle"))
                     }
                     .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
                         #if os(iOS)

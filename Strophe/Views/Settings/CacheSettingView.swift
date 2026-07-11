@@ -27,7 +27,7 @@ struct CacheSettingView: View {
                     }
 
                     VStack(spacing: 6) {
-                        Text("临时占用空间")
+                        Text("temporary_space_occupied")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
 
@@ -44,18 +44,18 @@ struct CacheSettingView: View {
 
             Section {
                 VStack(alignment: .leading, spacing: 8) {
-                    Label("什么是缓存数据？", systemImage: "questionmark.circle.fill")
+                    Label("what_is_cached_data", systemImage: "questionmark.circle.fill")
                         .font(.headline)
                         .foregroundStyle(Color.stropheText)
 
-                    Text("Strophe 在导入视频 or 音频文件时，会生成临时音频转码文件与波形分析缓存。这些数据可以显著加速波形的渲染和音视频的高速跳转，但在使用完毕后，它们会占用您的设备存储空间。")
+                    Text("when_importing_video_or_audio")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .lineSpacing(4)
                 }
                 .padding(.vertical, 4)
             } footer: {
-                Text("提示：清理缓存是完全安全的，它绝不会删除您的字幕文稿项目、已保存的工程文件或原始音视频源文件。")
+                Text("note_clearing_cache_is_completely")
             }
 
             Section {
@@ -70,7 +70,7 @@ struct CacheSettingView: View {
                         } else {
                             Image(systemName: "trash")
                         }
-                        Text(isClearing ? "正在清理中..." : "立即清理缓存")
+                        Text(isClearing ? "cleaning_up" : "clear_cache_now")
                             .fontWeight(.semibold)
                         Spacer()
                     }
@@ -83,14 +83,14 @@ struct CacheSettingView: View {
         .onAppear {
             refreshCacheSize()
         }
-        .navigationTitle("清理缓存")
+        .navigationTitle("clear_cache")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
-        .alert("清理完成", isPresented: $showSuccessAlert) {
-            Button("好", role: .cancel) {}
+        .alert("cleanup_completed", isPresented: $showSuccessAlert) {
+            Button("ok", role: .cancel) {}
         } message: {
-            Text("所有的临时转码数据和波形缓存文件已被安全清除。")
+            Text("all_temporary_transcoding_data_and")
         }
     }
 

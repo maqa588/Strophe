@@ -117,7 +117,7 @@ struct BoundarySeekButton: View {
             .frame(width: 32, height: 28)
             .foregroundColor(.primary)
             .contentShape(Rectangle())
-            .help(direction == .left ? String(localized: "字幕块左对齐") : String(localized: "字幕块右对齐"))
+            .help(direction == .left ? String(localized: "align_subtitle_block_left") : String(localized: "align_subtitle_block_right"))
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in

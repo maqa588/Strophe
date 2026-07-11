@@ -18,7 +18,7 @@ struct SlapButtonsOverlay: View {
         
         HStack(spacing: 0) {
             // J Button
-            SlapTouchButton(key: "j", label: String(localized: "J 键打轴"), subtitle: String(localized: "按住开始 / 松开结束"), isPressed: $isJPressed, project: project)
+            SlapTouchButton(key: "j", label: String(localized: "slap_j_key"), subtitle: String(localized: "hold_start_release_end"), isPressed: $isJPressed, project: project)
                 .frame(width: isPad ? 180 : nil)
                 .frame(maxWidth: isPad ? nil : .infinity)
             
@@ -26,7 +26,7 @@ struct SlapButtonsOverlay: View {
             Spacer(minLength: isPad ? nil : 20)
             
             // K Button
-            SlapTouchButton(key: "k", label: String(localized: "K 键打轴"), subtitle: String(localized: "按住开始 / 松开结束"), isPressed: $isKPressed, project: project)
+            SlapTouchButton(key: "k", label: String(localized: "slap_k_key"), subtitle: String(localized: "hold_start_release_end"), isPressed: $isKPressed, project: project)
                 .frame(width: isPad ? 180 : nil)
                 .frame(maxWidth: isPad ? nil : .infinity)
         }
