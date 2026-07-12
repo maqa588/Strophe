@@ -1,132 +1,23 @@
 //
-//  AutoCaptionView+Process.swift
+//  AutoCaptionView+Process+Execution.swift
 //  Strophe
 //
-//  Created by Antigravity on 2026/06/04.
+//  Created by Antigravity on 2026/07/12.
 //
 
 import SwiftUI
 
 extension AutoCaptionView {
-    
-    @ViewBuilder
-    var runningStateView: some View {
-        VStack(spacing: 32) {
-            Spacer()
-            
-            // Modern floating processing circle
-            ZStack {
-                Circle()
-                    .stroke(Color.stropheBorder, lineWidth: 8)
-                    .frame(width: 140, height: 140)
-                
-                Circle()
-                    .trim(from: 0, to: CGFloat(stepProgress))
-                    .stroke(
-                        AngularGradient(colors: [Color.stropheAccent, Color.stropheAccent.opacity(0.3)], center: .center),
-                        style: StrokeStyle(lineWidth: 8, lineCap: .round)
-                    )
-                    .rotationEffect(.degrees(-90))
-                    .frame(width: 140, height: 140)
-                    .animation(.easeInOut, value: stepProgress)
-                
-                VStack(spacing: 4) {
-                    Text(stepProgress, format: .percent.precision(.fractionLength(0)))
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
-                        .foregroundStyle(Color.stropheText)
-                    
-                    Text("进度")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            
-            // Steps layout - 对应本地 Golden Pipeline 或云端识别流程
-            VStack(alignment: .leading, spacing: 14) {
-                let stepTitles = runningStepTitles
-                
-                ForEach(0..<4, id: \.self) { index in
-                    HStack(spacing: 12) {
-                        ZStack {
-                            if currentStep > index {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(.green)
-                            } else if currentStep == index {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Circle()
-                                    .fill(Color.stropheBorder)
-                                    .frame(width: 16, height: 16)
-                            }
-                        }
-                        .frame(width: 20, height: 20)
-                        
-                        Text(stepTitles[index])
-                            .font(.subheadline)
-                            .foregroundStyle(currentStep == index ? Color.stropheText : .secondary)
-                            .fontWeight(currentStep == index ? .semibold : .regular)
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 36)
-            
-            // Status Info
-            Text(statusMessage)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-            
-            Spacer()
-        }
-        .padding(.vertical, 24)
-    }
 
-    var runningStepTitles: [String] {
-        switch runningMode {
-        case .cloud:
-            return [
-                "第一步: 提取 16k 音频...",
-                "第二步: 上传云端服务...",
-                "第三步: 云端识别与对齐...",
-                "第四步: 写入字幕时间轴..."
-            ]
-        case .local:
-            let preprocessingTitle: String = {
-                switch vocalPreprocessing {
-                case "none": return "第一步: 提取音频..."
-                case "separate": return "第一步: 伴奏人声分离 (Spleeter)..."
-                default: return "第一步: 智能降噪 (DeepFilterNet3)..."
-                }
-            }()
-            if enableDiarization {
-                return [
-                    preprocessingTitle,
-                    "第二步: 语音识别转写 (Qwen3-ASR)...",
-                    "第三步: 毫秒级字词对齐 (ForcedAligner)...",
-                    "第四步: 发言角色声纹分离 (Pyannote)..."
-                ]
-            }
-            return [
-                preprocessingTitle,
-                "第二步: 语音识别转写 (Qwen3-ASR)...",
-                "第三步: 毫秒级字词对齐 (ForcedAligner)...",
-                "第四步: 字幕片段整合输出..."
-            ]
-        }
-    }
-    
     func startCaptioningProcess() {
         guard let mediaURL = project.videoURL else { return }
-        
+
         runningMode = .local
         isRunning = true
         currentStep = 0
         stepProgress = 0.0
         statusMessage = "正在检查设备兼容性..."
-        
+
         Task {
             do {
                 try AIBackendClient.ensureLocalAIAvailable()
@@ -135,7 +26,7 @@ extension AutoCaptionView {
                 let isWhisperDownloaded = modelManager.downloadedWhisperModels.contains(selectedModel)
                 if !isWhisperDownloaded {
                     statusMessage = "正在从 Hugging Face 下载 ASR 模型 \(selectedModel) (约需几分钟)..."
-                    
+
                     let downloadTask = Task {
                         let whisperModelId = "Whisper_\(selectedModel)"
                         while !Task.isCancelled {
@@ -147,10 +38,10 @@ extension AutoCaptionView {
                             }
                         }
                     }
-                    
+
                     await modelManager.downloadModel(type: .whisper, modelName: selectedModel)
                     downloadTask.cancel()
-                    
+
                     let whisperCheck = modelManager.downloadedWhisperModels.contains(selectedModel)
                     if !whisperCheck {
                         throw NSError(
@@ -222,7 +113,7 @@ extension AutoCaptionView {
                         )
                     }
                 }
-                
+
                 if useVAD {
                     let vadModelName = LocalModelManager.vadPresets.first?.name ?? "firered-vad-coreml"
                     let isVADDownloaded = modelManager.downloadedVADModels.contains(vadModelName)
@@ -262,7 +153,7 @@ extension AutoCaptionView {
                 if enableDiarization && !isSpeakerDownloaded {
                     statusMessage = "正在从 Hugging Face 下载声纹识别模型 pyannote-diarization-mlx (约需几分钟)..."
                     self.stepProgress = 0.0
-                    
+
                     let downloadTask = Task {
                         let speakerModelId = "SpeakerKit_pyannote-diarization-mlx"
                         while !Task.isCancelled {
@@ -274,10 +165,10 @@ extension AutoCaptionView {
                             }
                         }
                     }
-                    
+
                     await modelManager.downloadModel(type: .speaker, modelName: "pyannote-diarization-mlx")
                     downloadTask.cancel()
-                    
+
                     let speakerCheck = modelManager.downloadedSpeakerModels.contains("pyannote-diarization-mlx")
                     if !speakerCheck {
                         throw NSError(
@@ -287,14 +178,14 @@ extension AutoCaptionView {
                         )
                     }
                 }
-                
+
                 // 0.2 智能降噪模型预下载阶段
                 if vocalPreprocessing == "denoise" {
                     let isDenoiseDownloaded = modelManager.downloadedOtherModels.contains("deepfilternet3-coreml")
                     if !isDenoiseDownloaded {
                         statusMessage = "正在从 Hugging Face 下载智能降噪模型..."
                         self.stepProgress = 0.0
-                        
+
                         let downloadTask = Task {
                             let denoiseModelId = "Other_deepfilternet3-coreml"
                             while !Task.isCancelled {
@@ -306,10 +197,10 @@ extension AutoCaptionView {
                                 }
                             }
                         }
-                        
+
                         await modelManager.downloadModel(type: .other, modelName: "deepfilternet3-coreml")
                         downloadTask.cancel()
-                        
+
                         let denoiseCheck = modelManager.downloadedOtherModels.contains("deepfilternet3-coreml")
                         if !denoiseCheck {
                             throw NSError(
@@ -320,14 +211,14 @@ extension AutoCaptionView {
                         }
                     }
                 }
-                
+
                 // 0.3 伴奏人声分离模型预下载阶段
                 if vocalPreprocessing == "separate" {
                     let isSpleeterDownloaded = modelManager.downloadedOtherModels.contains("spleeter2-coreml")
                     if !isSpleeterDownloaded {
                         statusMessage = "正在下载伴奏人声分离模型..."
                         self.stepProgress = 0.0
-                        
+
                         let downloadTask = Task {
                             let spleeterModelId = "Other_spleeter2-coreml"
                             while !Task.isCancelled {
@@ -339,10 +230,10 @@ extension AutoCaptionView {
                                 }
                             }
                         }
-                        
+
                         await modelManager.downloadModel(type: .other, modelName: "spleeter2-coreml")
                         downloadTask.cancel()
-                        
+
                         let spleeterCheck = modelManager.downloadedOtherModels.contains("spleeter2-coreml")
                         if !spleeterCheck {
                             throw NSError(
@@ -353,7 +244,7 @@ extension AutoCaptionView {
                         }
                     }
                 }
-                
+
                 // 1. 提取并采样音频数据
                 let whisperBaseDir = modelManager.getBaseDirectory(for: .whisper)
                 // 使用 Hub-style 路径 (base/models/org/repo)；fallback 到旧版扁平路径
@@ -415,9 +306,9 @@ extension AutoCaptionView {
                     let folderName = LocalModelManager.speakerPresets.first?.folderName ?? "pyannote-diarization-mlx"
                     speakerModelURL = speakerBaseDir.appendingPathComponent(folderName)
                 }
-                
+
                 let expectedSpeakersCount: Int? = (speakerCountOption == "custom") ? customSpeakerCount : nil
-                
+
                 let request = AIGenerateSubtitlesRequest(
                     audioURL: mediaURL,
                     whisperModelURL: whisperModelURL,
@@ -446,7 +337,7 @@ extension AutoCaptionView {
                         Task { @MainActor in
                             self.currentStep = step
                             self.statusMessage = message
-                            
+
                             // 映射每一步的分段进度至总进度环
                             let overallProgress: Double
                             if self.enableDiarization {
@@ -470,7 +361,7 @@ extension AutoCaptionView {
                         }
                     }
                 )
-                
+
                 let generatedSubtitles = subtitleItems(from: results)
                 guard !generatedSubtitles.isEmpty else {
                     throw NSError(
@@ -479,19 +370,19 @@ extension AutoCaptionView {
                         userInfo: [NSLocalizedDescriptionKey: "本地识别结果为空，未覆盖当前字幕。"]
                     )
                 }
-                
+
                 // 3. 部署到 Timeline 并注册撤销
                 await MainActor.run {
                     replaceProjectSubtitles(with: generatedSubtitles, actionName: String(localized: "本地 AI 语音识别打轴"))
                     finishSuccessfulGeneration(message: "完成！本地生成 \(generatedSubtitles.count) 条字幕。")
                 }
-                
+
                 try? await Task.sleep(nanoseconds: 1_200_000_000)
-                
+
                 await MainActor.run {
                     dismiss()
                 }
-                
+
             } catch {
                 await MainActor.run {
                     finishFailedGeneration(error)
@@ -568,59 +459,5 @@ extension AutoCaptionView {
                 }
             }
         }
-    }
-
-    func subtitleItems(from results: [AIResultSegment]) -> [SubtitleItem] {
-        results.enumerated().compactMap { index, seg -> SubtitleItem? in
-            let cleaned = cleanSubtitleText(seg.text)
-
-            // 去除可能存在的说话人标签后再检查是否为空
-            var textWithoutSpeaker = cleaned
-            if textWithoutSpeaker.hasPrefix("["), let endBracket = textWithoutSpeaker.firstIndex(of: "]") {
-                let startIndex = textWithoutSpeaker.index(after: endBracket)
-                textWithoutSpeaker = String(textWithoutSpeaker[startIndex...]).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-
-            // 如果字幕块最终只有“嗯啊呃”或标点符号（即剥离说话人标签后为空），则丢弃该字幕块
-            if textWithoutSpeaker.isEmpty {
-                return nil
-            }
-
-            return SubtitleItem(
-                text: cleaned,
-                startTime: seg.startTime,
-                endTime: seg.endTime,
-                originalIndex: index
-            )
-        }
-    }
-
-    @MainActor
-    func replaceProjectSubtitles(with generatedSubtitles: [SubtitleItem], actionName: String) {
-        let oldItems = project.items
-        let oldSelectedIDs = project.selectedIDs
-        project.items = generatedSubtitles
-        project.undoManager.registerUndo(withTarget: project) { target in
-            target.items = oldItems
-            target.selectedIDs = oldSelectedIDs
-            target.notifyChange()
-        }
-        project.undoManager.setActionName(actionName)
-        project.currentIndex = 0
-        project.notifyChange()
-    }
-
-    @MainActor
-    func finishSuccessfulGeneration(message: String) {
-        stepProgress = 1.0
-        statusMessage = message
-    }
-
-    @MainActor
-    func finishFailedGeneration(_ error: Error) {
-        isRunning = false
-        generationErrorMessage = error.localizedDescription
-        statusMessage = "生成失败: \(error.localizedDescription)"
-        showGenerationErrorAlert = true
     }
 }

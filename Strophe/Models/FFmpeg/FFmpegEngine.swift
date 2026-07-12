@@ -78,13 +78,13 @@ final class FrameQueue: @unchecked Sendable {
     #endif
 
     let playerView: NativeView
-    private let metalRenderer: MetalVideoRenderer
+    let metalRenderer: MetalVideoRenderer
     private let audioPlayer: AudioPlayer
-    private let core: FFmpegDecoderCore
+    let core: FFmpegDecoderCore
     
     // Cached playback state updated via core.onStateChanged callback
     private var cachedDuration: Double = 0.0
-    private var cachedFPS: Double = 30.0
+    var cachedFPS: Double = 30.0
     private var cachedVideoSize: CGSize = .zero
     private var cachedRate: Double = 0.0
     private var cachedIsPlaying: Bool = false
@@ -98,30 +98,30 @@ final class FrameQueue: @unchecked Sendable {
     private var wasPlayingBeforeScrub = false
     private var rateBeforeScrub: Double = 0.0
     
-    private let frameQueue = FrameQueue(capacity: FFmpegEngine.frameQueueCapacity)
-    private var lastSeekTime: CFTimeInterval = 0
+    let frameQueue = FrameQueue(capacity: FFmpegEngine.frameQueueCapacity)
+    var lastSeekTime: CFTimeInterval = 0
     private var seekGeneration: UInt = 0
     private var transportCommandGeneration: UInt = 0
-    private var lastFrameArrivalTime = CACurrentMediaTime()
-    private var lastStarvationRecoveryTime: CFTimeInterval = 0
-    private var isStarvationRecoveryPending = false
-    private var renderStatsStartTime = CACurrentMediaTime()
-    private var renderedFrameCount = 0
-    private var timingDroppedFrameCount = 0
-    private var displayTickCount = 0
-    private var emptyDisplayTickCount = 0
-    private var accumulatedPresentationLead = 0.0
+    var lastFrameArrivalTime = CACurrentMediaTime()
+    var lastStarvationRecoveryTime: CFTimeInterval = 0
+    var isStarvationRecoveryPending = false
+    var renderStatsStartTime = CACurrentMediaTime()
+    var renderedFrameCount = 0
+    var timingDroppedFrameCount = 0
+    var displayTickCount = 0
+    var emptyDisplayTickCount = 0
+    var accumulatedPresentationLead = 0.0
     nonisolated(unsafe) private var diagTimer: Timer? = nil
 
     // Seek generation — incremented on every seek/load to discard stale pre-seek frames
-    private var currentFrameGeneration: Int = 0
+    var currentFrameGeneration: Int = 0
 
 
     #if os(macOS)
-    nonisolated(unsafe) private var displayTimer: Timer? = nil
-    nonisolated(unsafe) private var displayLinkStorage: AnyObject? = nil
+    nonisolated(unsafe) var displayTimer: Timer? = nil
+    nonisolated(unsafe) var displayLinkStorage: AnyObject? = nil
     #else
-    nonisolated(unsafe) private var displayLink: CADisplayLink? = nil
+    nonisolated(unsafe) var displayLink: CADisplayLink? = nil
     #endif
     
     override init() {
@@ -470,202 +470,6 @@ final class FrameQueue: @unchecked Sendable {
         frameQueue.removeAll()
     }
     
-    // MARK: - Display Link
-    
-    private func startDisplayLink() {
-        #if os(macOS)
-        if #available(macOS 14.0, *) {
-            if displayLinkStorage == nil {
-                let link = playerView.displayLink(
-                    target: self,
-                    selector: #selector(displayLinkFired(_:))
-                )
-                link.add(to: .main, forMode: .common)
-                displayLinkStorage = link
-            }
-            updateDisplayLinkPreferredFrameRate()
-            (displayLinkStorage as? CADisplayLink)?.isPaused = false
-        } else if displayTimer == nil {
-            let timer = Timer(
-                timeInterval: 1.0 / 60.0,
-                target: self,
-                selector: #selector(displayTimerFired(_:)),
-                userInfo: nil,
-                repeats: true
-            )
-            RunLoop.main.add(timer, forMode: .common)
-            displayTimer = timer
-        }
-        #else
-        if displayLink == nil {
-            let dl = CADisplayLink(target: self, selector: #selector(displayLinkFired(_:)))
-            dl.add(to: .main, forMode: .common)
-            displayLink = dl
-        }
-        updateDisplayLinkPreferredFrameRate()
-        displayLink?.isPaused = false
-        #endif
-    }
-    
-    private func stopDisplayLink() {
-        #if os(macOS)
-        if #available(macOS 14.0, *) {
-            (displayLinkStorage as? CADisplayLink)?.isPaused = true
-        } else {
-            displayTimer?.invalidate()
-            displayTimer = nil
-        }
-        #else
-        displayLink?.isPaused = true
-        #endif
-    }
-
-    private func invalidateDisplayLink() {
-        #if os(macOS)
-        displayTimer?.invalidate()
-        displayTimer = nil
-        if #available(macOS 14.0, *) {
-            (displayLinkStorage as? CADisplayLink)?.invalidate()
-            displayLinkStorage = nil
-        }
-        #else
-        displayLink?.invalidate()
-        displayLink = nil
-        #endif
-    }
-    
-    private func updateDisplayLinkPreferredFrameRate() {
-        #if os(macOS)
-        if #available(macOS 14.0, *) {
-            (displayLinkStorage as? CADisplayLink)?.preferredFrameRateRange = CAFrameRateRange(
-                minimum: 60,
-                maximum: 120,
-                preferred: Float(min(120, max(60, cachedFPS.rounded())))
-            )
-        }
-        #else
-        guard let dl = displayLink else { return }
-        if #available(iOS 15.0, *) {
-            let range = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 0)
-            dl.preferredFrameRateRange = range
-        } else {
-            dl.preferredFramesPerSecond = 60
-        }
-        #endif
-    }
-    
-    #if os(macOS)
-    @objc private func displayTimerFired(_ sender: Timer) {
-        renderTick(presentationLead: fallbackPresentationLead)
-    }
-    #endif
-
-    #if os(macOS)
-    @available(macOS 14.0, *)
-    #endif
-    @objc private func displayLinkFired(_ sender: CADisplayLink) {
-        let lead = max(0, min(0.05, sender.targetTimestamp - CACurrentMediaTime()))
-        renderTick(presentationLead: lead)
-    }
-
-    private var fallbackPresentationLead: Double {
-        let fps = cachedFPS.isFinite && cachedFPS > 0 ? cachedFPS : 60
-        return min(0.025, 0.75 / fps)
-    }
-
-    private func renderTick(presentationLead: Double) {
-        guard rate > 0 else {
-            stopDisplayLink()
-            return
-        }
-        displayTickCount += 1
-        accumulatedPresentationLead += presentationLead
-        let currentClock = currentTime + presentationLead * rate
-        
-        let sourceFPS = cachedFPS.isFinite && cachedFPS > 0 ? cachedFPS : 60
-        let allowedVideoLag = max(0.025, 2.0 / sourceFPS)
-        let result = frameQueue.dequeueBestFrame(
-            before: currentClock,
-            droppingFramesBefore: currentClock - allowedVideoLag
-        )
-        if let frame = result.frame {
-            self.metalRenderer.update(with: frame.pixelBuffer)
-            renderedFrameCount += 1
-            timingDroppedFrameCount += max(0, result.consumedCount - 1)
-            let coreInstance = core
-            let consumedCount = result.consumedCount
-            let generation = frame.generation
-            Task {
-                await coreInstance.acknowledgeVideoFrames(
-                    consumedCount,
-                    generation: generation
-                )
-            }
-        } else {
-            emptyDisplayTickCount += 1
-            recoverStarvedDecodeFlowIfNeeded(currentClock: currentClock)
-        }
-        reportRenderStatsIfNeeded()
-    }
-
-    private func reportRenderStatsIfNeeded() {
-        let now = CACurrentMediaTime()
-        let elapsed = now - renderStatsStartTime
-        guard elapsed >= 5 else { return }
-
-        let renderedFPS = Double(renderedFrameCount) / elapsed
-        let averageLeadMS = displayTickCount > 0
-            ? accumulatedPresentationLead / Double(displayTickCount) * 1_000
-            : 0
-        print(
-            "📊 FFmpeg render: actual=\(String(format: "%.1f", renderedFPS))fps "
-            + "source=\(String(format: "%.2f", cachedFPS))fps "
-            + "queue=\(frameQueue.count) timingDrops=\(timingDroppedFrameCount) "
-            + "ticks=\(displayTickCount) emptyTicks=\(emptyDisplayTickCount) "
-            + "lead=\(String(format: "%.2f", averageLeadMS))ms"
-        )
-        renderStatsStartTime = now
-        renderedFrameCount = 0
-        timingDroppedFrameCount = 0
-        displayTickCount = 0
-        emptyDisplayTickCount = 0
-        accumulatedPresentationLead = 0
-    }
-
-    private func recoverStarvedDecodeFlowIfNeeded(currentClock: Double) {
-        let now = CACurrentMediaTime()
-        guard rate > 0,
-              frameQueue.count == 0,
-              currentClock < max(0, duration - 0.25),
-              now - lastFrameArrivalTime > 0.75,
-              now - lastSeekTime > 0.75,
-              now - lastStarvationRecoveryTime > 0.75,
-              !isStarvationRecoveryPending else { return }
-
-        isStarvationRecoveryPending = true
-        lastStarvationRecoveryTime = now
-        let generation = currentFrameGeneration
-        let expectedRate = rate
-        let actualCount = frameQueue.count
-        let coreInstance = core
-
-        Task { [weak self] in
-            let recovery = await coreInstance.recoverStarvedDecodeFlow(
-                generation: generation,
-                actualQueueCount: actualCount,
-                expectedRate: expectedRate
-            )
-            guard let self else { return }
-            self.isStarvationRecoveryPending = false
-            guard generation == self.currentFrameGeneration, let recovery else { return }
-
-            if recovery.previousCount != actualCount || recovery.restarted || recovery.resumed {
-                print(
-                    "🩹 FFmpeg decode starvation recovered: coreQueue=\(recovery.previousCount) "
-                    + "actualQueue=\(actualCount) restarted=\(recovery.restarted) "
-                    + "resumed=\(recovery.resumed)"
-                )
-            }
-        }
-    }
+    // Display link and rendering methods are in FFmpegEngine+DisplayLink.swift
 }
+
