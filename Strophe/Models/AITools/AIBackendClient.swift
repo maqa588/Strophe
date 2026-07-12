@@ -57,11 +57,14 @@ actor AIBackendClient {
     nonisolated static let isLocalAIIncludedInBuild = false
     #endif
     nonisolated static let unsupportedDeviceMessage = "您的设备不支持本地AI运行"
+    // The complete ASR + ForcedAligner pipeline is only enabled on devices
+    // reporting at least 5.5 GiB of physical memory.
+    nonisolated static let minimumLocalAIPhysicalMemoryBytes: UInt64 = 11 * 512 * 1024 * 1024
     nonisolated static let cloudComingSoonMessage = "可以使用云端生成字幕，或在支持设备上使用本地生成。"
     private nonisolated static let eventPrefix = "STROPHE_AI_EVENT "
 
     nonisolated static func localDeviceSupport() -> AIBackendAvailability {
-        if ProcessInfo.processInfo.physicalMemory < 3_700_000_000 {
+        if ProcessInfo.processInfo.physicalMemory < minimumLocalAIPhysicalMemoryBytes {
             return .unavailable(unsupportedDeviceMessage)
         }
 

@@ -7,28 +7,31 @@ import UIKit
 
 nonisolated final class TempCleanupHelper {
 
+    private static func isCleanupCandidate(_ url: URL) -> Bool {
+        let name = url.lastPathComponent
+        return name.hasPrefix("strophe_ai_") ||
+            name == "StropheExports" ||
+            name.hasSuffix(".strophe") ||
+            (name.count == 36 && name.filter { $0 == "-" }.count == 4)
+    }
+
     // MARK: - General Temp Directory Cleanup
 
     /// 删除应用临时目录下的所有文件和文件夹。
     static func cleanupTempDirectory() {
         let tempDir = FileManager.default.temporaryDirectory
-        guard let enumerator = FileManager.default.enumerator(
+        guard let contents = try? FileManager.default.contentsOfDirectory(
             at: tempDir,
             includingPropertiesForKeys: nil,
             options: [.skipsSubdirectoryDescendants]
         ) else {
-            print("⚠️ TempCleanupHelper: Failed to create enumerator for temp directory.")
+            print("⚠️ TempCleanupHelper: Failed to read temporary directory.")
             return
         }
 
         print("🧹 TempCleanupHelper: Starting cleanup of temporary directory...")
-        while let fileURL = enumerator.nextObject() as? URL {
+        for fileURL in contents where isCleanupCandidate(fileURL) {
             let name = fileURL.lastPathComponent
-            let isStropheTempItem =
-                name.hasPrefix("strophe_ai_") ||
-                name.hasSuffix(".strophe") ||
-                (name.count == 36 && name.filter { $0 == "-" }.count == 4)
-            guard isStropheTempItem else { continue }
 
             do {
                 try FileManager.default.removeItem(at: fileURL)
@@ -123,17 +126,30 @@ nonisolated final class TempCleanupHelper {
     static func getTempDirectorySize() -> Int64 {
         let tempDir = FileManager.default.temporaryDirectory
         var size: Int64 = 0
-        guard let enumerator = FileManager.default.enumerator(
+        guard let contents = try? FileManager.default.contentsOfDirectory(
             at: tempDir,
-            includingPropertiesForKeys: [.fileSizeKey],
-            options: [.skipsHiddenFiles]
+            includingPropertiesForKeys: nil,
+            options: [.skipsSubdirectoryDescendants]
         ) else { return 0 }
 
-        while let fileURL = enumerator.nextObject() as? URL {
-            if fileURL.lastPathComponent == "TemporaryItems" { continue }
-            if let resourceValues = try? fileURL.resourceValues(forKeys: [.fileSizeKey]),
-               let fileSize = resourceValues.fileSize {
-                size += Int64(fileSize)
+        for root in contents where isCleanupCandidate(root) {
+            if let rootValues = try? root.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey]),
+               rootValues.isDirectory != true {
+                size += Int64(rootValues.fileSize ?? 0)
+                continue
+            }
+
+            guard let enumerator = FileManager.default.enumerator(
+                at: root,
+                includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
+                options: [.skipsHiddenFiles]
+            ) else { continue }
+
+            for case let fileURL as URL in enumerator {
+                guard let values = try? fileURL.resourceValues(
+                    forKeys: [.isRegularFileKey, .fileSizeKey]
+                ), values.isRegularFile == true else { continue }
+                size += Int64(values.fileSize ?? 0)
             }
         }
         return size

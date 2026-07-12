@@ -171,7 +171,7 @@ extension AutoCaptionView {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         } else if selectedAlignerModel.contains("coreml") {
-                            let precision = selectedAlignerModel.contains("fp16") ? "FP16" : (selectedAlignerModel.contains("int8") ? "INT8" : "INT4")
+                            let precision = "INT8"
                             Text("CoreML \(precision) 对齐器已启用")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -830,7 +830,7 @@ extension AutoCaptionView {
                             }
                             .padding(.top, 2)
                         } else if selectedAlignerModel.contains("coreml") {
-                            let precision = selectedAlignerModel.contains("fp16") ? "FP16" : "INT4"
+                            let precision = "INT8"
                             HStack(spacing: 6) {
                                 Image(systemName: "checkmark.circle.fill")
                                     .foregroundStyle(Color.stropheAccent)

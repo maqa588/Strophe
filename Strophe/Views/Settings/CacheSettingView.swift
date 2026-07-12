@@ -103,14 +103,17 @@ struct CacheSettingView: View {
         isClearing = true
 
         Task {
-            TempCleanupHelper.cleanupTempDirectory()
+            let remainingBytes = await Task.detached(priority: .utility) {
+                TempCleanupHelper.cleanupTempDirectory()
+                return TempCleanupHelper.getTempDirectorySize()
+            }.value
 
             #if os(iOS)
             let generator = UINotificationFeedbackGenerator()
             generator.notificationOccurred(.success)
             #endif
 
-            refreshCacheSize()
+            cacheSizeInBytes = remainingBytes
             isClearing = false
             showSuccessAlert = true
         }

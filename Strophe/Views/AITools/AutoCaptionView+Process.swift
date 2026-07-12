@@ -131,17 +131,6 @@ extension AutoCaptionView {
             do {
                 try AIBackendClient.ensureLocalAIAvailable()
 
-                // 1. 内存检查 (>= 3.7GB)
-                let physicalMemory = ProcessInfo.processInfo.physicalMemory
-                if physicalMemory < 3_700_000_000 {
-                    let memoryInGB = Double(physicalMemory) / (1024.0 * 1024.0 * 1024.0)
-                    throw NSError(
-                        domain: "AutoCaptionView",
-                        code: 3,
-                        userInfo: [NSLocalizedDescriptionKey: String(format: "当前设备运行内存不足 (%.1f GB)，本地 AI 运行至少需要约 3.7GB 内存以防闪退。", memoryInGB)]
-                    )
-                }
-
                 // 0. 模型依赖预下载阶段
                 let isWhisperDownloaded = modelManager.downloadedWhisperModels.contains(selectedModel)
                 if !isWhisperDownloaded {

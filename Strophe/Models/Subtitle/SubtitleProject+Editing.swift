@@ -260,10 +260,16 @@ extension SubtitleProject {
         }
     }
     
-    func createSubtitleBlock(startTime: TimeInterval, endTime: TimeInterval) {
+    func createSubtitleBlock(
+        startTime: TimeInterval,
+        endTime: TimeInterval,
+        groupID requestedGroupID: UUID? = nil
+    ) {
         let oldItems = items
         let oldSelectedIDs = selectedIDs
-        let activeGroupID = StyleAndGroupStore.shared.activeGroupID
+        let store = StyleAndGroupStore.shared
+        let targetGroupID = requestedGroupID ?? store.activeGroupID
+        guard store.group(id: targetGroupID)?.isLocked != true else { return }
         
         let snappedStart = snapToFrame(startTime)
         let minDuration = videoFrameRate > 0 ? (1.0 / videoFrameRate) : 0.1
@@ -272,9 +278,9 @@ extension SubtitleProject {
         if let index = items.firstIndex(where: { $0.startTime == nil }) {
             items[index].startTime = snappedStart
             items[index].endTime = snappedEnd
-            items[index].groupID = items[index].groupID ?? activeGroupID
+            items[index].groupID = targetGroupID
         } else {
-            let newBlock = SubtitleItem(text: String(localized: "draft_subtitle"), startTime: snappedStart, endTime: snappedEnd, originalIndex: items.count, groupID: activeGroupID)
+            let newBlock = SubtitleItem(text: String(localized: "draft_subtitle"), startTime: snappedStart, endTime: snappedEnd, originalIndex: items.count, groupID: targetGroupID)
             items.append(newBlock)
         }
         

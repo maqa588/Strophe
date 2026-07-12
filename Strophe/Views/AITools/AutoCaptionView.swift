@@ -20,7 +20,7 @@ struct AutoCaptionView: View {
     // Config states
     @State var selectedModel: String = LocalModelManager.coreMLASRAccelerationModelName
     @State var enableCoreMLASRAcceleration: Bool = true
-    @State var selectedAlignerModel: String = "qwen3-forced-aligner-0.6b-coreml-int8"
+    @State var selectedAlignerModel: String = LocalModelManager.forcedAlignerINT8ModelName
     @State var enableAlignment: Bool = true
     @State var selectedLanguage: String = "auto"
     @State var enableDiarization: Bool = false

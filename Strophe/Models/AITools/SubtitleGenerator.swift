@@ -40,12 +40,7 @@ actor SubtitleGenerator {
             throw NSError(domain: "SubtitleGenerator", code: 2, userInfo: [NSLocalizedDescriptionKey: "纯 CoreML 版本暂不包含说话人分离，请关闭该选项。"])
         }
 
-        progressCallback?(0, 0.1, useVAD ? "正在加载 VAD & Qwen3 CoreML 模型..." : "正在加载 Qwen3 CoreML 模型...")
-        let vad = useVAD ? try CoreMLFireRedVAD(directory: vadModelURL) : nil
-        let asr = try CoreMLQwen3ASR(directory: whisperModelURL)
-        let aligner = enableAlignment ? try CoreMLQwen3ForcedAligner(directory: alignerModelURL) : nil
-        progressCallback?(0, 0.3, "CoreML 模型加载完成")
-
+        progressCallback?(0, 0.1, "正在读取音频...")
         let samples = try await AudioExtractor.extract(from: preparedAudio16kURL, targetSampleRate: 16_000)
         guard !samples.isEmpty else {
             throw NSError(domain: "SubtitleGenerator", code: 3, userInfo: [NSLocalizedDescriptionKey: "输入音频为空。"])
@@ -53,15 +48,17 @@ actor SubtitleGenerator {
 
         progressCallback?(0, 0.4, useVAD ? "正在进行 VAD 语音活动检测..." : "正在进行分段切分...")
         let islands: [CoreMLFireRedVAD.VoiceIsland]
-        if useVAD, let vad = vad {
-            let rawIslands = try vad.findVoiceIslands(samples: samples)
-            // Merge islands whose gap < 1.5 s and combined duration < 30 s,
-            // giving ASR more context while keeping peak memory bounded.
-            let merged = Self.mergeIslands(rawIslands, gapSamples: 24000, maxSamples: 480000)
-            // CoreML Qwen3-ASR accepts at most 3000 mel frames (30 s).
-            // Keep this final guard even if the VAD implementation changes or an
-            // already-oversized island enters mergeIslands in the future.
-            islands = Self.splitIslands(merged, maxSamples: 480000)
+        if useVAD {
+            // Keep VAD in a nested scope so its Core ML model is released before
+            // the much larger ASR model is loaded.
+            let rawIslands = try autoreleasepool {
+                let vad = try CoreMLFireRedVAD(directory: vadModelURL)
+                return try vad.findVoiceIslands(samples: samples)
+            }
+            // Twenty-second chunks leave more headroom on 4 GB iPhones and keep
+            // ForcedAligner decoder sequences comfortably within their budget.
+            let merged = Self.mergeIslands(rawIslands, gapSamples: 24000, maxSamples: 320000)
+            islands = Self.splitIslands(merged, maxSamples: 320000)
             print("VAD: \(rawIslands.count) 个原始岛 → 合并为 \(islands.count) 个语音块")
         } else {
             // Cut uniformly into 20-second segments (320000 samples at 16kHz)
@@ -85,40 +82,61 @@ actor SubtitleGenerator {
         }
         
         var results: [AIResultSegment] = []
-        var globallyAlignedWords: [Qwen3AlignedWord] = []
+        var transcripts: [(island: CoreMLFireRedVAD.VoiceIsland, text: String)] = []
         let modelLanguage = Self.modelLanguageName(for: language)
 
-        for (idx, island) in islands.enumerated() {
-            try Task.checkCancellation()
-            progressCallback?(1, Double(idx) / Double(islands.count), "正在识别/对齐第 \(idx + 1)/\(islands.count) 个语音段...")
-            
-            let chunk = Array(samples[island.startSample..<island.endSample])
-            let offset = island.startTime
-            
-            try autoreleasepool {
-                if let aligner {
-                    let words = try Self.transcribeAndAlign(
-                        audio: chunk,
-                        offset: offset,
-                        asr: asr,
-                        aligner: aligner,
-                        language: modelLanguage ?? language
-                    )
-                    globallyAlignedWords.append(contentsOf: words)
-                    return
+        // Pass 1: transcribe every chunk. The ASR object goes out of scope before
+        // ForcedAligner is constructed, preventing both large model families
+        // from being resident at the same time.
+        try autoreleasepool {
+            progressCallback?(0, 0.3, "正在加载 Qwen3-ASR CoreML 模型...")
+            let asr = try CoreMLQwen3ASR(directory: whisperModelURL)
+            for (idx, island) in islands.enumerated() {
+                try Task.checkCancellation()
+                progressCallback?(1, Double(idx) / Double(max(1, islands.count)), "正在识别第 \(idx + 1)/\(islands.count) 个语音段...")
+                let chunk = Array(samples[island.startSample..<island.endSample])
+                let text = try autoreleasepool {
+                    let raw = try asr.transcribe(audio: chunk, language: modelLanguage)
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    return Self.stripPromptLeakage(from: raw)
                 }
-
-                let raw = try asr.transcribe(audio: chunk, language: modelLanguage)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                // Qwen3-ASR 偶发将 prompt 指令 "language None" 泄漏进转写结果，剔除该伪影
-                let text = Self.stripPromptLeakage(from: raw)
-                guard !text.isEmpty else { return }
-
-                results.append(AIResultSegment(text: text, startTime: offset, endTime: island.endTime))
+                guard !text.isEmpty else { continue }
+                transcripts.append((island, text))
+                if !enableAlignment {
+                    results.append(AIResultSegment(
+                        text: text,
+                        startTime: island.startTime,
+                        endTime: island.endTime
+                    ))
+                }
             }
         }
-        
+
         if enableAlignment {
+            // Pass 2: ASR has been released; only now load ForcedAligner.
+            progressCallback?(1, 0, "正在加载 ForcedAligner CoreML 模型...")
+            var globallyAlignedWords: [Qwen3AlignedWord] = []
+            let aligner = try CoreMLQwen3ForcedAligner(directory: alignerModelURL)
+            for (idx, transcript) in transcripts.enumerated() {
+                try Task.checkCancellation()
+                progressCallback?(2, Double(idx) / Double(max(1, transcripts.count)), "正在对齐第 \(idx + 1)/\(transcripts.count) 个语音段...")
+                let island = transcript.island
+                let chunk = Array(samples[island.startSample..<island.endSample])
+                let words = try autoreleasepool {
+                    try aligner.align(
+                        audio: chunk,
+                        text: transcript.text,
+                        language: modelLanguage ?? language
+                    )
+                }
+                globallyAlignedWords.append(contentsOf: words.map {
+                    Qwen3AlignedWord(
+                        text: $0.text,
+                        start: $0.start + island.startTime,
+                        end: $0.end + island.startTime
+                    )
+                })
+            }
             globallyAlignedWords.sort { $0.start == $1.start ? $0.end < $1.end : $0.start < $1.start }
             results = Self.makeSegments(words: globallyAlignedWords)
         }

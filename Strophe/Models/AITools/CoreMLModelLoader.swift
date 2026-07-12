@@ -8,36 +8,60 @@ nonisolated enum CoreMLModelLoader {
         from directory: URL,
         configuration: MLModelConfiguration
     ) throws -> MLModel {
+        let fileManager = FileManager.default
         let bundledCompiled = directory.appendingPathComponent("\(name).mlmodelc", isDirectory: true)
-        if FileManager.default.fileExists(atPath: bundledCompiled.path) {
-            return try MLModel(contentsOf: bundledCompiled, configuration: configuration)
-        }
-
         let package = directory.appendingPathComponent("\(name).mlpackage", isDirectory: true)
-        guard FileManager.default.fileExists(atPath: package.path) else {
-            throw CoreMLQwen3Error.model("缺少 \(name).mlmodelc 或 \(name).mlpackage")
-        }
-
         let cacheDirectory = directory.appendingPathComponent(".strophe-compiled", isDirectory: true)
         let cachedModel = cacheDirectory.appendingPathComponent("\(name).mlmodelc", isDirectory: true)
-        if FileManager.default.fileExists(atPath: cachedModel.path) {
+
+        if fileManager.fileExists(atPath: bundledCompiled.path) {
+            let model = try MLModel(contentsOf: bundledCompiled, configuration: configuration)
+            // The compiled model contains its own weight files. Keeping the
+            // source package as well doubles Documents & Data on iOS.
+            try? fileManager.removeItem(at: package)
+            try? removeCacheDirectoryIfEmpty(cacheDirectory, fileManager: fileManager)
+            return model
+        }
+
+        // Migrate models compiled by older Strophe versions out of the hidden
+        // cache, then remove the now-redundant source package.
+        if fileManager.fileExists(atPath: cachedModel.path) {
             do {
-                return try MLModel(contentsOf: cachedModel, configuration: configuration)
+                try fileManager.moveItem(at: cachedModel, to: bundledCompiled)
+                let model = try MLModel(contentsOf: bundledCompiled, configuration: configuration)
+                try? fileManager.removeItem(at: package)
+                try? removeCacheDirectoryIfEmpty(cacheDirectory, fileManager: fileManager)
+                return model
             } catch {
-                try? FileManager.default.removeItem(at: cachedModel)
+                try? fileManager.removeItem(at: bundledCompiled)
+                try? fileManager.removeItem(at: cachedModel)
             }
         }
 
-        let compiledTemporary = try MLModel.compileModel(at: package)
-        try FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
-        let staging = cacheDirectory.appendingPathComponent(".\(name)-\(UUID().uuidString).mlmodelc", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: staging) }
-        try FileManager.default.copyItem(at: compiledTemporary, to: staging)
-        if FileManager.default.fileExists(atPath: cachedModel.path) {
-            try FileManager.default.removeItem(at: cachedModel)
+        guard fileManager.fileExists(atPath: package.path) else {
+            throw CoreMLQwen3Error.model("缺少 \(name).mlmodelc 或 \(name).mlpackage")
         }
-        try FileManager.default.moveItem(at: staging, to: cachedModel)
-        return try MLModel(contentsOf: cachedModel, configuration: configuration)
+
+        let compiledTemporary = try MLModel.compileModel(at: package)
+        let staging = directory.appendingPathComponent(".\(name)-\(UUID().uuidString).mlmodelc", isDirectory: true)
+        defer { try? fileManager.removeItem(at: staging) }
+        try fileManager.copyItem(at: compiledTemporary, to: staging)
+        try fileManager.moveItem(at: staging, to: bundledCompiled)
+        let model = try MLModel(contentsOf: bundledCompiled, configuration: configuration)
+        try? fileManager.removeItem(at: package)
+        try? fileManager.removeItem(at: cacheDirectory)
+        return model
+    }
+
+    private static func removeCacheDirectoryIfEmpty(
+        _ directory: URL,
+        fileManager: FileManager
+    ) throws {
+        guard fileManager.fileExists(atPath: directory.path) else { return }
+        let contents = try fileManager.contentsOfDirectory(atPath: directory.path)
+        if contents.isEmpty {
+            try fileManager.removeItem(at: directory)
+        }
     }
 }
 #endif

@@ -41,6 +41,8 @@ struct AIModelInfo: Identifiable, Hashable, Sendable {
 extension LocalModelManager {
     nonisolated static let isPureCoreMLPipeline = true
     nonisolated static let coreMLASRAccelerationModelName = "qwen3-asr-coreml"
+    nonisolated static let forcedAlignerINT8ModelName = "qwen3-forced-aligner-0.6b-coreml-int8"
+    private nonisolated static let deprecatedForcedAlignerINT4ModelName = "qwen3-forced-aligner-0.6b-coreml-int4"
 
     static let whisperPresets = [
         AIModelInfo(name: coreMLASRAccelerationModelName, size: "约 940MB", description: "Qwen3-ASR 0.6B · 全 CoreML（INT8）", folderName: coreMLASRAccelerationModelName)
@@ -54,7 +56,7 @@ extension LocalModelManager {
     )
 
     static let alignerPresets = [
-        AIModelInfo(name: "qwen3-forced-aligner-0.6b-coreml-int8", size: "约 1.0GB", description: "Qwen3 ForcedAligner · CoreML INT8（推荐，内存与精度均衡）", folderName: "qwen3-forced-aligner-0.6b-coreml-int8")
+        AIModelInfo(name: forcedAlignerINT8ModelName, size: "约 1.0GB", description: "Qwen3 ForcedAligner · CoreML INT8", folderName: forcedAlignerINT8ModelName)
     ]
 
     static let vadPresets = [
@@ -128,7 +130,31 @@ final class LocalModelManager: ObservableObject {
 
     private init() {
         migrateFromCachesToApplicationSupportIfNeeded()
+        removeDeprecatedINT4AlignerIfNeeded()
         refreshAll()
+    }
+
+    private func removeDeprecatedINT4AlignerIfNeeded() {
+        withExternalAccess { _ in
+            let base = self.getBaseDirectory(for: .aligner)
+            let hubDirectory = base
+                .appendingPathComponent("models", isDirectory: true)
+                .appendingPathComponent("aufklarer", isDirectory: true)
+                .appendingPathComponent("Qwen3-ForcedAligner-0.6B-CoreML-INT4", isDirectory: true)
+            let legacyDirectory = base.appendingPathComponent(
+                Self.deprecatedForcedAlignerINT4ModelName,
+                isDirectory: true
+            )
+            for directory in [hubDirectory, legacyDirectory]
+                where FileManager.default.fileExists(atPath: directory.path) {
+                do {
+                    try FileManager.default.removeItem(at: directory)
+                    print("🧹 LocalModelManager: Removed deprecated INT4 ForcedAligner.")
+                } catch {
+                    storageAccessError = "无法清理已停用的 INT4 强制对齐模型：\(error.localizedDescription)"
+                }
+            }
+        }
     }
 
     private func migrateFromCachesToApplicationSupportIfNeeded() {
@@ -173,14 +199,17 @@ final class LocalModelManager: ObservableObject {
     // MARK: - External Storage
 
     func resolvedExternalURL() -> URL? {
+        #if !os(macOS)
+        // iOS models must stay inside this app's Application Support directory.
+        // Besides making the files reliably available to Core ML, this ensures
+        // their on-device size is attributed to this app's "Documents & Data"
+        // in Settings. External model storage is a macOS-only feature.
+        return nil
+        #else
         guard let data = UserDefaults.standard.data(forKey: Self.bookmarkKey) else { return nil }
         var isStale = false
         do {
-            #if os(macOS)
             let options: URL.BookmarkResolutionOptions = .withSecurityScope
-            #else
-            let options: URL.BookmarkResolutionOptions = []
-            #endif
             let url = try URL(resolvingBookmarkData: data, options: options, relativeTo: nil, bookmarkDataIsStale: &isStale)
             if isStale {
                 print("⚠️ LocalModelManager: Security-scoped bookmark is stale.")
@@ -192,6 +221,7 @@ final class LocalModelManager: ObservableObject {
             storageAccessError = "无法恢复外置存储目录权限，请重新选择该目录。"
             return nil
         }
+        #endif
     }
 
     var resolvedExternalDirectory: String {
@@ -332,18 +362,25 @@ final class LocalModelManager: ObservableObject {
         case Self.coreMLASRAccelerationModelName:
             required = ["config.json", "vocab.json", "merges.txt", "tokenizer_config.json",
                         "encoder.mlmodelc", "embedding.mlmodelc", "decoder_part1.mlmodelc", "decoder_part2.mlmodelc"]
-        case "qwen3-forced-aligner-0.6b-coreml-int8":
-            required = ["config.json", "vocab.json", "merges.txt", "tokenizer_config.json",
-                        "audio_encoder.mlpackage", "embedding.mlpackage", "text_decoder.mlpackage"]
+        case Self.forcedAlignerINT8ModelName:
+            required = ["config.json", "vocab.json", "merges.txt", "tokenizer_config.json"]
         case "firered-vad-coreml":
-            required = [
-                "FireRedVAD.mlpackage/Manifest.json",
-                "FireRedVAD.mlpackage/Data/com.apple.CoreML/weights/weight.bin"
-            ]
+            required = []
         default:
             required = []
         }
         guard required.allSatisfy({ FileManager.default.fileExists(atPath: directory.appendingPathComponent($0).path) }) else { return false }
+        if modelName == Self.forcedAlignerINT8ModelName {
+            let components = ["audio_encoder", "embedding", "text_decoder"]
+            guard components.allSatisfy({ component in
+                FileManager.default.fileExists(atPath: directory.appendingPathComponent("\(component).mlmodelc").path) ||
+                    FileManager.default.fileExists(atPath: directory.appendingPathComponent("\(component).mlpackage").path)
+            }) else { return false }
+        } else if modelName == "firered-vad-coreml" {
+            guard FileManager.default.fileExists(atPath: directory.appendingPathComponent("FireRedVAD.mlmodelc").path) ||
+                    FileManager.default.fileExists(atPath: directory.appendingPathComponent("FireRedVAD.mlpackage").path)
+            else { return false }
+        }
         guard let minimumBytes = minimumModelDirectoryBytes[modelName] else { return true }
         return directorySize(directory) >= minimumBytes
     }
@@ -392,11 +429,13 @@ final class LocalModelManager: ObservableObject {
     // MARK: - Directory Resolution
 
     func getBaseDirectory(for type: AIKitType) -> URL {
+        #if os(macOS)
         if let ext = resolvedExternalURL() {
             let dir = ext.appendingPathComponent("qwen3-speech", isDirectory: true)
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             return dir
         }
+        #endif
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let dir = appSupport.appendingPathComponent("qwen3-speech", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -432,21 +471,38 @@ final class LocalModelManager: ObservableObject {
     // MARK: - Delete / Import / Download Stubs
 
     func deleteModel(type: AIKitType, modelName: String) {
+        var deletionError: Error?
         withExternalAccess { _ in
             if let dir = self.getModelDirectory(for: modelName, type: type) {
-                try? FileManager.default.removeItem(at: dir)
+                do {
+                    if FileManager.default.fileExists(atPath: dir.path) {
+                        try FileManager.default.removeItem(at: dir)
+                    }
+                } catch {
+                    deletionError = error
+                }
             }
-            if let preset = Self.downloadablePresets(for: type).first(where: { $0.name == modelName }) {
+            if let preset = Self.presets(for: type).first(where: { $0.name == modelName }) ??
+                Self.alignerPresets.first(where: { $0.name == modelName }) {
                 let legacy = self.getBaseDirectory(for: type).appendingPathComponent(preset.folderName)
                 if FileManager.default.fileExists(atPath: legacy.path) {
-                    try? FileManager.default.removeItem(at: legacy)
+                    do {
+                        try FileManager.default.removeItem(at: legacy)
+                    } catch {
+                        deletionError = deletionError ?? error
+                    }
                 }
             }
         }
+        storageAccessError = deletionError.map { "模型文件删除失败：\($0.localizedDescription)" }
         refreshAll()
     }
 
     func downloadModel(type: AIKitType, modelName: String) async {
+        guard AIBackendClient.isLocalDeviceSupported else {
+            storageAccessError = AIBackendClient.unsupportedDeviceMessage
+            return
+        }
         guard let repository = modelHFIds[modelName] else { return }
         let downloadID = "\(type.rawValue)_\(modelName)"
         guard !activeDownloads.contains(downloadID) else { return }
@@ -477,7 +533,7 @@ final class LocalModelManager: ObservableObject {
             switch modelName {
             case Self.coreMLASRAccelerationModelName:
                 filters = ["config.json", "encoder.mlmodelc/", "embedding.mlmodelc/", "decoder_part1.mlmodelc/", "decoder_part2.mlmodelc/"]
-            case "qwen3-forced-aligner-0.6b-coreml-int8":
+            case Self.forcedAlignerINT8ModelName:
                 filters = ["config.json", "vocab.json", "merges.txt", "tokenizer_config.json", "audio_encoder.mlpackage/", "embedding.mlpackage/", "text_decoder.mlpackage/"]
             case "firered-vad-coreml":
                 filters = ["FireRedVAD.mlpackage/"]

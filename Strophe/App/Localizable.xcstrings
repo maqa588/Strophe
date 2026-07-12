@@ -7133,6 +7133,9 @@
         }
       }
     },
+    "INT8" : {
+
+    },
     "italic" : {
       "localizations" : {
         "ar" : {
@@ -17422,10 +17425,10 @@
     "本地 AI 语音识别打轴" : {
 
     },
-    "本地生成需要先下载 Qwen3-ASR CoreML 和 ForcedAligner CoreML (FP16 或 INT4)。" : {
+    "本地生成需要先下载 Qwen3-ASR CoreML 和 ForcedAligner CoreML INT8。" : {
 
     },
-    "本地生成需要先下载 Qwen3-ASR CoreML、ForcedAligner CoreML (FP16 或 INT4) 和 FireRed VAD CoreML。" : {
+    "本地生成需要先下载 Qwen3-ASR CoreML、ForcedAligner CoreML INT8 和 FireRed VAD CoreML。" : {
 
     },
     "本地识别" : {

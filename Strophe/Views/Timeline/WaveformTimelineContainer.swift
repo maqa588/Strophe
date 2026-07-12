@@ -31,6 +31,7 @@ struct WaveformTimelineContainer: View {
     
     @State private var isStartSnapped = false
     @State private var isEndSnapped = false
+    @State private var creationTargetGroupID: UUID?
     
     private func triggerHapticFeedback() {
         #if os(macOS)
@@ -110,7 +111,7 @@ struct WaveformTimelineContainer: View {
                             }
                     )
                 
-                ZStack(alignment: .leading) {
+                ZStack(alignment: .topLeading) {
                     let renderedWidth = CGFloat(safeDuration * safeRenderedPPS)
                     let scaleX = safePixelsPerSecond / safeRenderedPPS
                     WaveformCanvas(data: data, pixelsPerSecond: safeRenderedPPS)
@@ -145,7 +146,7 @@ struct WaveformTimelineContainer: View {
                                 width: width,
                                 height: SubtitleTimelineTrackMetrics.scaledBlockHeight(trackVerticalScale)
                             )
-                            .offset(x: minX, y: activeTrackBlockY)
+                            .offset(x: minX, y: creationTargetBlockY)
                     }
                 }
                 .overlay(
@@ -157,6 +158,10 @@ struct WaveformTimelineContainer: View {
                                     let snapStart = snapCoordinate(value.startLocation.x)
                                     if drawSubtitleStartLocation == nil {
                                         drawSubtitleStartLocation = snapStart.val
+                                        creationTargetGroupID = trackGroup(at: value.startLocation.y)?.id
+                                        if let creationTargetGroupID {
+                                            StyleAndGroupStore.shared.setActiveGroup(creationTargetGroupID)
+                                        }
                                     }
                                     if snapStart.snapped && !isStartSnapped {
                                         triggerHapticFeedback()
@@ -180,11 +185,16 @@ struct WaveformTimelineContainer: View {
                                         if duration > 0.1 {
                                             let startTime = (minX / safePixelsPerSecond).clamped(to: 0...safeWorkspaceDuration)
                                             let endTime = (maxX / safePixelsPerSecond).clamped(to: 0...safeWorkspaceDuration)
-                                            project.createSubtitleBlock(startTime: startTime, endTime: endTime)
+                                            project.createSubtitleBlock(
+                                                startTime: startTime,
+                                                endTime: endTime,
+                                                groupID: creationTargetGroupID
+                                            )
                                         }
                                     }
                                     drawSubtitleStartLocation = nil
                                     drawSubtitleCurrentLocation = nil
+                                    creationTargetGroupID = nil
                                     isStartSnapped = false
                                     isEndSnapped = false
                                 }
@@ -194,7 +204,15 @@ struct WaveformTimelineContainer: View {
                                 .onEnded { value in
                                     let startTime = (value.location.x / safePixelsPerSecond).clamped(to: 0...safeWorkspaceDuration)
                                     let endTime = min(safeWorkspaceDuration, startTime + 2.0)
-                                    project.createSubtitleBlock(startTime: startTime, endTime: endTime)
+                                    let targetGroupID = trackGroup(at: value.location.y)?.id
+                                    if let targetGroupID {
+                                        StyleAndGroupStore.shared.setActiveGroup(targetGroupID)
+                                    }
+                                    project.createSubtitleBlock(
+                                        startTime: startTime,
+                                        endTime: endTime,
+                                        groupID: targetGroupID
+                                    )
                                 }
                         )
                 )
@@ -237,15 +255,27 @@ struct WaveformTimelineContainer: View {
         .frame(width: safeTotalWidth, height: rulerHeight + waveHeight)
     }
 
-    private var activeTrackBlockY: CGFloat {
+    private var creationTargetBlockY: CGFloat {
         let store = StyleAndGroupStore.shared
         let tracks = store.sortedGroups.filter(\.isOverlayEnabled)
-        let activeIndex = tracks.firstIndex(where: { $0.id == store.activeGroupID }) ?? 0
+        let targetGroupID = creationTargetGroupID ?? store.activeGroupID
+        let activeIndex = tracks.firstIndex(where: { $0.id == targetGroupID }) ?? 0
         return SubtitleTimelineTrackMetrics.blockY(
             trackIndex: activeIndex,
             scale: trackVerticalScale,
             offset: trackVerticalOffset
         )
+    }
+
+    private func trackGroup(at y: CGFloat) -> SubGroupItem? {
+        let tracks = StyleAndGroupStore.shared.sortedGroups.filter(\.isOverlayEnabled)
+        let index = SubtitleTimelineTrackMetrics.trackIndex(
+            at: y,
+            scale: trackVerticalScale,
+            offset: trackVerticalOffset
+        )
+        guard tracks.indices.contains(index) else { return nil }
+        return tracks[index]
     }
 
     private func playbackTime(at date: Date, duration: Double) -> Double {

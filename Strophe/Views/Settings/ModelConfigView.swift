@@ -80,6 +80,17 @@ struct ModelConfigView: View {
             Text("available_models_library")
         }
 
+        #if os(iOS)
+        if let storageError = modelManager.storageAccessError {
+            Section {
+                Label(storageError, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        #endif
+
     }
 
     // MARK: - Storage Picker

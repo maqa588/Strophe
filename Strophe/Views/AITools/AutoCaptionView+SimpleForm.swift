@@ -55,7 +55,7 @@ extension AutoCaptionView {
 
             if !areRequiredLocalModelsDownloaded {
                 Divider()
-                Text(useVAD ? "本地生成需要先下载 Qwen3-ASR CoreML、ForcedAligner CoreML (FP16 或 INT4) 和 FireRed VAD CoreML。" : "本地生成需要先下载 Qwen3-ASR CoreML 和 ForcedAligner CoreML (FP16 或 INT4)。")
+                Text(useVAD ? "本地生成需要先下载 Qwen3-ASR CoreML、ForcedAligner CoreML INT8 和 FireRed VAD CoreML。" : "本地生成需要先下载 Qwen3-ASR CoreML 和 ForcedAligner CoreML INT8。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -106,7 +106,7 @@ extension AutoCaptionView {
                     vadSection
                     if !areRequiredLocalModelsDownloaded {
                         Section {
-                            Text(useVAD ? "本地生成需要先下载 Qwen3-ASR CoreML、ForcedAligner CoreML (FP16 或 INT4) 和 FireRed VAD CoreML。" : "本地生成需要先下载 Qwen3-ASR CoreML 和 ForcedAligner CoreML (FP16 或 INT4)。")
+                            Text(useVAD ? "本地生成需要先下载 Qwen3-ASR CoreML、ForcedAligner CoreML INT8 和 FireRed VAD CoreML。" : "本地生成需要先下载 Qwen3-ASR CoreML 和 ForcedAligner CoreML INT8。")
                                 .foregroundStyle(.secondary)
                             if !modelManager.downloadedWhisperModels.contains(LocalModelManager.coreMLASRAccelerationModelName) {
                                 Button("下载语音识别模型") { openModelSettings(.whisperConfig) }
