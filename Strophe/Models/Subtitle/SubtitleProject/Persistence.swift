@@ -53,8 +53,15 @@ extension SubtitleProject {
 
         if let cacheURL = projectURL {
             Task { @MainActor in
-                try? await saveStrophe(to: cacheURL)
-                startAutoSave()
+                do {
+                    try await saveStrophe(to: cacheURL)
+                    // The file must exist before AppKit/security-scoped bookmark
+                    // APIs are asked to add it to Recents.
+                    WelcomeRecentProjectsStore.remember(cacheURL)
+                    startAutoSave()
+                } catch {
+                    print("⚠️ Failed to create cached project: \(error.localizedDescription)")
+                }
             }
         }
     }

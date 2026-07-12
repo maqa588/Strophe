@@ -12,29 +12,44 @@ struct WaveformCanvas: View {
     let pixelsPerSecond: Double
     
     // 根据 pixelsPerSecond 选择最合适的 mipmap 层（超采样优先，保证极致清晰度）
-    private var optimalBins: [WaveformBin]? {
+    private var optimalLevel: (zoom: Int, bins: [WaveformBin])? {
         guard !data.levels.isEmpty else { return nil }
-        let sampleRate = 44100.0
+        let sampleRate = data.sampleRate
         let optimal = sampleRate / pixelsPerSecond
-        let sortedKeys = data.levels.keys.sorted()  // [220, 880, 4410]
-        
-        let bestKey = sortedKeys.last { Double($0) <= optimal } ?? sortedKeys.first!
-        return data.levels[bestKey]
+        let bestKey = WaveformProcessor.zoomLevels.last { Double($0) <= optimal }
+            ?? WaveformProcessor.zoomLevels[0]
+        guard let bins = data.levels[bestKey] else { return nil }
+        return (bestKey, bins)
     }
     
     var body: some View {
-        if let bins = optimalBins, !bins.isEmpty {
+        if let level = optimalLevel, !level.bins.isEmpty {
+            let bins = level.bins
             let chunkDuration = 30.0  // 每个渲染分片时长为 30 秒，即使放大也绝不超过 6000 像素，完美避开 16k 硬件限制
             let totalChunks = Int(ceil(data.duration / chunkDuration))
             
+            // A lazy horizontal stack is not stable for this use case: each
+            // Canvas can be thousands of points wide and the whole stack is
+            // temporarily scaled during zoom. SwiftUI may evict a still-visible
+            // leading chunk using the pre-scale layout bounds, leaving a blank
+            // time range. Keep the lightweight Canvas nodes eagerly laid out.
             HStack(spacing: 0) {
                 ForEach(0..<totalChunks, id: \.self) { index in
                     let startTime = Double(index) * chunkDuration
                     let endTime = min(data.duration, Double(index + 1) * chunkDuration)
                     let duration = endTime - startTime
                     
-                    let startIndex = Int((startTime / data.duration) * Double(bins.count))
-                    let endIndex = min(bins.count, Int((endTime / data.duration) * Double(bins.count)))
+                    // Derive bin positions from absolute sample time. Using a
+                    // duration ratio lets floor rounding vary when switching
+                    // mip levels and can accumulate a visible horizontal drift.
+                    let startIndex = min(
+                        bins.count,
+                        max(0, Int(startTime * data.sampleRate) / level.zoom)
+                    )
+                    let endIndex = min(
+                        bins.count,
+                        max(startIndex, Int(endTime * data.sampleRate) / level.zoom)
+                    )
                     let chunkWidth = CGFloat(duration * pixelsPerSecond)
                     
                     WaveformChunkCanvas(bins: bins, range: startIndex..<endIndex)

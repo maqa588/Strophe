@@ -1,10 +1,14 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 struct WelcomeView: View {
     let projects: [WelcomeRecentProject]
     let isOpeningProject: Bool
     let onAction: (WelcomeAction) -> Void
-    let onRemoveRecentProject: (WelcomeRecentProject, Bool) -> Void
+    let onRemoveRecentProject: (WelcomeRecentProject) -> Void
+    let onDeleteRecentProject: (WelcomeRecentProject) throws -> Void
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -46,7 +50,8 @@ struct WelcomeView: View {
             WelcomeRecentProjectsPanel(
                 projects: projects,
                 onOpen: { onAction(.openRecent($0)) },
-                onRemove: onRemoveRecentProject
+                onRemove: onRemoveRecentProject,
+                onDelete: onDeleteRecentProject
             )
             .frame(minWidth: 320, idealWidth: 360, maxWidth: 420)
         }
@@ -62,6 +67,7 @@ struct WelcomeView: View {
                     projects: projects,
                     onOpen: { onAction(.openRecent($0)) },
                     onRemove: onRemoveRecentProject,
+                    onDelete: onDeleteRecentProject,
                     isCompact: true
                 )
             }
@@ -301,10 +307,12 @@ private struct WelcomeActionButton: View {
 private struct WelcomeRecentProjectsPanel: View {
     let projects: [WelcomeRecentProject]
     let onOpen: (WelcomeRecentProject) -> Void
-    let onRemove: (WelcomeRecentProject, Bool) -> Void
+    let onRemove: (WelcomeRecentProject) -> Void
+    let onDelete: (WelcomeRecentProject) throws -> Void
     var isCompact = false
 
-    @State private var pendingRemovalProject: WelcomeRecentProject?
+    @State private var pendingAction: PendingRecentProjectAction?
+    @State private var deletionError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -323,7 +331,12 @@ private struct WelcomeRecentProjectsPanel: View {
                             WelcomeRecentProjectRow(
                                 project: project,
                                 onOpen: { onOpen(project) },
-                                onRemove: { pendingRemovalProject = project }
+                                onRemove: {
+                                    pendingAction = PendingRecentProjectAction(project: project, kind: .removeFromList)
+                                },
+                                onDelete: {
+                                    pendingAction = PendingRecentProjectAction(project: project, kind: .deleteFile)
+                                }
                             )
                         }
                     }
@@ -335,43 +348,69 @@ private struct WelcomeRecentProjectsPanel: View {
         .padding(.vertical, isCompact ? 4 : 28)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .alert(
-            removalAlertTitle,
+            actionAlertTitle,
             isPresented: Binding(
-                get: { pendingRemovalProject != nil },
-                set: { if !$0 { pendingRemovalProject = nil } }
+                get: { pendingAction != nil },
+                set: { if !$0 { pendingAction = nil } }
             ),
-            presenting: pendingRemovalProject
-        ) { project in
-            if project.isInManagedProjectCache {
-                Button(String(localized: "delete_project_cache"), role: .destructive) {
-                    onRemove(project, true)
-                    pendingRemovalProject = nil
-                }
-            } else {
+            presenting: pendingAction
+        ) { action in
+            switch action.kind {
+            case .removeFromList:
                 Button(String(localized: "remove_from_list")) {
-                    onRemove(project, false)
-                    pendingRemovalProject = nil
+                    onRemove(action.project)
+                    pendingAction = nil
+                }
+            case .deleteFile:
+                Button(String(localized: "delete"), role: .destructive) {
+                    do {
+                        try onDelete(action.project)
+                    } catch {
+                        deletionError = error.localizedDescription
+                    }
+                    pendingAction = nil
                 }
             }
             Button(String(localized: "cancel"), role: .cancel) {
-                pendingRemovalProject = nil
+                pendingAction = nil
             }
-        } message: { project in
-            if project.isInManagedProjectCache {
-                Text(String(localized: "这个项目位于 Strophe 工程缓存中。从列表移除会同时删除该缓存文件：\n\(project.path)"))
-            } else {
-                Text(String(localized: "只会从最近项目列表移除，不会删除磁盘上的文件：\n\(project.path)"))
+        } message: { action in
+            switch action.kind {
+            case .removeFromList:
+                Text(localizedFormat("remove_from_recent_projects_message", action.project.path))
+            case .deleteFile:
+                Text(localizedFormat("delete_project_file_message", action.project.path))
             }
+        }
+        .alert(
+            String(localized: "error"),
+            isPresented: Binding(
+                get: { deletionError != nil },
+                set: { if !$0 { deletionError = nil } }
+            )
+        ) {
+            Button(String(localized: "ok")) { deletionError = nil }
+        } message: {
+            Text(deletionError ?? "")
         }
     }
 
-    private var removalAlertTitle: String {
-        guard let pendingRemovalProject else {
+    private var actionAlertTitle: String {
+        guard let pendingAction else {
             return String(localized: "remove_from_list")
         }
-        return pendingRemovalProject.isInManagedProjectCache
-            ? String(localized: "delete_cached_project_confirm")
-            : String(localized: "remove_from_recent_projects_confirm")
+        switch pendingAction.kind {
+        case .removeFromList:
+            return String(localized: "remove_from_recent_projects_confirm")
+        case .deleteFile:
+            return pendingAction.project.isInManagedProjectCache
+                ? String(localized: "delete_cached_project_confirm")
+                : String(localized: "delete_project_confirm")
+        }
+    }
+
+    private func localizedFormat(_ key: String.LocalizationValue, _ argument: String) -> String {
+        String(format: String(localized: key), locale: .current, argument)
     }
 
     private var emptyState: some View {
@@ -395,6 +434,7 @@ private struct WelcomeRecentProjectRow: View {
     let project: WelcomeRecentProject
     let onOpen: () -> Void
     let onRemove: () -> Void
+    let onDelete: () -> Void
 
     @State private var isHovering = false
 
@@ -427,8 +467,21 @@ private struct WelcomeRecentProjectRow: View {
             .buttonStyle(.plain)
 
             Menu {
-                Button(role: .destructive, action: onRemove) {
-                    Label(String(localized: "remove_from_list"), systemImage: "xmark")
+                #if os(macOS)
+                Button(action: revealInFinder) {
+                    Label(String(localized: "show_in_finder"), systemImage: "folder")
+                }
+                Divider()
+                #endif
+
+                if !project.isInManagedProjectCache {
+                    Button(action: onRemove) {
+                        Label(String(localized: "remove_from_list"), systemImage: "xmark")
+                    }
+                }
+
+                Button(role: .destructive, action: onDelete) {
+                    Label(String(localized: "delete"), systemImage: "trash")
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
@@ -453,6 +506,26 @@ private struct WelcomeRecentProjectRow: View {
         .onHover { isHovering = $0 }
         .accessibilityElement(children: .contain)
     }
+
+    #if os(macOS)
+    private func revealInFinder() {
+        let resolvedURL = project.resolvedBookmarkURL() ?? project.url
+        NSWorkspace.shared.activateFileViewerSelecting([
+            resolvedURL.standardizedFileURL.resolvingSymlinksInPath()
+        ])
+    }
+    #endif
+}
+
+private struct PendingRecentProjectAction: Identifiable {
+    enum Kind: String {
+        case removeFromList
+        case deleteFile
+    }
+
+    let project: WelcomeRecentProject
+    let kind: Kind
+    var id: String { "\(kind.rawValue):\(project.id)" }
 }
 
 private extension View {
@@ -481,6 +554,7 @@ private extension View {
         ],
         isOpeningProject: false,
         onAction: { _ in },
-        onRemoveRecentProject: { _, _ in }
+        onRemoveRecentProject: { _ in },
+        onDeleteRecentProject: { _ in }
     )
 }

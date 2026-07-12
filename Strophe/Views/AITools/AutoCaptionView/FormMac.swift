@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+#if os(macOS)
 extension AutoCaptionView {
     @ViewBuilder
     var mainContent: some View {
@@ -135,3 +136,4 @@ extension AutoCaptionView {
         }
     }
 }
+#endif

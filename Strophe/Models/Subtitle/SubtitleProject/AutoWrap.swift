@@ -21,14 +21,16 @@ extension SubtitleProject {
 
         switch outputMode {
         case .insertLineBreaks:
-            for index in items.indices where selectedIDs.contains(items[index].id) && !isLockedForEditing(items[index]) {
+            var updated = items
+            for index in updated.indices where selectedIDs.contains(updated[index].id) && !isLockedForEditing(updated[index]) {
                 let lines = LanguageProcessingService.wrappedLines(
-                    items[index].text,
+                    updated[index].text,
                     maximumLength: maximumLength,
                     mode: languageMode
                 )
-                items[index].text = lines.joined(separator: "\n")
+                updated[index].text = lines.joined(separator: "\n")
             }
+            items = updated
         case .splitSubtitleBlocks:
             let selectedIDSet = Set(selected.map(\.id))
             var replacements: [UUID: [SubtitleItem]] = [:]

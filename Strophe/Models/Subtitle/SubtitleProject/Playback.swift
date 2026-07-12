@@ -14,6 +14,40 @@ extension SubtitleProject {
         case right
     }
 
+    /// Accepts an authoritative player timestamp without resetting the smooth
+    /// UI clock on every periodic callback. Callback delivery itself is jittery;
+    /// treating its arrival time as the media timestamp makes the playhead snap
+    /// at the source frame rate. Large drift is corrected gradually instead.
+    func observePlaybackTime(
+        _ time: Double,
+        rate: Double,
+        driftTolerance: Double
+    ) {
+        guard time.isFinite, rate.isFinite else { return }
+        let now = Date.now
+        let safeRate = rate > 0 ? rate : 0
+        let rateChanged = abs(playbackRate - safeRate) > 0.0001
+
+        currentTime = time
+
+        if rateChanged || safeRate == 0 {
+            referenceTime = time
+            referenceDate = now
+            playbackRate = safeRate
+            return
+        }
+
+        let predicted = referenceTime + now.timeIntervalSince(referenceDate) * safeRate
+        let drift = time - predicted
+        let tolerance = max(0.02, driftTolerance)
+        if abs(drift) > tolerance {
+            // Preserve the original host-time anchor and slew only part of the
+            // error. This prevents a delayed callback from producing a visible
+            // backward jump while still correcting long-term clock drift.
+            referenceTime += drift * 0.2
+        }
+    }
+
     func togglePlayback() {
         guard let eng = activeEngine else { return }
         if eng.rate == 0 {
@@ -80,20 +114,26 @@ extension SubtitleProject {
 
         switch direction {
         case .left:
-            let starts = timelineIndex.itemsByStartTime
-                .compactMap(\.startTime)
-                .filter(\.isFinite)
-            return starts.last(where: { $0 < time - edgeTolerance })
+            let target = time - edgeTolerance
+            let starts = timelineIndex.sortedStartTimes
+            var low = 0
+            var high = starts.count
+            while low < high {
+                let middle = low + (high - low) / 2
+                if starts[middle] < target { low = middle + 1 } else { high = middle }
+            }
+            return low > 0 ? starts[low - 1] : nil
 
         case .right:
-            let ends = timelineIndex.itemsByStartTime
-                .compactMap { item -> Double? in
-                    guard let start = item.startTime else { return nil }
-                    return item.endTime ?? start
-                }
-                .filter(\.isFinite)
-                .sorted()
-            return ends.first(where: { $0 > time + edgeTolerance })
+            let target = time + edgeTolerance
+            let ends = timelineIndex.sortedEndTimes
+            var low = 0
+            var high = ends.count
+            while low < high {
+                let middle = low + (high - low) / 2
+                if ends[middle] <= target { low = middle + 1 } else { high = middle }
+            }
+            return low < ends.count ? ends[low] : nil
         }
     }
 

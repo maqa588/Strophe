@@ -10,6 +10,8 @@ import Foundation
 class TimelineIndex {
     private(set) var itemsByStartTime: [SubtitleItem] = []
     private(set) var sortedSnapEdges: [Double] = []
+    private(set) var sortedStartTimes: [Double] = []
+    private(set) var sortedEndTimes: [Double] = []
     private(set) var overlappingIntervals: [SubtitleProject.OverlapInterval] = []
     private(set) var overlappingItemIDs: Set<UUID> = []
     private(set) var itemIndexByID: [UUID: Int] = [:]
@@ -25,9 +27,19 @@ class TimelineIndex {
             self.itemByID[item.id] = item
         }
         
-        let timedItems = items.filter { $0.startTime != nil }
-        self.untimedItems = items.filter { $0.startTime == nil }
+        var timedItems: [SubtitleItem] = []
+        var untimed: [SubtitleItem] = []
+        timedItems.reserveCapacity(items.count)
+        untimed.reserveCapacity(items.count / 8)
+        for item in items {
+            if item.startTime == nil { untimed.append(item) } else { timedItems.append(item) }
+        }
+        self.untimedItems = untimed
         self.itemsByStartTime = timedItems.sorted { ($0.startTime ?? 0) < ($1.startTime ?? 0) }
+        self.sortedStartTimes = itemsByStartTime.compactMap { item in
+            guard let start = item.startTime, start.isFinite else { return nil }
+            return start
+        }
         self.maxEndPrefixByStartTime = []
         self.maxEndPrefixByStartTime.reserveCapacity(itemsByStartTime.count)
         var maxEndSoFar = -Double.infinity
@@ -44,20 +56,26 @@ class TimelineIndex {
             if let e = item.endTime { edges.insert(e) }
         }
         self.sortedSnapEdges = Array(edges).sorted()
+        self.sortedEndTimes = timedItems.compactMap { item in
+            guard let start = item.startTime else { return nil }
+            let end = item.endTime ?? start
+            return end.isFinite ? end : nil
+        }.sorted()
         
         self.overlappingIntervals = []
         self.overlappingItemIDs = []
         
-        let grouped = Dictionary(grouping: timedItems, by: { $0.groupID })
+        // Group the already start-sorted array; each group's values retain that
+        // order and need no additional O(n log n) sort.
+        let grouped = Dictionary(grouping: itemsByStartTime, by: { $0.groupID })
         for (_, groupItems) in grouped {
-            let sorted = groupItems.sorted { ($0.startTime ?? 0) < ($1.startTime ?? 0) }
-            guard sorted.count > 1 else { continue }
+            guard groupItems.count > 1 else { continue }
             
             var maxEndSoFar: Double = -1
             var maxEndItem: SubtitleItem? = nil
             var intervals: [SubtitleProject.OverlapInterval] = []
             
-            for item in sorted {
+            for item in groupItems {
                 let start = item.startTime!
                 let end = item.endTime ?? (start + 0.1)
                 
@@ -155,6 +173,15 @@ class TimelineIndex {
 
     func firstTimedItem(matching predicate: (SubtitleItem) -> Bool) -> SubtitleItem? {
         itemsByStartTime.first(where: predicate)
+    }
+
+    func firstTimedItem(
+        startingAfter time: Double,
+        matching predicate: (SubtitleItem) -> Bool
+    ) -> SubtitleItem? {
+        let index = firstIndexWithStart(greaterThan: time)
+        guard index < itemsByStartTime.count else { return nil }
+        return itemsByStartTime[index...].first(where: predicate)
     }
     
     func nearestSnapPoint(to time: Double, ignoring ignoredItemID: UUID? = nil) -> Double? {

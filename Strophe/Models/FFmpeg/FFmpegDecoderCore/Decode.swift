@@ -13,6 +13,7 @@ extension FFmpegDecoderCore {
     func openInput(url: URL) -> Bool {
         let path = url.path
         var ctx: UnsafeMutablePointer<AVFormatContext>? = nil
+        let isRemote = FormatDetector.isRemoteNetworkVolume(url)
 
         if avformat_open_input(&ctx, path, nil, nil) < 0 {
             print("❌ FFmpegEngine: Failed to open format context input")
@@ -50,9 +51,15 @@ extension FFmpegDecoderCore {
 
         if videoStream.pointee.avg_frame_rate.den > 0 {
             self.videoFPS = Double(videoStream.pointee.avg_frame_rate.num) / Double(videoStream.pointee.avg_frame_rate.den)
-            self.maxVideoQueueCapacity = self.videoFPS > 45.0
-                ? FFmpegPlaybackTuning.highFPSQueueCapacity
-                : FFmpegPlaybackTuning.normalQueueCapacity
+        }
+        self.maxVideoQueueCapacity = FFmpegPlaybackTuning.queueCapacity(
+            fps: videoFPS,
+            width: Int(vCodecpar.pointee.width),
+            height: Int(vCodecpar.pointee.height),
+            isRemote: isRemote
+        )
+        if isRemote {
+            print("🌐 FFmpeg SMB buffer: \(maxVideoQueueCapacity) decoded frames")
         }
 
         if ctx!.pointee.duration != FFmpegDecoderCore.AV_NOPTS_VALUE {
@@ -289,10 +296,6 @@ extension FFmpegDecoderCore {
     }
 
     func closeFFmpeg() {
-        if let sws = swsContext {
-            sws_freeContext(sws)
-            swsContext = nil
-        }
         if let swr = swrContext {
             var temp: OpaquePointer? = swr
             swr_free(&temp)
@@ -322,11 +325,15 @@ extension FFmpegDecoderCore {
         maxVideoQueueCapacity = FFmpegPlaybackTuning.normalQueueCapacity
 
         // Release pixel buffer pool
-        poolLock.lock()
+        softwareConversionLock.lock()
+        if let sws = softwareSwsContext {
+            sws_freeContext(sws)
+            softwareSwsContext = nil
+        }
         pixelBufferPool = nil
         poolWidth = 0
         poolHeight = 0
-        poolLock.unlock()
+        softwareConversionLock.unlock()
     }
 
     func stopDecodeLoop() {

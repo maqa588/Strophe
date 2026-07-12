@@ -73,6 +73,9 @@ struct MetalStaticSubtitleTimelineLayer: View, Equatable {
     var body: some View {
         let viewportOriginX = CGFloat(visibleStartTime * pixelsPerSecond)
         let trackGroups = sortedVisibleGroups
+        let groupByID = Dictionary(uniqueKeysWithValues: groups.map { ($0.id, $0) })
+        let fallbackGroup = groups.first
+        let trackIndexByGroupID = Dictionary(uniqueKeysWithValues: trackGroups.enumerated().map { ($0.element.id, $0.offset) })
         let viewportSize = CGSize(
             width: viewWidth,
             height: SubtitleTimelineTrackMetrics.totalHeight(trackCount: trackGroups.count)
@@ -97,10 +100,17 @@ struct MetalStaticSubtitleTimelineLayer: View, Equatable {
         let blocks = items.compactMap { item -> MetalTimelineBlockRenderData? in
             guard !excludedIDs.contains(item.id),
                   let start = item.startTime,
-                  let group = group(for: item),
+                  let group = item.groupID.flatMap({ groupByID[$0] }) ?? fallbackGroup,
                   group.isOverlayEnabled else { return nil }
             let end = item.endTime ?? (start + 0.1)
-            return makeBlock(item: item, start: start, end: end, viewportOriginX: viewportOriginX)
+            return makeBlock(
+                item: item,
+                group: group,
+                trackIndex: trackIndexByGroupID[group.id] ?? 0,
+                start: start,
+                end: end,
+                viewportOriginX: viewportOriginX
+            )
         }
 
         MetalSubtitleTimelineView(
@@ -119,16 +129,17 @@ struct MetalStaticSubtitleTimelineLayer: View, Equatable {
 
     private func makeBlock(
         item: SubtitleItem,
+        group: SubGroupItem,
+        trackIndex: Int,
         start: Double,
         end: Double,
         viewportOriginX: CGFloat
     ) -> MetalTimelineBlockRenderData {
-        let group = group(for: item)
-        let groupColor = (group?.color ?? Color.stropheBlue).resolvedRGBA
+        let groupColor = group.color.resolvedRGBA
         let isSelected = selectedIDs.contains(item.id)
-        let isLocked = item.isLocked || group?.isLocked == true
-        let isGroupVisible = group?.isOverlayEnabled != false
-        let isDimmed = item.isHidden || group?.isOverlayEnabled == false
+        let isLocked = item.isLocked || group.isLocked
+        let isGroupVisible = group.isOverlayEnabled
+        let isDimmed = item.isHidden || !group.isOverlayEnabled
         let opacity = isDimmed ? 0.42 : 1.0
         let primary = colorScheme == .dark
             ? ResolvedRGBAColor(red: 0.94, green: 0.93, blue: 0.91, alpha: opacity)
@@ -138,7 +149,11 @@ struct MetalStaticSubtitleTimelineLayer: View, Equatable {
             id: item.id,
             rect: CGRect(
                 x: CGFloat(start * pixelsPerSecond) - viewportOriginX,
-                y: blockY(for: item),
+                y: SubtitleTimelineTrackMetrics.blockY(
+                    trackIndex: trackIndex,
+                    scale: trackVerticalScale,
+                    offset: trackVerticalOffset
+                ),
                 width: max(4, CGFloat((end - start) * pixelsPerSecond)),
                 height: SubtitleTimelineTrackMetrics.scaledBlockHeight(trackVerticalScale)
             ),
@@ -156,11 +171,6 @@ struct MetalStaticSubtitleTimelineLayer: View, Equatable {
         )
     }
 
-    private func group(for item: SubtitleItem) -> SubGroupItem? {
-        groups.first(where: { $0.id == item.groupID })
-            ?? groups.first
-    }
-
     private var sortedVisibleGroups: [SubGroupItem] {
         groups
             .filter(\.isOverlayEnabled)
@@ -169,21 +179,6 @@ struct MetalStaticSubtitleTimelineLayer: View, Equatable {
             }
     }
 
-    private func blockY(for item: SubtitleItem) -> CGFloat {
-        guard let groupID = group(for: item)?.id,
-              let index = sortedVisibleGroups.firstIndex(where: { $0.id == groupID }) else {
-            return SubtitleTimelineTrackMetrics.blockY(
-                trackIndex: 0,
-                scale: trackVerticalScale,
-                offset: trackVerticalOffset
-            )
-        }
-        return SubtitleTimelineTrackMetrics.blockY(
-            trackIndex: index,
-            scale: trackVerticalScale,
-            offset: trackVerticalOffset
-        )
-    }
 }
 
 #if os(macOS)

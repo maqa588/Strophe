@@ -156,14 +156,16 @@ extension VideoPlayerView {
                 guard let project, let playerRef else { return }
                 let seconds = time.seconds
                 let rate = Double(playerRef.rate)
-                Task { @MainActor in
+                MainActor.assumeIsolated {
                     guard seconds.isFinite else { return }
                     guard !project.isSeeking && !project.isScrubbing else { return }
+                    let frameDuration = 1.0 / max(1.0, project.videoFrameRate)
                     let subtitleText = project.subtitleText(at: seconds)
-                    project.currentTime = seconds
-                    project.referenceTime = seconds
-                    project.referenceDate = .now
-                    project.playbackRate = rate
+                    project.observePlaybackTime(
+                        seconds,
+                        rate: rate,
+                        driftTolerance: frameDuration * 2
+                    )
                     if subtitleText != project.currentSubtitleText {
                         project.currentSubtitleText = subtitleText
                     }
@@ -186,11 +188,12 @@ extension VideoPlayerView {
 
                         let isRendering = ffmpegEngine.isRenderingAndPlaying
                         let subtitleText = project.subtitleText(at: seconds)
-
-                        project.currentTime = seconds
-                        project.referenceTime = seconds
-                        project.referenceDate = .now
-                        project.playbackRate = isRendering ? rate : 0.0
+                        let frameDuration = 1.0 / max(1.0, project.videoFrameRate)
+                        project.observePlaybackTime(
+                            seconds,
+                            rate: isRendering ? rate : 0.0,
+                            driftTolerance: frameDuration * 2
+                        )
                         if subtitleText != project.currentSubtitleText {
                             project.currentSubtitleText = subtitleText
                         }

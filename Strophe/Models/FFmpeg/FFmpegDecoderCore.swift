@@ -18,7 +18,6 @@ actor FFmpegDecoderCore {
     var videoCodecContext: UnsafeMutablePointer<AVCodecContext>? = nil
     var audioCodecContext: UnsafeMutablePointer<AVCodecContext>? = nil
     var swrContext: OpaquePointer? = nil
-    var swsContext: UnsafeMutablePointer<SwsContext>? = nil
     
     var videoStreamIndex: Int32 = -1
     var audioStreamIndex: Int32 = -1
@@ -46,10 +45,11 @@ actor FFmpegDecoderCore {
     var activeSeekId: Int = 0
     
     // MARK: - CVPixelBuffer Pool for software decode path
-    let poolLock = NSLock()
+    let softwareConversionLock = NSLock()
     nonisolated(unsafe) var pixelBufferPool: CVPixelBufferPool? = nil
     nonisolated(unsafe) var poolWidth: Int = 0
     nonisolated(unsafe) var poolHeight: Int = 0
+    nonisolated(unsafe) var softwareSwsContext: UnsafeMutablePointer<SwsContext>? = nil
     
     // MARK: - Safe State Accessors
     

@@ -10,10 +10,10 @@ import UIKit
 #endif
 
 // MARK: - FrameQueue
-// Synchronous, thread-safe frame queue protected by a recursive lock for zero-latency MainActor rendering.
+// Synchronous, thread-safe frame queue protected by a small critical section.
 final class FrameQueue: @unchecked Sendable {
     private var frames: [VideoFrame] = []
-    private let lock = NSRecursiveLock()
+    private let lock = NSLock()
     let capacity: Int
 
     init(capacity: Int) {
@@ -74,7 +74,7 @@ final class FrameQueue: @unchecked Sendable {
     #if os(iOS)
     private static let frameQueueCapacity = 10
     #else
-    private static let frameQueueCapacity = 24
+    private static let frameQueueCapacity = 32
     #endif
 
     let playerView: NativeView
@@ -92,6 +92,8 @@ final class FrameQueue: @unchecked Sendable {
     private var cachedStartPlaybackTime: Double = 0.0
     private var cachedAudioStreamIndex: Int32 = -1
     private var isPlaybackStartedPending: Bool = false
+    private var isRemoteSource = false
+    private var isRemoteSeekPrerolling = false
     
     // State conservation for scrubbing
     private var isScrubbingActive = false
@@ -158,7 +160,7 @@ final class FrameQueue: @unchecked Sendable {
 
                     self.lastFrameArrivalTime = CACurrentMediaTime()
 
-                    if self.cachedRate == 0 {
+                    if self.cachedRate == 0 && !self.isRemoteSeekPrerolling {
                         self.metalRenderer.update(with: sendableBuffer.buffer)
                         Task {
                             await coreInstance.acknowledgeVideoFrames(
@@ -333,6 +335,7 @@ final class FrameQueue: @unchecked Sendable {
     
     @discardableResult
     func load(url: URL) async -> Bool {
+        isRemoteSource = FormatDetector.isRemoteNetworkVolume(url)
         stopDisplayLink()
         frameQueue.removeAll()
         // Bump generation before load so any queued callbacks from a previous
@@ -411,8 +414,29 @@ final class FrameQueue: @unchecked Sendable {
 
         transportCommandGeneration &+= 1
         if wasPlaying {
-            applyLocalTransportRate(targetRate)
-            await core.setPlaybackRate(targetRate)
+            if isRemoteSource {
+                // Let the decoder refill a small local queue before restarting
+                // the audio/master clock. Otherwise SMB latency immediately
+                // after a random seek is exposed as visible starvation.
+                isRemoteSeekPrerolling = true
+                await core.setPlaybackRate(targetRate)
+                let deadline = CACurrentMediaTime() + 0.65
+                let targetFrames = min(8, max(4, Int(cachedFPS / 4)))
+                while operation == seekGeneration,
+                      !Task.isCancelled,
+                      frameQueue.count < targetFrames,
+                      CACurrentMediaTime() < deadline {
+                    try? await Task.sleep(nanoseconds: 10_000_000)
+                }
+                if operation == seekGeneration {
+                    isRemoteSeekPrerolling = false
+                }
+                guard operation == seekGeneration, !Task.isCancelled else { return false }
+                applyLocalTransportRate(targetRate)
+            } else {
+                applyLocalTransportRate(targetRate)
+                await core.setPlaybackRate(targetRate)
+            }
         } else {
             await core.setPlaybackRate(0)
         }
@@ -472,4 +496,3 @@ final class FrameQueue: @unchecked Sendable {
     
     // Display link and rendering methods are in FFmpegEngine+DisplayLink.swift
 }
-

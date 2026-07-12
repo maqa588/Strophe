@@ -172,9 +172,6 @@ struct MainContentView: View {
             Button(String(localized: "ok_1")) {
                 if let url = pendingMediaURL {
                     project.importMediaAsNewProject(from: url)
-                    if let projectURL = project.projectURL {
-                        WelcomeRecentProjectsStore.remember(projectURL)
-                    }
                 }
                 pendingMediaURL = nil
             }
@@ -218,9 +215,6 @@ struct MainContentView: View {
                     isShowingDiscardProjectAlert = true
                 } else {
                     project.importMediaAsNewProject(from: url)
-                    if let projectURL = project.projectURL {
-                        WelcomeRecentProjectsStore.remember(projectURL)
-                    }
                 }
             }
         }

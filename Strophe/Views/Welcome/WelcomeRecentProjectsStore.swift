@@ -27,19 +27,24 @@ struct WelcomeRecentProject: Codable, Identifiable, Hashable {
         SubtitleProject.isManagedProjectCacheURL(url)
     }
 
-    /// Resolve the stored security-scoped bookmark and start accessing the resource.
-    /// Returns the resolved URL with active sandbox access, or nil if no bookmark or resolution failed.
-    func resolveBookmark() -> URL? {
-        guard let bookmark = bookmark else { return nil }
+    /// Resolve the bookmark to its current filesystem location without keeping
+    /// a security-scoped access session open. This also follows file moves that
+    /// occurred after the project was added to Recents.
+    func resolvedBookmarkURL() -> URL? {
+        guard let bookmark else { return nil }
         var isStale = false
-        guard let resolved = try? URL(
+        return try? URL(
             resolvingBookmarkData: bookmark,
             options: bookmarkResolutionOptions,
             relativeTo: nil,
             bookmarkDataIsStale: &isStale
-        ) else {
-            return nil
-        }
+        )
+    }
+
+    /// Resolve the stored security-scoped bookmark and start accessing the resource.
+    /// Returns the resolved URL with active sandbox access, or nil if no bookmark or resolution failed.
+    func resolveBookmark() -> URL? {
+        guard let resolved = resolvedBookmarkURL() else { return nil }
         _ = resolved.startAccessingSecurityScopedResource()
         return resolved
     }
@@ -108,6 +113,26 @@ final class WelcomeRecentProjectsStore: ObservableObject {
         reload()
     }
 
+    /// Deletes the actual project file and only removes its recent-project entry
+    /// after the filesystem operation succeeds.
+    func delete(_ project: WelcomeRecentProject) throws {
+        try Self.delete(project)
+        reload()
+    }
+
+    static func delete(_ project: WelcomeRecentProject) throws {
+        let targetURL = project.resolvedBookmarkURL() ?? project.url
+        let didAccess = targetURL.startAccessingSecurityScopedResource()
+        defer {
+            if didAccess { targetURL.stopAccessingSecurityScopedResource() }
+        }
+
+        if FileManager.default.fileExists(atPath: targetURL.path) {
+            try FileManager.default.removeItem(at: targetURL)
+        }
+        remove(project, deletingCachedFile: false)
+    }
+
     static func remove(_ project: WelcomeRecentProject, deletingCachedFile: Bool = false) {
         let normalizedPath = WelcomeRecentProject.normalizePath(project.path)
         var stored = loadStoredProjects()
@@ -139,6 +164,7 @@ final class WelcomeRecentProjectsStore: ObservableObject {
 
     static func remember(_ url: URL) {
         guard url.pathExtension.lowercased() == "strophe" else { return }
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
 
         #if os(macOS)
         NSDocumentController.shared.noteNewRecentDocumentURL(url)

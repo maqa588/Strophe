@@ -164,7 +164,7 @@ struct VideoPlayerView: View {
             }
         } message: { format in
             if isRemoteVolumeAlert {
-                Text(String(localized: "您正在加载远程共享卷（如 SMB/AFP）上的媒体文件。由于网络带宽和延迟限制，直接播放可能会遇到卡顿或加载缓慢的问题。\n\n建议您将文件复制到本地磁盘后再导入，以获得最流畅的体验。"))
+                Text(String(localized: "remote_network_playback_message"))
             } else {
                 Text(String(localized: "您的设备对 \(format) 格式兼容性欠佳，在播放过程中可能会遇到一些性能问题。\n\n建议尽量使用 MP4、MOV、M4V、MP3、FLAC、M4A、AAC、ALAC 等推荐的视频、音频格式以获得最流畅的体验。"))
             }

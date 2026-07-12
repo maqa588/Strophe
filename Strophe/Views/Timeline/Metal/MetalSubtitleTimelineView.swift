@@ -28,6 +28,12 @@ final class MetalSubtitleTimelineRenderer: MTKView {
         case shadow = 4
     }
 
+    private enum UploadSlot {
+        case mainPrimitives
+        case overlays
+        case text
+    }
+
     private var commandQueue: MTLCommandQueue?
     private var primitivePipeline: MTLRenderPipelineState?
     private var textPipeline: MTLRenderPipelineState?
@@ -35,6 +41,11 @@ final class MetalSubtitleTimelineRenderer: MTKView {
     private var textAtlasScale: CGFloat = 0
     private var renderData: MetalTimelineFrameRenderData = .empty
     private var lastDrawableLogicalSize: CGSize = .zero
+    private let inFlightBufferCount = 3
+    private var uploadBufferIndex = 0
+    private var mainPrimitiveBuffers: [MTLBuffer?] = Array(repeating: nil, count: 3)
+    private var overlayBuffers: [MTLBuffer?] = Array(repeating: nil, count: 3)
+    private var textBuffers: [MTLBuffer?] = Array(repeating: nil, count: 3)
 
     init() {
         super.init(frame: .zero, device: MTLCreateSystemDefaultDevice())
@@ -175,15 +186,11 @@ final class MetalSubtitleTimelineRenderer: MTKView {
             Float(bounds.width),
             Float(bounds.height)
         )
+        var mainPrimitives = makeLanePrimitives()
+        mainPrimitives.append(contentsOf: makeBlockPrimitives())
         encodePrimitives(
-            makeLanePrimitives(),
-            device: device,
-            encoder: encoder,
-            pipeline: primitivePipeline,
-            viewportSize: &viewportSize
-        )
-        encodePrimitives(
-            makeBlockPrimitives(),
+            mainPrimitives,
+            slot: .mainPrimitives,
             device: device,
             encoder: encoder,
             pipeline: primitivePipeline,
@@ -202,11 +209,7 @@ final class MetalSubtitleTimelineRenderer: MTKView {
         if let textAtlas {
             let textInstances = makeTextInstances(atlas: textAtlas)
             if !textInstances.isEmpty,
-               let buffer = device.makeBuffer(
-                   bytes: textInstances,
-                   length: textInstances.count * MemoryLayout<GPUText>.stride,
-                   options: .storageModeShared
-               ) {
+               let buffer = upload(textInstances, to: .text, device: device) {
                 encoder.setRenderPipelineState(textPipeline)
                 encoder.setVertexBuffer(buffer, offset: 0, index: 0)
                 encoder.setVertexBytes(&viewportSize, length: MemoryLayout<SIMD2<Float>>.stride, index: 1)
@@ -224,6 +227,7 @@ final class MetalSubtitleTimelineRenderer: MTKView {
         // and cached text, matching the previous timeline behavior.
         encodePrimitives(
             makeOverlayPrimitives(),
+            slot: .overlays,
             device: device,
             encoder: encoder,
             pipeline: primitivePipeline,
@@ -233,21 +237,19 @@ final class MetalSubtitleTimelineRenderer: MTKView {
         encoder.endEncoding()
         commandBuffer.present(drawable)
         commandBuffer.commit()
+        uploadBufferIndex = (uploadBufferIndex + 1) % inFlightBufferCount
     }
 
     private func encodePrimitives(
         _ primitives: [GPUPrimitive],
+        slot: UploadSlot,
         device: MTLDevice,
         encoder: MTLRenderCommandEncoder,
         pipeline: MTLRenderPipelineState,
         viewportSize: inout SIMD2<Float>
     ) {
         guard !primitives.isEmpty,
-              let buffer = device.makeBuffer(
-                  bytes: primitives,
-                  length: primitives.count * MemoryLayout<GPUPrimitive>.stride,
-                  options: .storageModeShared
-              ) else { return }
+              let buffer = upload(primitives, to: slot, device: device) else { return }
         encoder.setRenderPipelineState(pipeline)
         encoder.setVertexBuffer(buffer, offset: 0, index: 0)
         encoder.setVertexBytes(&viewportSize, length: MemoryLayout<SIMD2<Float>>.stride, index: 1)
@@ -257,6 +259,45 @@ final class MetalSubtitleTimelineRenderer: MTKView {
             vertexCount: 6,
             instanceCount: primitives.count
         )
+    }
+
+    private func upload<Element>(
+        _ values: [Element],
+        to slot: UploadSlot,
+        device: MTLDevice
+    ) -> MTLBuffer? {
+        guard !values.isEmpty else { return nil }
+        let requiredLength = values.count * MemoryLayout<Element>.stride
+        let existing: MTLBuffer? = switch slot {
+        case .mainPrimitives: mainPrimitiveBuffers[uploadBufferIndex]
+        case .overlays: overlayBuffers[uploadBufferIndex]
+        case .text: textBuffers[uploadBufferIndex]
+        }
+
+        let buffer: MTLBuffer
+        if let existing, existing.length >= requiredLength {
+            buffer = existing
+        } else {
+            // Leave headroom so zooming/dragging around the threshold does not
+            // repeatedly resize the buffer.
+            let capacity = max(4_096, requiredLength.nextPowerOfTwo)
+            guard let created = device.makeBuffer(length: capacity, options: .storageModeShared) else {
+                return nil
+            }
+            buffer = created
+            switch slot {
+            case .mainPrimitives: mainPrimitiveBuffers[uploadBufferIndex] = created
+            case .overlays: overlayBuffers[uploadBufferIndex] = created
+            case .text: textBuffers[uploadBufferIndex] = created
+            }
+        }
+
+        values.withUnsafeBufferPointer { elements in
+            if let source = elements.baseAddress {
+                memcpy(buffer.contents(), source, requiredLength)
+            }
+        }
+        return buffer
     }
 
     private func makeBlockPrimitives() -> [GPUPrimitive] {
@@ -387,5 +428,12 @@ final class MetalSubtitleTimelineRenderer: MTKView {
             )
         }
         return result
+    }
+}
+
+private extension Int {
+    var nextPowerOfTwo: Int {
+        guard self > 1 else { return 1 }
+        return 1 << (Int.bitWidth - (self - 1).leadingZeroBitCount)
     }
 }

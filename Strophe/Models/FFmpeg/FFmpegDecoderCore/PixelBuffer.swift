@@ -20,9 +20,14 @@ extension FFmpegDecoderCore {
             }
         }
 
+        // Software conversion tasks are deliberately serialized. That keeps
+        // frames ordered and lets libswscale reuse its filter/context state
+        // instead of constructing and destroying it for every frame.
+        softwareConversionLock.lock()
+        defer { softwareConversionLock.unlock() }
+
         // Software decode path — use a CVPixelBufferPool to reuse buffers
         // instead of creating new ones every frame (prevents FPS degradation)
-        poolLock.lock()
         if pixelBufferPool == nil || poolWidth != width || poolHeight != height {
             // (Re)create pool for current resolution
             pixelBufferPool = nil
@@ -44,7 +49,6 @@ extension FFmpegDecoderCore {
                                    &pixelBufferPool)
         }
         let pool = pixelBufferPool
-        poolLock.unlock()
 
         var pixelBuffer: CVPixelBuffer?
         guard let pool = pool,
@@ -62,14 +66,13 @@ extension FFmpegDecoderCore {
 
         let srcFmt = AVPixelFormat(rawValue: frame.pointee.format)
 
-        // Allocate a local SwsContext to make format conversion thread-safe and concurrent
-        let localSwsCtx = sws_getContext(
+        softwareSwsContext = sws_getCachedContext(
+            softwareSwsContext,
             Int32(width), Int32(height), srcFmt,
             Int32(width), Int32(height), AV_PIX_FMT_NV12,
             Int32(SWS_FAST_BILINEAR.rawValue), nil, nil, nil
         )
-        guard let swsCtx = localSwsCtx else { return nil }
-        defer { sws_freeContext(swsCtx) }
+        guard let swsCtx = softwareSwsContext else { return nil }
 
         var dstData: [UnsafeMutablePointer<UInt8>?] = [
             yPlane.assumingMemoryBound(to: UInt8.self),

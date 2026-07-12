@@ -18,7 +18,13 @@ import Libswresample
 class WaveformProcessor {
     static let shared = WaveformProcessor()
     
-    static let zoomLevels: [Int] = [220, 880, 4410]
+    nonisolated static let zoomLevels: [Int] = [220, 880, 4410]
+
+    nonisolated struct LevelPatch: Sendable {
+        let zoom: Int
+        let startIndex: Int
+        let bins: [WaveformBin]
+    }
     
     private init() {
         av_log_set_level(8) // Set global FFmpeg log level to AV_LOG_FATAL to silence decoding warning/error spam
@@ -343,7 +349,6 @@ class WaveformProcessor {
         avcodec_parameters_to_context(codecCtx, codecpar)
         guard avcodec_open2(codecCtx, decoder, nil) >= 0, let cc = codecCtx else { return nil }
         
-        let nativeRate = Double(cc.pointee.sample_rate)
         let outRate: Int32 = 44100
         
         // Fast seek to the start time of the chunk
@@ -352,14 +357,15 @@ class WaveformProcessor {
         av_seek_frame(ctx, Int32(streamIndex), targetPts, AVSEEK_FLAG_BACKWARD)
         avcodec_flush_buffers(cc)
         
-        // Setup libswresample to convert to interleaved float32 stereo at 44100 Hz
+        // Ask libswresample for mono directly. This avoids producing twice as
+        // much output only to average L/R in a Swift loop afterwards.
         let swr = swr_alloc()
         guard let swr = swr else { return nil }
         defer { var s: OpaquePointer? = swr; swr_free(&s) }
         
         let rawSwr = UnsafeMutableRawPointer(swr)
         var outLayout = AVChannelLayout()
-        av_channel_layout_default(&outLayout, 2)
+        av_channel_layout_default(&outLayout, 1)
         
         av_opt_set_chlayout(rawSwr, "in_chlayout", &cc.pointee.ch_layout, 0)
         av_opt_set_int(rawSwr, "in_sample_rate", Int64(cc.pointee.sample_rate), 0)
@@ -387,6 +393,13 @@ class WaveformProcessor {
         var currentPtsSeconds: Double = startTime
         let endTime = startTime + duration
         
+        var outData: UnsafeMutablePointer<UInt8>? = nil
+        var outLineSize: Int32 = 0
+        var outCapacity = 0
+        defer {
+            if outData != nil { av_freep(&outData) }
+        }
+
         while av_read_frame(ctx, packet) >= 0 {
             if Task.isCancelled {
                 av_packet_unref(packet)
@@ -417,15 +430,20 @@ class WaveformProcessor {
                     av_frame_unref(frame)
                     return nil
                 }
-                let maxOutSamples = Int(swr_get_delay(swr, Int64(nativeRate)) + Int64(frame.pointee.nb_samples)) + 512
+                let maxOutSamples = max(1, Int(swr_get_out_samples(swr, frame.pointee.nb_samples)))
                 
-                var outData: UnsafeMutablePointer<UInt8>? = nil
-                let linesize = UnsafeMutablePointer<Int32>.allocate(capacity: 1)
-                defer {
+                if maxOutSamples > outCapacity {
                     if outData != nil { av_freep(&outData) }
-                    linesize.deallocate()
+                    guard av_samples_alloc(
+                        &outData,
+                        &outLineSize,
+                        1,
+                        Int32(maxOutSamples),
+                        AV_SAMPLE_FMT_FLT,
+                        0
+                    ) >= 0 else { return nil }
+                    outCapacity = maxOutSamples
                 }
-                av_samples_alloc(&outData, linesize, 2, Int32(maxOutSamples), AV_SAMPLE_FMT_FLT, 0)
                 
                 let converted: Int32
                 if let rawOut = outData {
@@ -441,7 +459,7 @@ class WaveformProcessor {
                 }
                 
                 if converted > 0, let rawOut = outData {
-                    let sampleCount = Int(converted) * 2
+                    let sampleCount = Int(converted)
                     let floatBuf = UnsafeBufferPointer(start: rawOut.withMemoryRebound(to: Float.self, capacity: sampleCount) { $0 }, count: sampleCount)
                     
                     var framePtsSeconds = currentPtsSeconds
@@ -450,9 +468,7 @@ class WaveformProcessor {
                     }
                     
                     if framePtsSeconds >= startTime {
-                        for i in stride(from: 0, to: floatBuf.count - 1, by: 2) {
-                            chunkSamples.append((floatBuf[i] + floatBuf[i + 1]) * 0.5)
-                        }
+                        chunkSamples.append(contentsOf: floatBuf)
                     }
                 }
                 av_frame_unref(frame)
@@ -501,5 +517,33 @@ class WaveformProcessor {
         }
         
         return bins
+    }
+
+    nonisolated static func computeLevelPatches(
+        samples: [Float],
+        chunkStart: Double,
+        chunkDuration: Double,
+        sampleRate: Double,
+        levelBinCounts: [Int: Int]
+    ) -> [LevelPatch] {
+        guard !samples.isEmpty else { return [] }
+        let startSample = Int(chunkStart * sampleRate)
+        let endSample = Int((chunkStart + chunkDuration) * sampleRate)
+        var patches: [LevelPatch] = []
+        patches.reserveCapacity(zoomLevels.count)
+
+        for zoom in zoomLevels {
+            guard let mainBinCount = levelBinCounts[zoom] else { continue }
+            let startBinIndex = startSample / zoom
+            let endBinIndex = min(mainBinCount, endSample / zoom)
+            let expectedBinCount = endBinIndex - startBinIndex
+            guard expectedBinCount > 0 else { continue }
+            patches.append(LevelPatch(
+                zoom: zoom,
+                startIndex: startBinIndex,
+                bins: computeBins(samples: samples, expectedBinCount: expectedBinCount)
+            ))
+        }
+        return patches
     }
 }

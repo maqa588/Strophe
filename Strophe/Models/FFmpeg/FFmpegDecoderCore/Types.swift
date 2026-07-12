@@ -35,6 +35,23 @@ enum FFmpegPlaybackTuning {
     nonisolated static let frameThreads = "0"
     nonisolated static let tileThreads = "0"
     #endif
+
+    /// Keeps enough decoded video locally to absorb ordinary SMB latency while
+    /// bounding memory use for large (especially 4K) frames.
+    nonisolated static func queueCapacity(
+        fps: Double,
+        width: Int,
+        height: Int,
+        isRemote: Bool
+    ) -> Int {
+        let baseline = fps > 45 ? highFPSQueueCapacity : normalQueueCapacity
+        guard isRemote else { return baseline }
+
+        let bytesPerFrame = max(1, width * height * 3 / 2)
+        let memoryBound = max(baseline, (128 * 1_024 * 1_024) / bytesPerFrame)
+        let jitterTarget = max(baseline, Int((fps * 1.25).rounded(.up)))
+        return min(32, memoryBound, jitterTarget)
+    }
 }
 
 // 用于向 FFmpeg 声明优先选择 VideoToolbox 硬件像素格式

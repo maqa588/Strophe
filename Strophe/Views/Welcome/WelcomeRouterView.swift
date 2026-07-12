@@ -33,8 +33,11 @@ struct WelcomeRouterView: View {
                     projects: recentStore.projects,
                     isOpeningProject: project.isLoadingProject && project.mediaLoadError == nil,
                     onAction: handleAction,
-                    onRemoveRecentProject: { project, deletingCachedFile in
-                        recentStore.remove(project, deletingCachedFile: deletingCachedFile)
+                    onRemoveRecentProject: { project in
+                        recentStore.remove(project)
+                    },
+                    onDeleteRecentProject: { project in
+                        try recentStore.delete(project)
                     }
                 )
             }
@@ -143,9 +146,6 @@ struct WelcomeRouterView: View {
     private func handleMediaImport(_ result: Result<[URL], Error>) {
         guard case .success(let urls) = result, let url = urls.first else { return }
         project.importMediaAsNewProject(from: url)
-        if let projectURL = project.projectURL {
-            recentStore.remember(projectURL)
-        }
         revealEditor()
     }
 
@@ -171,9 +171,6 @@ struct WelcomeRouterView: View {
             openProject(url)
         } else {
             project.importMediaAsNewProject(from: url)
-            if let projectURL = project.projectURL {
-                recentStore.remember(projectURL)
-            }
             revealEditor()
         }
     }

@@ -18,11 +18,28 @@ class SubtitleProject: ObservableObject {
     @Published var timelineIndex: TimelineIndex = TimelineIndex()
     @Published var items: [SubtitleItem] = [] {
         didSet {
+            currentIndexCacheLowerBound = .infinity
+            currentIndexCacheUpperBound = -.infinity
             timelineIndex.rebuild(with: items)
         }
     }
+
+    /// Applies related item edits to a local copy and publishes/rebuilds the
+    /// timeline index once. Directly mutating several Array elements would fire
+    /// `didSet` after every field write.
+    @discardableResult
+    func mutateItems(_ mutation: (inout [SubtitleItem]) -> Void) -> Bool {
+        var updated = items
+        mutation(&updated)
+        guard updated != items else { return false }
+        items = updated
+        return true
+    }
     @Published var currentIndex: Int = 0
     @Published var scrollTargetID: UUID? = nil
+    var currentIndexCacheGroupID: UUID?
+    var currentIndexCacheLowerBound = Double.infinity
+    var currentIndexCacheUpperBound = -Double.infinity
     @Published var showSoftSubtitles: Bool = false {
         didSet {
             notifyChange()
@@ -127,7 +144,11 @@ class SubtitleProject: ObservableObject {
             notifyChange()
         }
     }
-    @Published var waveformData: WaveformData?
+    @Published var waveformData: WaveformData? {
+        didSet {
+            waveformData?.setPlaybackActive(playbackRate > 0)
+        }
+    }
     @Published var videoFrameRate: Double = 30.0
     @Published var isAudioOnly: Bool = false
     @Published var videoSize: CGSize = .zero
@@ -205,15 +226,18 @@ class SubtitleProject: ObservableObject {
     }
 
     func resnapAllItems() {
-        for index in items.indices {
-            if let start = items[index].startTime {
-                items[index].startTime = snapToFrame(start)
+        var updated = items
+        for index in updated.indices {
+            if let start = updated[index].startTime {
+                updated[index].startTime = snapToFrame(start)
             }
-            if let end = items[index].endTime {
-                items[index].endTime = snapToFrame(end)
+            if let end = updated[index].endTime {
+                updated[index].endTime = snapToFrame(end)
             }
         }
-        sortItemsStable()
+        updated.sort(by: stableSubtitleSort)
+        if updated != items { items = updated }
+        autoUpdateCurrentIndex()
     }
     
     var currentTime: Double = 0 {
@@ -244,6 +268,7 @@ class SubtitleProject: ObservableObject {
     @Published var isUserSeekingTimeline: Bool = false
     var playbackRate: Double = 0 {
         didSet {
+            waveformData?.setPlaybackActive(playbackRate > 0)
             if oldValue != playbackRate {
                 objectWillChange.send()
             }

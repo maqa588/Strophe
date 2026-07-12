@@ -134,8 +134,10 @@ extension SubtitleProject {
         guard !selectedIDs.isEmpty else { return }
         let oldItems = items
         let oldSelectedIDs = selectedIDs
-        for index in items.indices where selectedIDs.contains(items[index].id) && !isLockedForEditing(items[index]) {
-            items[index].groupID = groupID
+        mutateItems { updated in
+            for index in updated.indices where selectedIDs.contains(updated[index].id) && !isLockedForEditing(updated[index]) {
+                updated[index].groupID = groupID
+            }
         }
         registerUndo(label: String(localized: "move_to_group"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
@@ -154,8 +156,10 @@ extension SubtitleProject {
     func clearText(in groupID: UUID) {
         let oldItems = items
         let oldSelectedIDs = selectedIDs
-        for index in items.indices where belongsToGroup(items[index], groupID: groupID) && !isLockedForEditing(items[index]) {
-            items[index].text = ""
+        mutateItems { updated in
+            for index in updated.indices where belongsToGroup(updated[index], groupID: groupID) && !isLockedForEditing(updated[index]) {
+                updated[index].text = ""
+            }
         }
         registerUndo(label: String(localized: "clear_group_text"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
@@ -186,8 +190,10 @@ extension SubtitleProject {
         guard !selectedIDs.isEmpty else { return }
         let oldItems = items
         let oldSelectedIDs = selectedIDs
-        for index in items.indices where selectedIDs.contains(items[index].id) && !isLockedForEditing(items[index]) {
-            items[index].styleID = styleID
+        mutateItems { updated in
+            for index in updated.indices where selectedIDs.contains(updated[index].id) && !isLockedForEditing(updated[index]) {
+                updated[index].styleID = styleID
+            }
         }
         registerUndo(label: String(localized: "set_subtitle_style"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
@@ -198,9 +204,11 @@ extension SubtitleProject {
               !isLockedForEditing(items[index]) else { return }
         let oldItems = items
         let oldSelectedIDs = selectedIDs
-        items[index].styleID = nil
-        items[index].styleOverrides = nil
-        items[index].positionOverride = nil
+        mutateItems { updated in
+            updated[index].styleID = nil
+            updated[index].styleOverrides = nil
+            updated[index].positionOverride = nil
+        }
         registerUndo(label: String(localized: "follow_group_style"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
@@ -268,16 +276,18 @@ extension SubtitleProject {
         let minDuration = videoFrameRate > 0 ? (1.0 / videoFrameRate) : 0.1
         let snappedEnd = snapToFrame(max(startTime + minDuration, endTime))
         
-        if let index = items.firstIndex(where: { $0.startTime == nil }) {
-            items[index].startTime = snappedStart
-            items[index].endTime = snappedEnd
-            items[index].groupID = targetGroupID
+        var updated = items
+        if let index = updated.firstIndex(where: { $0.startTime == nil }) {
+            updated[index].startTime = snappedStart
+            updated[index].endTime = snappedEnd
+            updated[index].groupID = targetGroupID
         } else {
-            let newBlock = SubtitleItem(text: String(localized: "draft_subtitle"), startTime: snappedStart, endTime: snappedEnd, originalIndex: items.count, groupID: targetGroupID)
-            items.append(newBlock)
+            let newBlock = SubtitleItem(text: String(localized: "draft_subtitle"), startTime: snappedStart, endTime: snappedEnd, originalIndex: updated.count, groupID: targetGroupID)
+            updated.append(newBlock)
         }
-        
-        sortItemsStable()
+        updated.sort(by: stableSubtitleSort)
+        items = updated
+        autoUpdateCurrentIndex()
         registerUndo(label: String(localized: "create_subtitle_block"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
@@ -291,9 +301,12 @@ extension SubtitleProject {
             let snappedStart = snapToFrame(max(0, newStartTime))
             let minDuration = videoFrameRate > 0 ? (1.0 / videoFrameRate) : 0.1
             let snappedEnd = snapToFrame(max(newStartTime + minDuration, newEndTime))
-            items[index].startTime = snappedStart
-            items[index].endTime = snappedEnd
-            sortItemsStable()
+            var updated = items
+            updated[index].startTime = snappedStart
+            updated[index].endTime = snappedEnd
+            updated.sort(by: stableSubtitleSort)
+            items = updated
+            autoUpdateCurrentIndex()
             registerUndo(label: String(localized: "move_subtitle_block"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
             notifyChange()
         }
@@ -336,23 +349,25 @@ extension SubtitleProject {
         guard !ids.isEmpty else { return }
         let oldItems = items
         let oldSelectedIDs = selectedIDs
+        var updated = items
         var didChange = false
 
-        for index in items.indices where ids.contains(items[index].id) {
-            guard !isLockedForEditing(items[index]),
-                  let start = items[index].startTime,
-                  let end = items[index].endTime else { continue }
+        for index in updated.indices where ids.contains(updated[index].id) {
+            guard !isLockedForEditing(updated[index]),
+                  let start = updated[index].startTime,
+                  let end = updated[index].endTime else { continue }
             let newStart = snapToFrame(max(0, start + delta))
             let minDuration = videoFrameRate > 0 ? (1.0 / videoFrameRate) : 0.1
             let newEnd = snapToFrame(max(newStart + minDuration, end + delta))
-            items[index].startTime = newStart
-            items[index].endTime = newEnd
-            items[index].groupID = groupID
+            updated[index].startTime = newStart
+            updated[index].endTime = newEnd
+            updated[index].groupID = groupID
             didChange = true
         }
 
         guard didChange else { return }
-        sortItemsStable()
+        updated.sort(by: stableSubtitleSort)
+        items = updated
         autoUpdateCurrentIndex()
         registerUndo(
             label: String(localized: "move_subtitle_block_to_group"),
@@ -396,6 +411,18 @@ extension SubtitleProject {
 
     func autoUpdateCurrentIndex() {
         let activeGroupID = StyleAndGroupStore.shared.activeGroupID
+
+        if activeSlapSubtitleID == nil,
+           currentIndexCacheGroupID == activeGroupID,
+           currentTime >= currentIndexCacheLowerBound,
+           currentTime < currentIndexCacheUpperBound,
+           items.indices.contains(currentIndex),
+           scrollTargetID == items[currentIndex].id {
+            return
+        }
+
+        var validityLowerBound = Double.infinity
+        var validityUpperBound = -Double.infinity
         
         // Default to the current index and scroll target to maintain selection if no new block matches
         var targetIndex: Int = currentIndex
@@ -423,6 +450,10 @@ extension SubtitleProject {
                   let index = timelineIndex.itemIndexByID[firstMatch.id] {
             targetIndex = index
             targetID = firstMatch.id
+            let start = firstMatch.startTime ?? currentTime
+            let end = firstMatch.endTime ?? (start + 0.1)
+            validityLowerBound = start
+            validityUpperBound = end.nextUp
         } else if let untimedItem = timelineIndex.untimedItems.first(where: { item in
             activeGroupID == nil || belongsToGroup(item, groupID: activeGroupID!)
         }), let index = timelineIndex.itemIndexByID[untimedItem.id] {
@@ -431,18 +462,26 @@ extension SubtitleProject {
         } else if let activeGroupID = activeGroupID {
             // Reuse the sorted index instead of allocating and scanning an entire
             // active-group array on every playback tick between subtitle blocks.
+            let matchesActiveGroup: (SubtitleItem) -> Bool = {
+                self.belongsToGroup($0, groupID: activeGroupID)
+            }
+            let nextUpcoming = timelineIndex.firstTimedItem(
+                startingAfter: currentTime,
+                matching: matchesActiveGroup
+            )
             if let lastPlayed = timelineIndex.lastTimedItem(
                 startingOnOrBefore: currentTime,
-                matching: { belongsToGroup($0, groupID: activeGroupID) }
+                matching: matchesActiveGroup
             ), let index = timelineIndex.itemIndexByID[lastPlayed.id] {
                 targetIndex = index
                 targetID = lastPlayed.id
-            } else if let firstUpcoming = timelineIndex.firstTimedItem(
-                matching: { belongsToGroup($0, groupID: activeGroupID) }
-            ), let index = timelineIndex.itemIndexByID[firstUpcoming.id] {
+            } else if let nextUpcoming,
+                      let index = timelineIndex.itemIndexByID[nextUpcoming.id] {
                 targetIndex = index
-                targetID = firstUpcoming.id
+                targetID = nextUpcoming.id
             }
+            validityLowerBound = currentTime
+            validityUpperBound = nextUpcoming?.startTime ?? .infinity
         }
         
         // Ensure index is within bounds if items changed
@@ -468,5 +507,8 @@ extension SubtitleProject {
         if scrollTargetID != targetID {
             scrollTargetID = targetID
         }
+        currentIndexCacheGroupID = activeGroupID
+        currentIndexCacheLowerBound = validityLowerBound
+        currentIndexCacheUpperBound = validityUpperBound
     }
 }

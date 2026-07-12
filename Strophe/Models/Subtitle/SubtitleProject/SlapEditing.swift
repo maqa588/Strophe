@@ -25,20 +25,23 @@ extension SubtitleProject {
         let minDuration = videoFrameRate > 0 ? (1.0 / videoFrameRate) : 0.1
         let endTime = startTime + minDuration
         
-        if let index = items.firstIndex(where: { $0.startTime == nil }) {
-            items[index].startTime = startTime
-            items[index].endTime = endTime
-            items[index].groupID = items[index].groupID ?? activeGroupID
-            activeSlapSubtitleID = items[index].id
+        var updated = items
+        if let index = updated.firstIndex(where: { $0.startTime == nil }) {
+            updated[index].startTime = startTime
+            updated[index].endTime = endTime
+            updated[index].groupID = updated[index].groupID ?? activeGroupID
+            activeSlapSubtitleID = updated[index].id
         } else {
             let newID = UUID()
             let newBlock = SubtitleItem(id: newID, text: String(localized: "draft_subtitle"), startTime: startTime, endTime: endTime, originalIndex: items.count, groupID: activeGroupID)
-            items.append(newBlock)
+            updated.append(newBlock)
             activeSlapSubtitleID = newID
         }
         
         activeSlapKey = key
-        sortItemsStable()
+        updated.sort(by: stableSubtitleSort)
+        items = updated
+        autoUpdateCurrentIndex()
         registerUndo(label: String(localized: "slap_create"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
@@ -56,15 +59,18 @@ extension SubtitleProject {
         let oldItems = items
         let oldSelectedIDs = selectedIDs
         
-        if let index = items.firstIndex(where: { $0.id == id }) {
-            let start = items[index].startTime ?? 0
+        var updated = items
+        if let index = updated.firstIndex(where: { $0.id == id }) {
+            let start = updated[index].startTime ?? 0
             let minDuration = videoFrameRate > 0 ? (1.0 / videoFrameRate) : 0.1
-            items[index].endTime = snapToFrame(max(start + minDuration, currentTime))
+            updated[index].endTime = snapToFrame(max(start + minDuration, currentTime))
         }
         activeSlapKey = nil
         activeSlapSubtitleID = nil
         
-        sortItemsStable()
+        updated.sort(by: stableSubtitleSort)
+        if updated != items { items = updated }
+        autoUpdateCurrentIndex()
         registerUndo(label: String(localized: "slap_finalize"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }

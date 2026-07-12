@@ -4002,6 +4002,7 @@
       }
     },
     "delete_project_cache" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4037,6 +4038,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "刪除工程快取"
+          }
+        }
+      }
+    },
+    "delete_project_confirm" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حذف ملف المشروع؟"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete project file?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プロジェクトファイルを削除しますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "프로젝트 파일을 삭제할까요?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除项目文件？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除專案檔案？"
+          }
+        }
+      }
+    },
+    "delete_project_file_message" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "سيتم حذف ملف المشروع نهائيًا من القرص. لا يمكن التراجع عن هذا الإجراء:\n%@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This permanently deletes the project file from disk. This action cannot be undone:\n%@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プロジェクトファイルをディスクから完全に削除します。この操作は取り消せません：\n%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "프로젝트 파일을 디스크에서 영구적으로 삭제합니다. 이 작업은 취소할 수 없습니다:\n%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将从磁盘永久删除该项目文件，此操作无法撤销：\n%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將從磁碟永久刪除該專案檔案，此操作無法復原：\n%@"
           }
         }
       }
@@ -11419,6 +11500,46 @@
         }
       }
     },
+    "remote_network_playback_message" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تم اكتشاف وحدة تخزين شبكية بعيدة. سيستخدم Strophe تشغيلًا محسّنًا للشبكة، ويُنشئ شكل الموجة عند الإيقاف المؤقت، ويُجري تخزينًا مؤقتًا قصيرًا بعد الانتقال. قد تستمر تقلبات الشبكة الشديدة في التأثير على التشغيل. للحصول على أفضل أداء، انسخ الملف إلى قرص محلي."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A remote network volume was detected. Strophe will use network-optimized playback, generate waveform data while paused, and briefly prebuffer after seeking. Severe network fluctuations may still affect playback. For the best performance, copy the file to a local disk."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートネットワークボリュームが検出されました。Strophe はネットワーク向け再生を使用し、一時停止中に波形を生成し、シーク後に短時間プリバッファします。大きなネットワーク変動は再生に影響する場合があります。最良のパフォーマンスを得るには、ファイルをローカルディスクへコピーしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 네트워크 볼륨이 감지되었습니다. Strophe는 네트워크 최적화 재생을 사용하고, 일시 정지 중 파형을 생성하며, 탐색 후 잠시 미리 버퍼링합니다. 네트워크 변동이 심하면 재생에 영향을 줄 수 있습니다. 최상의 성능을 위해 파일을 로컬 디스크로 복사하세요."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "检测到远程网络卷。Strophe 将启用网络优化播放，在暂停时生成波形，并在跳转后进行短暂预缓冲。剧烈的网络波动仍可能影响播放；要获得最佳性能，请将文件复制到本地磁盘。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "偵測到遠端網路磁碟區。Strophe 將啟用網路最佳化播放，在暫停時產生波形，並在跳轉後進行短暫預先緩衝。劇烈的網路波動仍可能影響播放；若要獲得最佳效能，請將檔案複製到本機磁碟。"
+          }
+        }
+      }
+    },
     "remove_from_list" : {
       "localizations" : {
         "ar" : {
@@ -11495,6 +11616,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "從最近項目移除？"
+          }
+        }
+      }
+    },
+    "remove_from_recent_projects_message" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ستتم إزالته من قائمة المشاريع الأخيرة فقط، ولن يُحذف الملف من القرص:\n%@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This only removes the project from Recents. The file remains on disk:\n%@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近使ったプロジェクトの一覧からのみ削除します。ディスク上のファイルは削除されません：\n%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "최근 프로젝트 목록에서만 제거합니다. 디스크의 파일은 삭제되지 않습니다:\n%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只会从最近项目列表移除，不会删除磁盘上的文件：\n%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只會從最近專案列表移除，不會刪除磁碟上的檔案：\n%@"
           }
         }
       }
@@ -13055,6 +13216,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定"
+          }
+        }
+      }
+    },
+    "show_in_finder" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إظهار في Finder"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show in Finder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finderで表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finder에서 보기"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在访达中显示"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Finder 中顯示"
           }
         }
       }
@@ -17382,9 +17583,6 @@
     "发言人数量: %lld 人" : {
 
     },
-    "只会从最近项目列表移除，不会删除磁盘上的文件：\n%@" : {
-
-    },
     "导出完成：%@" : {
 
     },
@@ -17395,9 +17593,6 @@
 
     },
     "当前媒体: %@" : {
-
-    },
-    "您正在加载远程共享卷（如 SMB/AFP）上的媒体文件。由于网络带宽和延迟限制，直接播放可能会遇到卡顿或加载缓慢的问题。\n\n建议您将文件复制到本地磁盘后再导入，以获得最流畅的体验。" : {
 
     },
     "您的设备对 %@ 格式兼容性欠佳，在播放过程中可能会遇到一些性能问题。\n\n建议尽量使用 MP4、MOV、M4V、MP3、FLAC、M4A、AAC、ALAC 等推荐的视频、音频格式以获得最流畅的体验。" : {
@@ -17454,9 +17649,6 @@
 
     },
     "缺少模型" : {
-
-    },
-    "这个项目位于 Strophe 工程缓存中。从列表移除会同时删除该缓存文件：\n%@" : {
 
     },
     "进度" : {

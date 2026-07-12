@@ -39,7 +39,7 @@ extension SubtitleBlocksLayer {
                             project.isSubtitleMultiSelecting = project.selectedIDs.count > 1
                             isShowingMobileBlockActions = false
                         } label: {
-                            mobileActionLabel("select_all_in_group", systemImage: "checkmark.square.stack")
+                            mobileActionLabel("select_all_in_group", systemImage: "checkmark.square")
                         }
                         .buttonStyle(.plain)
                         Button {
@@ -167,7 +167,7 @@ extension SubtitleBlocksLayer {
             }.map(\.id))
             project.isSubtitleMultiSelecting = project.selectedIDs.count > 1
         } label: {
-            Label(String(localized: "select_all_in_group"), systemImage: "checkmark.square.stack")
+            Label(String(localized: "select_all_in_group"), systemImage: "checkmark.square")
         }
 
         Divider()

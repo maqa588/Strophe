@@ -43,32 +43,35 @@ extension SubtitleProject {
         let oldSelectedIDs = selectedIDs
         
         let snappedSplit = snapToFrame(splitTime)
+        var updated = items
         
         // 修改原 item 为左半部分
-        items[index].text = leftText
-        items[index].endTime = snappedSplit
+        updated[index].text = leftText
+        updated[index].endTime = snappedSplit
         
         let rightItem = SubtitleItem(
             id: UUID(),
             text: rightText,
             startTime: snappedSplit,
             endTime: endTime,
-            originalIndex: items[index].originalIndex,
-            groupID: items[index].groupID,
-            trackIndex: items[index].trackIndex,
-            styleID: items[index].styleID,
-            styleOverrides: items[index].styleOverrides,
-            positionOverride: items[index].positionOverride,
-            parentItemID: items[index].parentItemID,
-            languageCode: items[index].languageCode,
-            bilingualPairID: items[index].bilingualPairID,
-            isHidden: items[index].isHidden,
-            isLocked: items[index].isLocked
+            originalIndex: updated[index].originalIndex,
+            groupID: updated[index].groupID,
+            trackIndex: updated[index].trackIndex,
+            styleID: updated[index].styleID,
+            styleOverrides: updated[index].styleOverrides,
+            positionOverride: updated[index].positionOverride,
+            parentItemID: updated[index].parentItemID,
+            languageCode: updated[index].languageCode,
+            bilingualPairID: updated[index].bilingualPairID,
+            isHidden: updated[index].isHidden,
+            isLocked: updated[index].isLocked
         )
-        items.insert(rightItem, at: index + 1)
-        
-        sortItemsStable()
-        selectedIDs = [items[index].id, rightItem.id]
+        let leftID = updated[index].id
+        updated.insert(rightItem, at: index + 1)
+        updated.sort(by: stableSubtitleSort)
+        items = updated
+        autoUpdateCurrentIndex()
+        selectedIDs = [leftID, rightItem.id]
         registerUndo(label: String(localized: "split_subtitles"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }

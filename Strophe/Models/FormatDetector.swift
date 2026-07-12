@@ -29,6 +29,31 @@ final class FormatDetector {
         return cache[url]
     }
 
+    nonisolated static func isRemoteNetworkVolume(_ url: URL) -> Bool {
+        guard url.isFileURL else { return true }
+        let resolvedURL = url.resolvingSymlinksInPath()
+
+        if let values = try? resolvedURL.resourceValues(forKeys: [.volumeIsLocalKey]),
+           let isLocal = values.volumeIsLocal {
+            return !isLocal
+        }
+
+        #if os(macOS)
+        guard resolvedURL.path.hasPrefix("/Volumes/"),
+              let values = try? resolvedURL.resourceValues(
+                forKeys: [.volumeLocalizedFormatDescriptionKey]
+              ),
+              let formatName = values.volumeLocalizedFormatDescription?.lowercased() else {
+            return false
+        }
+        return formatName.contains("smb")
+            || formatName.contains("afp")
+            || formatName.contains("nfs")
+        #else
+        return false
+        #endif
+    }
+
     func detect(url: URL) async -> FormatDetectionResult {
         if let cached = cache[url] {
             print("🔍 Format detection result (cached): \(cached.isAVFoundationCompatible) for \(url.lastPathComponent) (engine: \(cached.isAVFoundationCompatible ? "AVFoundation" : "FFmpeg"))")
@@ -36,26 +61,7 @@ final class FormatDetector {
         }
 
         // Force FFmpeg engine for remote network volumes (like SMB/AFP) to bypass AVFoundation's sandboxed I/O restrictions and performance bottlenecks
-        var isSMBOrNetworkVolume = false
-        if url.isFileURL {
-            // volumeIsLocalKey is a cross-platform Apple API supported on macOS, iOS, and iPadOS
-            if let resourceValues = try? url.resourceValues(forKeys: [.volumeIsLocalKey]),
-               let isLocal = resourceValues.volumeIsLocal {
-                isSMBOrNetworkVolume = !isLocal
-            } else {
-                #if os(macOS)
-                // Fallback specifically for macOS when full resource values are not retrievable
-                let path = url.path
-                if path.hasPrefix("/Volumes/") {
-                    if let volumeFormatValues = try? url.resourceValues(forKeys: [.volumeLocalizedFormatDescriptionKey]),
-                       let formatName = volumeFormatValues.volumeLocalizedFormatDescription?.lowercased(),
-                       formatName.contains("smb") || formatName.contains("afp") || formatName.contains("nfs") {
-                        isSMBOrNetworkVolume = true
-                    }
-                }
-                #endif
-            }
-        }
+        let isSMBOrNetworkVolume = Self.isRemoteNetworkVolume(url)
 
         if isSMBOrNetworkVolume {
             let result = FormatDetectionResult(

@@ -16,7 +16,6 @@ final class MetalVideoRenderer: MTKView {
     private var lastPixelFormat: OSType = 0
     private var lastColorMatrix: CFString? = nil
     private let lock = NSLock()
-    private var frameCount: Int = 0
     
     // CPU-GPU 共享的转换矩阵结构体（严格保持 16 字节对齐）
     private struct ColorConversion {
@@ -179,32 +178,26 @@ final class MetalVideoRenderer: MTKView {
     
     private func _draw(_ rect: CGRect) {
         lock.lock()
-        guard let pixelBuffer = currentPixelBuffer else {
-            lock.unlock()
-            return
-        }
+        let pixelBuffer = currentPixelBuffer
+        lock.unlock()
+
+        guard let pixelBuffer else { return }
         guard let cache = textureCache else {
-            lock.unlock()
             return
         }
         guard let pipeline = pipelineState else {
-            lock.unlock()
             return
         }
         guard let vBuffer = vertexBuffer else {
-            lock.unlock()
             return
         }
         guard let cmdQueue = commandQueue else {
-            lock.unlock()
             return
         }
         guard let renderPass = currentRenderPassDescriptor else {
-            lock.unlock()
             return
         }
         guard let drawable = currentDrawable else {
-            lock.unlock()
             return
         }
         
@@ -257,10 +250,8 @@ final class MetalVideoRenderer: MTKView {
 
         guard let yTex  = cvY.flatMap(CVMetalTextureGetTexture),
               let uvTex = cvUV.flatMap(CVMetalTextureGetTexture) else {
-            lock.unlock()
             return
         }
-        lock.unlock()
 
         guard let cmdBuffer = cmdQueue.makeCommandBuffer(),
               let encoder   = cmdBuffer.makeRenderCommandEncoder(descriptor: renderPass) else {
@@ -295,10 +286,6 @@ final class MetalVideoRenderer: MTKView {
         cmdBuffer.present(drawable)
         cmdBuffer.commit()
         
-        frameCount += 1
-        if frameCount % 60 == 0 {
-            CVMetalTextureCacheFlush(cache, 0)
-        }
     }
     
     // 从 CVPixelBuffer 获取色彩空间元数据

@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct WaveformBin: Codable {
+struct WaveformBin: Codable, Sendable, Equatable {
     var peakPositive: Float
     var peakNegative: Float
     var rms: Float

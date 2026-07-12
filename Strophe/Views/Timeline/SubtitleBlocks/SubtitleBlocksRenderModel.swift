@@ -24,7 +24,10 @@ final class SubtitleBlocksRenderModel: ObservableObject {
     private(set) var renderRevision: UInt64 = 0
     private(set) var timelineIndex = TimelineIndex()
     private var itemByID: [UUID: SubtitleItem] = [:]
+    private var groupByID: [UUID: SubGroupItem] = [:]
+    private var cachedSortedGroups: [SubGroupItem] = []
     private var snapEdgesByGroupID: [UUID: [SnapEdge]] = [:]
+    private var overlapIntervalsByGroupID: [UUID: [SubtitleProject.OverlapInterval]] = [:]
     private var cancellables = Set<AnyCancellable>()
 
     init(project: SubtitleProject, store: StyleAndGroupStore = .shared) {
@@ -34,9 +37,8 @@ final class SubtitleBlocksRenderModel: ObservableObject {
         activeSlapSubtitleID = project.activeSlapSubtitleID
         groups = store.groups
         styles = store.styles
-        itemByID = Dictionary(uniqueKeysWithValues: project.items.map { ($0.id, $0) })
-        timelineIndex.rebuild(with: project.items)
-        rebuildGroupSnapEdges()
+        rebuildGroupLookup()
+        rebuildItemIndexes()
 
         project.$items
             .dropFirst()
@@ -64,7 +66,8 @@ final class SubtitleBlocksRenderModel: ObservableObject {
                 guard let self, self.groups != newValue else { return }
                 self.renderRevision &+= 1
                 self.groups = newValue
-                self.rebuildGroupSnapEdges()
+                self.rebuildGroupLookup()
+                self.rebuildItemIndexes()
             }
             .store(in: &cancellables)
         store.$styles
@@ -82,8 +85,7 @@ final class SubtitleBlocksRenderModel: ObservableObject {
     }
 
     func group(for item: SubtitleItem) -> SubGroupItem? {
-        groups.first(where: { $0.id == item.groupID })
-            ?? groups.first
+        item.groupID.flatMap { groupByID[$0] } ?? groups.first
     }
 
     var activeGroupID: UUID? {
@@ -91,9 +93,7 @@ final class SubtitleBlocksRenderModel: ObservableObject {
     }
 
     var sortedGroups: [SubGroupItem] {
-        groups.sorted { lhs, rhs in
-            lhs.sortOrder == rhs.sortOrder ? lhs.name < rhs.name : lhs.sortOrder < rhs.sortOrder
-        }
+        cachedSortedGroups
     }
 
     func nearestSnapPoint(
@@ -140,44 +140,50 @@ final class SubtitleBlocksRenderModel: ObservableObject {
 
     func overlappingIntervals(in groupID: UUID?) -> [SubtitleProject.OverlapInterval] {
         guard let groupID else { return [] }
-        let sorted = items
-            .filter { group(for: $0)?.id == groupID && $0.startTime != nil }
-            .sorted { ($0.startTime ?? 0) < ($1.startTime ?? 0) }
-        guard sorted.count > 1 else { return [] }
-
-        var result: [SubtitleProject.OverlapInterval] = []
-        var maxEnd = sorted[0].endTime ?? ((sorted[0].startTime ?? 0) + 0.1)
-        for item in sorted.dropFirst() {
-            guard let start = item.startTime else { continue }
-            let end = item.endTime ?? (start + 0.1)
-            if start < maxEnd {
-                let overlapEnd = min(end, maxEnd)
-                if start < overlapEnd {
-                    result.append(.init(start: start, end: overlapEnd))
-                }
-            }
-            maxEnd = max(maxEnd, end)
-        }
-        return result
+        return overlapIntervalsByGroupID[groupID] ?? []
     }
 
     private func replaceItems(_ newItems: [SubtitleItem]) {
         guard items != newItems else { return }
         renderRevision &+= 1
         items = newItems
-        itemByID = Dictionary(uniqueKeysWithValues: newItems.map { ($0.id, $0) })
-        timelineIndex.rebuild(with: newItems)
-        rebuildGroupSnapEdges()
+        rebuildItemIndexes()
     }
 
-    private func rebuildGroupSnapEdges() {
+    private func rebuildGroupLookup() {
+        groupByID = Dictionary(uniqueKeysWithValues: groups.map { ($0.id, $0) })
+        cachedSortedGroups = groups.sorted { lhs, rhs in
+            lhs.sortOrder == rhs.sortOrder ? lhs.name < rhs.name : lhs.sortOrder < rhs.sortOrder
+        }
+    }
+
+    private func rebuildItemIndexes() {
+        itemByID = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
+        timelineIndex.rebuild(with: items)
+
         var result: [UUID: [SnapEdge]] = [:]
-        for item in items {
+        var overlaps: [UUID: [SubtitleProject.OverlapInterval]] = [:]
+        var maxEndByGroup: [UUID: Double] = [:]
+
+        // TimelineIndex has already sorted this list, so every per-group stream
+        // is sorted too. Build snap and overlap caches without another filter/sort.
+        for item in timelineIndex.itemsByStartTime {
             guard let groupID = group(for: item)?.id,
                   let start = item.startTime else { continue }
             result[groupID, default: []].append(SnapEdge(time: start, itemID: item.id))
             if let end = item.endTime {
                 result[groupID, default: []].append(SnapEdge(time: end, itemID: item.id))
+            }
+
+            let end = item.endTime ?? (start + 0.1)
+            if let maxEnd = maxEndByGroup[groupID], start < maxEnd {
+                let overlapEnd = min(end, maxEnd)
+                if start < overlapEnd {
+                    overlaps[groupID, default: []].append(.init(start: start, end: overlapEnd))
+                }
+                maxEndByGroup[groupID] = max(maxEnd, end)
+            } else {
+                maxEndByGroup[groupID] = end
             }
         }
         for groupID in Array(result.keys) {
@@ -188,5 +194,6 @@ final class SubtitleBlocksRenderModel: ObservableObject {
             }
         }
         snapEdgesByGroupID = result
+        overlapIntervalsByGroupID = overlaps
     }
 }

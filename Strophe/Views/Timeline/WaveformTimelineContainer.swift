@@ -82,7 +82,7 @@ struct WaveformTimelineContainer: View {
                 )
                     .frame(width: safeTotalWidth, height: rulerHeight)
                     .contentShape(Rectangle())
-                    .gesture(
+                    .highPriorityGesture(
                         DragGesture(minimumDistance: 0, coordinateSpace: .local)
                             .onChanged { value in
                                 guard project.editingMode == .selection else { return }
@@ -108,6 +108,15 @@ struct WaveformTimelineContainer: View {
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                                     isUserInteracting = false
                                 }
+                            }
+                    )
+                    .highPriorityGesture(
+                        SpatialTapGesture(count: 1)
+                            .onEnded { value in
+                                guard project.editingMode == .selection else { return }
+                                let clickedTime = Double(value.location.x) / safePixelsPerSecond
+                                let snappedTime = project.snapToFrame(clickedTime.clamped(to: 0...safeDuration))
+                                project.seek(to: snappedTime)
                             }
                     )
                 
