@@ -7,24 +7,49 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		4C5A10712FD1C00100A1071A /* Libswresample.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88C9042FBB72E300142A61 /* Libswresample.xcframework */; };
-		4C5A10722FD1C00100A1072A /* Libavcodec.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88C9022FBB72E300142A61 /* Libavcodec.xcframework */; };
-		4C5A10732FD1C00100A1073A /* Libavformat.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88C9032FBB72E300142A61 /* Libavformat.xcframework */; };
-		4C5A10742FD1C00100A1074A /* Libswscale.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88C9012FBB72E300142A61 /* Libswscale.xcframework */; };
-		4C5A10752FD1C00100A1075A /* Libavutil.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88C9062FBB72E300142A61 /* Libavutil.xcframework */; };
-		4C5A10762FD1C00100A1076A /* Libdav1d.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88C9052FBB72E300142A61 /* Libdav1d.xcframework */; };
 		4C5A107A2FD1C00100A107AA /* Strophe.icon in Resources */ = {isa = PBXBuildFile; fileRef = 4C289B502FBDE46700F034AD /* Strophe.icon */; };
+		4CA295F9300AE83600CD7403 /* Libavcodec.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4CA295DE300AE75900CD7403 /* Libavcodec.xcframework */; };
+		4CA295FA300AE83600CD7403 /* Libavcodec.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4CA295DE300AE75900CD7403 /* Libavcodec.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4CA295FE300AE83800CD7403 /* Libavformat.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4CA295DD300AE75900CD7403 /* Libavformat.xcframework */; };
+		4CA295FF300AE83800CD7403 /* Libavformat.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4CA295DD300AE75900CD7403 /* Libavformat.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4CA29600300AE83A00CD7403 /* Libavutil.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4CA295DF300AE75900CD7403 /* Libavutil.xcframework */; };
+		4CA29601300AE83A00CD7403 /* Libavutil.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4CA295DF300AE75900CD7403 /* Libavutil.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4CA29602300AE83B00CD7403 /* Libdav1d.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4CA295E1300AE75900CD7403 /* Libdav1d.xcframework */; };
+		4CA29603300AE83B00CD7403 /* Libdav1d.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4CA295E1300AE75900CD7403 /* Libdav1d.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4CA29604300AE83D00CD7403 /* Libswresample.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4CA295E3300AE75900CD7403 /* Libswresample.xcframework */; };
+		4CA29605300AE83D00CD7403 /* Libswresample.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4CA295E3300AE75900CD7403 /* Libswresample.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4CA29606300AE83E00CD7403 /* Libswscale.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4CA295E2300AE75900CD7403 /* Libswscale.xcframework */; };
+		4CA29607300AE83E00CD7403 /* Libswscale.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4CA295E2300AE75900CD7403 /* Libswscale.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		4CA295FB300AE83600CD7403 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				4CA29601300AE83A00CD7403 /* Libavutil.xcframework in Embed Frameworks */,
+				4CA295FF300AE83800CD7403 /* Libavformat.xcframework in Embed Frameworks */,
+				4CA29605300AE83D00CD7403 /* Libswresample.xcframework in Embed Frameworks */,
+				4CA29603300AE83B00CD7403 /* Libdav1d.xcframework in Embed Frameworks */,
+				4CA295FA300AE83600CD7403 /* Libavcodec.xcframework in Embed Frameworks */,
+				4CA29607300AE83E00CD7403 /* Libswscale.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		4C289B502FBDE46700F034AD /* Strophe.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = Strophe.icon; sourceTree = "<group>"; };
 		4C5A10702FD1C00100A1070A /* Strophe.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Strophe.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		4C88C9012FBB72E300142A61 /* Libswscale.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libswscale.xcframework; path = ../FFmpegBuild/Sources/Libswscale.xcframework; sourceTree = "<group>"; };
-		4C88C9022FBB72E300142A61 /* Libavcodec.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libavcodec.xcframework; path = ../FFmpegBuild/Sources/Libavcodec.xcframework; sourceTree = "<group>"; };
-		4C88C9032FBB72E300142A61 /* Libavformat.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libavformat.xcframework; path = ../FFmpegBuild/Sources/Libavformat.xcframework; sourceTree = "<group>"; };
-		4C88C9042FBB72E300142A61 /* Libswresample.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libswresample.xcframework; path = ../FFmpegBuild/Sources/Libswresample.xcframework; sourceTree = "<group>"; };
-		4C88C9052FBB72E300142A61 /* Libdav1d.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libdav1d.xcframework; path = ../FFmpegBuild/Sources/Libdav1d.xcframework; sourceTree = "<group>"; };
-		4C88C9062FBB72E300142A61 /* Libavutil.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libavutil.xcframework; path = ../FFmpegBuild/Sources/Libavutil.xcframework; sourceTree = "<group>"; };
+		4CA295DD300AE75900CD7403 /* Libavformat.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libavformat.xcframework; path = ../FFmpegBuild/Sources/Libavformat.xcframework; sourceTree = "<group>"; };
+		4CA295DE300AE75900CD7403 /* Libavcodec.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libavcodec.xcframework; path = ../FFmpegBuild/Sources/Libavcodec.xcframework; sourceTree = "<group>"; };
+		4CA295DF300AE75900CD7403 /* Libavutil.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libavutil.xcframework; path = ../FFmpegBuild/Sources/Libavutil.xcframework; sourceTree = "<group>"; };
+		4CA295E1300AE75900CD7403 /* Libdav1d.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libdav1d.xcframework; path = ../FFmpegBuild/Sources/Libdav1d.xcframework; sourceTree = "<group>"; };
+		4CA295E2300AE75900CD7403 /* Libswscale.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libswscale.xcframework; path = ../FFmpegBuild/Sources/Libswscale.xcframework; sourceTree = "<group>"; };
+		4CA295E3300AE75900CD7403 /* Libswresample.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libswresample.xcframework; path = ../FFmpegBuild/Sources/Libswresample.xcframework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -54,12 +79,12 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4C5A10712FD1C00100A1071A /* Libswresample.xcframework in Frameworks */,
-				4C5A10722FD1C00100A1072A /* Libavcodec.xcframework in Frameworks */,
-				4C5A10732FD1C00100A1073A /* Libavformat.xcframework in Frameworks */,
-				4C5A10742FD1C00100A1074A /* Libswscale.xcframework in Frameworks */,
-				4C5A10752FD1C00100A1075A /* Libavutil.xcframework in Frameworks */,
-				4C5A10762FD1C00100A1076A /* Libdav1d.xcframework in Frameworks */,
+				4CA29602300AE83B00CD7403 /* Libdav1d.xcframework in Frameworks */,
+				4CA29604300AE83D00CD7403 /* Libswresample.xcframework in Frameworks */,
+				4CA29606300AE83E00CD7403 /* Libswscale.xcframework in Frameworks */,
+				4CA295FE300AE83800CD7403 /* Libavformat.xcframework in Frameworks */,
+				4CA29600300AE83A00CD7403 /* Libavutil.xcframework in Frameworks */,
+				4CA295F9300AE83600CD7403 /* Libavcodec.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -87,12 +112,12 @@
 		4C88C8FC2FBB71E500142A61 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				4C88C9022FBB72E300142A61 /* Libavcodec.xcframework */,
-				4C88C9032FBB72E300142A61 /* Libavformat.xcframework */,
-				4C88C9062FBB72E300142A61 /* Libavutil.xcframework */,
-				4C88C9052FBB72E300142A61 /* Libdav1d.xcframework */,
-				4C88C9042FBB72E300142A61 /* Libswresample.xcframework */,
-				4C88C9012FBB72E300142A61 /* Libswscale.xcframework */,
+				4CA295DE300AE75900CD7403 /* Libavcodec.xcframework */,
+				4CA295DD300AE75900CD7403 /* Libavformat.xcframework */,
+				4CA295DF300AE75900CD7403 /* Libavutil.xcframework */,
+				4CA295E1300AE75900CD7403 /* Libdav1d.xcframework */,
+				4CA295E3300AE75900CD7403 /* Libswresample.xcframework */,
+				4CA295E2300AE75900CD7403 /* Libswscale.xcframework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -107,6 +132,7 @@
 				4C5A10922FD1C00100A1092A /* Sources */,
 				4C5A10912FD1C00100A1091A /* Frameworks */,
 				4C5A10932FD1C00100A1093A /* Resources */,
+				4CA295FB300AE83600CD7403 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -145,6 +171,9 @@
 				Base,
 				"zh-Hans",
 				"zh-Hant",
+				ar,
+				ja,
+				ko,
 			);
 			mainGroup = 4C35662C2FB81D160046E36C;
 			minimizedProjectReferenceProxies = 1;
@@ -319,7 +348,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = QKDD87B4BH;
+				DEVELOPMENT_TEAM = 3XV7UWT8UV;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
@@ -387,7 +416,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = QKDD87B4BH;
+				DEVELOPMENT_TEAM = 3XV7UWT8UV;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;

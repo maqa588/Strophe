@@ -23,6 +23,8 @@ struct SettingsDetailView: View {
                 ModelConfigView(type: .aligner)
             case .vadConfig:
                 ModelConfigView(type: .vad)
+            case .translationConfig:
+                TranslationConfigView()
             }
         }
     }

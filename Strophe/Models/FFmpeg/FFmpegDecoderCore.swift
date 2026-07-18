@@ -49,6 +49,8 @@ actor FFmpegDecoderCore {
     nonisolated(unsafe) var pixelBufferPool: CVPixelBufferPool? = nil
     nonisolated(unsafe) var poolWidth: Int = 0
     nonisolated(unsafe) var poolHeight: Int = 0
+    nonisolated(unsafe) var poolPixelFormat: OSType = 0
+    nonisolated(unsafe) var sourceColorProfile: VideoColorProfile = .sdr709
     nonisolated(unsafe) var softwareSwsContext: UnsafeMutablePointer<SwsContext>? = nil
     
     // MARK: - Safe State Accessors

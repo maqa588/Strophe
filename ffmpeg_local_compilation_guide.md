@@ -1,82 +1,123 @@
-# SwiftSub 本地 FFmpeg 编译与 Xcode 完美接入指南
+# Strophe 本地 FFmpeg 编译与 Xcode 接入指南
 
-> [!NOTE]
-> 本指南详细记录了我们在本地环境下解决编译依赖债、补齐交叉编译链，并成功搓出 100% 纯净、合规的 LGPL 静态 `.xcframework` 全过程，以及如何在 Xcode 中通过**“直拖挂载法”**绕过 SPM 置灰限制、实现完美静态链接的实操步骤。
+本项目使用 `/Users/maqa/codelearn/FFmpegBuild` 生成一组精简的动态
+`.xcframework`。当前配置只保留 Strophe 实际使用的五个 FFmpeg 库和
+dav1d，不编译 libavfilter、zimg、libzvbi，也不包含 GPL、LGPLv3 或
+nonfree 组件。
 
----
+## 1. 构建范围
 
-## 🟢 1. 本地编译战报与环境修复
+只生成以下六个产物：
 
-我们在 `FFmpegBuild` 目录进行了深入的编译测试与环境修复，成功达成了 **100% 编译成功率**！
+- `Libavcodec.xcframework`：音视频解码。
+- `Libavformat.xcframework`：容器解析、读取和 seek。
+- `Libavutil.xcframework`：frame、buffer、option 等基础 API。
+- `Libswresample.xcframework`：音频重采样和声道转换。
+- `Libswscale.xcframework`：视频像素格式转换。
+- `Libdav1d.xcframework`：AV1 软件解码回退。
 
-### 🛠️ 解决的交叉编译环境问题：
-1. **安装 Meson 自动化配置引擎**：
-   - 修复：使用 Homebrew 安装了最新的 [Meson 1.11.1](https://mesonbuild.com/)。
-2. **安装 NASM 汇编器**：
-   - 修复：安装了 `nasm`（v3.01），使得针对模拟器（x86_64）以及 Mac 平台的汇编加速指令集（AVX2/SSE）得以完美编译。
-3. **加锁 100% 纯净 LGPL v3 安全防线**：
-   - 我们在 `build.sh` 中加固了以下关键配置，确保商业上架绝对无懈可击：
-     ```bash
-     --disable-gpl          # 禁用一切 GPL 协议的代码
-     --disable-nonfree      # 禁用非免费代码
-     --enable-version3      # 强制采用 LGPL v3 授权
-     ```
+只构建三个架构目标：
 
-### 📦 最终产物体积与架构验证：
-经过多平台交叉编译与 `lipo` 融合，全部产物完美存放在 `Sources/` 目录下，并以标准 `.xcframework` 的格式分发。
-- **`Libavcodec.xcframework`** (53MB) — 支持 H.264, HEVC, VP9, AV1 等顶级硬解/软解。
-- **`Libavformat.xcframework`** (12MB) — 支持 MKV, MP4, FLV, AVI, HLS, DASH 等解包容器。
-- **`Libavutil.xcframework`** (12MB) — 核心基础通用工具库。
-- **`Libdav1d.xcframework`** (13MB) — 极速 AV1 软解。
-- **`Libswscale.xcframework`** (11MB) — 像素格式超快转换（支持 YUV 到 RGB 的高效色彩映射）。
-- **`Libswresample.xcframework`** (1.2MB) — 音频重采样及通道转换。
+- iOS device arm64，最低 iOS 16。
+- macOS arm64，最低 macOS 13。
+- macOS x86_64，最低 macOS 13。
 
----
+不生成 iOS Simulator、tvOS、libavfilter、zimg 或 libzvbi 产物。DVB
+Teletext 解码随 libzvbi 一起移除；Strophe 当前没有使用该功能。
 
-## ⚡ 2. 核心卡点解释：为什么 Xcode 中 Embed 菜单被置灰？
+## 2. 许可证边界
 
-> [!WARNING]
-> **SPM 霸王条款**：只要你是通过 Swift Package Manager (SPM) 本地/远程依赖引入一个打包成 `.framework` 的 `.xcframework` 二进制，**Xcode 就会在后台强制把它当作“动态库”处理，并且置灰（锁死）其 `Embed` 属性为“必须嵌入”**，不允许开发者进行任何修改！
+`build.sh` 显式向 FFmpeg configure 传递：
 
-当 Xcode 强行把这个 iOS 风格的扁平浅包（Shallow Bundle）动态拷贝进 macOS App 的 `Contents/Frameworks/` 目录时，就会瞬间触发 macOS 的代码签名与物理结构校验，进而抛出 `expected Versions/Current/Resources/Info.plist since the platform does not use shallow bundles` 编译阻断报错。
+```bash
+--disable-gpl
+--disable-version3
+--disable-nonfree
+--disable-avfilter
+--disable-libzimg
+--disable-libzvbi
+```
 
----
+最终组合为：
 
-## 📥 3. “直拖挂载法” 完美接入步骤 (只需 15 秒)
+- FFmpeg 五个动态库：LGPL-2.1-or-later。
+- dav1d：BSD-2-Clause。
 
-为了绕过 SPM 的强制置灰限制，我们需要通过**直接文件链接**的方式手动链接这 6 个静态库 framework。
+动态 framework 便于满足 LGPL 对库替换/重新链接能力的要求。发布 App
+时仍需附带相应许可证文本，并指向所发布二进制对应的 FFmpegBuild fork
+源码版本。
 
-### 步骤 1：清除 SPM 的强绑定占位符
-1. 打开你的 `SwiftSub` Xcode 工程。
-2. 选择主 App Target (`SwiftSub`) -> 进入 **`General`** 标签页。
-3. 往下滚动到 **`Frameworks, Libraries, and Embedded Content`** 区域。
-4. 选中列表里那 6 个带有 **SPM 包裹图标**的 `Libav*` 库，点击底部的 **`-`** 号按钮，将它们**全部删除**。
+## 3. 环境准备
 
-### 步骤 2：使用访达 (Finder) 直拖挂载
-1. 打开 Mac 访达（Finder），进入你刚刚编译成功的输出目录：
-   👉 `/Volumes/KIOXIA/codelearn/FFmpegBuild/Sources`
-2. 在该目录下，用鼠标选中这 6 个 **`.xcframework`** 文件夹：
-   - `Libavcodec.xcframework`
-   - `Libavformat.xcframework`
-   - `Libavutil.xcframework`
-   - `Libdav1d.xcframework`
-   - `Libswresample.xcframework`
-   - `Libswscale.xcframework`
-3. **直接把它们用鼠标拖进** Xcode 工程的 **`Frameworks, Libraries, and Embedded Content`** 列表中！
+需要 Xcode 16+、Meson、Ninja、pkg-config 和 NASM：
 
-### 步骤 3：解锁 Embed 并修改为 `Do Not Embed`
-1. 此时你会发现，由于它们是以本地文件形式直接链接的，**右侧的 Embed 下拉置灰菜单瞬间被点亮解锁了**！
-2. 把这 6 个库右侧的 Embed 选项，**全部手动切换为 `Do Not Embed` (不嵌入)**。
+```bash
+brew install meson ninja pkg-config nasm
+```
 
-> [!TIP]
-> **为什么可以设为 `Do Not Embed`？**
-> 我们本地搓出的这套 `.xcframework` 本质是 **“静态框架 (Static Framework)”**。在编译时，Xcode 链接器早已把它们所有的 C/C++ 机器码，100% 熔合吸入到了你的 App 主二进制可执行文件中。因此，在安装包里再次嵌入它们不仅是冗余的，而且会触发严苛的 macOS 动态库校验。
+zimg 和 libzvbi 已移除，因此不再需要 autoconf、automake、GNU libtool
+或 gettext。
 
----
+## 4. 从干净状态重新编译
 
-## 🟢 4. 清理并编译
+```bash
+cd /Users/maqa/codelearn/FFmpegBuild
+./build.sh clean
+./build.sh
+```
 
-1. 按下快捷键 **`Cmd + Shift + K`**（彻底清理历史编译残留缓存）。
-2. 按下 **`Cmd + B`** 重新编译。
+`clean` 会删除 `build/` 以及 `Sources/` 下旧的 `.xcframework`，包括历史
+遗留的 Libavfilter、Libzimg 和 Libzvbi。首次编译会拉取固定版本的
+FFmpeg n8.1.2 和 dav1d 1.5.1。
 
-🟢 **大功告成！编译条瞬间拉满，100% Build Succeeded！完美避开了 codesign 签名校验报错！**
+输出目录：
+
+```text
+/Users/maqa/codelearn/FFmpegBuild/Sources
+```
+
+## 5. 产物验证
+
+确认只剩六个 xcframework：
+
+```bash
+find Sources -maxdepth 1 -name '*.xcframework' -print
+```
+
+每个 xcframework 的 `Info.plist` 应只包含：
+
+- `ios-arm64`
+- `macos-arm64_x86_64`
+
+检查 macOS 二进制架构：
+
+```bash
+lipo -archs Sources/Libavcodec.xcframework/macos-arm64_x86_64/Libavcodec.framework/Versions/A/Libavcodec
+```
+
+检查运行时依赖中不存在被移除的库：
+
+```bash
+otool -L Sources/Libavcodec.xcframework/macos-arm64_x86_64/Libavcodec.framework/Versions/A/Libavcodec
+```
+
+输出不应出现 `Libavfilter`、`Libzimg` 或 `Libzvbi`。`Libavcodec` 仍会依赖
+`Libdav1d` 和 `Libavutil`，这是预期行为。
+
+## 6. Xcode 接入与签名
+
+在 Strophe target 的 “Frameworks, Libraries, and Embedded Content” 中只添加
+上述六个 `.xcframework`，全部设置为 `Embed & Sign`。
+
+在 Build Phases 的 “Embed Frameworks” 中确认：
+
+- 六个 framework 都在列表内。
+- `Code Sign On Copy` 已启用。
+- 不再存在 Libavfilter、Libzimg 或 Libzvbi 引用。
+
+源目录里的 framework 使用 ad-hoc 签名是正常的。Xcode 会在嵌入
+`Strophe.app/Contents/Frameworks` 时用 App 的签名身份重签副本。不要直接
+修改 `FFmpegBuild/Sources` 中原始 framework 的签名。
+
+变更 framework 集合后，在 Xcode 执行 Product → Clean Build Folder，再
+重新构建 App，避免 DerivedData 中的旧 framework 被 dyld 命中。

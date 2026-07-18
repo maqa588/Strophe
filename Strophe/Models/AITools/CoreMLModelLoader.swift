@@ -1,8 +1,17 @@
 #if STROPHE_LOCAL_AI
 import CoreML
 import Foundation
+import Metal
 
 nonisolated enum CoreMLModelLoader {
+    /// The Neural Engine in first-generation Apple Silicon can fail synchronously
+    /// for the ASR decoder, but it can also remain blocked indefinitely while
+    /// creating an execution plan for the INT4 ForcedAligner. A thrown error can
+    /// fall back normally; a blocked Core ML initializer cannot be cancelled.
+    static var shouldBypassNeuralEngineForQwen3: Bool {
+        MTLCreateSystemDefaultDevice()?.name.hasPrefix("Apple M1") == true
+    }
+
     static func load(
         named name: String,
         from directory: URL,
@@ -42,11 +51,13 @@ nonisolated enum CoreMLModelLoader {
             throw CoreMLQwen3Error.model("缺少 \(name).mlmodelc 或 \(name).mlpackage")
         }
 
+        print("🔧 CoreML: 首次编译 \(name).mlpackage...")
         let compiledTemporary = try MLModel.compileModel(at: package)
         let staging = directory.appendingPathComponent(".\(name)-\(UUID().uuidString).mlmodelc", isDirectory: true)
         defer { try? fileManager.removeItem(at: staging) }
         try fileManager.copyItem(at: compiledTemporary, to: staging)
         try fileManager.moveItem(at: staging, to: bundledCompiled)
+        print("✅ CoreML: \(name).mlpackage 编译完成，正在创建执行计划...")
         let model = try MLModel(contentsOf: bundledCompiled, configuration: configuration)
         try? fileManager.removeItem(at: package)
         try? fileManager.removeItem(at: cacheDirectory)

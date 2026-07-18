@@ -1,4 +1,5 @@
 #if STROPHE_LOCAL_AI
+import Accelerate
 import CoreML
 import Foundation
 
@@ -11,25 +12,90 @@ nonisolated struct Qwen3AlignedWord: Sendable {
 @available(macOS 15.0, iOS 18.0, *)
 nonisolated final class CoreMLQwen3ForcedAligner: @unchecked Sendable {
     private let audioEncoder: MLModel
-    private let embedding: MLModel
+    private let embedding: MLModel?
+    private let embeddingTable: Data?
+    private let embeddingVocabSize: Int
     private let textDecoder: MLModel
     private let tokenizer: Qwen3BPETokenizer
     private let features = Qwen3WhisperFeatureExtractor()
     private let hiddenSize: Int
     private let classCount: Int
     private let timestampStep: Double
+    private let palettizationBits: Int?
+
+    private struct ModelStack {
+        let audioEncoder: MLModel
+        let embedding: MLModel?
+        let textDecoder: MLModel
+    }
 
     init(directory: URL) throws {
-        let configuration = MLModelConfiguration()
-        configuration.computeUnits = .all
-        audioEncoder = try CoreMLModelLoader.load(named: "audio_encoder", from: directory, configuration: configuration)
-        embedding = try CoreMLModelLoader.load(named: "embedding", from: directory, configuration: configuration)
-        textDecoder = try CoreMLModelLoader.load(named: "text_decoder", from: directory, configuration: configuration)
-        tokenizer = try Qwen3BPETokenizer(directory: directory)
         let config = try Self.readConfig(directory)
         hiddenSize = config["hidden_size"] as? Int ?? 1024
         classCount = config["classify_num"] as? Int ?? 5000
         timestampStep = config["timestamp_segment_time"] as? Double ?? 0.08
+        palettizationBits = config["palettization_bits"] as? Int
+
+        let models = try Self.loadModelStack(from: directory)
+        audioEncoder = models.audioEncoder
+        embedding = models.embedding
+        textDecoder = models.textDecoder
+        tokenizer = try Qwen3BPETokenizer(directory: directory)
+
+        let tableURL = directory.appendingPathComponent("embed_tokens.fp16.bin")
+        if FileManager.default.fileExists(atPath: tableURL.path) {
+            let table = try Data(contentsOf: tableURL, options: [.mappedIfSafe])
+            let bytesPerRow = hiddenSize * MemoryLayout<UInt16>.stride
+            guard bytesPerRow > 0, table.count.isMultiple(of: bytesPerRow) else {
+                throw CoreMLQwen3Error.inference(
+                    "ForcedAligner embedding 文件大小与 hidden_size=\(hiddenSize) 不匹配"
+                )
+            }
+            embeddingTable = table
+            embeddingVocabSize = table.count / bytesPerRow
+        } else {
+            embeddingTable = nil
+            embeddingVocabSize = 0
+        }
+    }
+
+    private static func loadModelStack(from directory: URL) throws -> ModelStack {
+        if CoreMLModelLoader.shouldBypassNeuralEngineForQwen3 {
+            print("ℹ️ Qwen3-ForcedAligner: Apple M1 的 ANE 执行计划创建可能无限阻塞，直接使用 CPU + GPU。")
+            return try loadModelStack(from: directory, computeUnits: .cpuAndGPU)
+        }
+        do {
+            return try loadModelStack(from: directory, computeUnits: .cpuAndNeuralEngine)
+        } catch {
+            print("⚠️ Qwen3-ForcedAligner: Neural Engine 模型加载失败，自动降级到 CPU + GPU：\(error.localizedDescription)")
+            return try loadModelStack(from: directory, computeUnits: .cpuAndGPU)
+        }
+    }
+
+    private static func loadModelStack(
+        from directory: URL,
+        computeUnits: MLComputeUnits
+    ) throws -> ModelStack {
+        let configuration = MLModelConfiguration()
+        configuration.computeUnits = computeUnits
+        let hasRawEmbedding = FileManager.default.fileExists(
+            atPath: directory.appendingPathComponent("embed_tokens.fp16.bin").path
+        )
+        return ModelStack(
+            audioEncoder: try CoreMLModelLoader.load(
+                named: "audio_encoder",
+                from: directory,
+                configuration: configuration
+            ),
+            embedding: hasRawEmbedding ? nil : try CoreMLModelLoader.load(
+                named: "embedding", from: directory, configuration: configuration
+            ),
+            textDecoder: try CoreMLModelLoader.load(
+                named: "text_decoder",
+                from: directory,
+                configuration: configuration
+            )
+        )
     }
 
     func align(audio: [Float], text: String, language: String) throws -> [Qwen3AlignedWord] {
@@ -41,10 +107,22 @@ nonisolated final class CoreMLQwen3ForcedAligner: @unchecked Sendable {
         let slotted = Qwen3AlignmentTextProcessor.prepare(text, tokenizer: tokenizer, language: language)
         guard !slotted.words.isEmpty else { return [] }
 
-        var ids = [Qwen3CoreMLTokens.audioStart]
+        // Match the Qwen3 chat template used when the aligner decoder was
+        // exported. Omitting these role markers shifts every absolute token
+        // position and makes the classifier predict timestamps past the end
+        // of the real audio.
+        var ids = [
+            Qwen3CoreMLTokens.imStart, Qwen3CoreMLTokens.system, Qwen3CoreMLTokens.newline,
+            Qwen3CoreMLTokens.imEnd, Qwen3CoreMLTokens.newline,
+            Qwen3CoreMLTokens.imStart, Qwen3CoreMLTokens.user, Qwen3CoreMLTokens.newline,
+            Qwen3CoreMLTokens.audioStart
+        ]
         let audioOffset = ids.count
         ids.append(contentsOf: repeatElement(Qwen3CoreMLTokens.audioPad, count: audioTokenCount))
-        ids.append(Qwen3CoreMLTokens.audioEnd)
+        ids.append(contentsOf: [
+            Qwen3CoreMLTokens.audioEnd, Qwen3CoreMLTokens.imEnd, Qwen3CoreMLTokens.newline,
+            Qwen3CoreMLTokens.imStart, Qwen3CoreMLTokens.assistant, Qwen3CoreMLTokens.newline
+        ])
         let slottedOffset = ids.count
         ids.append(contentsOf: slotted.tokenIDs)
 
@@ -70,14 +148,18 @@ nonisolated final class CoreMLQwen3ForcedAligner: @unchecked Sendable {
             throw CoreMLQwen3Error.inference("ForcedAligner token 数量 \(ids.count) 超过模型 decoder 上限 \(decoderSeq)")
         }
 
-        let allowedEmbeddingSeqs = [10, 20, 50, 100, 200, 500, 1000, 2000]
-        guard let embeddingSeq = allowedEmbeddingSeqs.first(where: { $0 >= decoderSeq }) else {
-            throw CoreMLQwen3Error.inference("ForcedAligner 无法匹配 embedding sequence 长度 \(decoderSeq)")
+        let tokenEmbeddings: MLMultiArray
+        if embeddingTable != nil {
+            tokenEmbeddings = try embedFromTable(ids, fixedLength: decoderSeq)
+        } else {
+            let allowedEmbeddingSeqs = [10, 20, 50, 100, 200, 500, 1000, 2000]
+            guard let embeddingSeq = allowedEmbeddingSeqs.first(where: { $0 >= decoderSeq }) else {
+                throw CoreMLQwen3Error.inference("ForcedAligner 无法匹配 embedding sequence 长度 \(decoderSeq)")
+            }
+            var embeddingIds = ids
+            embeddingIds.append(contentsOf: repeatElement(0, count: embeddingSeq - embeddingIds.count))
+            tokenEmbeddings = try embedWithCoreML(embeddingIds)
         }
-
-        var embeddingIds = ids
-        embeddingIds.append(contentsOf: repeatElement(0, count: embeddingSeq - embeddingIds.count))
-        let tokenEmbeddings = try embed(embeddingIds)
 
         guard tokenEmbeddings.shape.count == 3, tokenEmbeddings.shape[2].intValue == hiddenSize else {
             throw CoreMLQwen3Error.inference("ForcedAligner embedding shape 不匹配")
@@ -102,11 +184,18 @@ nonisolated final class CoreMLQwen3ForcedAligner: @unchecked Sendable {
             throw CoreMLQwen3Error.inference("ForcedAligner logits 输出缺失")
         }
         let positions = slotted.timestampPositions.map { $0 + slottedOffset }
-        let raw = positions.map { argmax(logits, row: $0) }
+        let raw = try positions.map { try argmax(logits, row: $0) }
         let corrected = Qwen3TimestampCorrection.monotonic(raw)
+        let duration = Double(audio.count) / 16_000
+        if ProcessInfo.processInfo.environment["STROPHE_ALIGN_DEBUG"] == "1" {
+            print("[strophe-align-debug] duration=\(duration) audioTokens=\(audioTokenCount) "
+                + "seq=\(ids.count)/\(decoderSeq) audioOffset=\(audioOffset) "
+                + "slottedOffset=\(slottedOffset) words=\(slotted.words.count)")
+            print("[strophe-align-debug] raw=\(raw)")
+            print("[strophe-align-debug] corrected=\(corrected)")
+        }
         var words: [Qwen3AlignedWord] = []
         for index in slotted.words.indices where index * 2 + 1 < corrected.count {
-            let duration = Double(audio.count) / 16_000
             let start = min(Double(corrected[index * 2]) * timestampStep, duration)
             let end = min(max(start, Double(corrected[index * 2 + 1]) * timestampStep), duration)
             words.append(Qwen3AlignedWord(text: slotted.words[index], start: start, end: end))
@@ -172,7 +261,10 @@ nonisolated final class CoreMLQwen3ForcedAligner: @unchecked Sendable {
         return (value, count)
     }
 
-    private func embed(_ ids: [Int]) throws -> MLMultiArray {
+    private func embedWithCoreML(_ ids: [Int]) throws -> MLMultiArray {
+        guard let embedding else {
+            throw CoreMLQwen3Error.inference("ForcedAligner token embedding 模型缺失")
+        }
         let input = try MLMultiArray(shape: [1, ids.count as NSNumber], dataType: .int32)
         for (index, id) in ids.enumerated() { input[index] = NSNumber(value: Int32(id)) }
         let output = try embedding.prediction(from: MLDictionaryFeatureProvider(dictionary: [
@@ -182,6 +274,48 @@ nonisolated final class CoreMLQwen3ForcedAligner: @unchecked Sendable {
             throw CoreMLQwen3Error.inference("ForcedAligner token embedding 输出缺失")
         }
         return value
+    }
+
+    private func embedFromTable(_ ids: [Int], fixedLength: Int) throws -> MLMultiArray {
+        guard let embeddingTable else {
+            throw CoreMLQwen3Error.inference("ForcedAligner embed_tokens.fp16.bin 缺失")
+        }
+        let result = try MLMultiArray(
+            shape: [1, fixedLength as NSNumber, hiddenSize as NSNumber],
+            dataType: .float32
+        )
+        let destination = result.dataPointer.assumingMemoryBound(to: Float.self)
+        let rowStride = result.strides[1].intValue
+        try embeddingTable.withUnsafeBytes { rawBuffer in
+            guard let source = rawBuffer.baseAddress?.assumingMemoryBound(to: UInt16.self) else { return }
+            for row in 0..<fixedLength {
+                let requestedID = row < ids.count ? ids[row] : 0
+                let tokenID = (0..<embeddingVocabSize).contains(requestedID) ? requestedID : 0
+                let sourceRow = source.advanced(by: tokenID * hiddenSize)
+                let destinationRow = destination.advanced(by: row * rowStride)
+                var sourceBuffer = vImage_Buffer(
+                    data: UnsafeMutableRawPointer(mutating: sourceRow),
+                    height: 1,
+                    width: vImagePixelCount(hiddenSize),
+                    rowBytes: hiddenSize * MemoryLayout<UInt16>.stride
+                )
+                var destinationBuffer = vImage_Buffer(
+                    data: destinationRow,
+                    height: 1,
+                    width: vImagePixelCount(hiddenSize),
+                    rowBytes: hiddenSize * MemoryLayout<Float>.stride
+                )
+                let status = vImageConvert_Planar16FtoPlanarF(
+                    &sourceBuffer, &destinationBuffer, vImage_Flags(kvImageNoFlags)
+                )
+                guard status == kvImageNoError else {
+                    throw CoreMLQwen3Error.inference(
+                        "ForcedAligner FP16 embedding 转换失败（vImage \(status)）"
+                    )
+                }
+            }
+        }
+        return result
     }
 
     private func float32Copy(_ source: MLMultiArray) throws -> MLMultiArray {
@@ -204,13 +338,28 @@ nonisolated final class CoreMLQwen3ForcedAligner: @unchecked Sendable {
         }
     }
 
-    private func argmax(_ logits: MLMultiArray, row: Int) -> Int {
+    private func argmax(_ logits: MLMultiArray, row: Int) throws -> Int {
+        let rowCount = logits.shape.count >= 2 ? logits.shape[logits.shape.count - 2].intValue : 0
+        guard row >= 0, row < rowCount else {
+            throw CoreMLQwen3Error.inference("ForcedAligner logits 行 \(row) 越界")
+        }
         let rowStride = logits.strides.count >= 2 ? logits.strides[logits.strides.count - 2].intValue : classCount
         let scalarStride = logits.strides.last?.intValue ?? 1
-        var best = -Float.infinity, bestIndex = 0
+        var best = -Float.infinity, bestIndex = 0, finiteCount = 0
         for index in 0..<classCount {
             let value = CoreMLQwen3ASR.floatValue(logits, row * rowStride + index * scalarStride)
-            if value.isFinite && value > best { best = value; bestIndex = index }
+            if value.isFinite {
+                finiteCount += 1
+                if value > best { best = value; bestIndex = index }
+            }
+        }
+        guard finiteCount > 0 else {
+            let modelAdvice = palettizationBits == 4
+                ? "旧版 CoreML INT4 模型在当前计算后端上不兼容，请改用新版 CoreML INT8。"
+                : "当前 CoreML 模型或计算后端不兼容，请重新下载新版 CoreML INT8。"
+            throw CoreMLQwen3Error.inference(
+                "ForcedAligner 解码器输出全部为 NaN/Inf；\(modelAdvice)"
+            )
         }
         return bestIndex
     }

@@ -64,6 +64,17 @@ struct SettingsPlaceholderView: View {
                             .foregroundStyle(Color.stropheAccent)
                     }
                 }
+                Button {
+                    open(.translationConfig)
+                } label: {
+                    Label {
+                        Text("machine_translation_settings")
+                            .foregroundStyle(Color.stropheText)
+                    } icon: {
+                        Image(systemName: "character.bubble")
+                            .foregroundStyle(Color.stropheAccent)
+                    }
+                }
             }
 
             Section(header: Text("storage_maintenance")) {

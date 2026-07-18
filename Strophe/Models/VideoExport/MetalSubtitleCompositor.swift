@@ -23,14 +23,22 @@ enum SubtitleCompositorError: LocalizedError {
 
 nonisolated final class MetalSubtitleCompositor: @unchecked Sendable {
     private let context: CIContext
-    private let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+    private let outputColorProfile: VideoColorProfile
     private var bitmapCache: [SubtitleBitmapCacheKey: CGImage] = [:]
 
-    init(device: MTLDevice? = MTLCreateSystemDefaultDevice()) {
+    init(
+        outputColorProfile: VideoColorProfile = .sdr709,
+        device: MTLDevice? = MTLCreateSystemDefaultDevice()
+    ) {
+        self.outputColorProfile = outputColorProfile
+        let options: [CIContextOption: Any] = [
+            .workingColorSpace: outputColorProfile.workingColorSpace,
+            .outputPremultiplied: true
+        ]
         if let device {
-            context = CIContext(mtlDevice: device, options: [.workingColorSpace: CGColorSpaceCreateDeviceRGB()])
+            context = CIContext(mtlDevice: device, options: options)
         } else {
-            context = CIContext(options: [.workingColorSpace: CGColorSpaceCreateDeviceRGB()])
+            context = CIContext(options: options)
         }
     }
 
@@ -42,7 +50,11 @@ nonisolated final class MetalSubtitleCompositor: @unchecked Sendable {
         preferredTransform: CGAffineTransform,
         sourceDisplaySize: CGSize? = nil
     ) throws {
-        var image = CIImage(cvPixelBuffer: sourcePixelBuffer)
+        let sourceProfile = VideoColorProfile.detect(in: sourcePixelBuffer)
+        let imageOptions: [CIImageOption: Any] = outputColorProfile.isHDR
+            ? [:]
+            : [.toneMapHDRtoSDR: sourceProfile.isHDR]
+        var image = CIImage(cvPixelBuffer: sourcePixelBuffer, options: imageOptions)
         if preferredTransform != .identity {
             image = image.transformed(by: preferredTransform)
             image = normalizeOrigin(image)
@@ -70,7 +82,10 @@ nonisolated final class MetalSubtitleCompositor: @unchecked Sendable {
                 canvasSize: renderSize,
                 style: cue.style
             )
-            let overlay = CIImage(cgImage: subtitle)
+            let overlay = CIImage(
+                cgImage: subtitle,
+                options: [.colorSpace: CGColorSpace(name: CGColorSpace.sRGB) as Any]
+            )
                 .transformed(
                     by: CGAffineTransform(
                         translationX: origin.x.rounded(.down),
@@ -80,7 +95,16 @@ nonisolated final class MetalSubtitleCompositor: @unchecked Sendable {
             output = overlay.composited(over: output)
         }
 
-        context.render(output, to: outputPixelBuffer, bounds: bounds, colorSpace: colorSpace)
+        context.render(
+            output,
+            to: outputPixelBuffer,
+            bounds: bounds,
+            colorSpace: outputColorProfile.outputColorSpace
+        )
+        outputColorProfile.attachColorMetadata(
+            to: outputPixelBuffer,
+            copyingStaticHDRMetadataFrom: sourcePixelBuffer
+        )
     }
 
     private func subtitleOrigin(

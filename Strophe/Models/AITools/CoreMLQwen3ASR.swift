@@ -17,23 +17,66 @@ nonisolated final class CoreMLQwen3ASR: @unchecked Sendable {
     private var part2State: MLState
     private var position = 0
 
+    private struct ModelStack {
+        let encoder: MLModel
+        let embedding: MLModel
+        let decoderPart1: MLModel
+        let decoderPart2: MLModel
+    }
+
     init(directory: URL) throws {
         let config = try Self.readConfig(directory)
         maxSequenceLength = config["max_seq_length"] as? Int ?? 1024
         hiddenSize = config["hidden_size"] as? Int ?? 1024
         batchSize = (config["enumerated_t"] as? [Int])?.first ?? 128
 
-        let encoderConfiguration = MLModelConfiguration()
-        encoderConfiguration.computeUnits = .all
-        let decoderConfiguration = MLModelConfiguration()
-        decoderConfiguration.computeUnits = .cpuAndNeuralEngine
-        encoder = try MLModel(contentsOf: try Self.modelURL("encoder", directory), configuration: encoderConfiguration)
-        embedding = try MLModel(contentsOf: try Self.modelURL("embedding", directory), configuration: decoderConfiguration)
-        decoderPart1 = try MLModel(contentsOf: try Self.modelURL("decoder_part1", directory), configuration: decoderConfiguration)
-        decoderPart2 = try MLModel(contentsOf: try Self.modelURL("decoder_part2", directory), configuration: decoderConfiguration)
+        let models = try Self.loadModelStack(from: directory)
+        encoder = models.encoder
+        embedding = models.embedding
+        decoderPart1 = models.decoderPart1
+        decoderPart2 = models.decoderPart2
         tokenizer = try Qwen3BPETokenizer(directory: directory)
         part1State = decoderPart1.makeState()
         part2State = decoderPart2.makeState()
+    }
+
+    private static func loadModelStack(from directory: URL) throws -> ModelStack {
+        if CoreMLModelLoader.shouldBypassNeuralEngineForQwen3 {
+            print("ℹ️ Qwen3-ASR: Apple M1 已知无法可靠创建该模型的 ANE 执行计划，直接使用 CPU + GPU。")
+            return try loadModelStack(from: directory, computeUnits: .cpuAndGPU)
+        }
+        do {
+            return try loadModelStack(from: directory, computeUnits: .cpuAndNeuralEngine)
+        } catch {
+            print("⚠️ Qwen3-ASR: Neural Engine 模型加载失败，自动降级到 CPU + GPU：\(error.localizedDescription)")
+            return try loadModelStack(from: directory, computeUnits: .cpuAndGPU)
+        }
+    }
+
+    private static func loadModelStack(
+        from directory: URL,
+        computeUnits: MLComputeUnits
+    ) throws -> ModelStack {
+        let configuration = MLModelConfiguration()
+        configuration.computeUnits = computeUnits
+        return ModelStack(
+            encoder: try MLModel(
+                contentsOf: try modelURL("encoder", directory),
+                configuration: configuration
+            ),
+            embedding: try MLModel(
+                contentsOf: try modelURL("embedding", directory),
+                configuration: configuration
+            ),
+            decoderPart1: try MLModel(
+                contentsOf: try modelURL("decoder_part1", directory),
+                configuration: configuration
+            ),
+            decoderPart2: try MLModel(
+                contentsOf: try modelURL("decoder_part2", directory),
+                configuration: configuration
+            )
+        )
     }
 
     func transcribe(audio: [Float], language: String?, maxTokens: Int = 448) throws -> String {

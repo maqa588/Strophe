@@ -47,7 +47,7 @@ extension LocalModelManager {
             case Self.coreMLASRAccelerationModelName:
                 filters = ["config.json", "encoder.mlmodelc/", "embedding.mlmodelc/", "decoder_part1.mlmodelc/", "decoder_part2.mlmodelc/"]
             case Self.forcedAlignerINT8ModelName:
-                filters = ["config.json", "vocab.json", "merges.txt", "tokenizer_config.json", "audio_encoder.mlpackage/", "embedding.mlpackage/", "text_decoder.mlpackage/"]
+                filters = ["config.json", "vocab.json", "merges.txt", "tokenizer_config.json", "audio_encoder.mlmodelc/", "text_decoder.mlmodelc/", "embed_tokens.fp16.bin"]
             case "firered-vad-coreml":
                 filters = ["FireRedVAD.mlpackage/"]
             default:

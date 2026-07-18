@@ -53,7 +53,7 @@ struct HardSubtitleExportSettingsSheet: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             
-                            Picker("encoding", selection: $settings.codec) {
+                            Picker("encoding", selection: codecBinding) {
                                 ForEach(HardSubtitleVideoCodec.allCases) { codec in
                                     Text(codec.displayName).tag(codec)
                                 }
@@ -77,7 +77,22 @@ struct HardSubtitleExportSettingsSheet: View {
                         .toggleStyle(CheckboxToggleStyle())
                         .tint(Color.stropheAccent)
 
-                        if !settings.codec.isProRes {
+                        Divider()
+                            .background(Color.stropheBorder)
+
+                        Toggle(isOn: hdrExportBinding) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("hdr_video_export")
+                                    .font(.subheadline)
+                                Text("hdr_video_export_explanation")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .toggleStyle(CheckboxToggleStyle())
+                        .tint(Color.stropheAccent)
+
+                        if !settings.codec.isProRes && !settings.exportsHDR {
                             Divider()
                                 .background(Color.stropheBorder)
 
@@ -243,7 +258,7 @@ struct HardSubtitleExportSettingsSheet: View {
         NavigationStack {
             Form {
                 Section("output_format") {
-                    Picker("video_encoding", selection: $settings.codec) {
+                    Picker("video_encoding", selection: codecBinding) {
                         ForEach(HardSubtitleVideoCodec.allCases) { codec in
                             Text(codec.displayName).tag(codec)
                         }
@@ -255,7 +270,13 @@ struct HardSubtitleExportSettingsSheet: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
-                    if !settings.codec.isProRes {
+                    Toggle("hdr_video_export", isOn: hdrExportBinding)
+
+                    Text("hdr_video_export_explanation")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    if !settings.codec.isProRes && !settings.exportsHDR {
                         Toggle("nv12_pixel_buffer", isOn: $settings.usesExperimentalNV12PixelBuffers)
 
                         Text("experimental_yuv_buffer_explanation")
@@ -345,5 +366,29 @@ struct HardSubtitleExportSettingsSheet: View {
                 }
             }
         }
+    }
+
+    private var codecBinding: Binding<HardSubtitleVideoCodec> {
+        Binding(
+            get: { settings.codec },
+            set: { codec in
+                settings.codec = codec
+                if !codec.supportsHDR {
+                    settings.exportsHDR = false
+                }
+            }
+        )
+    }
+
+    private var hdrExportBinding: Binding<Bool> {
+        Binding(
+            get: { settings.exportsHDR },
+            set: { enabled in
+                if enabled, !settings.codec.supportsHDR {
+                    settings.codec = .h265
+                }
+                settings.exportsHDR = enabled
+            }
+        )
     }
 }

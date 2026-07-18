@@ -13,10 +13,19 @@ extension FFmpegDecoderCore {
     nonisolated func convertFrameToPixelBuffer(_ frame: UnsafeMutablePointer<AVFrame>) -> CVPixelBuffer? {
         let width  = Int(frame.pointee.width)
         let height = Int(frame.pointee.height)
+        let frameProfile = VideoColorProfile(
+            ffmpegTransferRawValue: Int32(frame.pointee.color_trc.rawValue)
+        )
+        let colorProfile = frameProfile.isHDR ? frameProfile : sourceColorProfile
 
         if frame.pointee.format == AV_PIX_FMT_VIDEOTOOLBOX.rawValue {
             if let pb = frame.pointee.data.3 {
-                return Unmanaged<CVPixelBuffer>.fromOpaque(pb).takeUnretainedValue()
+                let pixelBuffer = Unmanaged<CVPixelBuffer>.fromOpaque(pb).takeUnretainedValue()
+                colorProfile.attachColorMetadata(
+                    to: pixelBuffer,
+                    copyingStaticHDRMetadataFrom: pixelBuffer
+                )
+                return pixelBuffer
             }
         }
 
@@ -28,11 +37,13 @@ extension FFmpegDecoderCore {
 
         // Software decode path — use a CVPixelBufferPool to reuse buffers
         // instead of creating new ones every frame (prevents FPS degradation)
-        if pixelBufferPool == nil || poolWidth != width || poolHeight != height {
+        let destinationPixelFormat = colorProfile.pixelFormat
+        if pixelBufferPool == nil || poolWidth != width || poolHeight != height || poolPixelFormat != destinationPixelFormat {
             // (Re)create pool for current resolution
             pixelBufferPool = nil
             poolWidth = width
             poolHeight = height
+            poolPixelFormat = destinationPixelFormat
 
             let poolAttrs: [CFString: Any] = [
                 kCVPixelBufferPoolMinimumBufferCountKey: 3
@@ -40,7 +51,7 @@ extension FFmpegDecoderCore {
             let bufferAttrs: [CFString: Any] = [
                 kCVPixelBufferWidthKey: width,
                 kCVPixelBufferHeightKey: height,
-                kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
+                kCVPixelBufferPixelFormatTypeKey: destinationPixelFormat,
                 kCVPixelBufferMetalCompatibilityKey: true
             ]
             CVPixelBufferPoolCreate(kCFAllocatorDefault,
@@ -69,7 +80,7 @@ extension FFmpegDecoderCore {
         softwareSwsContext = sws_getCachedContext(
             softwareSwsContext,
             Int32(width), Int32(height), srcFmt,
-            Int32(width), Int32(height), AV_PIX_FMT_NV12,
+            Int32(width), Int32(height), colorProfile.isHDR ? AV_PIX_FMT_P010LE : AV_PIX_FMT_NV12,
             Int32(SWS_FAST_BILINEAR.rawValue), nil, nil, nil
         )
         guard let swsCtx = softwareSwsContext else { return nil }
@@ -91,6 +102,7 @@ extension FFmpegDecoderCore {
             return sws_scale(swsCtx, srcData, srcLinesize, 0, Int32(height), &dstData, &dstLinesize)
         }
 
+        colorProfile.attachColorMetadata(to: pb)
         return pb
     }
 }

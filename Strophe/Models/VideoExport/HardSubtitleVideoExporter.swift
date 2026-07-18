@@ -75,7 +75,27 @@ enum HardSubtitleVideoExporter {
         return seconds >= cue.startTime && seconds <= cue.endTime ? cue : nil
     }
 
-    static func outputPixelFormat(for settings: HardSubtitleVideoExportSettings) -> OSType {
+    static func resolvedOutputColorProfile(
+        settings: HardSubtitleVideoExportSettings,
+        sourceProfile: VideoColorProfile
+    ) throws -> VideoColorProfile {
+        guard settings.exportsHDR else { return .sdr709 }
+        guard settings.codec.supportsHDR else {
+            throw HardSubtitleVideoExportError.hdrRequiresCompatibleCodec
+        }
+        guard sourceProfile.isHDR else {
+            throw HardSubtitleVideoExportError.hdrSourceRequired
+        }
+        return sourceProfile
+    }
+
+    static func outputPixelFormat(
+        for settings: HardSubtitleVideoExportSettings,
+        colorProfile: VideoColorProfile
+    ) -> OSType {
+        if colorProfile.isHDR {
+            return colorProfile.pixelFormat
+        }
         guard settings.usesExperimentalNV12PixelBuffers,
               !settings.codec.isProRes else {
             return kCVPixelFormatType_32BGRA

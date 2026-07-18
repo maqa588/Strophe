@@ -46,6 +46,9 @@ extension FFmpegDecoderCore {
         // Initialize Video Decoder
         let videoStream = ctx!.pointee.streams[Int(videoStreamIndex)]!
         let vCodecpar = videoStream.pointee.codecpar!
+        self.sourceColorProfile = VideoColorProfile(
+            ffmpegTransferRawValue: Int32(vCodecpar.pointee.color_trc.rawValue)
+        )
 
         self.videoFrameSize = CGSize(width: Double(vCodecpar.pointee.width), height: Double(vCodecpar.pointee.height))
 
@@ -333,6 +336,8 @@ extension FFmpegDecoderCore {
         pixelBufferPool = nil
         poolWidth = 0
         poolHeight = 0
+        poolPixelFormat = 0
+        sourceColorProfile = .sdr709
         softwareConversionLock.unlock()
     }
 

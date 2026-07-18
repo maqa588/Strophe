@@ -33,6 +33,7 @@ nonisolated final class FFmpegVideoExportVideoReader {
     private var pixelBufferPool: CVPixelBufferPool?
     private var poolWidth = 0
     private var poolHeight = 0
+    private var poolPixelFormat: OSType = 0
     private var reachedEOF = false
 
     private(set) var videoStreamIndex: Int32 = -1
@@ -40,6 +41,7 @@ nonisolated final class FFmpegVideoExportVideoReader {
     private(set) var sampleAspectRatio = CGSize(width: 1, height: 1)
     private(set) var frameRate: Double = 30
     private(set) var duration: Double = 0
+    private(set) var sourceColorProfile: VideoColorProfile = .sdr709
 
     init(url: URL) throws {
         try open(url: url)
@@ -137,6 +139,9 @@ nonisolated final class FFmpegVideoExportVideoReader {
         }
 
         let codecParameters = stream.pointee.codecpar!
+        sourceColorProfile = VideoColorProfile(
+            ffmpegTransferRawValue: Int32(codecParameters.pointee.color_trc.rawValue)
+        )
         storageSize = CGSize(width: Double(codecParameters.pointee.width), height: Double(codecParameters.pointee.height))
         sampleAspectRatio = resolvedSampleAspectRatio(stream: stream, codecParameters: codecParameters)
         frameRate = resolvedFrameRate(stream: stream)
@@ -286,22 +291,33 @@ nonisolated final class FFmpegVideoExportVideoReader {
     private func convertFrameToPixelBuffer(_ frame: UnsafeMutablePointer<AVFrame>) -> CVPixelBuffer? {
         let width = Int(frame.pointee.width)
         let height = Int(frame.pointee.height)
+        let frameProfile = VideoColorProfile(
+            ffmpegTransferRawValue: Int32(frame.pointee.color_trc.rawValue)
+        )
+        let colorProfile = frameProfile.isHDR ? frameProfile : sourceColorProfile
 
         if frame.pointee.format == AV_PIX_FMT_VIDEOTOOLBOX.rawValue,
            let rawPixelBuffer = frame.pointee.data.3 {
-            return Unmanaged<CVPixelBuffer>.fromOpaque(rawPixelBuffer).takeUnretainedValue()
+            let pixelBuffer = Unmanaged<CVPixelBuffer>.fromOpaque(rawPixelBuffer).takeUnretainedValue()
+            colorProfile.attachColorMetadata(
+                to: pixelBuffer,
+                copyingStaticHDRMetadataFrom: pixelBuffer
+            )
+            return pixelBuffer
         }
 
-        if pixelBufferPool == nil || poolWidth != width || poolHeight != height {
+        let destinationPixelFormat = colorProfile.pixelFormat
+        if pixelBufferPool == nil || poolWidth != width || poolHeight != height || poolPixelFormat != destinationPixelFormat {
             poolWidth = width
             poolHeight = height
+            poolPixelFormat = destinationPixelFormat
             let poolAttributes: [CFString: Any] = [
                 kCVPixelBufferPoolMinimumBufferCountKey: 4
             ]
             let bufferAttributes: [CFString: Any] = [
                 kCVPixelBufferWidthKey: width,
                 kCVPixelBufferHeightKey: height,
-                kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
+                kCVPixelBufferPixelFormatTypeKey: destinationPixelFormat,
                 kCVPixelBufferMetalCompatibilityKey: true,
                 kCVPixelBufferIOSurfacePropertiesKey: [:]
             ]
@@ -334,7 +350,7 @@ nonisolated final class FFmpegVideoExportVideoReader {
             AVPixelFormat(rawValue: frame.pointee.format),
             Int32(width),
             Int32(height),
-            AV_PIX_FMT_NV12,
+            colorProfile.isHDR ? AV_PIX_FMT_P010LE : AV_PIX_FMT_NV12,
             Int32(SWS_FAST_BILINEAR.rawValue),
             nil,
             nil,
@@ -374,6 +390,7 @@ nonisolated final class FFmpegVideoExportVideoReader {
             )
         }
 
+        colorProfile.attachColorMetadata(to: pixelBuffer)
         return pixelBuffer
     }
 }

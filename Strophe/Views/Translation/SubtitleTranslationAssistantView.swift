@@ -130,22 +130,18 @@ struct SubtitleTranslationAssistantView: View {
         .stropheOnChange(of: targetGroupID) { _ in loadCurrentTranslation() }
         .sheet(isPresented: $isShowingServiceSettings) {
             NavigationStack {
-                Form {
-                    TranslationProviderSettingsSection(settings: settings)
-                }
-                .formStyle(.grouped)
-                .navigationTitle("translation_service")
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("storage") {
-                            settings.save()
-                            isShowingServiceSettings = false
+                TranslationConfigView()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("storage") {
+                                settings.save()
+                                isShowingServiceSettings = false
+                            }
                         }
                     }
-                }
             }
             #if os(macOS)
-            .frame(minWidth: 520, minHeight: 360)
+            .frame(minWidth: 540, minHeight: 480)
             #else
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .presentationDetents([.medium, .large])
@@ -200,7 +196,7 @@ struct SubtitleTranslationAssistantView: View {
                 .labelsHidden()
                 Picker("source_language", selection: $sourceLanguage) {
                     ForEach(SubtitleLanguage.allCases) { language in
-                        Text(language.title).tag(language)
+                        Text(LocalizedStringKey(language.title)).tag(language)
                     }
                 }
                 .labelsHidden()
@@ -215,7 +211,7 @@ struct SubtitleTranslationAssistantView: View {
                 .labelsHidden()
                 Picker("target_language", selection: $targetLanguage) {
                     ForEach(SubtitleLanguage.allCases.filter { $0 != .auto }) { language in
-                        Text(language.title).tag(language)
+                        Text(LocalizedStringKey(language.title)).tag(language)
                     }
                 }
                 .labelsHidden()
@@ -236,7 +232,7 @@ struct SubtitleTranslationAssistantView: View {
             LabeledContent("source_language") {
                 Picker("source_language", selection: $sourceLanguage) {
                     ForEach(SubtitleLanguage.allCases) { language in
-                        Text(language.title).tag(language)
+                        Text(LocalizedStringKey(language.title)).tag(language)
                     }
                 }
                 .labelsHidden()
@@ -252,7 +248,7 @@ struct SubtitleTranslationAssistantView: View {
             LabeledContent("target_language") {
                 Picker("target_language", selection: $targetLanguage) {
                     ForEach(SubtitleLanguage.allCases.filter { $0 != .auto }) { language in
-                        Text(language.title).tag(language)
+                        Text(LocalizedStringKey(language.title)).tag(language)
                     }
                 }
                 .labelsHidden()

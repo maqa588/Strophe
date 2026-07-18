@@ -263,8 +263,10 @@ nonisolated enum Qwen3AlignmentTextProcessor {
             })
             let wordIDs = tokenizer.encode(cleaned)
             guard !wordIDs.isEmpty else { continue }
-            ids.append(contentsOf: wordIDs)
+            // The official Qwen3 ForcedAligner prompt surrounds every word
+            // with one timestamp slot: <timestamp> word <timestamp>.
             positions.append(ids.count); ids.append(Qwen3CoreMLTokens.timestamp)
+            ids.append(contentsOf: wordIDs)
             positions.append(ids.count); ids.append(Qwen3CoreMLTokens.timestamp)
             accepted.append(surface)
         }

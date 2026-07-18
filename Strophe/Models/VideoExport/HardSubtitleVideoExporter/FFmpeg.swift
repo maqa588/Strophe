@@ -28,6 +28,10 @@ extension HardSubtitleVideoExporter {
 
         let videoReader = try FFmpegVideoExportVideoReader(url: inputURL)
         defer { videoReader.close() }
+        let outputColorProfile = try resolvedOutputColorProfile(
+            settings: settings,
+            sourceProfile: videoReader.sourceColorProfile
+        )
 
         let audioReader = try? FFmpegVideoExportAudioReader(url: inputURL)
         defer { audioReader?.close() }
@@ -57,13 +61,17 @@ extension HardSubtitleVideoExporter {
                 width: width,
                 height: height,
                 frameRate: frameRate,
-                exportSettings: settings
+                exportSettings: settings,
+                colorProfile: outputColorProfile
             )
         )
         writerInput.expectsMediaDataInRealTime = false
         configureVideoWriterInput(writerInput, settings: settings)
         writerInput.mediaTimeScale = CMTimeScale(max(600, Int32(frameRate.rounded()) * 100))
-        let exportPixelFormat = outputPixelFormat(for: settings)
+        let exportPixelFormat = outputPixelFormat(
+            for: settings,
+            colorProfile: outputColorProfile
+        )
 
         let adaptor = AVAssetWriterInputPixelBufferAdaptor(
             assetWriterInput: writerInput,
@@ -101,7 +109,7 @@ extension HardSubtitleVideoExporter {
         }
         writer.startSession(atSourceTime: .zero)
 
-        let compositor = MetalSubtitleCompositor()
+        let compositor = MetalSubtitleCompositor(outputColorProfile: outputColorProfile)
         let sortedCues = cues.sorted { $0.startTime < $1.startTime }
         let cueIndex = 0
         let frameDuration = CMTime(

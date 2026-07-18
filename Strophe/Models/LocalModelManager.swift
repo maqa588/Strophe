@@ -42,7 +42,6 @@ extension LocalModelManager {
     nonisolated static let isPureCoreMLPipeline = true
     nonisolated static let coreMLASRAccelerationModelName = "qwen3-asr-coreml"
     nonisolated static let forcedAlignerINT8ModelName = "qwen3-forced-aligner-0.6b-coreml-int8"
-    private nonisolated static let deprecatedForcedAlignerINT4ModelName = "qwen3-forced-aligner-0.6b-coreml-int4"
 
     static let whisperPresets = [
         AIModelInfo(name: coreMLASRAccelerationModelName, size: "约 940MB", description: "Qwen3-ASR 0.6B · 全 CoreML（INT8）", folderName: coreMLASRAccelerationModelName)
@@ -56,7 +55,7 @@ extension LocalModelManager {
     )
 
     static let alignerPresets = [
-        AIModelInfo(name: forcedAlignerINT8ModelName, size: "约 1.0GB", description: "Qwen3 ForcedAligner · CoreML INT8", folderName: forcedAlignerINT8ModelName)
+        AIModelInfo(name: forcedAlignerINT8ModelName, size: "约 1.0GB", description: "Qwen3 ForcedAligner · CoreML INT8（有限值 causal mask）", folderName: forcedAlignerINT8ModelName)
     ]
 
     static let vadPresets = [
@@ -130,31 +129,7 @@ final class LocalModelManager: ObservableObject {
 
     private init() {
         migrateFromCachesToApplicationSupportIfNeeded()
-        removeDeprecatedINT4AlignerIfNeeded()
         refreshAll()
-    }
-
-    private func removeDeprecatedINT4AlignerIfNeeded() {
-        withExternalAccess { _ in
-            let base = self.getBaseDirectory(for: .aligner)
-            let hubDirectory = base
-                .appendingPathComponent("models", isDirectory: true)
-                .appendingPathComponent("aufklarer", isDirectory: true)
-                .appendingPathComponent("Qwen3-ForcedAligner-0.6B-CoreML-INT4", isDirectory: true)
-            let legacyDirectory = base.appendingPathComponent(
-                Self.deprecatedForcedAlignerINT4ModelName,
-                isDirectory: true
-            )
-            for directory in [hubDirectory, legacyDirectory]
-                where FileManager.default.fileExists(atPath: directory.path) {
-                do {
-                    try FileManager.default.removeItem(at: directory)
-                    print("🧹 LocalModelManager: Removed deprecated INT4 ForcedAligner.")
-                } catch {
-                    storageAccessError = "无法清理已停用的 INT4 强制对齐模型：\(error.localizedDescription)"
-                }
-            }
-        }
     }
 
     private func migrateFromCachesToApplicationSupportIfNeeded() {
@@ -371,11 +346,14 @@ final class LocalModelManager: ObservableObject {
         }
         guard required.allSatisfy({ FileManager.default.fileExists(atPath: directory.appendingPathComponent($0).path) }) else { return false }
         if modelName == Self.forcedAlignerINT8ModelName {
-            let components = ["audio_encoder", "embedding", "text_decoder"]
+            let components = ["audio_encoder", "text_decoder"]
             guard components.allSatisfy({ component in
                 FileManager.default.fileExists(atPath: directory.appendingPathComponent("\(component).mlmodelc").path) ||
                     FileManager.default.fileExists(atPath: directory.appendingPathComponent("\(component).mlpackage").path)
             }) else { return false }
+            guard FileManager.default.fileExists(
+                atPath: directory.appendingPathComponent("embed_tokens.fp16.bin").path
+            ) else { return false }
         } else if modelName == "firered-vad-coreml" {
             guard FileManager.default.fileExists(atPath: directory.appendingPathComponent("FireRedVAD.mlmodelc").path) ||
                     FileManager.default.fileExists(atPath: directory.appendingPathComponent("FireRedVAD.mlpackage").path)

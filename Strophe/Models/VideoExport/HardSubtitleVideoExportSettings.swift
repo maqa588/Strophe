@@ -24,6 +24,8 @@ enum HardSubtitleVideoExportError: LocalizedError {
     case readerFailed(String)
     case audioMuxFailed(String)
     case ffmpegDecodeFailed(String)
+    case hdrRequiresCompatibleCodec
+    case hdrSourceRequired
 
     var errorDescription: String? {
         switch self {
@@ -51,6 +53,10 @@ enum HardSubtitleVideoExportError: LocalizedError {
             return String(localized: "音频复用失败：\(message)")
         case .ffmpegDecodeFailed(let message):
             return String(localized: "FFmpeg 解码失败：\(message)")
+        case .hdrRequiresCompatibleCodec:
+            return String(localized: "HDR 导出需要使用 H.265 / HEVC 或 Apple ProRes。")
+        case .hdrSourceRequired:
+            return String(localized: "当前视频不是可识别的 PQ/HLG HDR 视频，无法开启 HDR 导出。")
         }
     }
 }
@@ -115,11 +121,22 @@ enum HardSubtitleVideoCodec: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    func outputSettings(width: Int, height: Int, frameRate: Double, exportSettings: HardSubtitleVideoExportSettings) -> [String: Any] {
+    var supportsHDR: Bool {
+        self == .h265 || isProRes
+    }
+
+    func outputSettings(
+        width: Int,
+        height: Int,
+        frameRate: Double,
+        exportSettings: HardSubtitleVideoExportSettings,
+        colorProfile: VideoColorProfile
+    ) -> [String: Any] {
         var settings: [String: Any] = [
             AVVideoCodecKey: avCodec,
             AVVideoWidthKey: width,
-            AVVideoHeightKey: height
+            AVVideoHeightKey: height,
+            AVVideoColorPropertiesKey: colorProfile.avVideoColorProperties
         ]
 
         if !isProRes {
@@ -145,7 +162,9 @@ enum HardSubtitleVideoCodec: String, CaseIterable, Identifiable, Sendable {
             compressionProperties[kVTCompressionPropertyKey_MaxFrameDelayCount as String] = exportSettings.maxFrameDelayCount
             compressionProperties[kVTCompressionPropertyKey_RealTime as String] = false
             compressionProperties[AVVideoProfileLevelKey] = self == .h265
-                ? (kVTProfileLevel_HEVC_Main_AutoLevel as String)
+                ? ((colorProfile.isHDR
+                    ? kVTProfileLevel_HEVC_Main10_AutoLevel
+                    : kVTProfileLevel_HEVC_Main_AutoLevel) as String)
                 : AVVideoProfileLevelH264HighAutoLevel
             if self == .h264 {
                 compressionProperties[AVVideoH264EntropyModeKey] = AVVideoH264EntropyModeCABAC
@@ -204,6 +223,7 @@ struct HardSubtitleVideoExportSettings: Sendable, Equatable {
     var usesDisplayAspect: Bool = true
     var usesExperimentalNV12PixelBuffers: Bool = false
     var usesMultiPassEncoding: Bool = false
+    var exportsHDR: Bool = false
 
     var resolvedEncoderQuality: Double {
         guard qualityMode == .crfLike else { return 0.85 }

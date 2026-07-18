@@ -4,6 +4,8 @@ enum TranslationClientError: LocalizedError {
     case invalidEndpoint
     case missingModel
     case missingAPIKey
+    case missingModalCredentials
+    case missingCloudflareAccountID
     case invalidResponse
     case server(status: Int, message: String)
     case malformedTranslation
@@ -13,6 +15,8 @@ enum TranslationClientError: LocalizedError {
         case .invalidEndpoint: return "翻译服务地址无效。"
         case .missingModel: return "请填写模型名称。"
         case .missingAPIKey: return "请填写 API 密钥。"
+        case .missingModalCredentials: return "请填写 Modal-Key 和 Modal-Secret。"
+        case .missingCloudflareAccountID: return "请填写 Cloudflare Account ID。"
         case .invalidResponse: return "翻译服务返回了无法识别的响应。"
         case let .server(status, message): return "翻译服务请求失败（\(status)）：\(message)"
         case .malformedTranslation: return "模型没有按要求返回字幕翻译结果。"
@@ -85,7 +89,11 @@ actor TranslationLLMClient {
         isJSON: Bool = false
     ) async throws -> String {
         guard !configuration.model.isEmpty else { throw TranslationClientError.missingModel }
-        if configuration.provider.needsAPIKey && configuration.apiKey.isEmpty {
+        if configuration.provider == .modal && (configuration.apiKey.isEmpty || configuration.apiSecret.isEmpty) {
+            throw TranslationClientError.missingModalCredentials
+        } else if configuration.provider == .cloudflare && configuration.accountID.isEmpty {
+            throw TranslationClientError.missingCloudflareAccountID
+        } else if configuration.provider.needsAPIKey && configuration.apiKey.isEmpty {
             throw TranslationClientError.missingAPIKey
         }
         guard let url = endpointURL(for: configuration) else { throw TranslationClientError.invalidEndpoint }
@@ -96,7 +104,7 @@ actor TranslationLLMClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         var body: [String: Any] = [:]
-        switch configuration.provider {
+        switch configuration.provider.apiProtocol {
         case .ollama:
             var ollamaBody: [String: Any] = [
                 "model": configuration.model,
@@ -112,21 +120,33 @@ actor TranslationLLMClient {
                 ollamaBody["format"] = "json"
             }
             body = ollamaBody
-        case .openAICompatible:
-            request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
+        case .openAI:
+            if configuration.provider == .modal {
+                request.setValue(configuration.apiKey, forHTTPHeaderField: "Modal-Key")
+                request.setValue(configuration.apiSecret, forHTTPHeaderField: "Modal-Secret")
+            } else {
+                request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
+            }
             var openAIBody: [String: Any] = [
                 "model": configuration.model,
-                "temperature": 0.1,
                 "messages": [
                     ["role": "system", "content": "You translate subtitles precisely and return only the requested output."],
                     ["role": "user", "content": prompt]
                 ]
             ]
-            if isJSON {
+            let usesHeterogeneousModels = configuration.provider == .nvidia
+                || configuration.provider == .modal
+                || configuration.provider == .tencent
+                || configuration.provider == .openrouter
+                || configuration.provider == .cloudflare
+            if !usesHeterogeneousModels {
+                openAIBody["temperature"] = 0.1
+            }
+            if isJSON && !usesHeterogeneousModels {
                 openAIBody["response_format"] = ["type": "json_object"]
             }
             body = openAIBody
-        case .anthropicCompatible:
+        case .anthropic:
             request.setValue(configuration.apiKey, forHTTPHeaderField: "x-api-key")
             request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
             body = [
@@ -153,10 +173,10 @@ actor TranslationLLMClient {
         guard var components = URLComponents(string: raw), components.scheme != nil else { return nil }
         var path = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         let suffix: String
-        switch configuration.provider {
+        switch configuration.provider.apiProtocol {
         case .ollama: suffix = "api/chat"
-        case .openAICompatible: suffix = "chat/completions"
-        case .anthropicCompatible: suffix = "messages"
+        case .openAI: suffix = "chat/completions"
+        case .anthropic: suffix = "messages"
         }
         if !path.hasSuffix(suffix) {
             path = path.isEmpty ? suffix : "\(path)/\(suffix)"
@@ -169,18 +189,18 @@ actor TranslationLLMClient {
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw TranslationClientError.invalidResponse
         }
-        switch provider {
+        switch provider.apiProtocol {
         case .ollama:
             if let message = json["message"] as? [String: Any], let content = message["content"] as? String {
                 return content
             }
-        case .openAICompatible:
+        case .openAI:
             if let choices = json["choices"] as? [[String: Any]],
                let message = choices.first?["message"] as? [String: Any],
                let content = message["content"] as? String {
                 return content
             }
-        case .anthropicCompatible:
+        case .anthropic:
             if let content = json["content"] as? [[String: Any]],
                let text = content.first(where: { ($0["type"] as? String) == "text" })?["text"] as? String {
                 return text

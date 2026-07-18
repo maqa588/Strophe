@@ -53,14 +53,52 @@ struct BatchTranslationView: View {
 
                 Section("language") {
                     Picker("source_language", selection: $sourceLanguage) {
-                        ForEach(SubtitleLanguage.allCases) { language in Text(language.title).tag(language) }
+                        ForEach(SubtitleLanguage.allCases) { language in Text(LocalizedStringKey(language.title)).tag(language) }
                     }
                     Picker("target_language", selection: $targetLanguage) {
-                        ForEach(SubtitleLanguage.allCases.filter { $0 != .auto }) { language in Text(language.title).tag(language) }
+                        ForEach(SubtitleLanguage.allCases.filter { $0 != .auto }) { language in Text(LocalizedStringKey(language.title)).tag(language) }
                     }
                 }
 
-                TranslationProviderSettingsSection(settings: settings)
+                Section("machine_translation_service") {
+                    HStack(spacing: 12) {
+                        if let logo = settings.provider.logoName {
+                            Image(logo)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 32, height: 32)
+                                .clipShape(Circle())
+                        } else {
+                            Image(systemName: "cpu")
+                                .font(.system(size: 16))
+                                .frame(width: 32, height: 32)
+                                .background(Color.stropheSecondaryBackground)
+                                .clipShape(Circle())
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(settings.provider.title)
+                                .font(.subheadline)
+                                .bold()
+                            Text(settings.model.isEmpty ? "未设置模型" : settings.model)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Button {
+                            openModelSettings()
+                        } label: {
+                            Text("configure")
+                                .font(.subheadline)
+                                .bold()
+                                .foregroundStyle(Color.stropheAccent)
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                    .padding(.vertical, 4)
+                }
 
                 if isRunning || completedCount > 0 {
                     Section("progress") {
@@ -166,6 +204,13 @@ struct BatchTranslationView: View {
             }
             isRunning = false
             translationTask = nil
+        }
+    }
+
+    private func openModelSettings() {
+        dismiss()
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: .stropheOpenModelSettings, object: SettingsRoute.translationConfig)
         }
     }
 }

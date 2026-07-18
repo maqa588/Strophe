@@ -34,6 +34,11 @@ extension HardSubtitleVideoExporter {
         let preferredTransform = try await videoTrack.load(.preferredTransform)
         let nominalFrameRate = try await videoTrack.load(.nominalFrameRate)
         let formatDescriptions = (try? await videoTrack.load(.formatDescriptions)) ?? []
+        let sourceColorProfile = VideoColorProfile.detect(in: formatDescriptions)
+        let outputColorProfile = try resolvedOutputColorProfile(
+            settings: settings,
+            sourceProfile: sourceColorProfile
+        )
         let geometry = renderGeometry(
             naturalSize: naturalSize,
             preferredTransform: preferredTransform,
@@ -49,14 +54,20 @@ extension HardSubtitleVideoExporter {
             throw HardSubtitleVideoExportError.cannotCreateReader
         }
 
-        let exportPixelFormat = outputPixelFormat(for: settings)
+        let exportPixelFormat = outputPixelFormat(
+            for: settings,
+            colorProfile: outputColorProfile
+        )
+        var readerVideoSettings = pixelBufferAttributes(
+            pixelFormat: exportPixelFormat,
+            width: nil,
+            height: nil
+        )
+        readerVideoSettings[AVVideoColorPropertiesKey] = outputColorProfile.avVideoColorProperties
+        readerVideoSettings[AVVideoAllowWideColorKey] = outputColorProfile.isHDR
         let videoOutput = AVAssetReaderTrackOutput(
             track: videoTrack,
-            outputSettings: pixelBufferAttributes(
-                pixelFormat: exportPixelFormat,
-                width: nil,
-                height: nil
-            )
+            outputSettings: readerVideoSettings
         )
         videoOutput.alwaysCopiesSampleData = false
         guard reader.canAdd(videoOutput) else {
@@ -102,7 +113,8 @@ extension HardSubtitleVideoExporter {
                 width: width,
                 height: height,
                 frameRate: Double(nominalFrameRate),
-                exportSettings: settings
+                exportSettings: settings,
+                colorProfile: outputColorProfile
             )
         )
         writerInput.expectsMediaDataInRealTime = false
@@ -134,7 +146,7 @@ extension HardSubtitleVideoExporter {
         }
         writer.startSession(atSourceTime: .zero)
 
-        let compositor = MetalSubtitleCompositor()
+        let compositor = MetalSubtitleCompositor(outputColorProfile: outputColorProfile)
         let sortedCues = cues.sorted { $0.startTime < $1.startTime }
         let cueIndex = 0
         let durationSeconds = max(duration.seconds.isFinite ? duration.seconds : 0, 0.001)

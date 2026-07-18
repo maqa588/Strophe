@@ -29,7 +29,7 @@ struct ModelConfigView: View {
         }
         .formStyle(.grouped)
         .background(Color.stropheBackground)
-        .navigationTitle(type.title)
+        .navigationTitle(LocalizedStringKey(type.title))
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
