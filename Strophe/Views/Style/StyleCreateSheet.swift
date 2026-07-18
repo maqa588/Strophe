@@ -203,7 +203,7 @@ struct StyleCreateSheet: View {
         }
         .onAppear {
             if name.isEmpty {
-                name = "Style \(store.styles.count + 1)"
+                name = String(localized: "style_default_name_pattern \(store.styles.count + 1)")
             }
         }
     }

@@ -413,7 +413,7 @@ extension StyleEditSheet {
         }
     }
 
-    func editorSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+    func editorSection<Content: View>(_ title: LocalizedStringKey, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(title)
                 .font(.subheadline)
@@ -434,27 +434,27 @@ extension StyleEditSheet {
         )
     }
 
-    func labeledTextField(_ label: String, text: Binding<String>, placeholder: String = "") -> some View {
+    func labeledTextField(_ label: LocalizedStringKey, text: Binding<String>, placeholder: LocalizedStringKey? = nil) -> some View {
         HStack(spacing: 12) {
             Text(label)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .frame(width: 48, alignment: .leading)
 
-            TextField(placeholder.isEmpty ? label : placeholder, text: text)
+            TextField(placeholder ?? label, text: text)
                 .textFieldStyle(.roundedBorder)
                 .font(.subheadline)
         }
     }
 
     func compactColorSlider(
-        title: String,
+        title: LocalizedStringKey,
         color: Binding<Color>,
         value: Binding<Double>,
         range: ClosedRange<Double>,
         step: Double,
         valueLabel: String,
-        help: String
+        help: LocalizedStringKey
     ) -> some View {
         HStack(spacing: 12) {
             Text(title)
@@ -471,16 +471,16 @@ extension StyleEditSheet {
                 .font(.caption.monospacedDigit())
                 .frame(width: 48, alignment: .trailing)
         }
-        .help(String(localized: String.LocalizationValue(help)))
+        .help(help)
     }
 
     func compactValueSlider(
-        title: String,
+        title: LocalizedStringKey,
         value: Binding<Double>,
         range: ClosedRange<Double>,
         step: Double,
         valueLabel: String,
-        help: String
+        help: LocalizedStringKey
     ) -> some View {
         HStack(spacing: 12) {
             Text(title)
@@ -493,7 +493,7 @@ extension StyleEditSheet {
                 .font(.caption.monospacedDigit())
                 .frame(width: 58, alignment: .trailing)
         }
-        .help(String(localized: String.LocalizationValue(help)))
+        .help(help)
     }
 }
 

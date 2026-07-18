@@ -52,7 +52,7 @@ struct StyleEditSheet: View {
     
     var currentFontDisplayName: String {
         if fontName.isEmpty {
-            return "system_default_pingfang_sc"
+            return String(localized: "system_default_pingfang_sc")
         }
         if let info = FontCatalog.shared.fonts.first(where: { $0.id == fontName }) {
             return info.localizedFamilyName

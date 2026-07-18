@@ -61,15 +61,15 @@ struct SubtitleStyle: Codable, Sendable, Identifiable, Equatable {
 
         var title: String {
             switch self {
-            case .topLeft: return "左上"
-            case .topCenter: return "上中"
-            case .topRight: return "右上"
-            case .middleLeft: return "左中"
-            case .middleCenter: return "居中"
-            case .middleRight: return "右中"
-            case .bottomLeft: return "左下"
-            case .bottomCenter: return "底部居中"
-            case .bottomRight: return "右下"
+            case .topLeft: return String(localized: "alignment_top_left")
+            case .topCenter: return String(localized: "alignment_top_center")
+            case .topRight: return String(localized: "alignment_top_right")
+            case .middleLeft: return String(localized: "alignment_middle_left")
+            case .middleCenter: return String(localized: "alignment_middle_center")
+            case .middleRight: return String(localized: "alignment_middle_right")
+            case .bottomLeft: return String(localized: "alignment_bottom_left")
+            case .bottomCenter: return String(localized: "alignment_bottom_center")
+            case .bottomRight: return String(localized: "alignment_bottom_right")
             }
         }
     }
