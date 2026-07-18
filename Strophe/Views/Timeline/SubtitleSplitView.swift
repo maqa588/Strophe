@@ -102,7 +102,7 @@ struct SubtitleSplitView: View {
                         .buttonStyle(.plain)
                         .disabled(cursorPosition <= 1)
 
-                        Text(String(localized: "游标位置：\(cursorPosition) / \(characters.count)"))
+                        Text(String(localized: "playhead_position_format \(cursorPosition) \(characters.count)"))
                             .font(.system(size: 12, weight: .medium, design: .monospaced))
                             .foregroundStyle(.secondary)
 
@@ -136,7 +136,7 @@ struct SubtitleSplitView: View {
                                 .foregroundStyle(.primary)
                                 .minimumScaleFactor(0.75)
                                 .lineLimit(1)
-                            Text("「\(leftText)」")
+                            Text("bracket_format \(leftText)")
                                 .font(.caption)
                                 .foregroundStyle(Color.stropheBlue)
                                 .lineLimit(2)
@@ -164,7 +164,7 @@ struct SubtitleSplitView: View {
                                 .foregroundStyle(.primary)
                                 .minimumScaleFactor(0.75)
                                 .lineLimit(1)
-                            Text("「\(rightText)」")
+                            Text("bracket_format \(rightText)")
                                 .font(.caption)
                                 .foregroundStyle(Color.orange)
                                 .lineLimit(2)

@@ -35,7 +35,7 @@ extension AutoCaptionView {
                         .font(.system(size: 28, weight: .bold, design: .rounded))
                         .foregroundStyle(Color.stropheText)
                     
-                    Text("进度")
+                    Text("progress_label")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }

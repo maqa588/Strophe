@@ -227,7 +227,7 @@ extension AutoCaptionView {
                             HStack(spacing: 6) {
                                 Image(systemName: "checkmark.circle.fill")
                                     .foregroundStyle(Color.stropheAccent)
-                                Text("CoreML \(precision) 对齐器已启用")
+                                Text("coreml_aligner_enabled_format \(precision)")
                                     .font(.system(size: 11))
                                     .foregroundStyle(.secondary)
                             }
@@ -277,7 +277,7 @@ extension AutoCaptionView {
                                 .pickerStyle(.segmented)
 
                                 if speakerCountOption == "custom" {
-                                    Stepper("发言人数量: \(customSpeakerCount) 人", value: $customSpeakerCount, in: 1...10)
+                                    Stepper("speaker_count_format \(customSpeakerCount)", value: $customSpeakerCount, in: 1...10)
                                         .font(.subheadline)
                                         .foregroundStyle(Color.stropheText)
                                 }

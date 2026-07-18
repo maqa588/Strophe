@@ -286,7 +286,7 @@ struct MainContentView: View {
                 ) { progress in
                     hardSubtitleProgress = progress
                 }
-                hardSubtitleExportMessage = String(localized: "导出完成：\(url.lastPathComponent)")
+                hardSubtitleExportMessage = String(localized: "export_completed_format \(url.lastPathComponent)")
             } catch {
                 hardSubtitleExportMessage = error.localizedDescription
             }

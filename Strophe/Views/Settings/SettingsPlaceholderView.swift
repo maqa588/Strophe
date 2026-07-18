@@ -21,7 +21,7 @@ struct SettingsPlaceholderView: View {
                     open(.version)
                 } label: {
                     Label {
-                        Text("关于 \(AppIdentity.displayName)")
+                        Text("about_app_format \(AppIdentity.displayName)")
                             .foregroundStyle(Color.stropheText)
                     } icon: {
                         Image(systemName: "info.circle.fill")

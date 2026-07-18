@@ -1,2 +1,13 @@
+"ASS Subtitle" = "ASS 字幕";
+"AVI Video" = "AVI 视频";
 "CFBundleDisplayName" = "活字";
 "CFBundleName" = "活字";
+"Flash Video" = "Flash 视频";
+"LRC Lyrics" = "LRC 歌词";
+"Matroska Video" = "Matroska 视频";
+"NSLocalNetworkUsageDescription" = "Strophe 需要访问局域网中的云端字幕识别服务。";
+"RealMedia Variable Bitrate Video" = "RealMedia 动态码率视频";
+"SRT Subtitle" = "SRT 字幕";
+"Strophe Project" = "Strophe 项目";
+"WebM Video" = "WebM 视频";
+"WebVTT Subtitle File" = "WebVTT 字幕文件";

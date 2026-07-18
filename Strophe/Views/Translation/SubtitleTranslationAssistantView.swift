@@ -389,7 +389,7 @@ struct SubtitleTranslationAssistantView: View {
                 .keyboardShortcut(KeyEquivalent(Character("\u{F704}")), modifiers: [])
 
             ForEach(Array(phrasesStore.phrases.prefix(9).enumerated()), id: \.offset) { index, phrase in
-                Button("插入常用词 \(index + 1)") { insertPhrase(phrase) }
+                Button("insert_common_word_format \(index + 1)") { insertPhrase(phrase) }
                     .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)
             }
         }

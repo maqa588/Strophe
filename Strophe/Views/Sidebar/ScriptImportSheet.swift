@@ -36,7 +36,7 @@ struct ScriptImportSheet: View {
 
                 Spacer()
 
-                Button("Import \(lineCount) Segments") {
+                Button("import_segments_format \(lineCount)") {
                     onImport()
                     isPresented = false
                 }

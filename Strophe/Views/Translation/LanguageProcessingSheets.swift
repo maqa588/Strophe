@@ -18,7 +18,7 @@ struct PinyinConversionSheet: View {
                     .font(.title2.bold())
                 Text(selectedCount == 0
                      ? "select_subtitle_blocks_first_hint"
-                     : "将转换所选的 \(selectedCount) 个字幕块。拼音保留声调，非汉字内容保持不变。")
+                     : "convert_selected_pinyin_explanation_format \(selectedCount)")
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: 420)
@@ -72,7 +72,7 @@ struct AutoLineWrapSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    Text("操作 \(selectedItems.count) 个对象（平均 \(averageLength) 字符，最大 \(maximumSourceLength) 字符）")
+                    Text("batch_operation_summary_format \(selectedItems.count) \(averageLength) \(maximumSourceLength)")
                         .foregroundStyle(.secondary)
                 }
                 Section("language_type") {

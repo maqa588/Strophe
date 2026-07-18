@@ -56,9 +56,26 @@ struct VersionDetailView: View {
                         .foregroundStyle(Color.stropheText)
                 }
 
-                LabeledContent("license") {
-                    Text("license_fsl")
-                        .foregroundStyle(Color.stropheText)
+                NavigationLink {
+                    LicensesListView()
+                } label: {
+                    LabeledContent("license") {
+                        Text("click_to_view")
+                            .foregroundStyle(Color.stropheText)
+                    }
+                }
+                
+                Link(destination: URL(string: "https://github.com/maqa588/Strophe")!) {
+                    HStack {
+                        Text("GitHub")
+                            .foregroundStyle(Color.stropheText)
+                        
+                        Spacer()
+                        
+                        Text("maqa588/Strophe")
+                            .foregroundStyle(.blue)
+                            .underline()
+                    }
                 }
             }
 
@@ -80,7 +97,93 @@ struct VersionDetailView: View {
         }
         .formStyle(.grouped)
         .background(Color.stropheBackground)
-        .navigationTitle("关于 \(AppIdentity.displayName)")
+        .navigationTitle("about_app_format \(AppIdentity.displayName)")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+    }
+}
+
+struct LicensesListView: View {
+    var body: some View {
+        List {
+            Section {
+                NavigationLink {
+                    LicenseDocumentView(title: String(localized: "eula_label"), text: String(localized: "eula_body"))
+                } label: {
+                    LabeledContent("Strophe", value: String(localized: "eula_label"))
+                }
+                
+                NavigationLink {
+                    LicenseDocumentView(title: String(localized: "cloud_agreement_label"), text: String(localized: "cloud_agreement_body"))
+                } label: {
+                    LabeledContent("Strophe", value: String(localized: "cloud_agreement_label"))
+                }
+                
+                NavigationLink {
+                    LicenseDocumentView(title: "Strophe License (FSL 1.1)", text: LicenseTexts.fsl)
+                } label: {
+                    LabeledContent("Strophe", value: "FSL 1.1")
+                }
+                
+                NavigationLink {
+                    LicenseDocumentView(title: "FFmpeg (LGPL v2.1+)", text: LicenseTexts.ffmpeg)
+                } label: {
+                    LabeledContent("FFmpeg", value: "LGPL v2.1+")
+                }
+                
+                NavigationLink {
+                    LicenseDocumentView(title: "Qwen3-ASR (Apache 2.0)", text: LicenseTexts.apache)
+                } label: {
+                    LabeledContent("Qwen3-ASR", value: "Apache 2.0")
+                }
+                
+                NavigationLink {
+                    LicenseDocumentView(title: "Qwen3-ForcedAligner (Apache 2.0)", text: LicenseTexts.apache)
+                } label: {
+                    LabeledContent("Qwen3-ForcedAligner", value: "Apache 2.0")
+                }
+                
+                NavigationLink {
+                    LicenseDocumentView(title: "FireRedVAD (Apache 2.0)", text: LicenseTexts.apache)
+                } label: {
+                    LabeledContent("FireRedVAD", value: "Apache 2.0")
+                }
+                
+                NavigationLink {
+                    LicenseDocumentView(title: String(localized: "trademarks_label"), text: String(localized: "trademark_disclaimer"))
+                } label: {
+                    LabeledContent("trademarks_label") {
+                        Text("disclaimer_label")
+                            .foregroundStyle(Color.stropheText)
+                    }
+                }
+            }
+        }
+        .background(Color.stropheBackground)
+        .navigationTitle("license")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+    }
+}
+
+struct LicenseDocumentView: View {
+    let title: String
+    let text: String
+    
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text(text)
+                    .font(.system(.body, design: .monospaced))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+            }
+            .padding()
+        }
+        .background(Color.stropheBackground)
+        .navigationTitle(title)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

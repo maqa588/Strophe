@@ -5,7 +5,7 @@
 "Flash Video" = "Flash Video";
 "LRC Lyrics" = "LRC Lyrics";
 "Matroska Video" = "Matroska Video";
-"NSLocalNetworkUsageDescription" = "Strophe 需要访问局域网中的云端字幕识别服务。";
+"NSLocalNetworkUsageDescription" = "Strophe needs to access the local network to connect to cloud subtitle recognition services.";
 "RealMedia Variable Bitrate Video" = "RealMedia Variable Bitrate Video";
 "SRT Subtitle" = "SRT Subtitle";
 "Strophe Project" = "Strophe Project";

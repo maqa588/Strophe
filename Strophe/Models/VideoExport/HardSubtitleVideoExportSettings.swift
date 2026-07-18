@@ -34,25 +34,25 @@ enum HardSubtitleVideoExportError: LocalizedError {
         case .missingVideoTrack:
             return String(localized: "the_current_media_has_no")
         case .unsupportedInput(let ext):
-            return String(localized: "当前 V1 硬字幕导出暂不支持 \(ext.uppercased()) 容器。请先导出或转封装为 MP4/MOV。")
+            return String(localized: "v1_hard_subtitle_container_unsupported_format \(ext.uppercased())")
         case .cannotCreateReader:
             return String(localized: "unable_to_create_avassetreader")
         case .cannotCreateWriter:
             return String(localized: "unable_to_create_avassetwriter")
         case .cannotStartReading(let message):
-            return String(localized: "无法开始读取视频：\(message)")
+            return String(localized: "unable_to_start_video_read_format \(message)")
         case .cannotStartWriting(let message):
-            return String(localized: "无法开始写入视频：\(message)")
+            return String(localized: "unable_to_start_video_write_format \(message)")
         case .cancelled:
             return String(localized: "hard_subtitle_export_cancelled")
         case .writerFailed(let message):
-            return String(localized: "视频写入失败：\(message)")
+            return String(localized: "video_write_failed_format \(message)")
         case .readerFailed(let message):
-            return String(localized: "视频读取失败：\(message)")
+            return String(localized: "video_read_failed_format \(message)")
         case .audioMuxFailed(let message):
-            return String(localized: "音频复用失败：\(message)")
+            return String(localized: "audio_remux_failed_format \(message)")
         case .ffmpegDecodeFailed(let message):
-            return String(localized: "FFmpeg 解码失败：\(message)")
+            return String(localized: "ffmpeg_decode_failed_format \(message)")
         case .hdrRequiresCompatibleCodec:
             return String(localized: "HDR 导出需要使用 H.265 / HEVC 或 Apple ProRes。")
         case .hdrSourceRequired:

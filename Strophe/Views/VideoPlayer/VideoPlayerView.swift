@@ -166,7 +166,7 @@ struct VideoPlayerView: View {
             if isRemoteVolumeAlert {
                 Text(String(localized: "remote_network_playback_message"))
             } else {
-                Text(String(localized: "您的设备对 \(format) 格式兼容性欠佳，在播放过程中可能会遇到一些性能问题。\n\n建议尽量使用 MP4、MOV、M4V、MP3、FLAC、M4A、AAC、ALAC 等推荐的视频、音频格式以获得最流畅的体验。"))
+                Text(String(localized: "device_format_compatibility_warning \(format)"))
             }
         }
         .fileImporter(
@@ -253,7 +253,7 @@ struct VideoPlayerView: View {
                     .foregroundStyle(.orange)
                 VStack(spacing: 6) {
                     Text(String(localized: "media_not_found")).font(.title3.bold())
-                    Text(String(localized: "\"\(mediaName)\" could not be opened.\nPlease replace the media file below."))
+                    Text(String(localized: "media_open_failed_replace_hint \(mediaName)"))
                         .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 }
                 Button(action: { isShowingReplaceMedia = true }) {

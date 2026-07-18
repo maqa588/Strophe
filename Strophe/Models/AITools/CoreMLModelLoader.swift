@@ -53,6 +53,7 @@ nonisolated enum CoreMLModelLoader {
 
         print("🔧 CoreML: 首次编译 \(name).mlpackage...")
         let compiledTemporary = try MLModel.compileModel(at: package)
+        defer { try? fileManager.removeItem(at: compiledTemporary) }
         let staging = directory.appendingPathComponent(".\(name)-\(UUID().uuidString).mlmodelc", isDirectory: true)
         defer { try? fileManager.removeItem(at: staging) }
         try fileManager.copyItem(at: compiledTemporary, to: staging)

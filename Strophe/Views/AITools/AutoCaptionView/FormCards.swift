@@ -127,7 +127,7 @@ extension AutoCaptionView {
             HStack {
                 Image(systemName: "play.rectangle.fill")
                     .foregroundStyle(Color.stropheAccent)
-                Text("当前媒体: \(project.documentDisplayName)")
+                Text("current_media_format \(project.documentDisplayName)")
                     .font(.subheadline)
                     .lineLimit(1)
                     .foregroundStyle(Color.stropheText)

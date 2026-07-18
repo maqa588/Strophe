@@ -1,2 +1,13 @@
+"ASS Subtitle" = "ASS 字幕";
+"AVI Video" = "AVI 視訊";
 "CFBundleDisplayName" = "活字";
 "CFBundleName" = "活字";
+"Flash Video" = "Flash 視訊";
+"LRC Lyrics" = "LRC 歌詞";
+"Matroska Video" = "Matroska 視訊";
+"NSLocalNetworkUsageDescription" = "Strophe 需要存取區域網路中的雲端字幕識別服務。";
+"RealMedia Variable Bitrate Video" = "RealMedia 動態位元率視訊";
+"SRT Subtitle" = "SRT 字幕";
+"Strophe Project" = "Strophe 專案";
+"WebM Video" = "WebM 視訊";
+"WebVTT Subtitle File" = "WebVTT 字幕檔案";

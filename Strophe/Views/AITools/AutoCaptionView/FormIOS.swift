@@ -161,7 +161,7 @@ extension AutoCaptionView {
                                 .foregroundStyle(.secondary)
                         } else if selectedAlignerModel.contains("coreml") {
                             let precision = "INT8"
-                            Text("CoreML \(precision) 对齐器已启用")
+                            Text("coreml_aligner_enabled_format \(precision)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -182,7 +182,7 @@ extension AutoCaptionView {
                             .pickerStyle(.segmented)
                             
                             if speakerCountOption == "custom" {
-                                Stepper("发言人数量: \(customSpeakerCount) 人", value: $customSpeakerCount, in: 1...10)
+                                Stepper("speaker_count_format \(customSpeakerCount)", value: $customSpeakerCount, in: 1...10)
                             }
                             
                             Toggle("add_speaker_prefix_in_subtitles", isOn: $prefixSpeakerName)
@@ -266,7 +266,7 @@ extension AutoCaptionView {
                 HStack {
                     Image(systemName: "play.rectangle.fill")
                         .foregroundStyle(Color.stropheAccent)
-                    Text("当前媒体: \(project.documentDisplayName)")
+                    Text("current_media_format \(project.documentDisplayName)")
                         .font(.subheadline)
                         .lineLimit(1)
                         .foregroundStyle(Color.stropheText)

@@ -206,7 +206,6 @@
 "local_ai_speech_timing" = "本地 AI 语音识别打轴";
 "local_generate_subtitles" = "本地生成字幕";
 "local_manual_import" = "本地手动导入";
-"local_recognition" = "本地识别";
 "local_speech_recognition_config" = "本地语音识别配置";
 "lock_this_group" = "锁定此组";
 "machine_translation_service" = "机器翻译服务";
@@ -482,3 +481,110 @@
 "voice_activity_detection_settings" = "语音活动检测设置";
 "what_is_cached_data" = "什么是缓存数据？";
 "when_importing_video_or_audio" = "Strophe 在导入视频 or 音频文件时，会生成临时音频转码文件与波形分析缓存。这些数据可以显著加速波形的渲染和音视频的高速跳转，但在使用完毕后，它们会占用您的设备存储空间。";
+
+"" = "";
+"%@ %@" = "%@ %@";
+"%@ (%@) %@" = "%@ (%@) %@";
+"%@\n%@" = "%@\n%@";
+"%lld" = "%lld";
+"%lld / %lld" = "%1$lld / %2$lld";
+"%lld × %lld  ·  %.1f%%" = "%1$lld × %2$lld  ·  %3$.1f%%";
+"%lld 字符" = "%lld 字符";
+"INT8" = "INT8";
+
+"download_vad_model" = "下载 VAD 模型";
+"download_align_model" = "下载对齐模型";
+"download_asr_model" = "下载语音识别模型";
+"cloud_ai_speech_recognition_alignment" = "云端 AI 语音识别打轴";
+"about_app_format %@" = "关于 %@";
+"speaker_count_format %lld" = "发言人数量: %lld 人";
+"export_completed_format %@" = "导出完成：%@";
+"convert_selected_pinyin_explanation_format %lld" = "将转换所选的 %lld 个字幕块。拼音保留声调，非汉字内容保持不变。";
+"v1_hard_subtitle_container_unsupported_format %@" = "当前 V1 硬字幕导出暂不支持 %@ 容器。请先导出或转封装为 MP4/MOV。";
+"current_media_format %@" = "当前媒体: %@";
+"device_format_compatibility_warning %@" = "您的设备对 %@ 格式兼容性欠佳，在播放过程中可能会遇到一些性能问题。\n\n建议尽量使用 MP4、MOV、M4V、MP3、FLAC、M4A、AAC、ALAC 等推荐的视频、音频格式以获得最流畅的体验。";
+"insert_common_word_format %lld" = "插入常用词 %lld";
+"batch_operation_summary_format %lld %lld %lld" = "操作 %1$lld 个对象（平均 %2$lld 字符，最大 %3$lld 字符）";
+"unable_to_start_video_write_format %@" = "无法开始写入视频：%@";
+"unable_to_start_video_read_format %@" = "无法开始读取视频：%@";
+"local_ai_speech_recognition_alignment" = "本地 AI 语音识别打轴";
+"local_generation_missing_models_aligner_hint" = "本地生成需要先下载 Qwen3-ASR CoreML 和 ForcedAligner CoreML INT8。";
+"local_generation_missing_models_vad_hint" = "本地生成需要先下载 Qwen3-ASR CoreML、ForcedAligner CoreML INT8 和 FireRed VAD CoreML。";
+"local_recognition" = "本地识别";
+"model_ready" = "模型已就绪";
+"playhead_position_format %lld %lld" = "游标位置：%1$lld / %2$lld";
+"missing_model" = "缺少模型";
+"video_write_failed_format %@" = "视频写入失败：%@";
+"video_read_failed_format %@" = "视频读取失败：%@";
+"progress_label" = "进度";
+"audio_processed_locally_hint" = "音频仅在设备上处理，不会上传到服务器。";
+"audio_remux_failed_format %@" = "音频复用失败：%@";
+"bracket_format %@" = "「%@」";
+"mbps_format %.1f" = "%.1f Mbps";
+"coreml_aligner_enabled_format %@" = "CoreML %@ 对齐器已启用";
+"ffmpeg_decode_failed_format %@" = "FFmpeg 解码失败：%@";
+"import_segments_format %lld" = "导入 %lld 个片段";
+"media_open_failed_replace_hint %@" = "\"%@\" 无法打开。\n请替换下方的媒体文件。";
+"version_build_format %@ %@" = "v%1$@ (%2$@)";
+"fonts_count_available_format %lld" = "%lld 个字体可用";
+"click_to_view" = "点击查看";
+
+"trademarks_label" = "商标";
+"disclaimer_label" = "免责声明";
+"trademark_disclaimer" = "商标免责声明\n\n本软件中提及的所有第三方产品名称、徽标、品牌和商标——包括但不限于 OpenAI、Anthropic、Google、Google AI Studio、xAI、Grok、DeepSeek、NVIDIA、NVIDIA NIM、Ollama、Meta、Llama、Moonshot AI、Kimi、MiniMax、字节跳动、火山引擎、PLaMo、百度、百度千帆、Modal、腾讯、腾讯云、OpenRouter、Sakana AI、Cloudflare、智谱 AI、GLM、阿里巴巴、通义千问等——均为其各自所有者的财产。\n\n在本软件中使用这些内容并不意味着这些商标所有者与本软件有任何关联、赞助、合作、背书或批准。Strophe 是一个独立的应用程序，所有第三方集成仅为兼容性和实用性目的而提供。\n\n此外，本软件中提及的 Apple、ProRes、Apple ProRes、macOS、iOS、iPadOS 以及任何其他与 Apple 相关的产品名称、徽标或格式名称均为 Apple Inc. 在美国和其他国家注册的商标或注册商标。Strophe 是一款独立的软件应用程序，与 Apple Inc. 没有任何关系、关联、连接、合作、赞助或背书。对 Apple ProRes 和其他 Apple 媒体格式的提及仅用于说明与这些音视频格式的兼容性。";
+
+"eula_label" = "最终用户许可协议";
+"cloud_agreement_label" = "云端使用协议";
+"eula_body" = "最终用户许可协议 (EULA)
+
+在使用 Strophe（活字）软件之前，请仔细阅读本软件许可协议（“许可证”）。使用 Strophe 软件即表示您同意受本许可证条款的约束。
+
+1. 总则
+Strophe 软件及本许可证随附的任何第三方软件、文档、界面、内容、字体和任何数据，无论是存储在磁盘、只读存储器、任何其他介质还是任何其他形式，均由 Spencer Maqa 许可（而非出售）给您，您只能根据本许可证的条款进行使用。
+
+2. FSL 1.1 许可证与 App Store 独家发行权
+Strophe 的源代码根据 Functional Source License, Version 1.1, ALv2 Future License (FSL-1.1-ALv2) 提供。您可以根据 FSL 1.1 许可证的规定，出于任何允许的目的使用、复制、修改、创建衍生作品、公开表演、公开展示和重新分发本软件。
+
+特别例外及限制：尽管 FSL 1.1 许可证授予了上述权限，但在转换日期（即软件代码正式转换为 Apache 2.0 许可证的年限日期）到达之前，在 Apple App Store（包括 iOS App Store 和 Mac App Store）上分发、发布或以上架形式提供 Strophe 应用程序的独家发行权，完全且唯一地归属于 Spencer Maqa 本人。未经 Spencer Maqa 事先明确的书面许可，您绝对不得将本软件或其任何衍生作品编译、打包、上传或分发至 Apple App Store。
+
+3. 同意使用数据
+如您选择允许收集分析数据，即表示您同意我们可以收集、维护、处理和使用诊断性、技术性、使用及相关信息，以便提供和改善产品和服务。所有数据均按照适用的隐私政策和云端使用协议进行处理。
+
+4. 免责声明
+您明确承认并同意，在适用法律允许的范围内，您使用 Strophe 软件和通过本软件执行或访问任何服务均须由您自担风险。在适用法律允许的最大范围内，Strophe 软件和服务是“按原样”和“可提供情况”提供的，附有一切瑕疵而不带有任何种类的担保。Spencer Maqa 及许可人特此否认提供任何明示、默示或法定担保和条件，包括但不限于有关销路、质量满意度、某特定用途的适用性、准确性、不受干扰地享用及不侵害第三方权利的默示担保。
+
+5. 责任限制
+在适用法律不禁止的范围内，在任何情况下，对由于您使用或无法使用 Strophe 软件或服务所引起或与此有关的任何人身伤害或任何附带的、特别的、间接的或后果性的损害赔偿（包括但不限于利润损失、数据损坏或丢失、未能传输或接收任何数据、业务中断的损害赔偿或任何其他商业损害赔偿或损失），无论其成因及基于何种责任理论（合同、侵权或其他），Spencer Maqa 概不承担责任。
+
+6. 出口管制
+除《中华人民共和国出口管制法》等中国法律以及获得 Strophe 软件的所在司法管辖区的法律授权外，您不得使用或以任何方式出口或转口 Strophe 软件。
+
+7. 第三方确认及视频格式声明
+A. MPEG-4 的使用。本产品是依据 MPEG-4 视频专利组合许可证特许予消费者个人和非商业性使用，以按照 MPEG-4 视频标准对从事个人和非商业活动的消费者所编码的视频，和/或从获授权提供 MPEG-4 视频的视频提供者取得的视频进行解码。
+B. H.264/AVC 声明。在软件包含 AVC 编码/解码功能的范围内，H.264/AVC 的商业性使用需要额外的许可，且以下规定适用：本许可证许可本产品的 AVC 功能仅供消费者的个人和非商业性使用，以按照 AVC 标准进行编码或解码。
+C. HEVC (H.265)。在软件包含 HEVC 功能的范围内，以下规定适用：本产品包含符合 HEVC/H.265 标准的技术，因此可能适用对 HEVC/H.265 标准拥有相关专利权的各种专利池的第三方专利许可义务。在确定是否需要许可证时，顾客应咨询独立法律顾问。
+
+8. 终止
+本许可证在终止前持续有效。如果您未能遵守本许可证的任何条款，您在本许可证下的权利将自动终止或失效，恕不另行通知。";
+"cloud_agreement_body" = "云端服务及数据使用协议
+
+1. 云端服务概述
+Strophe（活字）集成了多种基于云端的人工智能服务，以提供先进的语音识别（ASR）、强制对齐和机器翻译功能。
+
+2. 数据传输与处理位置
+当您使用 Strophe 的云端功能时，您知晓并同意：您的音频数据、视频文件、字幕及相关文本数据将通过互联网加密传输至远程服务器进行计算与处理。这些计算服务器及第三方 AI 服务提供商（例如百度、腾讯、阿里巴巴、月之暗面等）的服务器均位于【中国大陆】境内。
+
+3. 法律合规与数据留档
+为严格遵守《中华人民共和国网络安全法》、《中华人民共和国数据安全法》、《中华人民共和国个人信息保护法》等中国大陆相关法律法规及行政部门的要求：
+
+- 数据留档与日志保存：为了保障网络运行安全及配合国家相关部门的合法审计，我们将按照《网络安全法》第二十一条的规定，对网络运行状态、网络安全事件、云端服务请求日志等相关网络运行日志进行留存，留存期限不少于六（6）个月。
+
+- 数据安全与隐私：您的媒体数据仅用于执行您所请求的转写或翻译任务。我们承诺不会在未经您授权的情况下，将您的私人媒体数据用于训练我们自己的核心模型。但请注意，数据在流经第三方云服务提供商时，将同时受限于该提供商遵守中国大陆法律法规所制定的标准数据保留与审查政策。
+
+4. 第三方 LLM 自定义接入免责声明
+Strophe 允许您自行添加和配置用于机器翻译的第三方大语言模型（LLM）API。请注意，机器翻译服务中您自己添加的第三方 LLM 提供商并不处于我们的监管控制之内。您在使用此类服务时，请自觉遵守您当地的法律，以及对应提供商的法律法规和服务条款。
+
+5. 用户同意与退出机制
+开启并使用云端功能即表示您明确同意您的数据将被传输至中国大陆的服务器进行计算，并同意上述基于法律法规的日志留档及数据处理规则。
+
+如果您对云端内容处理有任何疑虑，您可以选择不使用我们提供的云端服务。您可以随时切换至 Strophe 提供的纯本地（On-Device）离线处理模式，在该模式下，所有计算仅在您的设备上进行，绝对不会进行任何数据上传。";

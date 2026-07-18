@@ -23,10 +23,10 @@ extension AutoCaptionView {
     var simpleLocalConfigurationCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Label("本地识别", systemImage: "cpu")
+                Label("local_recognition", systemImage: "cpu")
                     .font(.headline)
                 Spacer()
-                Text(areRequiredLocalModelsDownloaded ? "模型已就绪" : "缺少模型")
+                Text(areRequiredLocalModelsDownloaded ? "model_ready" : "missing_model")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(areRequiredLocalModelsDownloaded ? Color.stropheAccent : .orange)
             }
@@ -55,27 +55,27 @@ extension AutoCaptionView {
 
             if !areRequiredLocalModelsDownloaded {
                 Divider()
-                Text(useVAD ? "本地生成需要先下载 Qwen3-ASR CoreML、ForcedAligner CoreML INT8 和 FireRed VAD CoreML。" : "本地生成需要先下载 Qwen3-ASR CoreML 和 ForcedAligner CoreML INT8。")
+                Text(useVAD ? "local_generation_missing_models_vad_hint" : "local_generation_missing_models_aligner_hint")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: 10) {
                     if !modelManager.downloadedWhisperModels.contains(LocalModelManager.coreMLASRAccelerationModelName) {
-                        Button("下载语音识别模型") { openModelSettings(.whisperConfig) }
+                        Button("download_asr_model") { openModelSettings(.whisperConfig) }
                             .buttonStyle(.bordered)
                     }
                     if !modelManager.downloadedAlignerModels.contains(selectedAlignerModel) {
-                        Button("下载对齐模型") { openModelSettings(.alignerConfig) }
+                        Button("download_align_model") { openModelSettings(.alignerConfig) }
                             .buttonStyle(.bordered)
                     }
                     if useVAD && !modelManager.downloadedVADModels.contains("firered-vad-coreml") {
-                        Button("下载 VAD 模型") { openModelSettings(.vadConfig) }
+                        Button("download_vad_model") { openModelSettings(.vadConfig) }
                             .buttonStyle(.bordered)
                     }
                 }
             }
 
-            Text("音频仅在设备上处理，不会上传到服务器。")
+            Text("audio_processed_locally_hint")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }
@@ -106,18 +106,18 @@ extension AutoCaptionView {
                     vadSection
                     if !areRequiredLocalModelsDownloaded {
                         Section {
-                            Text(useVAD ? "本地生成需要先下载 Qwen3-ASR CoreML、ForcedAligner CoreML INT8 和 FireRed VAD CoreML。" : "本地生成需要先下载 Qwen3-ASR CoreML 和 ForcedAligner CoreML INT8。")
+                            Text(useVAD ? "local_generation_missing_models_vad_hint" : "local_generation_missing_models_aligner_hint")
                                 .foregroundStyle(.secondary)
                             if !modelManager.downloadedWhisperModels.contains(LocalModelManager.coreMLASRAccelerationModelName) {
-                                Button("下载语音识别模型") { openModelSettings(.whisperConfig) }
+                                Button("download_asr_model") { openModelSettings(.whisperConfig) }
                             }
                             if !modelManager.downloadedAlignerModels.contains(selectedAlignerModel) {
-                                Button("下载对齐模型") { openModelSettings(.alignerConfig) }
+                                Button("download_align_model") { openModelSettings(.alignerConfig) }
                             }
                             if useVAD && !modelManager.downloadedVADModels.contains("firered-vad-coreml") {
-                                Button("下载 VAD 模型") { openModelSettings(.vadConfig) }
+                                Button("download_vad_model") { openModelSettings(.vadConfig) }
                             }
-                        } header: { Text("缺少模型") }
+                        } header: { Text("missing_model") }
                     }
                 } else {
                     Section { LocalAIUnsupportedView() }

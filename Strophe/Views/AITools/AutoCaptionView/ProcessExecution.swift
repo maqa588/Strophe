@@ -373,7 +373,7 @@ extension AutoCaptionView {
 
                 // 3. 部署到 Timeline 并注册撤销
                 await MainActor.run {
-                    replaceProjectSubtitles(with: generatedSubtitles, actionName: String(localized: "本地 AI 语音识别打轴"))
+                    replaceProjectSubtitles(with: generatedSubtitles, actionName: String(localized: "local_ai_speech_recognition_alignment"))
                     finishSuccessfulGeneration(message: "完成！本地生成 \(generatedSubtitles.count) 条字幕。")
                 }
 
@@ -444,7 +444,7 @@ extension AutoCaptionView {
                     } else {
                         languageSuffix = ""
                     }
-                    replaceProjectSubtitles(with: generatedSubtitles, actionName: String(localized: "云端 AI 语音识别打轴"))
+                    replaceProjectSubtitles(with: generatedSubtitles, actionName: String(localized: "cloud_ai_speech_recognition_alignment"))
                     finishSuccessfulGeneration(message: "完成！云端生成 \(generatedSubtitles.count) 条字幕。\(languageSuffix)")
                 }
 

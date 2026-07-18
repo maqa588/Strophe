@@ -1,17 +1,4 @@
 "" = "";
-"\"%@\" could not be opened.\nPlease replace the media file below." = "\"%@\" could not be opened.\nPlease replace the media file below.";
-"%.1f Mbps" = "%.1f Mbps";
-"%@\n%@" = "%1$@\n%2$@";
-"%@ %@" = "%1$@ %2$@";
-"%@ (%@) %@" = "%1$@ (%2$@) %3$@";
-"%lld" = "%lld";
-"%lld / %lld" = "%1$lld / %2$lld";
-"%lld × %lld  ·  %.1f%%" = "%1$lld × %2$lld  ·  %3$.1f%%";
-"%lld 字符" = "%lld 字符";
-"CoreML %@ 对齐器已启用" = "CoreML %@ 对齐器已启用";
-"FFmpeg 解码失败：%@" = "FFmpeg 解码失败：%@";
-"INT8" = "INT8";
-"Import %lld Segments" = "Import %lld Segments";
 "about" = "About";
 "active" = "Active";
 "add_glowing_shadow_for_subtitles" = "Add glowing shadow for subtitles";
@@ -166,7 +153,6 @@
 "follow_group_style" = "Follow Group Style";
 "font" = "Font";
 "font_size" = "Font Size";
-"fonts_count_available %lld" = "fonts_count_available %lld";
 "for_songs_it_is_recommended" = "For songs, it is recommended to paste line-by-line lyrics; the system will skip free recognition and directly force align according to these lyrics.";
 "forced_alignment_config_qwen3_forcedaligner" = "Forced Alignment Config (Qwen3-ForcedAligner)";
 "forced_alignment_settings" = "Forced Alignment Settings";
@@ -221,7 +207,6 @@
 "local_ai_speech_timing" = "Local AI Speech Recognition Timing";
 "local_generate_subtitles" = "Local Generate Subtitles";
 "local_manual_import" = "Local Manual Import";
-"local_recognition" = "Local Recognition";
 "local_speech_recognition_config" = "Local Speech Recognition Config";
 "lock_this_group" = "Lock this group";
 "machine_translation_service" = "Machine Translation Service";
@@ -486,7 +471,6 @@
 "unsupported_media_file_extension" = "Unsupported media file extension";
 "use_the_playhead_as_the" = "Use the playhead as the split point to divide the current subtitle block into two independent blocks";
 "use_voice_activity_detection" = "Use Voice Activity Detection (VAD)";
-"v%@ (%@)" = "v%1$@ (%2$@)";
 "version" = "Version";
 "video_encoding" = "Video Encoding";
 "hdr_video_export" = "Export HDR video";
@@ -498,31 +482,112 @@
 "voice_activity_detection_settings" = "Voice Activity Detection Settings";
 "what_is_cached_data" = "What is cached data?";
 "when_importing_video_or_audio" = "When importing video or audio files, Strophe generates temporary audio transcoding files and waveform analysis cache. This data can significantly speed up waveform rendering and high-speed audio/video scrubbing, but it will occupy your device storage space after use.";
-"「%@」" = "「%@」";
-"下载 VAD 模型" = "下载 VAD 模型";
-"下载对齐模型" = "下载对齐模型";
-"下载语音识别模型" = "下载语音识别模型";
-"云端 AI 语音识别打轴" = "云端 AI 语音识别打轴";
-"关于 %@" = "关于 %@";
-"发言人数量: %lld 人" = "发言人数量: %lld 人";
-"导出完成：%@" = "导出完成：%@";
-"将转换所选的 %lld 个字幕块。拼音保留声调，非汉字内容保持不变。" = "将转换所选的 %lld 个字幕块。拼音保留声调，非汉字内容保持不变。";
-"当前 V1 硬字幕导出暂不支持 %@ 容器。请先导出或转封装为 MP4/MOV。" = "当前 V1 硬字幕导出暂不支持 %@ 容器。请先导出或转封装为 MP4/MOV。";
-"当前媒体: %@" = "当前媒体: %@";
-"您的设备对 %@ 格式兼容性欠佳，在播放过程中可能会遇到一些性能问题。\n\n建议尽量使用 MP4、MOV、M4V、MP3、FLAC、M4A、AAC、ALAC 等推荐的视频、音频格式以获得最流畅的体验。" = "您的设备对 %@ 格式兼容性欠佳，在播放过程中可能会遇到一些性能问题。\n\n建议尽量使用 MP4、MOV、M4V、MP3、FLAC、M4A、AAC、ALAC 等推荐的视频、音频格式以获得最流畅的体验。";
-"插入常用词 %lld" = "插入常用词 %lld";
-"操作 %lld 个对象（平均 %lld 字符，最大 %lld 字符）" = "操作 %1$lld 个对象（平均 %2$lld 字符，最大 %3$lld 字符）";
-"无法开始写入视频：%@" = "无法开始写入视频：%@";
-"无法开始读取视频：%@" = "无法开始读取视频：%@";
-"本地 AI 语音识别打轴" = "本地 AI 语音识别打轴";
-"本地生成需要先下载 Qwen3-ASR CoreML 和 ForcedAligner CoreML INT8。" = "本地生成需要先下载 Qwen3-ASR CoreML 和 ForcedAligner CoreML INT8。";
-"本地生成需要先下载 Qwen3-ASR CoreML、ForcedAligner CoreML INT8 和 FireRed VAD CoreML。" = "本地生成需要先下载 Qwen3-ASR CoreML、ForcedAligner CoreML INT8 和 FireRed VAD CoreML。";
-"本地识别" = "本地识别";
-"模型已就绪" = "模型已就绪";
-"游标位置：%lld / %lld" = "游标位置：%1$lld / %2$lld";
-"缺少模型" = "缺少模型";
-"视频写入失败：%@" = "视频写入失败：%@";
-"视频读取失败：%@" = "视频读取失败：%@";
-"进度" = "进度";
-"音频仅在设备上处理，不会上传到服务器。" = "音频仅在设备上处理，不会上传到服务器。";
-"音频复用失败：%@" = "音频复用失败：%@";
+
+"" = "";
+"%@ %@" = "%@ %@";
+"%@ (%@) %@" = "%@ (%@) %@";
+"%@\n%@" = "%@\n%@";
+"%lld" = "%lld";
+"%lld / %lld" = "%1$lld / %2$lld";
+"%lld × %lld  ·  %.1f%%" = "%1$lld × %2$lld  ·  %3$.1f%%";
+"%lld 字符" = "%lld characters";
+"INT8" = "INT8";
+
+"download_vad_model" = "Download VAD Model";
+"download_align_model" = "Download Aligner Model";
+"download_asr_model" = "Download Speech Recognition Model";
+"cloud_ai_speech_recognition_alignment" = "Cloud AI Speech Recognition Alignment";
+"about_app_format %@" = "About %@";
+"speaker_count_format %lld" = "Number of Speakers: %lld";
+"export_completed_format %@" = "Export Completed: %@";
+"convert_selected_pinyin_explanation_format %lld" = "Will convert %lld selected subtitle blocks. Pinyin retains tones, non-Chinese content remains unchanged.";
+"v1_hard_subtitle_container_unsupported_format %@" = "Current V1 hard subtitle export does not support %@ container yet. Please export or remux to MP4/MOV first.";
+"current_media_format %@" = "Current Media: %@";
+"device_format_compatibility_warning %@" = "Your device has poor compatibility with the %@ format and you may experience performance issues during playback.\n\nIt is recommended to use recommended video and audio formats such as MP4, MOV, M4V, MP3, FLAC, M4A, AAC, ALAC for the smoothest experience.";
+"insert_common_word_format %lld" = "Insert Common Vocabulary %lld";
+"batch_operation_summary_format %lld %lld %lld" = "Operating on %1$lld objects (avg %2$lld chars, max %3$lld chars)";
+"unable_to_start_video_write_format %@" = "Failed to start video writing: %@";
+"unable_to_start_video_read_format %@" = "Failed to start video reading: %@";
+"local_ai_speech_recognition_alignment" = "Local AI Speech Recognition Alignment";
+"local_generation_missing_models_aligner_hint" = "Local generation requires downloading Qwen3-ASR CoreML and ForcedAligner CoreML INT8 first.";
+"local_generation_missing_models_vad_hint" = "Local generation requires downloading Qwen3-ASR CoreML, ForcedAligner CoreML INT8, and FireRed VAD CoreML first.";
+"local_recognition" = "Local Recognition";
+"model_ready" = "Model Ready";
+"playhead_position_format %lld %lld" = "Playhead: %1$lld / %2$lld";
+"missing_model" = "Model Missing";
+"video_write_failed_format %@" = "Video writing failed: %@";
+"video_read_failed_format %@" = "Video reading failed: %@";
+"progress_label" = "Progress";
+"audio_processed_locally_hint" = "Audio is processed locally on your device and will not be uploaded to any server.";
+"audio_remux_failed_format %@" = "Audio remuxing failed: %@";
+"bracket_format %@" = "「%@」";
+"mbps_format %.1f" = "%.1f Mbps";
+"coreml_aligner_enabled_format %@" = "CoreML %@ Aligner Enabled";
+"ffmpeg_decode_failed_format %@" = "FFmpeg decoding failed: %@";
+"import_segments_format %lld" = "Import %lld Segments";
+"version_build_format %@ %@" = "v%1$@ (%2$@)";
+"fonts_count_available_format %lld" = "%lld fonts available";
+"media_open_failed_replace_hint %@" = "\"%@\" could not be opened.\nPlease replace the media file below.";
+"click_to_view" = "Click to view";
+
+"trademarks_label" = "Trademarks";
+"disclaimer_label" = "Disclaimer";
+"trademark_disclaimer" = "Trademark Disclaimer\n\nAll third-party product names, logos, brands, and trademarks referenced within this software—including but not limited to OpenAI, Anthropic, Google, Google AI Studio, xAI, Grok, DeepSeek, NVIDIA, NVIDIA NIM, Ollama, Meta, Llama, Moonshot AI, Kimi, MiniMax, ByteDance, Volcengine, PLaMo, Baidu, Baidu Qianfan, Modal, Tencent, Tencent Cloud, OpenRouter, Sakana AI, Cloudflare, Zhipu AI, GLM, Alibaba, Tongyi Qwen, and others—are the property of their respective owners.\n\nTheir use in this software does not imply any affiliation, sponsorship, partnership, endorsement, or approval by these trademark holders. Strophe is an independent application, and all third-party integrations are provided solely for compatibility and utility purposes.\n\nFurthermore, Apple, ProRes, Apple ProRes, macOS, iOS, iPadOS, and any other Apple-related product names, logos, or format names referenced in this software are trademarks or registered trademarks of Apple Inc. in the United States and other countries. Strophe is an independent software application and has no relationship, affiliation, connection, partnership, sponsorship, or endorsement with Apple Inc. References to Apple ProRes and other Apple media formats are strictly for specifying compatibility with these audio/video formats.";
+
+"eula_label" = "End User License Agreement";
+"cloud_agreement_label" = "Cloud Usage Agreement";
+"eula_body" = "END USER LICENSE AGREEMENT (EULA)
+
+Please read this software license agreement (\"License\") carefully before using the Strophe software. By using the Strophe software, you are agreeing to be bound by the terms of this License.
+
+1. General
+The Strophe software and any third-party software, documentation, interfaces, content, fonts, and any data accompanying this License whether on disk, in read-only memory, on any other media or in any other form are licensed, not sold, to you by Spencer Maqa for use only under the terms of this License.
+
+2. FSL 1.1 License and App Store Exclusivity
+The source code of Strophe is provided under the Functional Source License, Version 1.1, ALv2 Future License (FSL-1.1-ALv2). You are granted the right to use, copy, modify, create derivative works, publicly perform, publicly display, and redistribute the Software for any Permitted Purpose as defined in the FSL 1.1 license.
+
+CRITICAL EXCEPTION: Notwithstanding the permissions granted under the FSL 1.1 license, prior to the Change Date (when the software transitions to the Apache License 2.0), the exclusive right to distribute, publish, or otherwise make the Strophe application available on the Apple App Store (including iOS App Store and Mac App Store) is strictly reserved and owned solely by Spencer Maqa. 
+You may not compile, package, upload, or distribute this software, or any derivative works thereof, to the Apple App Store without the explicit, prior written consent of Spencer Maqa.
+
+3. Consent to Use of Data
+If you choose to allow diagnostic and usage collection, you agree that we may collect, maintain, process, and use diagnostic, technical, usage and related information to improve the software and services. All data is processed according to the applicable Privacy Policy and Cloud Usage Agreement.
+
+4. Disclaimer of Warranties
+YOU EXPRESSLY ACKNOWLEDGE AND AGREE THAT, TO THE EXTENT PERMITTED BY APPLICABLE LAW, USE OF THE STROPHE SOFTWARE AND ANY SERVICES PERFORMED BY OR ACCESSED THROUGH THE STROPHE SOFTWARE IS AT YOUR SOLE RISK.
+THE SOFTWARE AND SERVICES ARE PROVIDED \"AS IS\" AND \"AS AVAILABLE\", WITH ALL FAULTS AND WITHOUT WARRANTY OF ANY KIND. SPENCER MAQA AND LICENSORS HEREBY DISCLAIM ALL WARRANTIES AND CONDITIONS WITH RESPECT TO THE SOFTWARE AND SERVICES, EITHER EXPRESS, IMPLIED OR STATUTORY, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES AND/OR CONDITIONS OF MERCHANTABILITY, SATISFACTORY QUALITY, FITNESS FOR A PARTICULAR PURPOSE, ACCURACY, QUIET ENJOYMENT, AND NON-INFRINGEMENT OF THIRD PARTY RIGHTS.
+
+5. Limitation of Liability
+TO THE EXTENT NOT PROHIBITED BY APPLICABLE LAW, IN NO EVENT SHALL SPENCER MAQA BE LIABLE FOR PERSONAL INJURY, OR ANY INCIDENTAL, SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES WHATSOEVER, INCLUDING, WITHOUT LIMITATION, DAMAGES FOR LOSS OF PROFITS, CORRUPTION OR LOSS OF DATA, FAILURE TO TRANSMIT OR RECEIVE ANY DATA, BUSINESS INTERRUPTION OR ANY OTHER COMMERCIAL DAMAGES OR LOSSES, ARISING OUT OF OR RELATED TO YOUR USE OR INABILITY TO USE THE STROPHE SOFTWARE AND SERVICES, HOWEVER CAUSED, REGARDLESS OF THE THEORY OF LIABILITY (CONTRACT, TORT OR OTHERWISE).
+
+6. Export Control
+You may not use or otherwise export or re-export the Strophe software except as authorized by the laws of the People's Republic of China (including but not limited to the Export Control Law of the People's Republic of China) and the laws of the jurisdiction(s) in which the Strophe software was obtained.
+
+7. Third-Party Acknowledgements and Video Formats
+A. MPEG-4: This product is licensed under the MPEG-4 Visual Patent Portfolio License for the personal and non-commercial use of a consumer for encoding video in compliance with the MPEG-4 Visual Standard and/or decoding MPEG-4 video that was encoded by a consumer engaged in a personal and non-commercial activity.
+B. H.264/AVC: To the extent that the Strophe software contains AVC encoding and/or decoding functionality, commercial use of H.264/AVC requires additional licensing and the following provision applies: The AVC functionality in this product is licensed herein only for the personal and non-commercial use of a consumer to encode video in compliance with the AVC standard and/or decode AVC video.
+C. HEVC (H.265): To the extent that the Strophe software contains HEVC functionality, the following provision applies: This product contains technology subject to certain intellectual property rights of third parties in the HEVC/H.265 standard. Customers should consult with independent legal counsel to determine whether a license is required.
+
+8. Termination
+This License is effective until terminated. Your rights under this License will terminate automatically or otherwise cease to be effective without notice if you fail to comply with any term(s) of this License.";
+"cloud_agreement_body" = "CLOUD SERVICE & DATA PRIVACY AGREEMENT
+
+1. Cloud Services Overview
+Strophe utilizes various cloud-based Artificial Intelligence services to provide advanced speech recognition (ASR), forced alignment, and machine translation features.
+
+2. Data Transmission and Processing Location
+By using the cloud-based features within Strophe, you acknowledge and agree that your audio data, video files, subtitles, and related text will be securely transmitted over the internet to remote servers for computation. These servers, including those operated by third-party AI providers (such as Baidu, Tencent, Alibaba, Moonshot AI, etc.), are primarily located within Mainland China.
+
+3. Legal Compliance and Data Retention
+To strictly comply with the \"Cybersecurity Law of the People's Republic of China,\" the \"Data Security Law,\" the \"Personal Information Protection Law,\" and other applicable administrative regulations in Mainland China:
+
+- Data Retention and Logging: In order to ensure network operation security and assist in legitimate audits by relevant national departments, we will retain network operation logs, security incident records, and cloud service request metadata for a minimum period of six (6) months, as mandated by Article 21 of the Cybersecurity Law.
+
+- Data Security and Privacy: Your media data is used strictly for executing the transcription or translation tasks you request. We promise not to use your private media data to train our own core models without your authorization. However, please note that when data flows through third-party cloud service providers, it is also subject to the standard data retention and censorship policies established by those providers in compliance with Mainland Chinese laws.
+
+4. Third-Party Custom LLM Disclaimer
+Strophe allows you to manually add and configure third-party Large Language Model (LLM) APIs for machine translation. Please note that any custom third-party services you add yourself are NOT under our supervision or regulation. When using these services, you must consciously abide by your local laws and regulations, as well as the terms of service and legal regulations of the respective third-party provider.
+
+5. User Consent & Opt-Out
+By enabling and utilizing the cloud features, you explicitly consent to your data being transmitted to servers in Mainland China for computation, and you agree to the aforementioned log retention and data processing rules.
+
+If you have any doubts or concerns regarding the processing of cloud content, you may choose not to use the cloud services we provide. You can always switch to Strophe's purely local (On-Device) offline processing mode, where all data is computed entirely on your device and is never uploaded.";

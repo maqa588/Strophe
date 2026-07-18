@@ -11,6 +11,7 @@ nonisolated final class TempCleanupHelper {
         let name = url.lastPathComponent
         return name.hasPrefix("strophe_ai_") ||
             name == "StropheExports" ||
+            name.hasSuffix(".mlmodelc") ||
             name.hasSuffix(".strophe") ||
             (name.count == 36 && name.filter { $0 == "-" }.count == 4)
     }
@@ -18,7 +19,8 @@ nonisolated final class TempCleanupHelper {
     // MARK: - General Temp Directory Cleanup
 
     /// 删除应用临时目录下的所有文件和文件夹。
-    static func cleanupTempDirectory() {
+    @discardableResult
+    static func cleanupTempDirectory() -> Int {
         let tempDir = FileManager.default.temporaryDirectory
         guard let contents = try? FileManager.default.contentsOfDirectory(
             at: tempDir,
@@ -26,21 +28,26 @@ nonisolated final class TempCleanupHelper {
             options: [.skipsSubdirectoryDescendants]
         ) else {
             print("⚠️ TempCleanupHelper: Failed to read temporary directory.")
-            return
+            return 0
         }
 
         print("🧹 TempCleanupHelper: Starting cleanup of temporary directory...")
+        var removedCount = 0
+        var failedCount = 0
         for fileURL in contents where isCleanupCandidate(fileURL) {
             let name = fileURL.lastPathComponent
 
             do {
                 try FileManager.default.removeItem(at: fileURL)
+                removedCount += 1
                 print("✅ TempCleanupHelper: Removed \(name)")
             } catch {
+                failedCount += 1
                 print("⚠️ TempCleanupHelper: Failed to remove \(name): \(error.localizedDescription)")
             }
         }
-        print("🧹 TempCleanupHelper: Cleanup complete.")
+        print("🧹 TempCleanupHelper: Cleanup complete. Removed \(removedCount) item(s), failed to remove \(failedCount) item(s).")
+        return removedCount
     }
 
     // MARK: - AI Model Temp Cache Cleanup
@@ -103,12 +110,7 @@ nonisolated final class TempCleanupHelper {
             options: [.skipsSubdirectoryDescendants]
         ) else { return }
 
-        let userFiles = contents.filter { url in
-            let name = url.lastPathComponent
-            return name != "TemporaryItems" &&
-                   !name.hasPrefix(".") &&
-                   !name.hasPrefix("com.apple")
-        }
+        let userFiles = contents.filter(isCleanupCandidate)
 
         guard !userFiles.isEmpty else {
             print("🧹 TempCleanupHelper: No leftover temp files detected at startup.")
