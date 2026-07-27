@@ -100,6 +100,10 @@
 
 ForcedAligner 的词级时间戳会依次经过：按标点恢复句子、动态规划切分（中文最多 17 字、拉丁文字最多 84 字，目标时长不超过 6.2 秒）、孤立中文单字修复，以及一秒内相邻空档/重叠的时间轴连续化。设置 `STROPHE_SUBTITLE_CONTINUITY_SECONDS=0` 可关闭最后的连续化处理，也可设置其他非负秒数作为阈值。
 
+### 远程 ASR 集成
+
+Qwen3-ASR 1.7B 与 NVIDIA Parakeet-JA 的模型路由、NDJSON 返回和 V100 部署规范见[远程 ASR 接口规范](docs/REMOTE_ASR_API.md)。
+
 ## 📄 开源协议
 
 本项目采用 [Functional Source License](LICENSE) 协议，因此属于**有源软件**。

@@ -37,6 +37,7 @@ struct AutoCaptionView: View {
     @State var vocalPreprocessing: String = "none"
     @State var referenceLyrics: String = ""
     @State var useVAD: Bool = true
+    @State var selectedCloudModel: AICloudASRModel = .qwen3ASR17B
     @AppStorage(AIBackendClient.cloudBaseURLDefaultsKey)
     var cloudBaseURLString: String = AIBackendClient.defaultCloudBaseURL.absoluteString
     @State var cloudConnectionTestState: CloudConnectionTestState = .idle
@@ -51,18 +52,32 @@ struct AutoCaptionView: View {
     @State var showUnsupportedLocalAIAlert: Bool = false
     @State var showGenerationErrorAlert: Bool = false
     @State var generationErrorMessage: String = ""
+
+    init(project: SubtitleProject) {
+        self.project = project
+        let recommendedModel = LocalModelManager.recommendedASRModelName()
+        let recommendedCloudModel = AICloudASRModel.recommended()
+        _selectedModel = State(initialValue: recommendedModel)
+        _selectedCloudModel = State(initialValue: recommendedCloudModel)
+        _selectedLanguage = State(
+            initialValue: LocalModelManager.isParakeetJA(recommendedModel)
+                || recommendedCloudModel == .parakeetJA
+                ? "ja"
+                : "auto"
+        )
+    }
     
     let languages = [
         ("auto",  "auto_detect"),
-        ("zh",    "简体中文 (Simplified Chinese)"),
-        ("zh-TW", "繁體中文 (Traditional Chinese)"),
-        ("en",    "英文 (English)"),
-        ("ja",    "日文 (Japanese)"),
-        ("ko",    "韩文 (Korean)"),
-        ("fr",    "法文 (French)"),
-        ("de",    "德文 (German)"),
-        ("es",    "西班牙文 (Spanish)"),
-        ("ru",    "俄文 (Russian)")
+        ("zh",    "recognition_language_simplified_chinese"),
+        ("zh-TW", "recognition_language_traditional_chinese"),
+        ("en",    "recognition_language_english"),
+        ("ja",    "recognition_language_japanese"),
+        ("ko",    "recognition_language_korean"),
+        ("fr",    "recognition_language_french"),
+        ("de",    "recognition_language_german"),
+        ("es",    "recognition_language_spanish"),
+        ("ru",    "recognition_language_russian")
     ]
     
     var body: some View {
@@ -80,6 +95,19 @@ struct AutoCaptionView: View {
             } message: {
                 Text(generationErrorMessage)
             }
+            .stropheOnChange(of: selectedModel) { modelName in
+                if LocalModelManager.isParakeetJA(modelName) {
+                    selectedLanguage = "ja"
+                }
+            }
+            .stropheOnChange(of: selectedCloudModel) { model in
+                if model == .parakeetJA {
+                    selectedLanguage = "ja"
+                }
+            }
+            .stropheOnChange(of: selectedLanguage) { language in
+                updateRecommendedCloudModel(for: language)
+            }
         #else
         simpleIOSBody
             .alert(AIBackendClient.unsupportedDeviceMessage, isPresented: $showUnsupportedLocalAIAlert) {
@@ -91,6 +119,19 @@ struct AutoCaptionView: View {
                 Button("ok", role: .cancel) {}
             } message: {
                 Text(generationErrorMessage)
+            }
+            .stropheOnChange(of: selectedModel) { modelName in
+                if LocalModelManager.isParakeetJA(modelName) {
+                    selectedLanguage = "ja"
+                }
+            }
+            .stropheOnChange(of: selectedCloudModel) { model in
+                if model == .parakeetJA {
+                    selectedLanguage = "ja"
+                }
+            }
+            .stropheOnChange(of: selectedLanguage) { language in
+                updateRecommendedCloudModel(for: language)
             }
         #endif
     }
@@ -108,9 +149,73 @@ struct AutoCaptionView: View {
     }
 
     var areRequiredLocalModelsDownloaded: Bool {
-        modelManager.downloadedWhisperModels.contains(LocalModelManager.coreMLASRAccelerationModelName)
-            && modelManager.downloadedAlignerModels.contains(selectedAlignerModel)
+        let needsAligner = (enableAlignment || enableDiarization)
+            && !LocalModelManager.usesNativeTimestamps(selectedModel)
+        return modelManager.downloadedWhisperModels.contains(selectedModel)
+            && (!needsAligner
+                || modelManager.downloadedAlignerModels.contains(selectedAlignerModel))
             && (!useVAD || modelManager.downloadedVADModels.contains("firered-vad-coreml"))
+    }
+
+    var isParakeetJASelected: Bool {
+        LocalModelManager.isParakeetJA(selectedModel)
+    }
+
+    var isCloudParakeetJASelected: Bool {
+        selectedCloudModel == .parakeetJA
+    }
+
+    var isCurrentRecognitionJapaneseOnly: Bool {
+        selectedGenerationMode == .cloud
+            ? isCloudParakeetJASelected
+            : isParakeetJASelected
+    }
+
+    var availableASRModels: [AIModelInfo] {
+        let recommended = LocalModelManager.recommendedASRModelName()
+        return LocalModelManager.whisperPresets.sorted {
+            ($0.name == recommended ? 0 : 1) < ($1.name == recommended ? 0 : 1)
+        }
+    }
+
+    func modelPickerTitle(_ model: AIModelInfo) -> String {
+        let downloadState = localizedModelDownloadState(
+            downloaded: modelManager.downloadedWhisperModels.contains(model.name)
+        )
+        let recommendation = model.name == LocalModelManager.recommendedASRModelName()
+            ? " · " + NSLocalizedString("recommended_model", comment: "Recommended model")
+            : ""
+        return "\(model.name) (\(model.localizedSize))\(recommendation) [\(downloadState)]"
+    }
+
+    func auxiliaryModelPickerTitle(
+        _ model: AIModelInfo,
+        downloaded: Bool
+    ) -> String {
+        "\(model.name) (\(model.localizedSize)) [\(localizedModelDownloadState(downloaded: downloaded))]"
+    }
+
+    private func localizedModelDownloadState(downloaded: Bool) -> String {
+        downloaded
+            ? NSLocalizedString("model_downloaded", comment: "Model download state")
+            : NSLocalizedString("model_not_downloaded", comment: "Model download state")
+    }
+
+    var localMissingModelsHintKey: String {
+        if isParakeetJASelected {
+            return useVAD
+                ? "local_generation_missing_parakeet_vad_hint"
+                : "local_generation_missing_parakeet_hint"
+        }
+        return useVAD
+            ? "local_generation_missing_models_vad_hint"
+            : "local_generation_missing_models_aligner_hint"
+    }
+
+    var localVADExplanationKey: String {
+        isParakeetJASelected
+            ? "auto_caption_vad_parakeet_explanation"
+            : "auto_caption_vad_explanation"
     }
 
     var canStartCloudCaptioning: Bool {
@@ -135,13 +240,71 @@ struct AutoCaptionView: View {
             return AIBackendClient.unsupportedDeviceMessage
         }
         return isLocalAISupported
-            ? "使用端侧 Qwen3-ASR、ForcedAligner 与本地模型配置。"
+            ? localizedAIText("local_recognition_detail")
             : AIBackendClient.unsupportedDeviceMessage
+    }
+
+    func localizedAIText(_ key: String) -> String {
+        NSLocalizedString(key, comment: "AI subtitle generation")
+    }
+
+    func localizedAIFormat(_ key: String, _ arguments: CVarArg...) -> String {
+        String(
+            format: NSLocalizedString(key, comment: "AI subtitle generation"),
+            arguments: arguments
+        )
+    }
+
+    func localizedRecognitionLanguageName(_ identifier: String) -> String {
+        let normalized = identifier.lowercased()
+        let aliases: [String: String] = [
+            "chinese": "zh",
+            "english": "en",
+            "japanese": "ja",
+            "korean": "ko",
+            "french": "fr",
+            "german": "de",
+            "spanish": "es",
+            "russian": "ru",
+        ]
+        let code = aliases[normalized]
+            ?? languages.first(where: {
+                normalized == $0.0.lowercased()
+                    || normalized.hasPrefix($0.0.lowercased() + "-")
+            })?.0
+        guard let code,
+              let key = languages.first(where: { $0.0 == code })?.1 else {
+            return identifier
+        }
+        return localizedAIText(key)
     }
 
     var cloudRecognitionDetailText: String {
         let address = configuredCloudTranscribeURL?.absoluteString ?? cloudBaseURLString
-        return "提交到 \(address)，返回完整句子时间轴。"
+        return "\(selectedCloudModel.displayName) · \(address)"
+    }
+
+    var orderedCloudModels: [AICloudASRModel] {
+        let recommended = AICloudASRModel.recommended()
+        return AICloudASRModel.allCases.sorted {
+            ($0 == recommended ? 0 : 1) < ($1 == recommended ? 0 : 1)
+        }
+    }
+
+    func cloudModelPickerTitle(_ model: AICloudASRModel) -> String {
+        let recommendation = model == AICloudASRModel.recommended()
+            ? " · " + NSLocalizedString("recommended_model", comment: "Recommended model")
+            : ""
+        return model.displayName + recommendation
+    }
+
+    func updateRecommendedCloudModel(for language: String) {
+        guard selectedGenerationMode == .cloud else { return }
+        if language == "ja" {
+            selectedCloudModel = .parakeetJA
+        } else if language != "auto", selectedCloudModel == .parakeetJA {
+            selectedCloudModel = .qwen3ASR17B
+        }
     }
 
     func handleChooseLocalButton() {
@@ -150,6 +313,11 @@ struct AutoCaptionView: View {
             return
         }
         selectedGenerationMode = .local
+    }
+
+    func handleChooseCloudButton() {
+        selectedGenerationMode = .cloud
+        updateRecommendedCloudModel(for: selectedLanguage)
     }
 
     func handleStartLocalButton() {
@@ -178,7 +346,10 @@ struct AutoCaptionView: View {
             do {
                 let baseURL = try AIBackendClient.normalizedCloudBaseURL(from: cloudBaseURLString)
                 cloudBaseURLString = baseURL.absoluteString
-                let check = try await AIBackendClient.shared.testCloudConnection(baseURL: baseURL)
+                let check = try await AIBackendClient.shared.testCloudConnection(
+                    baseURL: baseURL,
+                    model: selectedCloudModel
+                )
                 cloudConnectionTestState = check.isReady
                     ? .succeeded(check.message)
                     : .failed(check.message)

@@ -10,7 +10,10 @@ import Darwin
 
 extension AIBackendClient {
 
-    func testCloudConnection(baseURL: URL) async throws -> AICloudConnectionCheck {
+    func testCloudConnection(
+        baseURL: URL,
+        model: AICloudASRModel
+    ) async throws -> AICloudConnectionCheck {
         Self.triggerLocalNetworkPrivacyAlert(for: baseURL)
 
         let configuration = URLSessionConfiguration.ephemeral
@@ -35,7 +38,10 @@ extension AIBackendClient {
             )
         }
 
-        let readyURL = Self.cloudEndpointURL(baseURL: baseURL, path: "ready")
+        let readyURL = try Self.cloudEndpointWithModelParam(
+            Self.cloudEndpointURL(baseURL: baseURL, path: "ready"),
+            model: model.rawValue
+        )
         let readyResponse: CloudProbeResponse
         do {
             readyResponse = try await Self.performCloudProbe(url: readyURL, session: session)
@@ -44,16 +50,39 @@ extension AIBackendClient {
         }
         guard (200...299).contains(readyResponse.statusCode) else {
             let detail = Self.limitedCloudResponseText(readyResponse.body)
-            let suffix = detail.isEmpty ? "" : "：\(detail)"
+            let suffix = detail.isEmpty
+                ? ""
+                : Self.localizedAIFormat("cloud_response_detail_format", detail)
             return AICloudConnectionCheck(
                 isReady: false,
-                message: "服务已启动，但模型尚未就绪（/ready HTTP \(readyResponse.statusCode)）\(suffix)"
+                message: Self.localizedAIFormat(
+                    "cloud_service_not_ready_format",
+                    model.displayName,
+                    readyResponse.statusCode,
+                    suffix
+                )
+            )
+        }
+        guard let readyPayload = try? JSONDecoder().decode(
+            CloudReadyPayload.self,
+            from: readyResponse.body
+        ), readyPayload.status.lowercased() == "ready",
+           readyPayload.model == model.rawValue else {
+            return AICloudConnectionCheck(
+                isReady: false,
+                message: Self.localizedAIFormat(
+                    "cloud_route_unconfirmed_format",
+                    model.displayName
+                )
             )
         }
 
         return AICloudConnectionCheck(
             isReady: true,
-            message: "连接成功，云端识别服务已就绪。"
+            message: Self.localizedAIFormat(
+                "cloud_connection_success_format",
+                model.displayName
+            )
         )
     }
 
@@ -66,16 +95,39 @@ extension AIBackendClient {
         try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-        progressCallback?(0, 0.05, "正在准备云端识别音频...")
+        progressCallback?(
+            0,
+            0.05,
+            Self.localizedAIText("status_preparing_cloud_audio")
+        )
         let preparedAudio16kURL = temporaryDirectory.appendingPathComponent("input_16k_pcm.wav")
         let preparedSamples16k = try await AudioExtractor.extract(from: request.mediaURL, targetSampleRate: 16000.0)
-        progressCallback?(0, 0.85, "正在写入 16k 单声道 WAV...")
+        progressCallback?(
+            0,
+            0.85,
+            Self.localizedAIText("status_writing_16k_wav")
+        )
         try AudioExtractor.writeMonoPCM16Wav(samples: preparedSamples16k, sampleRate: 16000, to: preparedAudio16kURL)
 
-        progressCallback?(1, 0.05, "正在上传音频到云端识别服务...")
+        progressCallback?(
+            1,
+            0.05,
+            Self.localizedAIText("status_uploading_cloud_audio")
+        )
         let boundary = "StropheBoundary-\(UUID().uuidString)"
-        let body = try Self.makeCloudMultipartBody(audioURL: preparedAudio16kURL, language: request.language, boundary: boundary)
-        var urlRequest = URLRequest(url: try Self.cloudEndpointWithStreamParam(request.endpointURL, language: request.language))
+        let body = try Self.makeCloudMultipartBody(
+            audioURL: preparedAudio16kURL,
+            language: request.language,
+            model: request.model.rawValue,
+            boundary: boundary
+        )
+        var urlRequest = URLRequest(
+            url: try Self.cloudEndpointWithStreamParam(
+                request.endpointURL,
+                language: request.language,
+                model: request.model.rawValue
+            )
+        )
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         urlRequest.setValue(String(body.count), forHTTPHeaderField: "Content-Length")
@@ -102,15 +154,27 @@ extension AIBackendClient {
             throw NSError(
                 domain: "AIBackendClient",
                 code: 20,
-                userInfo: [NSLocalizedDescriptionKey: "云端识别服务返回了无效响应。"]
+                userInfo: [
+                    NSLocalizedDescriptionKey: Self.localizedAIText(
+                        "error_cloud_invalid_response"
+                    )
+                ]
             )
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
             let responseText = try await Self.collectCloudErrorBody(from: bytes)
-            let message = responseText.isEmpty
-                ? "云端识别服务返回 HTTP \(httpResponse.statusCode)。"
-                : "云端识别服务返回 HTTP \(httpResponse.statusCode)：\(responseText)"
+            let detail = responseText.isEmpty
+                ? ""
+                : Self.localizedAIFormat(
+                    "cloud_response_detail_format",
+                    responseText
+                )
+            let message = Self.localizedAIFormat(
+                "error_cloud_http_status_format",
+                httpResponse.statusCode,
+                detail
+            )
             throw NSError(
                 domain: "AIBackendClient",
                 code: httpResponse.statusCode,
@@ -118,7 +182,11 @@ extension AIBackendClient {
             )
         }
 
-        progressCallback?(1, 1.0, "音频上传完成，等待云端识别...")
+        progressCallback?(
+            1,
+            1.0,
+            Self.localizedAIText("status_cloud_upload_complete")
+        )
 
         var finalResult: AICloudTranscriptionResult?
         for try await rawLine in bytes.lines {
@@ -127,15 +195,27 @@ extension AIBackendClient {
 
             switch try Self.decodeCloudLine(line) {
             case .progress(let progress, let message):
-                progressCallback?(2, progress, message.isEmpty ? "云端正在识别与对齐..." : message)
+                progressCallback?(
+                    2,
+                    progress,
+                    Self.localizedCloudProgressMessage(message)
+                )
             case .result(let result):
                 finalResult = result
-                progressCallback?(3, 0.4, "正在整理云端返回的字幕...")
+                progressCallback?(
+                    3,
+                    0.4,
+                    Self.localizedAIText("status_organizing_cloud_subtitles")
+                )
             case .error(let message):
                 throw NSError(
                     domain: "AIBackendClient",
                     code: 21,
-                    userInfo: [NSLocalizedDescriptionKey: message.isEmpty ? "云端识别服务返回错误。" : message]
+                    userInfo: [
+                        NSLocalizedDescriptionKey: message.isEmpty
+                            ? Self.localizedAIText("error_cloud_service")
+                            : message
+                    ]
                 )
             case .ignored:
                 continue
@@ -146,7 +226,26 @@ extension AIBackendClient {
             throw NSError(
                 domain: "AIBackendClient",
                 code: 22,
-                userInfo: [NSLocalizedDescriptionKey: "云端识别服务未返回字幕结果。"]
+                userInfo: [
+                    NSLocalizedDescriptionKey: Self.localizedAIText(
+                        "error_cloud_no_result"
+                    )
+                ]
+            )
+        }
+
+        guard finalResult.model == request.model.rawValue else {
+            let actual = finalResult.model ?? "missing"
+            throw NSError(
+                domain: "AIBackendClient",
+                code: 32,
+                userInfo: [
+                    NSLocalizedDescriptionKey: Self.localizedAIFormat(
+                        "error_cloud_model_mismatch_format",
+                        actual,
+                        request.model.rawValue
+                    )
+                ]
             )
         }
 
@@ -154,12 +253,39 @@ extension AIBackendClient {
             throw NSError(
                 domain: "AIBackendClient",
                 code: 23,
-                userInfo: [NSLocalizedDescriptionKey: "云端识别服务返回了空字幕。"]
+                userInfo: [
+                    NSLocalizedDescriptionKey: Self.localizedAIText(
+                        "error_cloud_empty_subtitles"
+                    )
+                ]
             )
         }
 
-        progressCallback?(3, 1.0, "云端字幕结果已接收。")
+        progressCallback?(
+            3,
+            1.0,
+            Self.localizedAIText("status_cloud_results_received")
+        )
         return finalResult
+    }
+
+    static func localizedCloudProgressMessage(_ serverMessage: String) -> String {
+        let range = NSRange(serverMessage.startIndex..., in: serverMessage)
+        if let expression = try? NSRegularExpression(
+            pattern: #"(\d+)\s*/\s*(\d+)"#
+        ),
+           let match = expression.firstMatch(in: serverMessage, range: range),
+           let currentRange = Range(match.range(at: 1), in: serverMessage),
+           let totalRange = Range(match.range(at: 2), in: serverMessage),
+           let current = Int(serverMessage[currentRange]),
+           let total = Int(serverMessage[totalRange]) {
+            return localizedAIFormat(
+                "status_cloud_recognizing_segment_format",
+                current,
+                total
+            )
+        }
+        return localizedAIText("status_cloud_recognizing")
     }
 
     enum CloudLine {
@@ -179,6 +305,7 @@ extension AIBackendClient {
     struct CloudTranscriptionPayload: Decodable {
         let status: String?
         let language: String?
+        let model: String?
         let timestampsSentence: [CloudTimestamp]?
         let timestampsWord: [CloudTimestamp]?
         let srt: String?
@@ -186,10 +313,16 @@ extension AIBackendClient {
         private enum CodingKeys: String, CodingKey {
             case status
             case language
+            case model
             case timestampsSentence = "timestamps_sentence"
             case timestampsWord = "timestamps_word"
             case srt
         }
+    }
+
+    struct CloudReadyPayload: Decodable {
+        let status: String
+        let model: String
     }
 
     struct CloudTimestamp: Decodable {
@@ -198,12 +331,20 @@ extension AIBackendClient {
         let text: String
     }
 
-    static func cloudEndpointWithStreamParam(_ endpointURL: URL, language: String) throws -> URL {
+    static func cloudEndpointWithStreamParam(
+        _ endpointURL: URL,
+        language: String,
+        model: String
+    ) throws -> URL {
         guard var components = URLComponents(url: endpointURL, resolvingAgainstBaseURL: false) else {
             throw NSError(
                 domain: "AIBackendClient",
                 code: 24,
-                userInfo: [NSLocalizedDescriptionKey: "云端识别服务地址无效。"]
+                userInfo: [
+                    NSLocalizedDescriptionKey: localizedAIText(
+                        "error_cloud_address_invalid_short"
+                    )
+                ]
             )
         }
 
@@ -217,13 +358,57 @@ extension AIBackendClient {
         if !queryItems.contains(where: { $0.name == "lang" }) {
             queryItems.append(URLQueryItem(name: "lang", value: language))
         }
+        if !queryItems.contains(where: { $0.name == "model" }) {
+            queryItems.append(URLQueryItem(name: "model", value: model))
+        }
         components.queryItems = queryItems
 
         guard let url = components.url else {
             throw NSError(
                 domain: "AIBackendClient",
                 code: 25,
-                userInfo: [NSLocalizedDescriptionKey: "无法构造云端识别请求地址。"]
+                userInfo: [
+                    NSLocalizedDescriptionKey: localizedAIText(
+                        "error_cloud_request_url_failed"
+                    )
+                ]
+            )
+        }
+        return url
+    }
+
+    static func cloudEndpointWithModelParam(
+        _ endpointURL: URL,
+        model: String
+    ) throws -> URL {
+        guard var components = URLComponents(
+            url: endpointURL,
+            resolvingAgainstBaseURL: false
+        ) else {
+            throw NSError(
+                domain: "AIBackendClient",
+                code: 28,
+                userInfo: [
+                    NSLocalizedDescriptionKey: localizedAIText(
+                        "error_cloud_ready_url_failed"
+                    )
+                ]
+            )
+        }
+        var queryItems = components.queryItems ?? []
+        if !queryItems.contains(where: { $0.name == "model" }) {
+            queryItems.append(URLQueryItem(name: "model", value: model))
+        }
+        components.queryItems = queryItems
+        guard let url = components.url else {
+            throw NSError(
+                domain: "AIBackendClient",
+                code: 29,
+                userInfo: [
+                    NSLocalizedDescriptionKey: localizedAIText(
+                        "error_cloud_ready_url_failed"
+                    )
+                ]
             )
         }
         return url
@@ -270,7 +455,11 @@ extension AIBackendClient {
             throw NSError(
                 domain: "AIBackendClient.CloudConnection",
                 code: 30,
-                userInfo: [NSLocalizedDescriptionKey: "云端识别服务返回了无效响应。"]
+                userInfo: [
+                    NSLocalizedDescriptionKey: localizedAIText(
+                        "error_cloud_invalid_response"
+                    )
+                ]
             )
         }
         return CloudProbeResponse(statusCode: httpResponse.statusCode, body: data)
@@ -282,12 +471,19 @@ extension AIBackendClient {
         responseBody: Data
     ) -> NSError {
         let detail = limitedCloudResponseText(responseBody)
-        let suffix = detail.isEmpty ? "" : "：\(detail)"
+        let suffix = detail.isEmpty
+            ? ""
+            : localizedAIFormat("cloud_response_detail_format", detail)
         return NSError(
             domain: "AIBackendClient.CloudConnection",
             code: statusCode,
             userInfo: [
-                NSLocalizedDescriptionKey: "\(endpoint) 返回 HTTP \(statusCode)\(suffix)"
+                NSLocalizedDescriptionKey: localizedAIFormat(
+                    "error_cloud_endpoint_http_format",
+                    endpoint,
+                    statusCode,
+                    suffix
+                )
             ]
         )
     }
@@ -314,8 +510,9 @@ extension AIBackendClient {
                 domain: "AIBackendClient.CloudConnection",
                 code: nsError.code,
                 userInfo: [
-                    NSLocalizedDescriptionKey:
-                        "活字（Strophe）的本地网络访问被 macOS 拒绝。请前往“系统设置 → 隐私与安全性 → 本地网络”，允许“活字”访问后重试。"
+                    NSLocalizedDescriptionKey: localizedAIText(
+                        "error_cloud_local_network_denied"
+                    )
                 ]
             )
         }
@@ -324,8 +521,8 @@ extension AIBackendClient {
             switch urlError.code {
             case .cannotConnectToHost:
                 let message = containsPOSIXError(nsError, code: .ECONNREFUSED)
-                    ? "连接被拒绝。请确认识别服务已启动、监听正确端口，并绑定到 0.0.0.0。"
-                    : "无法连接到识别服务。请检查 IP 地址、端口、局域网路由和服务器防火墙。"
+                    ? localizedAIText("error_cloud_connection_refused")
+                    : localizedAIText("error_cloud_cannot_connect")
                 return NSError(
                     domain: "AIBackendClient.CloudConnection",
                     code: urlError.errorCode,
@@ -335,25 +532,41 @@ extension AIBackendClient {
                 return NSError(
                     domain: "AIBackendClient.CloudConnection",
                     code: urlError.errorCode,
-                    userInfo: [NSLocalizedDescriptionKey: "连接超时。请检查网络是否可达，以及识别服务是否有响应。"]
+                    userInfo: [
+                        NSLocalizedDescriptionKey: localizedAIText(
+                            "error_cloud_connection_timeout"
+                        )
+                    ]
                 )
             case .cannotFindHost, .dnsLookupFailed:
                 return NSError(
                     domain: "AIBackendClient.CloudConnection",
                     code: urlError.errorCode,
-                    userInfo: [NSLocalizedDescriptionKey: "找不到识别服务主机，请检查服务地址。"]
+                    userInfo: [
+                        NSLocalizedDescriptionKey: localizedAIText(
+                            "error_cloud_host_not_found"
+                        )
+                    ]
                 )
             case .networkConnectionLost:
                 return NSError(
                     domain: "AIBackendClient.CloudConnection",
                     code: urlError.errorCode,
-                    userInfo: [NSLocalizedDescriptionKey: "与识别服务的连接已中断，请检查局域网连接。"]
+                    userInfo: [
+                        NSLocalizedDescriptionKey: localizedAIText(
+                            "error_cloud_connection_lost"
+                        )
+                    ]
                 )
             case .notConnectedToInternet:
                 return NSError(
                     domain: "AIBackendClient.CloudConnection",
                     code: urlError.errorCode,
-                    userInfo: [NSLocalizedDescriptionKey: "当前网络不可用，请检查本机网络连接。"]
+                    userInfo: [
+                        NSLocalizedDescriptionKey: localizedAIText(
+                            "error_network_unavailable"
+                        )
+                    ]
                 )
             default:
                 break
@@ -373,7 +586,12 @@ extension AIBackendClient {
         return containsPOSIXError(underlying, code: code)
     }
 
-    static func makeCloudMultipartBody(audioURL: URL, language: String, boundary: String) throws -> Data {
+    static func makeCloudMultipartBody(
+        audioURL: URL,
+        language: String,
+        model: String,
+        boundary: String
+    ) throws -> Data {
         var body = Data()
 
         func append(_ string: String) {
@@ -387,6 +605,10 @@ extension AIBackendClient {
         append("--\(boundary)\r\n")
         append("Content-Disposition: form-data; name=\"lang\"\r\n\r\n")
         append("\(language)\r\n")
+
+        append("--\(boundary)\r\n")
+        append("Content-Disposition: form-data; name=\"model\"\r\n\r\n")
+        append("\(model)\r\n")
 
         append("--\(boundary)\r\n")
         append("Content-Disposition: form-data; name=\"file\"; filename=\"\(audioURL.lastPathComponent)\"\r\n")
@@ -424,7 +646,11 @@ extension AIBackendClient {
                     throw NSError(
                         domain: "AIBackendClient",
                         code: 26,
-                        userInfo: [NSLocalizedDescriptionKey: "云端识别结果缺少 data 字段。"]
+                        userInfo: [
+                            NSLocalizedDescriptionKey: localizedAIText(
+                                "error_cloud_invalid_response"
+                            )
+                        ]
                     )
                 }
                 return .result(try cloudResult(from: payload))
@@ -447,7 +673,12 @@ extension AIBackendClient {
             throw NSError(
                 domain: "AIBackendClient",
                 code: 27,
-                userInfo: [NSLocalizedDescriptionKey: "云端识别未成功：\(status)"]
+                userInfo: [
+                    NSLocalizedDescriptionKey: localizedAIFormat(
+                        "error_cloud_status_format",
+                        status
+                    )
+                ]
             )
         }
 
@@ -459,7 +690,11 @@ extension AIBackendClient {
             segments = parseCloudSRTSegments(srt)
         }
 
-        return AICloudTranscriptionResult(language: payload.language, segments: segments)
+        return AICloudTranscriptionResult(
+            language: payload.language,
+            model: payload.model,
+            segments: segments
+        )
     }
 
     static func parseCloudSRTSegments(_ srt: String) -> [AIResultSegment] {

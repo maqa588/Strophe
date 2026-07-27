@@ -149,6 +149,15 @@ struct LicensesListView: View {
                 } label: {
                     LabeledContent("FireRedVAD", value: "Apache 2.0")
                 }
+
+                NavigationLink {
+                    LicenseDocumentView(
+                        title: "Parakeet-JA (CC BY 4.0)",
+                        text: LicenseTexts.parakeetCCBY
+                    )
+                } label: {
+                    LabeledContent("Parakeet-JA", value: "CC BY 4.0")
+                }
                 
                 NavigationLink {
                     LicenseDocumentView(title: String(localized: "trademarks_label"), text: String(localized: "trademark_disclaimer"))

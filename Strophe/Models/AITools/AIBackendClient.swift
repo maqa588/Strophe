@@ -9,6 +9,7 @@ import Foundation
 
 struct AIGenerateSubtitlesRequest: Sendable {
     let audioURL: URL
+    let asrModelName: String
     let whisperModelURL: URL
     let asrDecoderModelURL: URL?
     let alignerModelURL: URL
@@ -29,14 +30,45 @@ struct AIGenerateSubtitlesRequest: Sendable {
     let useVAD: Bool
 }
 
+enum AICloudASRModel: String, CaseIterable, Identifiable, Sendable {
+    case qwen3ASR17B = "qwen3-asr-1.7b"
+    case parakeetJA = "parakeet-tdt-ctc-0.6b-ja"
+
+    nonisolated var id: String { rawValue }
+
+    nonisolated var displayName: String {
+        switch self {
+        case .qwen3ASR17B: return "Qwen3-ASR 1.7B"
+        case .parakeetJA: return "Parakeet-JA 0.6B"
+        }
+    }
+
+    nonisolated var descriptionKey: String {
+        switch self {
+        case .qwen3ASR17B: return "cloud_model_description_qwen3"
+        case .parakeetJA: return "cloud_model_description_parakeet"
+        }
+    }
+
+    nonisolated static func recommended(
+        preferredLanguages: [String] = Locale.preferredLanguages
+    ) -> AICloudASRModel {
+        preferredLanguages.first?.lowercased().hasPrefix("ja") == true
+            ? .parakeetJA
+            : .qwen3ASR17B
+    }
+}
+
 struct AICloudGenerateSubtitlesRequest: Sendable {
     let mediaURL: URL
     let endpointURL: URL
     let language: String
+    let model: AICloudASRModel
 }
 
 struct AICloudTranscriptionResult: Sendable {
     let language: String?
+    let model: String?
     let segments: [AIResultSegment]
 }
 
@@ -64,7 +96,11 @@ actor AIBackendClient {
             throw NSError(
                 domain: "AIBackendClient.CloudConfiguration",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "请输入云端识别服务地址。"]
+                userInfo: [
+                    NSLocalizedDescriptionKey: localizedAIText(
+                        "error_cloud_address_required"
+                    )
+                ]
             )
         }
 
@@ -83,7 +119,11 @@ actor AIBackendClient {
             throw NSError(
                 domain: "AIBackendClient.CloudConfiguration",
                 code: 2,
-                userInfo: [NSLocalizedDescriptionKey: "云端识别服务地址无效，请输入类似 http://192.168.10.97:8000 的基础地址。"]
+                userInfo: [
+                    NSLocalizedDescriptionKey: localizedAIText(
+                        "error_cloud_address_invalid"
+                    )
+                ]
             )
         }
 
@@ -99,7 +139,11 @@ actor AIBackendClient {
             throw NSError(
                 domain: "AIBackendClient.CloudConfiguration",
                 code: 3,
-                userInfo: [NSLocalizedDescriptionKey: "无法解析云端识别服务地址。"]
+                userInfo: [
+                    NSLocalizedDescriptionKey: localizedAIText(
+                        "error_cloud_address_parse_failed"
+                    )
+                ]
             )
         }
         return url
@@ -117,12 +161,30 @@ actor AIBackendClient {
     #else
     nonisolated static let isLocalAIIncludedInBuild = false
     #endif
-    nonisolated static let unsupportedDeviceMessage = "您的设备不支持本地AI运行"
+    nonisolated static var unsupportedDeviceMessage: String {
+        localizedAIText("error_on_device_ai_unsupported")
+    }
     // The complete ASR + ForcedAligner pipeline is only enabled on devices
     // reporting at least 5.5 GiB of physical memory.
     nonisolated static let minimumLocalAIPhysicalMemoryBytes: UInt64 = 11 * 512 * 1024 * 1024
-    nonisolated static let cloudComingSoonMessage = "可以使用云端生成字幕，或在支持设备上使用本地生成。"
+    nonisolated static var cloudComingSoonMessage: String {
+        localizedAIText("on_device_ai_fallback_hint")
+    }
     nonisolated static let eventPrefix = "STROPHE_AI_EVENT "
+
+    nonisolated static func localizedAIText(_ key: String) -> String {
+        NSLocalizedString(key, comment: "AI subtitle generation")
+    }
+
+    nonisolated static func localizedAIFormat(
+        _ key: String,
+        _ arguments: CVarArg...
+    ) -> String {
+        String(
+            format: NSLocalizedString(key, comment: "AI subtitle generation"),
+            arguments: arguments
+        )
+    }
 
     nonisolated static func localDeviceSupport() -> AIBackendAvailability {
         if ProcessInfo.processInfo.physicalMemory < minimumLocalAIPhysicalMemoryBytes {
@@ -257,11 +319,19 @@ actor AIBackendClient {
         )
         #else
         _ = request
-        progressCallback?(0, 0, "iOS 本地 AI 后端尚未接入。")
+        progressCallback?(
+            0,
+            0,
+            Self.localizedAIText("error_on_device_ai_unsupported")
+        )
         throw NSError(
             domain: "AIBackendClient",
             code: 3,
-            userInfo: [NSLocalizedDescriptionKey: "iOS 本地 AI 后端尚未接入。"]
+            userInfo: [
+                NSLocalizedDescriptionKey: Self.localizedAIText(
+                    "error_on_device_ai_unsupported"
+                )
+            ]
         )
         #endif
         #endif
@@ -294,7 +364,11 @@ actor AIBackendClient {
         try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-        progressCallback?(0, 0.03, "正在由主程序解码媒体音频...")
+        progressCallback?(
+            0,
+            0.03,
+            Self.localizedAIText("status_decoding_media_audio")
+        )
         let preparedAudio16kURL = temporaryDirectory.appendingPathComponent("input_16k.wav")
         let preparedSamples16k = try await AudioExtractor.extract(from: request.audioURL, targetSampleRate: 16000.0)
         try AudioExtractor.writeMonoWav(samples: preparedSamples16k, sampleRate: 16000.0, to: preparedAudio16kURL)
@@ -304,7 +378,11 @@ actor AIBackendClient {
         if normalizedPreprocessing == "none" {
             preparedAudio48kURL = nil
         } else {
-            progressCallback?(0, 0.1, "正在准备 48kHz 人声预处理音频...")
+            progressCallback?(
+                0,
+                0.1,
+                Self.localizedAIText("status_preparing_48k_audio")
+            )
             let outputURL = temporaryDirectory.appendingPathComponent("input_48k.wav")
             let preparedSamples48k = try await AudioExtractor.extract(from: request.audioURL, targetSampleRate: 48000.0)
             try AudioExtractor.writeMonoWav(samples: preparedSamples48k, sampleRate: 48000.0, to: outputURL)
@@ -314,6 +392,7 @@ actor AIBackendClient {
         return try await SubtitleGenerator().generateDiarizedSubtitles(
             preparedAudio16kURL: preparedAudio16kURL,
             preparedAudio48kURL: preparedAudio48kURL,
+            asrModelName: request.asrModelName,
             whisperModelURL: request.whisperModelURL,
             asrDecoderModelURL: request.asrDecoderModelURL,
             alignerModelURL: request.alignerModelURL,

@@ -9,6 +9,7 @@ actor SubtitleGenerator {
     func generateDiarizedSubtitles(
         preparedAudio16kURL: URL,
         preparedAudio48kURL: URL?,
+        asrModelName: String,
         whisperModelURL: URL,
         asrDecoderModelURL: URL? = nil,
         alignerModelURL: URL,
@@ -40,13 +41,24 @@ actor SubtitleGenerator {
             throw NSError(domain: "SubtitleGenerator", code: 2, userInfo: [NSLocalizedDescriptionKey: "纯 CoreML 版本暂不包含说话人分离，请关闭该选项。"])
         }
 
-        progressCallback?(0, 0.1, "正在读取音频...")
+        progressCallback?(
+            0,
+            0.1,
+            NSLocalizedString("status_reading_audio", comment: "ASR progress")
+        )
         let samples = try await AudioExtractor.extract(from: preparedAudio16kURL, targetSampleRate: 16_000)
         guard !samples.isEmpty else {
             throw NSError(domain: "SubtitleGenerator", code: 3, userInfo: [NSLocalizedDescriptionKey: "输入音频为空。"])
         }
 
-        progressCallback?(0, 0.4, useVAD ? "正在进行 VAD 语音活动检测..." : "正在进行分段切分...")
+        progressCallback?(
+            0,
+            0.4,
+            NSLocalizedString(
+                useVAD ? "status_running_vad" : "status_segmenting_audio",
+                comment: "ASR progress"
+            )
+        )
         let islands: [CoreMLFireRedVAD.VoiceIsland]
         if useVAD {
             // Keep VAD in a nested scope so its Core ML model is released before
@@ -81,45 +93,131 @@ actor SubtitleGenerator {
             print("VAD Disabled: 均匀切分为 \(islands.count) 个语音块")
         }
         
+        let usesParakeetNativeTimestamps = LocalModelManager.isParakeetJA(
+            asrModelName
+        )
         var results: [AIResultSegment] = []
         var transcripts: [(island: CoreMLFireRedVAD.VoiceIsland, text: String)] = []
+        var nativeTimedTokens: [SubtitleWordTiming] = []
         let modelLanguage = Self.modelLanguageName(for: language)
 
         // Pass 1: transcribe every chunk. The ASR object goes out of scope before
         // ForcedAligner is constructed, preventing both large model families
         // from being resident at the same time.
-        try autoreleasepool {
-            progressCallback?(0, 0.3, "正在加载 Qwen3-ASR CoreML 模型...")
-            let asr = try CoreMLQwen3ASR(directory: whisperModelURL)
-            for (idx, island) in islands.enumerated() {
-                try Task.checkCancellation()
-                progressCallback?(1, Double(idx) / Double(max(1, islands.count)), "正在识别第 \(idx + 1)/\(islands.count) 个语音段...")
-                let chunk = Array(samples[island.startSample..<island.endSample])
-                let text = try autoreleasepool {
-                    let raw = try asr.transcribe(audio: chunk, language: modelLanguage)
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                    return Self.stripPromptLeakage(from: raw)
+        if usesParakeetNativeTimestamps {
+            try autoreleasepool {
+                progressCallback?(
+                    0,
+                    0.3,
+                    NSLocalizedString(
+                        "status_loading_parakeet",
+                        comment: "ASR progress"
+                    )
+                )
+                let asr = try CoreMLParakeetJA(directory: whisperModelURL)
+                for (idx, island) in islands.enumerated() {
+                    try Task.checkCancellation()
+                    progressCallback?(
+                        1,
+                        Double(idx) / Double(max(1, islands.count)),
+                        String(
+                            format: NSLocalizedString(
+                                "status_recognizing_parakeet_format",
+                                comment: "ASR progress"
+                            ),
+                            idx + 1,
+                            islands.count
+                        )
+                    )
+                    let chunk = Array(
+                        samples[island.startSample..<island.endSample]
+                    )
+                    let transcription = try autoreleasepool {
+                        try asr.transcribe(audio: chunk)
+                    }
+                    guard !transcription.text.isEmpty else { continue }
+                    nativeTimedTokens.append(
+                        contentsOf: transcription.tokenTimings.map {
+                            SubtitleWordTiming(
+                                text: $0.text,
+                                startTime: $0.startTime + island.startTime,
+                                endTime: $0.endTime + island.startTime
+                            )
+                        }
+                    )
                 }
-                guard !text.isEmpty else { continue }
-                transcripts.append((island, text))
-                if !enableAlignment {
-                    results.append(AIResultSegment(
-                        text: text,
-                        startTime: island.startTime,
-                        endTime: island.endTime
-                    ))
+            }
+            results = SubtitleSegmentation.makeSegments(words: nativeTimedTokens)
+        } else {
+            try autoreleasepool {
+                progressCallback?(
+                    0,
+                    0.3,
+                    NSLocalizedString(
+                        "status_loading_qwen3_asr",
+                        comment: "ASR progress"
+                    )
+                )
+                let asr = try CoreMLQwen3ASR(directory: whisperModelURL)
+                for (idx, island) in islands.enumerated() {
+                    try Task.checkCancellation()
+                    progressCallback?(
+                        1,
+                        Double(idx) / Double(max(1, islands.count)),
+                        String(
+                            format: NSLocalizedString(
+                                "status_recognizing_segment_format",
+                                comment: "ASR progress"
+                            ),
+                            idx + 1,
+                            islands.count
+                        )
+                    )
+                    let chunk = Array(samples[island.startSample..<island.endSample])
+                    let text = try autoreleasepool {
+                        let raw = try asr.transcribe(audio: chunk, language: modelLanguage)
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        return Self.stripPromptLeakage(from: raw)
+                    }
+                    guard !text.isEmpty else { continue }
+                    transcripts.append((island, text))
+                    if !enableAlignment {
+                        results.append(AIResultSegment(
+                            text: text,
+                            startTime: island.startTime,
+                            endTime: island.endTime
+                        ))
+                    }
                 }
             }
         }
 
-        if enableAlignment {
+        if enableAlignment && !usesParakeetNativeTimestamps {
             // Pass 2: ASR has been released; only now load ForcedAligner.
-            progressCallback?(1, 0, "正在加载 ForcedAligner CoreML 模型...")
+            progressCallback?(
+                1,
+                0,
+                NSLocalizedString(
+                    "status_loading_forced_aligner",
+                    comment: "Alignment progress"
+                )
+            )
             var globallyAlignedWords: [Qwen3AlignedWord] = []
             let aligner = try CoreMLQwen3ForcedAligner(directory: alignerModelURL)
             for (idx, transcript) in transcripts.enumerated() {
                 try Task.checkCancellation()
-                progressCallback?(2, Double(idx) / Double(max(1, transcripts.count)), "正在对齐第 \(idx + 1)/\(transcripts.count) 个语音段...")
+                progressCallback?(
+                    2,
+                    Double(idx) / Double(max(1, transcripts.count)),
+                    String(
+                        format: NSLocalizedString(
+                            "status_aligning_segment_format",
+                            comment: "Alignment progress"
+                        ),
+                        idx + 1,
+                        transcripts.count
+                    )
+                )
                 let island = transcript.island
                 let chunk = Array(samples[island.startSample..<island.endSample])
                 let words = try autoreleasepool {
@@ -147,7 +245,15 @@ actor SubtitleGenerator {
             results,
             threshold: SubtitleSegmentation.configuredContinuityThreshold
         )
-        progressCallback?(3, 1, "字幕时间轴生成完成")
+        let outputStep = usesParakeetNativeTimestamps || !enableAlignment ? 2 : 3
+        progressCallback?(
+            outputStep,
+            1,
+            NSLocalizedString(
+                "status_subtitle_timeline_complete",
+                comment: "Subtitle generation completed"
+            )
+        )
         return results
         #else
         throw NSError(domain: "SubtitleGenerator", code: 4, userInfo: [NSLocalizedDescriptionKey: "当前构建未包含本地 AI。"])

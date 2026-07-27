@@ -46,6 +46,12 @@ extension LocalModelManager {
             switch modelName {
             case Self.coreMLASRAccelerationModelName:
                 filters = ["config.json", "encoder.mlmodelc/", "embedding.mlmodelc/", "decoder_part1.mlmodelc/", "decoder_part2.mlmodelc/"]
+            case Self.parakeetJAModelName:
+                filters = [
+                    "vocab.json", "metadata.json",
+                    "Preprocessor.mlmodelc/", "Encoder.mlmodelc/",
+                    "Decoderv2.mlmodelc/", "Jointerv2.mlmodelc/",
+                ]
             case Self.forcedAlignerINT8ModelName:
                 filters = ["config.json", "vocab.json", "merges.txt", "tokenizer_config.json", "audio_encoder.mlmodelc/", "text_decoder.mlmodelc/", "embed_tokens.fp16.bin"]
             case "firered-vad-coreml":
@@ -82,11 +88,29 @@ extension LocalModelManager {
         progressID: String,
         progressRange: ClosedRange<Double>
     ) async throws {
-        let apiURL = URL(string: "https://huggingface.co/api/models/\(repository)/tree/main?recursive=true&expand=true")!
-        let apiRequest = URLRequest(url: apiURL)
-        let (treeData, response) = try await URLSession.shared.data(for: apiRequest)
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
-        let entries = try JSONDecoder().decode([HuggingFaceTreeEntry].self, from: treeData)
+        var nextPage = URL(
+            string: "https://huggingface.co/api/models/\(repository)/tree/main?recursive=true&expand=true"
+        )
+        var allEntries: [HuggingFaceTreeEntry] = []
+        while let pageURL = nextPage {
+            let (treeData, response) = try await URLSession.shared.data(
+                for: URLRequest(url: pageURL)
+            )
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else {
+                throw URLError(.badServerResponse)
+            }
+            allEntries.append(
+                contentsOf: try JSONDecoder().decode(
+                    [HuggingFaceTreeEntry].self,
+                    from: treeData
+                )
+            )
+            nextPage = Self.nextHuggingFacePage(
+                from: httpResponse.value(forHTTPHeaderField: "Link")
+            )
+        }
+        let entries = allEntries
             .filter { entry in entry.type != "directory" && filters.contains { $0.hasSuffix("/") ? entry.path.hasPrefix($0) : entry.path == $0 } }
         let total = max(entries.reduce(Int64(0)) { $0 + ($1.size ?? 0) }, 1)
         var completed: Int64 = 0
@@ -122,5 +146,23 @@ extension LocalModelManager {
             try fm.copyItem(at: src, to: dst)
             try? fm.removeItem(at: src)
         }
+    }
+
+    nonisolated private static func nextHuggingFacePage(from linkHeader: String?) -> URL? {
+        guard let linkHeader else { return nil }
+        for part in linkHeader.split(separator: ",") {
+            let fields = part.split(separator: ";", omittingEmptySubsequences: true)
+            guard let first = fields.first,
+                  fields.dropFirst().contains(where: {
+                      $0.trimmingCharacters(in: .whitespaces)
+                          .contains("rel=\"next\"")
+                  }) else {
+                continue
+            }
+            let value = first.trimmingCharacters(in: .whitespaces)
+            guard value.hasPrefix("<"), value.hasSuffix(">") else { continue }
+            return URL(string: String(value.dropFirst().dropLast()))
+        }
+        return nil
     }
 }

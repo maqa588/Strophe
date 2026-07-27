@@ -45,7 +45,7 @@ extension AutoCaptionView {
             VStack(alignment: .leading, spacing: 14) {
                 let stepTitles = runningStepTitles
                 
-                ForEach(0..<4, id: \.self) { index in
+                ForEach(stepTitles.indices, id: \.self) { index in
                     HStack(spacing: 12) {
                         ZStack {
                             if currentStep > index {
@@ -85,35 +85,64 @@ extension AutoCaptionView {
     }
 
     var runningStepTitles: [String] {
+        func localized(_ key: String) -> String {
+            NSLocalizedString(key, comment: "Subtitle generation progress step")
+        }
+        func step(_ number: Int, _ title: String) -> String {
+            String(
+                format: localized("process_step_format"),
+                number,
+                title
+            )
+        }
+        func modelStep(_ number: Int) -> String {
+            let task = String(
+                format: localized("process_asr_format"),
+                LocalModelManager.shortASRDisplayName(selectedModel)
+            )
+            return step(number, task)
+        }
+
         switch runningMode {
         case .cloud:
+            let cloudRecognition = String(
+                format: localized("process_cloud_recognize_format"),
+                selectedCloudModel.displayName
+            )
             return [
-                "第一步: 提取 16k 音频...",
-                "第二步: 上传云端服务...",
-                "第三步: 云端识别与对齐...",
-                "第四步: 写入字幕时间轴..."
+                step(1, localized("process_extract_16k_audio")),
+                step(2, localized("process_cloud_upload")),
+                step(3, cloudRecognition),
+                step(4, localized("process_write_timeline"))
             ]
         case .local:
             let preprocessingTitle: String = {
                 switch vocalPreprocessing {
-                case "none": return "第一步: 提取音频..."
-                case "separate": return "第一步: 伴奏人声分离 (Spleeter)..."
-                default: return "第一步: 智能降噪 (DeepFilterNet3)..."
+                case "none": return step(1, localized("process_extract_audio"))
+                case "separate": return step(1, localized("process_separate_vocals"))
+                default: return step(1, localized("process_denoise"))
                 }
             }()
+            if isParakeetJASelected || !enableAlignment {
+                return [
+                    preprocessingTitle,
+                    modelStep(2),
+                    step(3, localized("process_subtitle_output"))
+                ]
+            }
             if enableDiarization {
                 return [
                     preprocessingTitle,
-                    "第二步: 语音识别转写 (Qwen3-ASR)...",
-                    "第三步: 毫秒级字词对齐 (ForcedAligner)...",
-                    "第四步: 发言角色声纹分离 (Pyannote)..."
+                    modelStep(2),
+                    step(3, localized("process_forced_alignment")),
+                    step(4, localized("process_speaker_diarization"))
                 ]
             }
             return [
                 preprocessingTitle,
-                "第二步: 语音识别转写 (Qwen3-ASR)...",
-                "第三步: 毫秒级字词对齐 (ForcedAligner)...",
-                "第四步: 字幕片段整合输出..."
+                modelStep(2),
+                step(3, localized("process_forced_alignment")),
+                step(4, localized("process_subtitle_output"))
             ]
         }
     }
@@ -170,7 +199,10 @@ extension AutoCaptionView {
     func finishFailedGeneration(_ error: Error) {
         isRunning = false
         generationErrorMessage = error.localizedDescription
-        statusMessage = "生成失败: \(error.localizedDescription)"
+        statusMessage = localizedAIFormat(
+            "status_generation_failed_format",
+            error.localizedDescription
+        )
         showGenerationErrorAlert = true
     }
 }

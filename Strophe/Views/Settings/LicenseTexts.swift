@@ -627,6 +627,27 @@ necessary.  Here is a sample; alter the names:
 
 That's all there is to it!
 """#
+    static let parakeetCCBY: String = #"""
+Parakeet TDT-CTC 0.6B Japanese
+
+Original model:
+NVIDIA Corporation
+https://huggingface.co/nvidia/parakeet-tdt_ctc-0.6b-ja
+
+Core ML conversion distributed by FluidInference:
+https://huggingface.co/FluidInference/parakeet-0.6b-ja-coreml
+
+Licensed under the Creative Commons Attribution 4.0 International
+License (CC BY 4.0).
+
+License:
+https://creativecommons.org/licenses/by/4.0/legalcode
+
+This product uses the Core ML conversion without bundling the model in
+the application. The model is downloaded separately at the user's
+request. Strophe's independent Swift inference implementation is not
+affiliated with or endorsed by NVIDIA or FluidInference.
+"""#
     static let apache: String = #"""
 Apache License
                            Version 2.0, January 2004

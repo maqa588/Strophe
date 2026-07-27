@@ -100,6 +100,10 @@
 
 Aligned words are restored into punctuated sentences, split with dynamic programming (17 CJK or 84 Latin characters, targeting at most 6.2 seconds), repaired to avoid isolated CJK characters, and finally made continuous across gaps or overlaps of up to one second. Set `STROPHE_SUBTITLE_CONTINUITY_SECONDS=0` to disable the final continuity pass, or provide another non-negative threshold in seconds.
 
+### Remote ASR integration
+
+The Qwen3-ASR 1.7B and NVIDIA Parakeet-JA routing contract is documented in [Remote ASR API](docs/REMOTE_ASR_API.md).
+
 ## 📄 License
 
 This project is source available under the [Functional Source License](LICENSE).

@@ -35,9 +35,8 @@ extension AutoCaptionView {
                             .foregroundStyle(.secondary)
 
                         Picker("model", selection: $selectedModel) {
-                            ForEach(LocalModelManager.whisperPresets, id: \.name) { model in
-                                let isDownloaded = modelManager.downloadedWhisperModels.contains(model.name)
-                                Text("\(model.name) (\(model.size)) \(isDownloaded ? "[已下载]" : "[未下载]")")
+                            ForEach(availableASRModels, id: \.name) { model in
+                                Text(modelPickerTitle(model))
                                     .tag(model.name)
                             }
                         }
@@ -91,7 +90,7 @@ extension AutoCaptionView {
 
                         Picker("recognition_language", selection: $selectedLanguage) {
                             ForEach(languages, id: \.0) { item in
-                                Text(item.1).tag(item.0)
+                                Text(LocalizedStringKey(item.1)).tag(item.0)
                             }
                         }
                         .pickerStyle(.menu)
@@ -197,7 +196,7 @@ extension AutoCaptionView {
                         Picker("aligner_model", selection: $selectedAlignerModel) {
                             ForEach(LocalModelManager.alignerPresets, id: \.name) { model in
                                 let isDownloaded = modelManager.downloadedAlignerModels.contains(model.name)
-                                Text("\(model.name) (\(model.size)) \(isDownloaded ? "[已下载]" : "[未下载]")")
+                                Text(auxiliaryModelPickerTitle(model, downloaded: isDownloaded))
                                     .tag(model.name)
                             }
                         }
@@ -328,16 +327,42 @@ extension AutoCaptionView {
             cloudConfigurationCard
 
             VStack(alignment: .leading, spacing: 6) {
+                Text("cloud_model_selection")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Picker("cloud_model_selection", selection: $selectedCloudModel) {
+                    ForEach(orderedCloudModels) { model in
+                        Text(cloudModelPickerTitle(model))
+                            .tag(model)
+                    }
+                }
+                .pickerStyle(.menu)
+
+                Text(LocalizedStringKey(selectedCloudModel.descriptionKey))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.top, 4)
+
+            VStack(alignment: .leading, spacing: 6) {
                 Text("submission_language")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
                 Picker("submission_language", selection: $selectedLanguage) {
                     ForEach(languages, id: \.0) { item in
-                        Text(item.1).tag(item.0)
+                        Text(LocalizedStringKey(item.1)).tag(item.0)
                     }
                 }
                 .pickerStyle(.menu)
+                .disabled(isCloudParakeetJASelected)
+
+                if isCloudParakeetJASelected {
+                    Text("parakeet_japanese_locked_hint")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
             }
             .padding(.top, 4)
 

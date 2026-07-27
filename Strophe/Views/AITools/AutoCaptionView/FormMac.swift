@@ -100,7 +100,7 @@ extension AutoCaptionView {
                     .foregroundStyle(Color.stropheText)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                Button(action: { selectedGenerationMode = .cloud }) {
+                Button(action: handleChooseCloudButton) {
                     recognitionChoiceCard(
                         title: "cloud_recognition",
                         systemImage: "cloud.fill",

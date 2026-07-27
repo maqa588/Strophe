@@ -24,12 +24,21 @@ extension AutoCaptionView {
                     iosMediaSourceSection
                     iosCloudRecognitionSection
                     Section {
-                        Picker("submission_language", selection: $selectedLanguage) {
-                            ForEach(languages, id: \.0) { item in
-                                Text(item.1).tag(item.0)
+                        Picker("cloud_model_selection", selection: $selectedCloudModel) {
+                            ForEach(orderedCloudModels) { model in
+                                Text(cloudModelPickerTitle(model))
+                                    .tag(model)
                             }
                         }
                         .pickerStyle(.navigationLink)
+
+                        Picker("submission_language", selection: $selectedLanguage) {
+                            ForEach(languages, id: \.0) { item in
+                                Text(LocalizedStringKey(item.1)).tag(item.0)
+                            }
+                        }
+                        .pickerStyle(.navigationLink)
+                        .disabled(isCloudParakeetJASelected)
                     } header: {
                         Text("language_config")
                     } footer: {
@@ -69,9 +78,8 @@ extension AutoCaptionView {
                     Section {
                         // Model Selection
                         Picker("model_selection", selection: $selectedModel) {
-                            ForEach(LocalModelManager.whisperPresets, id: \.name) { model in
-                                let isDownloaded = modelManager.downloadedWhisperModels.contains(model.name)
-                                Text("\(model.name) (\(model.size)) \(isDownloaded ? "[已下载]" : "[未下载]")")
+                            ForEach(availableASRModels, id: \.name) { model in
+                                Text(modelPickerTitle(model))
                                     .tag(model.name)
                             }
                         }
@@ -102,7 +110,7 @@ extension AutoCaptionView {
                         // Language Selection
                         Picker("recognition_language", selection: $selectedLanguage) {
                             ForEach(languages, id: \.0) { item in
-                                Text(item.1).tag(item.0)
+                                Text(LocalizedStringKey(item.1)).tag(item.0)
                             }
                         }
                         .pickerStyle(.navigationLink)
@@ -144,7 +152,7 @@ extension AutoCaptionView {
                         Picker("aligner_model", selection: $selectedAlignerModel) {
                             ForEach(LocalModelManager.alignerPresets, id: \.name) { model in
                                 let isDownloaded = modelManager.downloadedAlignerModels.contains(model.name)
-                                Text("\(model.name) (\(model.size)) \(isDownloaded ? "[已下载]" : "[未下载]")")
+                                Text(auxiliaryModelPickerTitle(model, downloaded: isDownloaded))
                                     .tag(model.name)
                             }
                         }
@@ -320,7 +328,7 @@ extension AutoCaptionView {
     var iosRecognitionModeGuideSection: some View {
         Section {
             Button {
-                selectedGenerationMode = .cloud
+                handleChooseCloudButton()
             } label: {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {

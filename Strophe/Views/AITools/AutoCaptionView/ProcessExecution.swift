@@ -16,7 +16,7 @@ extension AutoCaptionView {
         isRunning = true
         currentStep = 0
         stepProgress = 0.0
-        statusMessage = "正在检查设备兼容性..."
+        statusMessage = localizedAIText("status_checking_device_compatibility")
 
         Task {
             do {
@@ -25,7 +25,10 @@ extension AutoCaptionView {
                 // 0. 模型依赖预下载阶段
                 let isWhisperDownloaded = modelManager.downloadedWhisperModels.contains(selectedModel)
                 if !isWhisperDownloaded {
-                    statusMessage = "正在从 Hugging Face 下载 ASR 模型 \(selectedModel) (约需几分钟)..."
+                    statusMessage = localizedAIFormat(
+                        "status_downloading_asr_model_format",
+                        selectedModel
+                    )
 
                     let downloadTask = Task {
                         let whisperModelId = "Whisper_\(selectedModel)"
@@ -47,7 +50,11 @@ extension AutoCaptionView {
                         throw NSError(
                             domain: "AutoCaptionView",
                             code: 4,
-                            userInfo: [NSLocalizedDescriptionKey: "语音转写模型下载失败，请检查网络连接。"]
+                            userInfo: [
+                                NSLocalizedDescriptionKey: localizedAIText(
+                                    "error_asr_model_download_failed"
+                                )
+                            ]
                         )
                     }
                 }
@@ -55,7 +62,10 @@ extension AutoCaptionView {
                 let useCoreMLASRAcceleration = enableCoreMLASRAcceleration && LocalModelManager.supportsCoreMLASRAcceleration(selectedModel)
                 let coreMLASRModelName = LocalModelManager.coreMLASRAccelerationModelName
                 if useCoreMLASRAcceleration && !modelManager.downloadedWhisperModels.contains(coreMLASRModelName) {
-                    statusMessage = "正在从 Hugging Face 下载 CoreML ASR 编码器 \(coreMLASRModelName)..."
+                    statusMessage = localizedAIFormat(
+                        "status_downloading_coreml_asr_format",
+                        coreMLASRModelName
+                    )
                     self.stepProgress = 0.0
 
                     let downloadTask = Task {
@@ -78,15 +88,26 @@ extension AutoCaptionView {
                         throw NSError(
                             domain: "AutoCaptionView",
                             code: 10,
-                            userInfo: [NSLocalizedDescriptionKey: "CoreML ASR 编码器下载失败，请检查网络连接。"]
+                            userInfo: [
+                                NSLocalizedDescriptionKey: localizedAIText(
+                                    "error_coreml_asr_download_failed"
+                                )
+                            ]
                         )
                     }
                 }
 
-                let needsAligner = enableAlignment || enableDiarization
+                let usesNativeTimestamps = LocalModelManager.usesNativeTimestamps(
+                    selectedModel
+                )
+                let needsAligner = (enableAlignment || enableDiarization)
+                    && !usesNativeTimestamps
                 let isAlignerDownloaded = modelManager.downloadedAlignerModels.contains(selectedAlignerModel)
                 if needsAligner && !isAlignerDownloaded {
-                    statusMessage = "正在从 Hugging Face 下载强制对齐模型 \(selectedAlignerModel)..."
+                    statusMessage = localizedAIFormat(
+                        "status_downloading_aligner_format",
+                        selectedAlignerModel
+                    )
                     self.stepProgress = 0.0
 
                     let downloadTask = Task {
@@ -109,7 +130,11 @@ extension AutoCaptionView {
                         throw NSError(
                             domain: "AutoCaptionView",
                             code: 8,
-                            userInfo: [NSLocalizedDescriptionKey: "强制对齐模型下载失败，请检查网络连接。"]
+                            userInfo: [
+                                NSLocalizedDescriptionKey: localizedAIText(
+                                    "error_aligner_download_failed"
+                                )
+                            ]
                         )
                     }
                 }
@@ -119,8 +144,14 @@ extension AutoCaptionView {
                     let isVADDownloaded = modelManager.downloadedVADModels.contains(vadModelName)
                     if !isVADDownloaded {
                         let displayName = (vadModelName == "firered-vad-coreml") ? "FireRed VAD" : "VAD"
-                        let approxSize = (vadModelName == "firered-vad-coreml") ? "约 2.2MB" : "约 5.7MB"
-                        statusMessage = "正在从 Hugging Face 下载 \(displayName) 模型 (\(approxSize))..."
+                        let approxSize = LocalModelManager.vadPresets
+                            .first(where: { $0.name == vadModelName })?
+                            .localizedSize ?? ""
+                        statusMessage = localizedAIFormat(
+                            "status_downloading_named_model_format",
+                            displayName,
+                            approxSize
+                        )
                         self.stepProgress = 0.0
 
                         let downloadTask = Task {
@@ -143,7 +174,12 @@ extension AutoCaptionView {
                             throw NSError(
                                 domain: "AutoCaptionView",
                                 code: 10,
-                                userInfo: [NSLocalizedDescriptionKey: "\(displayName) 模型下载失败，请检查网络连接。"]
+                                userInfo: [
+                                    NSLocalizedDescriptionKey: localizedAIFormat(
+                                        "error_named_model_download_failed_format",
+                                        displayName
+                                    )
+                                ]
                             )
                         }
                     }
@@ -151,7 +187,10 @@ extension AutoCaptionView {
 
                 let isSpeakerDownloaded = modelManager.downloadedSpeakerModels.contains("pyannote-diarization-mlx")
                 if enableDiarization && !isSpeakerDownloaded {
-                    statusMessage = "正在从 Hugging Face 下载声纹识别模型 pyannote-diarization-mlx (约需几分钟)..."
+                    statusMessage = localizedAIFormat(
+                        "status_downloading_speaker_model_format",
+                        "pyannote-diarization-mlx"
+                    )
                     self.stepProgress = 0.0
 
                     let downloadTask = Task {
@@ -174,7 +213,11 @@ extension AutoCaptionView {
                         throw NSError(
                             domain: "AutoCaptionView",
                             code: 5,
-                            userInfo: [NSLocalizedDescriptionKey: "声纹识别模型下载失败，请检查网络连接。"]
+                            userInfo: [
+                                NSLocalizedDescriptionKey: localizedAIText(
+                                    "error_speaker_model_download_failed"
+                                )
+                            ]
                         )
                     }
                 }
@@ -183,7 +226,9 @@ extension AutoCaptionView {
                 if vocalPreprocessing == "denoise" {
                     let isDenoiseDownloaded = modelManager.downloadedOtherModels.contains("deepfilternet3-coreml")
                     if !isDenoiseDownloaded {
-                        statusMessage = "正在从 Hugging Face 下载智能降噪模型..."
+                        statusMessage = localizedAIText(
+                            "status_downloading_denoise_model"
+                        )
                         self.stepProgress = 0.0
 
                         let downloadTask = Task {
@@ -206,7 +251,11 @@ extension AutoCaptionView {
                             throw NSError(
                                 domain: "AutoCaptionView",
                                 code: 6,
-                                userInfo: [NSLocalizedDescriptionKey: "智能降噪模型下载失败，请检查网络连接。"]
+                                userInfo: [
+                                    NSLocalizedDescriptionKey: localizedAIText(
+                                        "error_denoise_model_download_failed"
+                                    )
+                                ]
                             )
                         }
                     }
@@ -216,7 +265,9 @@ extension AutoCaptionView {
                 if vocalPreprocessing == "separate" {
                     let isSpleeterDownloaded = modelManager.downloadedOtherModels.contains("spleeter2-coreml")
                     if !isSpleeterDownloaded {
-                        statusMessage = "正在下载伴奏人声分离模型..."
+                        statusMessage = localizedAIText(
+                            "status_downloading_vocal_separation_model"
+                        )
                         self.stepProgress = 0.0
 
                         let downloadTask = Task {
@@ -239,7 +290,11 @@ extension AutoCaptionView {
                             throw NSError(
                                 domain: "AutoCaptionView",
                                 code: 7,
-                                userInfo: [NSLocalizedDescriptionKey: "伴奏人声分离模型下载失败，请检查网络连接。"]
+                                userInfo: [
+                                    NSLocalizedDescriptionKey: localizedAIText(
+                                        "error_vocal_separation_model_download_failed"
+                                    )
+                                ]
                             )
                         }
                     }
@@ -247,7 +302,7 @@ extension AutoCaptionView {
 
                 // 1. 提取并采样音频数据
                 let whisperBaseDir = modelManager.getBaseDirectory(for: .whisper)
-                // 使用 Hub-style 路径 (base/models/org/repo)；fallback 到旧版扁平路径
+                // 使用外置模型根目录下的 Hub-style 路径 (base/org/repo)。
                 let selectedASRModelURL: URL
                 if let hubDir = modelManager.getModelDirectory(for: selectedModel, type: .whisper) {
                     selectedASRModelURL = hubDir
@@ -283,7 +338,12 @@ extension AutoCaptionView {
                     throw NSError(
                         domain: "AutoCaptionView",
                         code: 9,
-                        userInfo: [NSLocalizedDescriptionKey: "未知的强制对齐模型：\(selectedAlignerModel)"]
+                        userInfo: [
+                            NSLocalizedDescriptionKey: localizedAIFormat(
+                                "error_unknown_aligner_format",
+                                selectedAlignerModel
+                            )
+                        ]
                     )
                 }
 
@@ -311,6 +371,7 @@ extension AutoCaptionView {
 
                 let request = AIGenerateSubtitlesRequest(
                     audioURL: mediaURL,
+                    asrModelName: selectedModel,
                     whisperModelURL: whisperModelURL,
                     asrDecoderModelURL: asrDecoderModelURL,
                     alignerModelURL: alignerModelURL,
@@ -325,7 +386,7 @@ extension AutoCaptionView {
                     language: selectedLanguage,
                     enableDiarization: enableDiarization,
                     prefixSpeakerName: prefixSpeakerName,
-                    enableAlignment: enableAlignment,
+                    enableAlignment: enableAlignment && !usesNativeTimestamps,
                     vocalPreprocessing: vocalPreprocessing,
                     referenceText: referenceLyrics,
                     useVAD: useVAD
@@ -367,14 +428,23 @@ extension AutoCaptionView {
                     throw NSError(
                         domain: "AutoCaptionView",
                         code: 11,
-                        userInfo: [NSLocalizedDescriptionKey: "本地识别结果为空，未覆盖当前字幕。"]
+                        userInfo: [
+                            NSLocalizedDescriptionKey: localizedAIText(
+                                "error_local_recognition_empty"
+                            )
+                        ]
                     )
                 }
 
                 // 3. 部署到 Timeline 并注册撤销
                 await MainActor.run {
                     replaceProjectSubtitles(with: generatedSubtitles, actionName: String(localized: "local_ai_speech_recognition_alignment"))
-                    finishSuccessfulGeneration(message: "完成！本地生成 \(generatedSubtitles.count) 条字幕。")
+                    finishSuccessfulGeneration(
+                        message: localizedAIFormat(
+                            "status_local_generation_complete_format",
+                            generatedSubtitles.count
+                        )
+                    )
                 }
 
                 try? await Task.sleep(nanoseconds: 1_200_000_000)
@@ -398,14 +468,17 @@ extension AutoCaptionView {
         isRunning = true
         currentStep = 0
         stepProgress = 0.0
-        statusMessage = "正在准备云端识别..."
+        statusMessage = localizedAIText("status_preparing_cloud_recognition")
 
         Task {
             do {
-                statusMessage = "正在检查云端识别服务..."
+                statusMessage = localizedAIText("status_checking_cloud_service")
                 let baseURL = try AIBackendClient.normalizedCloudBaseURL(from: cloudBaseURLString)
                 cloudBaseURLString = baseURL.absoluteString
-                let connectionCheck = try await AIBackendClient.shared.testCloudConnection(baseURL: baseURL)
+                let connectionCheck = try await AIBackendClient.shared.testCloudConnection(
+                    baseURL: baseURL,
+                    model: selectedCloudModel
+                )
                 guard connectionCheck.isReady else {
                     cloudConnectionTestState = .failed(connectionCheck.message)
                     throw NSError(
@@ -416,10 +489,14 @@ extension AutoCaptionView {
                 }
                 cloudConnectionTestState = .succeeded(connectionCheck.message)
 
+                let cloudLanguage = selectedCloudModel == .parakeetJA
+                    ? "ja"
+                    : selectedLanguage
                 let request = AICloudGenerateSubtitlesRequest(
                     mediaURL: mediaURL,
                     endpointURL: AIBackendClient.cloudTranscribeURL(baseURL: baseURL),
-                    language: selectedLanguage
+                    language: cloudLanguage,
+                    model: selectedCloudModel
                 )
 
                 let result = try await AIBackendClient.shared.generateCloudSubtitles(
@@ -447,19 +524,32 @@ extension AutoCaptionView {
                     throw NSError(
                         domain: "AutoCaptionView",
                         code: 12,
-                        userInfo: [NSLocalizedDescriptionKey: "云端识别结果为空，未覆盖当前字幕。"]
+                        userInfo: [
+                            NSLocalizedDescriptionKey: localizedAIText(
+                                "error_cloud_recognition_empty"
+                            )
+                        ]
                     )
                 }
 
                 await MainActor.run {
-                    let languageSuffix: String
                     if let language = result.language, !language.isEmpty {
-                        languageSuffix = "识别语种：\(language)。"
+                        finishSuccessfulGeneration(
+                            message: localizedAIFormat(
+                                "status_cloud_generation_complete_language_format",
+                                generatedSubtitles.count,
+                                localizedRecognitionLanguageName(language)
+                            )
+                        )
                     } else {
-                        languageSuffix = ""
+                        finishSuccessfulGeneration(
+                            message: localizedAIFormat(
+                                "status_cloud_generation_complete_format",
+                                generatedSubtitles.count
+                            )
+                        )
                     }
                     replaceProjectSubtitles(with: generatedSubtitles, actionName: String(localized: "cloud_ai_speech_recognition_alignment"))
-                    finishSuccessfulGeneration(message: "完成！云端生成 \(generatedSubtitles.count) 条字幕。\(languageSuffix)")
                 }
 
                 try? await Task.sleep(nanoseconds: 1_200_000_000)

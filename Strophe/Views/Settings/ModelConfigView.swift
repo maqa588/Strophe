@@ -183,7 +183,7 @@ struct ModelConfigView: View {
                     .lineLimit(1)
                     .layoutPriority(1)
 
-                Text(model.size)
+                Text(model.localizedSize)
                     .font(.system(.caption2, design: .rounded))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
@@ -191,6 +191,17 @@ struct ModelConfigView: View {
                     .cornerRadius(6)
                     .foregroundStyle(.secondary)
                     .fixedSize()
+
+                if LocalModelManager.isParakeetJA(model.name) {
+                    Text("japanese_only")
+                        .font(.system(.caption2, design: .rounded).weight(.semibold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.stropheAccent.opacity(0.14))
+                        .cornerRadius(6)
+                        .foregroundStyle(Color.stropheAccent)
+                        .fixedSize()
+                }
 
                 Spacer(minLength: 4)
 
@@ -229,7 +240,7 @@ struct ModelConfigView: View {
             }
 
             // Description below — never competes with the trailing controls
-            Text(model.description)
+            Text(model.localizedDescription)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

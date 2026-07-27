@@ -34,6 +34,14 @@ struct AIModelInfo: Identifiable, Hashable, Sendable {
     let size: String
     let description: String
     let folderName: String
+
+    var localizedSize: String {
+        NSLocalizedString(size, comment: "AI model download size")
+    }
+
+    var localizedDescription: String {
+        NSLocalizedString(description, comment: "AI model description")
+    }
 }
 
 // MARK: - Model presets
@@ -41,25 +49,27 @@ struct AIModelInfo: Identifiable, Hashable, Sendable {
 extension LocalModelManager {
     nonisolated static let isPureCoreMLPipeline = true
     nonisolated static let coreMLASRAccelerationModelName = "qwen3-asr-coreml"
+    nonisolated static let parakeetJAModelName = "parakeet-0.6b-ja-coreml"
     nonisolated static let forcedAlignerINT8ModelName = "qwen3-forced-aligner-0.6b-coreml-int8"
 
     static let whisperPresets = [
-        AIModelInfo(name: coreMLASRAccelerationModelName, size: "约 940MB", description: "Qwen3-ASR 0.6B · 全 CoreML（INT8）", folderName: coreMLASRAccelerationModelName)
+        AIModelInfo(name: coreMLASRAccelerationModelName, size: "model_size_approx_940mb", description: "asr_model_description_qwen3", folderName: coreMLASRAccelerationModelName),
+        AIModelInfo(name: parakeetJAModelName, size: "model_size_approx_611mb", description: "asr_model_description_parakeet", folderName: parakeetJAModelName)
     ]
 
     static let coreMLASRAccelerationPreset = AIModelInfo(
         name: coreMLASRAccelerationModelName,
-        size: "约 940MB",
-        description: "Qwen3-ASR 0.6B · 全 CoreML（INT8）",
+        size: "model_size_approx_940mb",
+        description: "asr_model_description_qwen3",
         folderName: coreMLASRAccelerationModelName
     )
 
     static let alignerPresets = [
-        AIModelInfo(name: forcedAlignerINT8ModelName, size: "约 1.0GB", description: "Qwen3 ForcedAligner · CoreML INT8（有限值 causal mask）", folderName: forcedAlignerINT8ModelName)
+        AIModelInfo(name: forcedAlignerINT8ModelName, size: "model_size_approx_1gb", description: "aligner_model_description_qwen3", folderName: forcedAlignerINT8ModelName)
     ]
 
     static let vadPresets = [
-        AIModelInfo(name: "firered-vad-coreml", size: "约 2.2MB", description: "FireRedVAD · 小红书 Stream-VAD · CoreML (智能语音岛划分)", folderName: "firered-vad-coreml")
+        AIModelInfo(name: "firered-vad-coreml", size: "model_size_approx_2_2mb", description: "vad_model_description_firered", folderName: "firered-vad-coreml")
     ]
     static let speakerPresets: [AIModelInfo] = []
     static let ttsPresets: [AIModelInfo] = []
@@ -86,24 +96,47 @@ extension LocalModelManager {
     static func supportsCoreMLASRAcceleration(_ asrModelName: String) -> Bool {
         asrModelName == coreMLASRAccelerationModelName
     }
+
+    nonisolated static func isParakeetJA(_ asrModelName: String) -> Bool {
+        asrModelName == parakeetJAModelName
+    }
+
+    nonisolated static func usesNativeTimestamps(_ asrModelName: String) -> Bool {
+        isParakeetJA(asrModelName)
+    }
+
+    nonisolated static func shortASRDisplayName(_ modelName: String) -> String {
+        isParakeetJA(modelName) ? "Parakeet-JA" : "Qwen3-ASR"
+    }
+
+    nonisolated static func recommendedASRModelName(
+        preferredLanguages: [String] = Locale.preferredLanguages
+    ) -> String {
+        preferredLanguages.first?.lowercased().hasPrefix("ja") == true
+            ? parakeetJAModelName
+            : coreMLASRAccelerationModelName
+    }
 }
 
 // MARK: - Model IDs (HuggingFace repo IDs)
 
 let modelHFIds: [String: String] = [
     "qwen3-asr-coreml": "aufklarer/Qwen3-ASR-CoreML",
+    "parakeet-0.6b-ja-coreml": "FluidInference/parakeet-0.6b-ja-coreml",
     "qwen3-forced-aligner-0.6b-coreml-int8": "aufklarer/Qwen3-ForcedAligner-0.6B-CoreML-INT8",
     "firered-vad-coreml": "illitan/FireRedVAD-CoreML"
 ]
 
 private let minimumModelDirectoryBytes: [String: Int64] = [
     "qwen3-asr-coreml": 900_000_000,
+    "parakeet-0.6b-ja-coreml": 590_000_000,
     "qwen3-forced-aligner-0.6b-coreml-int8": 700_000_000,
     "firered-vad-coreml": 2_000_000
 ]
 
 private let expectedModelSizesBytes: [String: Int64] = [
     "qwen3-asr-coreml": 945_000_000,
+    "parakeet-0.6b-ja-coreml": 611_000_000,
     "qwen3-forced-aligner-0.6b-coreml-int8": 1_000_000_000,
     "firered-vad-coreml": 2_300_000
 ]
@@ -128,47 +161,7 @@ final class LocalModelManager: ObservableObject {
     private static let bookmarkKey = "AIModels_ExternalStorageBookmark"
 
     private init() {
-        migrateFromCachesToApplicationSupportIfNeeded()
         refreshAll()
-    }
-
-    private func migrateFromCachesToApplicationSupportIfNeeded() {
-        let fm = FileManager.default
-        guard let cachesURL = fm.urls(for: .cachesDirectory, in: .userDomainMask).first,
-              let appSupportURL = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            return
-        }
-        
-        let oldDir = cachesURL.appendingPathComponent("qwen3-speech", isDirectory: true)
-        let newDir = appSupportURL.appendingPathComponent("qwen3-speech", isDirectory: true)
-        
-        guard fm.fileExists(atPath: oldDir.path) else { return }
-        
-        if !fm.fileExists(atPath: newDir.path) {
-            do {
-                try fm.createDirectory(at: appSupportURL, withIntermediateDirectories: true)
-                try fm.moveItem(at: oldDir, to: newDir)
-                print("✅ LocalModelManager: Migrated models from Caches to Application Support.")
-            } catch {
-                print("⚠️ LocalModelManager: Failed to move models directory: \(error)")
-            }
-        } else {
-            if let contents = try? fm.contentsOfDirectory(at: oldDir, includingPropertiesForKeys: nil) {
-                for item in contents {
-                    let target = newDir.appendingPathComponent(item.lastPathComponent)
-                    do {
-                        if fm.fileExists(atPath: target.path) {
-                            try fm.removeItem(at: target)
-                        }
-                        try fm.moveItem(at: item, to: target)
-                        print("✅ LocalModelManager: Migrated item \(item.lastPathComponent) to Application Support.")
-                    } catch {
-                        print("⚠️ LocalModelManager: Failed to migrate item \(item.lastPathComponent): \(error)")
-                    }
-                }
-            }
-            try? fm.removeItem(at: oldDir)
-        }
     }
 
     // MARK: - External Storage
@@ -273,9 +266,8 @@ final class LocalModelManager: ObservableObject {
             relativeTo: nil
         )
         #endif
-        let modelRoot = url.appendingPathComponent("qwen3-speech", isDirectory: true)
-        try FileManager.default.createDirectory(at: modelRoot, withIntermediateDirectories: true)
-        let probe = modelRoot.appendingPathComponent(".strophe-write-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        let probe = url.appendingPathComponent(".strophe-write-test-\(UUID().uuidString)")
         try Data("Strophe".utf8).write(to: probe, options: .atomic)
         try FileManager.default.removeItem(at: probe)
         UserDefaults.standard.set(data, forKey: Self.bookmarkKey)
@@ -311,19 +303,13 @@ final class LocalModelManager: ObservableObject {
 
     private func scanLocalModels(for type: AIKitType) -> Set<String> {
         withExternalAccess { _ in
-            let base = self.getBaseDirectory(for: type)
             var found = Set<String>()
 
             for preset in Self.downloadablePresets(for: type) {
                 if let dir = self.getModelDirectory(for: preset.name, type: type) {
                     if self.modelLooksComplete(preset.name, in: dir) {
                         found.insert(preset.name)
-                        continue
                     }
-                }
-                let legacy = base.appendingPathComponent(preset.folderName)
-                if self.modelLooksComplete(preset.name, in: legacy) {
-                    found.insert(preset.name)
                 }
             }
             return found
@@ -337,6 +323,9 @@ final class LocalModelManager: ObservableObject {
         case Self.coreMLASRAccelerationModelName:
             required = ["config.json", "vocab.json", "merges.txt", "tokenizer_config.json",
                         "encoder.mlmodelc", "embedding.mlmodelc", "decoder_part1.mlmodelc", "decoder_part2.mlmodelc"]
+        case Self.parakeetJAModelName:
+            required = ["vocab.json", "Preprocessor.mlmodelc", "Encoder.mlmodelc",
+                        "Decoderv2.mlmodelc", "Jointerv2.mlmodelc"]
         case Self.forcedAlignerINT8ModelName:
             required = ["config.json", "vocab.json", "merges.txt", "tokenizer_config.json"]
         case "firered-vad-coreml":
@@ -409,9 +398,11 @@ final class LocalModelManager: ObservableObject {
     func getBaseDirectory(for type: AIKitType) -> URL {
         #if os(macOS)
         if let ext = resolvedExternalURL() {
-            let dir = ext.appendingPathComponent("qwen3-speech", isDirectory: true)
-            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            return dir
+            try? FileManager.default.createDirectory(
+                at: ext,
+                withIntermediateDirectories: true
+            )
+            return ext
         }
         #endif
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -441,7 +432,6 @@ final class LocalModelManager: ObservableObject {
         let repo = String(parts[1])
         
         return base
-            .appendingPathComponent("models", isDirectory: true)
             .appendingPathComponent(org, isDirectory: true)
             .appendingPathComponent(repo, isDirectory: true)
     }
@@ -458,17 +448,6 @@ final class LocalModelManager: ObservableObject {
                     }
                 } catch {
                     deletionError = error
-                }
-            }
-            if let preset = Self.presets(for: type).first(where: { $0.name == modelName }) ??
-                Self.alignerPresets.first(where: { $0.name == modelName }) {
-                let legacy = self.getBaseDirectory(for: type).appendingPathComponent(preset.folderName)
-                if FileManager.default.fileExists(atPath: legacy.path) {
-                    do {
-                        try FileManager.default.removeItem(at: legacy)
-                    } catch {
-                        deletionError = deletionError ?? error
-                    }
                 }
             }
         }

@@ -40,6 +40,7 @@ extension AIBackendClient {
     struct HelperRequest: Encodable {
         let preparedAudio16kPath: String
         let preparedAudio48kPath: String?
+        let asrModelName: String
         let whisperModelPath: String
         let asrDecoderModelPath: String?
         let alignerModelPath: String
@@ -70,7 +71,11 @@ extension AIBackendClient {
         try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-        progressCallback?(0, 0.03, "正在由主程序解码媒体音频...")
+        progressCallback?(
+            0,
+            0.03,
+            Self.localizedAIText("status_decoding_media_audio")
+        )
         let preparedAudio16kURL = temporaryDirectory.appendingPathComponent("input_16k.wav")
         let preparedSamples16k = try await AudioExtractor.extract(from: request.audioURL, targetSampleRate: 16000.0)
         try AudioExtractor.writeMonoWav(samples: preparedSamples16k, sampleRate: 16000.0, to: preparedAudio16kURL)
@@ -80,7 +85,11 @@ extension AIBackendClient {
         if normalizedPreprocessing == "none" {
             preparedAudio48kURL = nil
         } else {
-            progressCallback?(0, 0.1, "正在准备 48kHz 人声预处理音频...")
+            progressCallback?(
+                0,
+                0.1,
+                Self.localizedAIText("status_preparing_48k_audio")
+            )
             let outputURL = temporaryDirectory.appendingPathComponent("input_48k.wav")
             let preparedSamples48k = try await AudioExtractor.extract(from: request.audioURL, targetSampleRate: 48000.0)
             try AudioExtractor.writeMonoWav(samples: preparedSamples48k, sampleRate: 48000.0, to: outputURL)
@@ -90,6 +99,7 @@ extension AIBackendClient {
         let helperRequest = HelperRequest(
             preparedAudio16kPath: preparedAudio16kURL.path,
             preparedAudio48kPath: preparedAudio48kURL?.path,
+            asrModelName: request.asrModelName,
             whisperModelPath: request.whisperModelURL.path,
             asrDecoderModelPath: request.asrDecoderModelURL?.path,
             alignerModelPath: request.alignerModelURL.path,
