@@ -40,6 +40,11 @@ struct AICloudTranscriptionResult: Sendable {
     let segments: [AIResultSegment]
 }
 
+struct AICloudConnectionCheck: Sendable {
+    let isReady: Bool
+    let message: String
+}
+
 enum AIBackendAvailability: Sendable {
     case available
     case unavailable(String)
@@ -47,9 +52,65 @@ enum AIBackendAvailability: Sendable {
 
 actor AIBackendClient {
     static let shared = AIBackendClient()
-    nonisolated static let defaultCloudBaseURL = URL(string: "http://192.168.10.10:8000")!
+    nonisolated static let cloudBaseURLDefaultsKey = "cloudRecognitionBaseURL"
+    nonisolated static let defaultCloudBaseURL = URL(string: "http://192.168.10.97:8000")!
     nonisolated static var defaultCloudTranscribeURL: URL {
         defaultCloudBaseURL.appendingPathComponent("transcribe")
+    }
+
+    nonisolated static func normalizedCloudBaseURL(from input: String) throws -> URL {
+        var value = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else {
+            throw NSError(
+                domain: "AIBackendClient.CloudConfiguration",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "请输入云端识别服务地址。"]
+            )
+        }
+
+        if !value.contains("://") {
+            value = "http://\(value)"
+        }
+
+        guard var components = URLComponents(string: value),
+              let scheme = components.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              components.host != nil,
+              components.user == nil,
+              components.password == nil,
+              components.query == nil,
+              components.fragment == nil else {
+            throw NSError(
+                domain: "AIBackendClient.CloudConfiguration",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "云端识别服务地址无效，请输入类似 http://192.168.10.97:8000 的基础地址。"]
+            )
+        }
+
+        components.scheme = scheme
+        while components.path.count > 1 && components.path.hasSuffix("/") {
+            components.path.removeLast()
+        }
+        if components.path == "/" {
+            components.path = ""
+        }
+
+        guard let url = components.url else {
+            throw NSError(
+                domain: "AIBackendClient.CloudConfiguration",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: "无法解析云端识别服务地址。"]
+            )
+        }
+        return url
+    }
+
+    nonisolated static func cloudEndpointURL(baseURL: URL, path: String) -> URL {
+        baseURL.appendingPathComponent(path)
+    }
+
+    nonisolated static func cloudTranscribeURL(baseURL: URL) -> URL {
+        cloudEndpointURL(baseURL: baseURL, path: "transcribe")
     }
     #if STROPHE_LOCAL_AI
     nonisolated static let isLocalAIIncludedInBuild = true

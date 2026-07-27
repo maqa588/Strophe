@@ -132,6 +132,15 @@ enum HardSubtitleVideoCodec: String, CaseIterable, Identifiable, Sendable {
         exportSettings: HardSubtitleVideoExportSettings,
         colorProfile: VideoColorProfile
     ) -> [String: Any] {
+        #if os(macOS)
+        let encoderSpecificationKey = AVVideoEncoderSpecificationKey
+        let hardwareAccelerationKey = kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder as String
+        #else
+        // The iOS SDK does not expose these AVFoundation dictionary constants.
+        let encoderSpecificationKey = "AVVideoEncoderSpecificationKey"
+        let hardwareAccelerationKey = "EnableHardwareAcceleratedVideoEncoder"
+        #endif
+
         var settings: [String: Any] = [
             AVVideoCodecKey: avCodec,
             AVVideoWidthKey: width,
@@ -139,27 +148,34 @@ enum HardSubtitleVideoCodec: String, CaseIterable, Identifiable, Sendable {
             AVVideoColorPropertiesKey: colorProfile.avVideoColorProperties
         ]
 
-        if !isProRes {
+        if exportSettings.usesSoftwareEncoding {
+            // false explicitly prevents VideoToolbox from selecting hardware.
+            settings[encoderSpecificationKey] = [hardwareAccelerationKey: false]
+        } else if !isProRes {
             #if os(macOS)
-            settings[AVVideoEncoderSpecificationKey] = [
-                kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder as String: true
-            ]
+            // Preserve the existing hardware-preferred macOS path.
+            settings[encoderSpecificationKey] = [hardwareAccelerationKey: true]
             #endif
+        }
 
-            let bitrate = exportSettings.resolvedBitrate(width: width, height: height, frameRate: frameRate)
+        if !isProRes {
             let expectedFrameRate = Int(max(1, frameRate.rounded()))
-            let keyFrameIntervalDuration = exportSettings.keyFrameIntervalDuration
             var compressionProperties: [String: Any] = [:]
-            compressionProperties[AVVideoAverageBitRateKey] = bitrate
-            if !exportSettings.usesMultiPassEncoding {
-                compressionProperties[AVVideoQualityKey] = exportSettings.resolvedEncoderQuality
+            switch exportSettings.rateControlMode {
+            case .constantQuality:
+                if #available(macOS 27.0, iOS 27.0, *) {
+                    compressionProperties[kVTCompressionPropertyKey_ConstantQualityFactor as String] = exportSettings.resolvedConstantQualityFactor
+                } else {
+                    // Earlier VideoToolbox versions expose fixed quantizer
+                    // quality rather than the newer adaptive CQF control.
+                    compressionProperties[kVTCompressionPropertyKey_Quality as String] = exportSettings.resolvedConstantQualityFactor
+                }
+            case .bitrate:
+                compressionProperties[kVTCompressionPropertyKey_AverageBitRate as String] = exportSettings.resolvedTargetBitrate
             }
             compressionProperties[AVVideoExpectedSourceFrameRateKey] = expectedFrameRate
             compressionProperties[AVVideoAllowFrameReorderingKey] = true
-            compressionProperties[AVVideoMaxKeyFrameIntervalKey] = Int(max(Double(expectedFrameRate), frameRate * keyFrameIntervalDuration))
             compressionProperties[kVTCompressionPropertyKey_AllowTemporalCompression as String] = true
-            compressionProperties[kVTCompressionPropertyKey_MaxKeyFrameIntervalDuration as String] = keyFrameIntervalDuration
-            compressionProperties[kVTCompressionPropertyKey_MaxFrameDelayCount as String] = exportSettings.maxFrameDelayCount
             compressionProperties[kVTCompressionPropertyKey_RealTime as String] = false
             compressionProperties[AVVideoProfileLevelKey] = self == .h265
                 ? ((colorProfile.isHDR
@@ -176,96 +192,40 @@ enum HardSubtitleVideoCodec: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-enum HardSubtitleVideoQualityMode: String, CaseIterable, Identifiable, Sendable {
-    case crfLike
+enum HardSubtitleVideoRateControlMode: String, CaseIterable, Identifiable, Sendable {
+    case constantQuality
     case bitrate
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .crfLike: return "类 CRF"
-        case .bitrate: return "target_bitrate"
-        }
-    }
-}
-
-enum HardSubtitleVideoSpeedPreset: Int, CaseIterable, Identifiable, Sendable {
-    case compact = 4
-    case medium = 6
-    case quality = 8
-
-    var id: Int { rawValue }
-
-    var title: String {
-        switch self {
-        case .compact: return "更小"
-        case .medium: return "中等"
-        case .quality: return "更清晰"
-        }
-    }
-
-    var bitrateMultiplier: Double {
-        switch self {
-        case .compact: return 0.82
-        case .medium: return 1.0
-        case .quality: return 1.22
+        case .constantQuality: return String(localized: "constant_quality_short")
+        case .bitrate: return String(localized: "target_bitrate")
         }
     }
 }
 
 struct HardSubtitleVideoExportSettings: Sendable, Equatable {
     var codec: HardSubtitleVideoCodec = .h264
-    var qualityMode: HardSubtitleVideoQualityMode = .crfLike
-    var crfLikeValue: Double = 28
+    var rateControlMode: HardSubtitleVideoRateControlMode = .constantQuality
+    var constantQualityPercent: Double = 50
     var targetBitrateMbps: Double = 8.0
-    var speedPreset: HardSubtitleVideoSpeedPreset = .medium
-    var usesDisplayAspect: Bool = true
-    var usesExperimentalNV12PixelBuffers: Bool = false
+    /// Display aspect and clean aperture are always respected during export.
+    var usesDisplayAspect: Bool { true }
+    var usesSoftwareEncoding: Bool = false
+    /// H.264/H.265 SDR exports use NV12 by default. Enable this only when a
+    /// device, source, or Core Image pipeline has compatibility issues.
+    var usesBGRACompatibilityPixelBuffers: Bool = false
     var usesMultiPassEncoding: Bool = false
     var exportsHDR: Bool = false
 
-    var resolvedEncoderQuality: Double {
-        guard qualityMode == .crfLike else { return 0.85 }
-        let normalized = 1.0 - ((min(max(crfLikeValue, 16), 34) - 16) / 18.0)
-        return min(max(0.48 + normalized * 0.47, 0.48), 0.95)
+    var resolvedConstantQualityFactor: Double {
+        min(max(constantQualityPercent, 0), 100) / 100.0
     }
 
-    func resolvedBitrate(width: Int, height: Int, frameRate: Double) -> Int {
-        if qualityMode == .bitrate {
-            return Int(max(0.3, targetBitrateMbps) * 1_000_000)
-        }
-
-        let clampedCRF = min(max(crfLikeValue, 16), 34)
-        let bppAtCRF23 = 0.30
-        let bpp = bppAtCRF23 * pow(2.0, (23.0 - clampedCRF) / 6.0)
-        let pixels = Double(max(width * height, 1))
-        let fps = max(frameRate, 24)
-        let codecMultiplier = codec == .h265 ? 0.72 : 1.0
-        let raw = pixels * fps * bpp * codecMultiplier * speedPreset.bitrateMultiplier
-        return Int(min(max(raw, 350_000), 50_000_000))
-    }
-
-    var keyFrameIntervalDuration: Double {
-        switch speedPreset {
-        case .compact:
-            return 12
-        case .medium:
-            return 8
-        case .quality:
-            return 6
-        }
-    }
-
-    var maxFrameDelayCount: Int {
-        switch speedPreset {
-        case .compact:
-            return 4
-        case .medium:
-            return 3
-        case .quality:
-            return 2
-        }
+    var resolvedTargetBitrate: Int {
+        Int(min(max(targetBitrateMbps, 0.3), 200) * 1_000_000)
     }
 }
 

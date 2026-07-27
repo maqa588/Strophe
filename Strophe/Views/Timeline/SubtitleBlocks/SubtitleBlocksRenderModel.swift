@@ -42,10 +42,12 @@ final class SubtitleBlocksRenderModel: ObservableObject {
 
         project.$items
             .dropFirst()
+            .receive(on: RunLoop.main)
             .sink { [weak self] in self?.replaceItems($0) }
             .store(in: &cancellables)
         project.$selectedIDs
             .dropFirst()
+            .receive(on: RunLoop.main)
             .sink { [weak self] newValue in
                 guard let self, self.selectedIDs != newValue else { return }
                 self.renderRevision &+= 1
@@ -54,14 +56,17 @@ final class SubtitleBlocksRenderModel: ObservableObject {
             .store(in: &cancellables)
         project.$editingMode
             .dropFirst()
+            .receive(on: RunLoop.main)
             .sink { [weak self] in self?.editingMode = $0 }
             .store(in: &cancellables)
         project.$activeSlapSubtitleID
             .dropFirst()
+            .receive(on: RunLoop.main)
             .sink { [weak self] in self?.activeSlapSubtitleID = $0 }
             .store(in: &cancellables)
         store.$groups
             .dropFirst()
+            .receive(on: RunLoop.main)
             .sink { [weak self] newValue in
                 guard let self, self.groups != newValue else { return }
                 self.renderRevision &+= 1
@@ -72,6 +77,7 @@ final class SubtitleBlocksRenderModel: ObservableObject {
             .store(in: &cancellables)
         store.$styles
             .dropFirst()
+            .receive(on: RunLoop.main)
             .sink { [weak self] in self?.styles = $0 }
             .store(in: &cancellables)
     }

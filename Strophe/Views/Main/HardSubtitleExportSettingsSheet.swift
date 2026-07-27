@@ -65,11 +65,11 @@ struct HardSubtitleExportSettingsSheet: View {
                         Divider()
                             .background(Color.stropheBorder)
                         
-                        Toggle(isOn: $settings.usesDisplayAspect) {
+                        Toggle(isOn: $settings.usesSoftwareEncoding) {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("output_by_aspect_ratio")
+                                Text("software_encoding")
                                     .font(.subheadline)
-                                Text("if_enabled_the_videos_pixel")
+                                Text("software_encoding_explanation")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
@@ -96,11 +96,11 @@ struct HardSubtitleExportSettingsSheet: View {
                             Divider()
                                 .background(Color.stropheBorder)
 
-                            Toggle(isOn: $settings.usesExperimentalNV12PixelBuffers) {
+                            Toggle(isOn: $settings.usesBGRACompatibilityPixelBuffers) {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("nv12_pixel_buffer")
+                                    Text("bgra_compatibility_mode")
                                         .font(.subheadline)
-                                    Text("experimental_yuv_buffer_explanation")
+                                    Text("bgra_compatibility_mode_explanation")
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                 }
@@ -135,8 +135,8 @@ struct HardSubtitleExportSettingsSheet: View {
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                     
-                                    Picker("control_method", selection: $settings.qualityMode) {
-                                        ForEach(HardSubtitleVideoQualityMode.allCases) { mode in
+                                    Picker("control_method", selection: $settings.rateControlMode) {
+                                        ForEach(HardSubtitleVideoRateControlMode.allCases) { mode in
                                             Text(mode.title).tag(mode)
                                         }
                                     }
@@ -144,19 +144,19 @@ struct HardSubtitleExportSettingsSheet: View {
                                     .labelsHidden()
                                 }
                                 
-                                if settings.qualityMode == .crfLike {
+                                if settings.rateControlMode == .constantQuality {
                                     VStack(alignment: .leading, spacing: 8) {
                                         HStack {
-                                            Text("crf_constant_rate_factor")
+                                            Text("constant_quality")
                                                 .font(.subheadline)
                                             Spacer()
-                                            Text("\(Int(settings.crfLikeValue.rounded()))")
+                                            Text("\(Int(settings.constantQualityPercent.rounded()))")
                                                 .font(.body.monospacedDigit())
                                                 .foregroundStyle(.secondary)
                                         }
-                                        Slider(value: $settings.crfLikeValue, in: 16...34, step: 1)
+                                        Slider(value: $settings.constantQualityPercent, in: 0...100, step: 1)
                                             .tint(Color.stropheAccent)
-                                        Text("crf_value_explanation")
+                                        Text("constant_quality_explanation")
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
                                     }
@@ -180,23 +180,6 @@ struct HardSubtitleExportSettingsSheet: View {
                                 
                                 Divider()
                                     .background(Color.stropheBorder)
-                                
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text("speed_size")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                    
-                                    Picker("speed_size", selection: $settings.speedPreset) {
-                                        ForEach(HardSubtitleVideoSpeedPreset.allCases) { preset in
-                                            Text(preset.title).tag(preset)
-                                        }
-                                    }
-                                    .pickerStyle(.segmented)
-                                    .labelsHidden()
-                                }
-
-                                Divider()
-                                    .background(Color.stropheBorder)
 
                                 Toggle(isOn: $settings.usesMultiPassEncoding) {
                                     VStack(alignment: .leading, spacing: 2) {
@@ -209,8 +192,7 @@ struct HardSubtitleExportSettingsSheet: View {
                                 }
                                 .toggleStyle(CheckboxToggleStyle())
                                 .tint(Color.stropheAccent)
-                                
-                                }
+                            }
                         }
                     }
                     .padding()
@@ -264,9 +246,9 @@ struct HardSubtitleExportSettingsSheet: View {
                         }
                     }
 
-                    Toggle("output_by_aspect_ratio", isOn: $settings.usesDisplayAspect)
+                    Toggle("software_encoding", isOn: $settings.usesSoftwareEncoding)
 
-                    Text("if_enabled_the_videos_pixel")
+                    Text("software_encoding_explanation")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
@@ -277,9 +259,9 @@ struct HardSubtitleExportSettingsSheet: View {
                         .foregroundStyle(.secondary)
 
                     if !settings.codec.isProRes && !settings.exportsHDR {
-                        Toggle("nv12_pixel_buffer", isOn: $settings.usesExperimentalNV12PixelBuffers)
+                        Toggle("bgra_compatibility_mode", isOn: $settings.usesBGRACompatibilityPixelBuffers)
 
-                        Text("experimental_yuv_buffer_explanation")
+                        Text("bgra_compatibility_mode_explanation")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -293,24 +275,24 @@ struct HardSubtitleExportSettingsSheet: View {
                     }
                 } else {
                     Section("quality") {
-                        Picker("control_method", selection: $settings.qualityMode) {
-                            ForEach(HardSubtitleVideoQualityMode.allCases) { mode in
+                        Picker("control_method", selection: $settings.rateControlMode) {
+                            ForEach(HardSubtitleVideoRateControlMode.allCases) { mode in
                                 Text(mode.title).tag(mode)
                             }
                         }
                         .pickerStyle(.segmented)
 
-                        if settings.qualityMode == .crfLike {
+                        if settings.rateControlMode == .constantQuality {
                             VStack(alignment: .leading, spacing: 10) {
                                 HStack {
-                                    Text("crf")
+                                    Text("constant_quality_short")
                                     Spacer()
-                                    Text("\(Int(settings.crfLikeValue.rounded()))")
+                                    Text("\(Int(settings.constantQualityPercent.rounded()))")
                                         .font(.body.monospacedDigit())
                                         .foregroundStyle(.secondary)
                                 }
-                                Slider(value: $settings.crfLikeValue, in: 16...34, step: 1)
-                                Text("crf_value_explanation")
+                                Slider(value: $settings.constantQualityPercent, in: 0...100, step: 1)
+                                Text("constant_quality_explanation")
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
                             }
@@ -329,13 +311,6 @@ struct HardSubtitleExportSettingsSheet: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
-
-                        Picker("speed_size", selection: $settings.speedPreset) {
-                            ForEach(HardSubtitleVideoSpeedPreset.allCases) { preset in
-                                Text(preset.title).tag(preset)
-                            }
-                        }
-                        .pickerStyle(.segmented)
 
                         Toggle("export_2pass_encoding", isOn: $settings.usesMultiPassEncoding)
 

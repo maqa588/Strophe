@@ -44,6 +44,8 @@
 "batch_translating" = "正在批量翻译";
 "batch_translation_failed" = "批量翻译失败";
 "bold" = "粗体";
+"bgra_compatibility_mode" = "BGRA 兼容模式";
+"bgra_compatibility_mode_explanation" = "默认使用更省内存的 NV12；仅在导出失败或颜色异常时开启 BGRA。NV12 失败时会自动回退重试。";
 "btn_bold" = "B";
 "btn_cancel" = "取消";
 "btn_italic" = "I";
@@ -82,13 +84,15 @@
 "cloud_generate_subtitles" = "云端生成字幕";
 "cloud_recognition" = "云端识别";
 "cloud_speech_recognition_config" = "云端语音识别配置";
+"test_connection" = "测试连接";
+"testing_connection" = "正在测试连接…";
 "color" = "颜色";
 "common_vocabulary" = "常用词汇";
 "config_required_for_recognition" = "云端和本地识别均需先进行相关参数与提交语言配置。";
 "confirm_split" = "确认切分";
 "continue" = "继续";
 "continue_import" = "继续导入";
-"control_method" = "控制方式";
+"control_method" = "导出模式";
 "copy" = "复制";
 "copy_original_to_translation" = "复制原文到译文";
 "copy_style" = "复制样式";
@@ -101,9 +105,9 @@
 "coreml_encoder_not_downloaded" = "CoreML INT8 编码器尚未下载，开始生成时会自动下载。";
 "create" = "创建";
 "create_subtitle_block" = "创建字幕块";
-"crf" = "CRF";
-"crf_constant_rate_factor" = "CRF (画质系数)";
-"crf_value_explanation" = "数字越小画质越高，导出速度也会相应变慢，同时文件会变大。";
+"constant_quality" = "CQ（恒定质量）";
+"constant_quality_explanation" = "数值越高画质越高、文件越大；实际码率会随画面复杂度变化。";
+"constant_quality_short" = "CQ";
 "current_video_resolution_preview_scale" = "当前视频分辨率与预览缩放比例";
 "cut_subtitle_block" = "剪切字幕块";
 "delete" = "删除";
@@ -143,13 +147,13 @@
 "enter_sample_text_for_live" = "输入用于实时预览的样本文本，不会修改字幕内容";
 "error" = "错误";
 "example_speaker_0_hello_world" = "例如: [Speaker 0] 你好，世界。";
-"experimental_yuv_buffer_explanation" = "实验选项。尝试用更接近硬件编码器的 YUV 缓冲写入 H.264/H.265；若导出失败或颜色异常，请关闭。";
 "export" = "导出";
 "export_2pass_encoding" = "2-pass 多遍编码";
 "export_subtitles_or_share_project" = "导出字幕或分享项目";
 "exporting_hard_subtitled_video" = "正在导出硬字幕视频";
 "external_hard_drive" = "外置硬盘";
 "follow_group_style" = "跟随小组样式";
+"fade_in_out" = "渐入渐出";
 "font" = "字体";
 "font_size" = "字号";
 "for_songs_it_is_recommended" = "歌曲建议粘贴逐行歌词；系统会跳过自由识别，直接按这些歌词强制对齐。";
@@ -228,7 +232,7 @@
 "move_subtitle_block_to_group" = "移动字幕块到分组";
 "move_to_group" = "移动到分组";
 "multi_select_subtitle_blocks" = "多选字幕块";
-"multipass_videotoolbox_explanation" = "默认关闭。开启后会让 VideoToolbox 在支持时进行多遍分析，导出更慢，但低运动画面和目标码率模式通常更容易压出更小体积。";
+"multipass_videotoolbox_explanation" = "默认关闭。开启后会让 VideoToolbox 在支持时进行多遍分析，导出更慢，但通常能提高压缩效率。";
 "name" = "名称";
 "new_group" = "新建分组";
 "new_project" = "新建工程";
@@ -248,7 +252,6 @@
 "note_clearing_cache_is_completely" = "提示：清理缓存是完全安全的，它绝不会删除您的字幕文稿项目、已保存的工程文件或原始音视频源文件。";
 "note_this_model_has_not" = "提示：此模型尚未下载，开始生成时会从 Hugging Face 自动下载该模型。";
 "number_of_speakers" = "发言人数";
-"nv12_pixel_buffer" = "NV12 像素缓冲";
 "ok" = "好";
 "ok_1" = "确定";
 "ollama_connection_info" = "Ollama 默认连接本机服务，不需要 API 密钥。";
@@ -354,6 +357,8 @@
 "smart_noise_reduction" = "智能降噪";
 "smart_noise_reduction_auxiliary_settings" = "智能降噪与辅助设置";
 "soft_subtitle_preview" = "软字幕预览";
+"software_encoding" = "软件编码";
+"software_encoding_explanation" = "勾选后禁用硬件编码器，改用系统软件编码器；导出速度会更慢。";
 "some_models_belong_to_restricted" = "部分模型属于受限仓库，需要 Hugging Face 访问令牌才能下载。可前往 huggingface.co/settings/tokens 获取。";
 "source_language" = "原语言";
 "speaker_diarization" = "对话人识别";
@@ -371,7 +376,6 @@
 "provider_settings" = "服务商设置";
 "custom_model" = "自定义模型";
 "custom_model_name" = "自定义模型名称";
-"speed_size" = "速度 / 体积";
 "split_subtitles" = "切分字幕";
 "start" = "开始";
 "start_from_blank_timeline" = "从空白时间轴开始";

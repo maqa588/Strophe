@@ -52,10 +52,22 @@ struct SubtitleTimeFormatter {
         let mins = (Int(seconds) % 3600) / 60
         let secs = Int(seconds) % 60
         let ms = Int((seconds.truncatingRemainder(dividingBy: 1)) * 1000)
-        
+
         switch format {
         case .srt:
-            return String(format: "%02d:%02d:%02d,%03d", hrs, mins, secs, ms)
+            let totalMilliseconds = Int((seconds * 1000).rounded())
+            let milliseconds = totalMilliseconds % 1000
+            let totalSeconds = totalMilliseconds / 1000
+            let wholeSeconds = totalSeconds % 60
+            let minutes = (totalSeconds / 60) % 60
+            let hours = totalSeconds / 3600
+            return String(
+                format: "%02d:%02d:%02d,%03d",
+                hours,
+                minutes,
+                wholeSeconds,
+                milliseconds
+            )
         case .ass:
             // ASS 小时只有 1 位，毫秒只保留 2 位
             let cs = ms / 10 // 厘秒

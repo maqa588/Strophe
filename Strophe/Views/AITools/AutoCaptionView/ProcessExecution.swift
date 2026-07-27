@@ -402,9 +402,23 @@ extension AutoCaptionView {
 
         Task {
             do {
+                statusMessage = "正在检查云端识别服务..."
+                let baseURL = try AIBackendClient.normalizedCloudBaseURL(from: cloudBaseURLString)
+                cloudBaseURLString = baseURL.absoluteString
+                let connectionCheck = try await AIBackendClient.shared.testCloudConnection(baseURL: baseURL)
+                guard connectionCheck.isReady else {
+                    cloudConnectionTestState = .failed(connectionCheck.message)
+                    throw NSError(
+                        domain: "AIBackendClient.CloudConnection",
+                        code: 31,
+                        userInfo: [NSLocalizedDescriptionKey: connectionCheck.message]
+                    )
+                }
+                cloudConnectionTestState = .succeeded(connectionCheck.message)
+
                 let request = AICloudGenerateSubtitlesRequest(
                     mediaURL: mediaURL,
-                    endpointURL: AIBackendClient.defaultCloudTranscribeURL,
+                    endpointURL: AIBackendClient.cloudTranscribeURL(baseURL: baseURL),
                     language: selectedLanguage
                 )
 
@@ -454,8 +468,10 @@ extension AutoCaptionView {
                     dismiss()
                 }
             } catch {
+                let displayError = AIBackendClient.userFacingCloudError(error)
                 await MainActor.run {
-                    finishFailedGeneration(error)
+                    cloudConnectionTestState = .failed(displayError.localizedDescription)
+                    finishFailedGeneration(displayError)
                 }
             }
         }

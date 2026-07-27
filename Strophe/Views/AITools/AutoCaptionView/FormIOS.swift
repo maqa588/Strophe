@@ -278,13 +278,31 @@ extension AutoCaptionView {
     @ViewBuilder
     var iosCloudRecognitionSection: some View {
         Section {
-            HStack {
-                Label("server_address", systemImage: "cloud")
-                Spacer()
-                Text(AIBackendClient.defaultCloudBaseURL.absoluteString)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+            TextField(
+                AIBackendClient.defaultCloudBaseURL.absoluteString,
+                text: $cloudBaseURLString
+            )
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .disabled(cloudConnectionTestState == .testing)
+            .stropheOnChange(of: cloudBaseURLString) { _ in
+                if cloudConnectionTestState != .testing {
+                    cloudConnectionTestState = .idle
+                }
             }
+
+            Button(action: handleTestCloudConnection) {
+                HStack {
+                    Label("test_connection", systemImage: "network")
+                    if cloudConnectionTestState == .testing {
+                        Spacer()
+                        ProgressView()
+                    }
+                }
+            }
+            .disabled(cloudConnectionTestState == .testing || configuredCloudBaseURL == nil)
+
+            cloudConnectionStatusView
 
             HStack {
                 Text("subtitle_mode")
@@ -295,6 +313,7 @@ extension AutoCaptionView {
         } header: {
             Text("cloud_recognition")
         }
+        .onAppear(perform: triggerCloudLocalNetworkPermission)
     }
 
     @ViewBuilder

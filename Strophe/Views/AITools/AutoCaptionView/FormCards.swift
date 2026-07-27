@@ -76,12 +76,40 @@ extension AutoCaptionView {
                 Text("server_address")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Spacer()
-                Text(AIBackendClient.defaultCloudBaseURL.absoluteString)
+                TextField(
+                    AIBackendClient.defaultCloudBaseURL.absoluteString,
+                    text: $cloudBaseURLString
+                )
+                    .textFieldStyle(.roundedBorder)
                     .font(.caption)
                     .foregroundStyle(Color.stropheText)
-                    .lineLimit(1)
+                    .disabled(cloudConnectionTestState == .testing)
+                    .stropheOnChange(of: cloudBaseURLString) { _ in
+                        if cloudConnectionTestState != .testing {
+                            cloudConnectionTestState = .idle
+                        }
+                    }
             }
+
+            HStack(spacing: 8) {
+                Button("test_connection", action: handleTestCloudConnection)
+                    .buttonStyle(.bordered)
+                    .disabled(cloudConnectionTestState == .testing || configuredCloudBaseURL == nil)
+
+                Button("restore_defaults") {
+                    cloudBaseURLString = AIBackendClient.defaultCloudBaseURL.absoluteString
+                    cloudConnectionTestState = .idle
+                }
+                .buttonStyle(.borderless)
+                .disabled(cloudConnectionTestState == .testing)
+
+                if cloudConnectionTestState == .testing {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+
+            cloudConnectionStatusView
 
             HStack {
                 Text("subtitle_mode")
@@ -100,7 +128,30 @@ extension AutoCaptionView {
         .overlay(
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.stropheBorder, lineWidth: 1)
-            )
+        )
+        .onAppear(perform: triggerCloudLocalNetworkPermission)
+    }
+
+    @ViewBuilder
+    var cloudConnectionStatusView: some View {
+        switch cloudConnectionTestState {
+        case .idle:
+            EmptyView()
+        case .testing:
+            Text("testing_connection")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        case .succeeded(let message):
+            Label(message, systemImage: "checkmark.circle.fill")
+                .font(.caption)
+                .foregroundStyle(.green)
+                .fixedSize(horizontal: false, vertical: true)
+        case .failed(let message):
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     @ViewBuilder

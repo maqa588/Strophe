@@ -86,7 +86,7 @@ struct SubGroupItem: Identifiable, Equatable {
     var style: String
     var isOverlayEnabled: Bool
     var isLocked: Bool = false
-    var isFlagged: Bool
+    var usesFadeInOut: Bool = false
     var exportPolicy: GroupExportPolicy = .includeInAllExports
     var sortOrder: Int = 0
 }
@@ -129,7 +129,8 @@ struct StoredSubGroupItem: Codable, Sendable, Equatable {
     var style: String
     var isOverlayEnabled: Bool
     var isLocked: Bool
-    var isFlagged: Bool
+    /// Optional so projects saved before fade controls were introduced continue to decode.
+    var usesFadeInOut: Bool?
     var exportPolicy: GroupExportPolicy
     var sortOrder: Int
 }
@@ -194,13 +195,13 @@ final class StyleAndGroupStore: ObservableObject {
     ]
     
     @Published var groups: [SubGroupItem] = [
-        SubGroupItem(id: DefaultGroupID.group1, name: "组1", subName: "主字幕", role: .normal, color: Color(red: 1.0, green: 0.65, blue: 0.0), isActive: true, style: "Default", isOverlayEnabled: true, isFlagged: false, sortOrder: 0),
-        SubGroupItem(id: DefaultGroupID.group2, name: "组2", subName: "普通字幕", role: .normal, color: Color(red: 0.5, green: 0.85, blue: 0.0), isActive: false, style: "Default", isOverlayEnabled: true, isFlagged: false, sortOrder: 1),
-        SubGroupItem(id: DefaultGroupID.group3, name: "组3", subName: "普通字幕", role: .normal, color: Color(red: 0.0, green: 0.8, blue: 0.9), isActive: false, style: "Default", isOverlayEnabled: true, isFlagged: false, sortOrder: 2),
-        SubGroupItem(id: DefaultGroupID.group4, name: "组4", subName: "普通字幕", role: .normal, color: Color(red: 0.0, green: 0.5, blue: 1.0), isActive: false, style: "Default", isOverlayEnabled: true, isFlagged: false, sortOrder: 3),
-        SubGroupItem(id: DefaultGroupID.group5, name: "组5", subName: "普通字幕", role: .normal, color: Color(red: 0.6, green: 0.3, blue: 0.9), isActive: false, style: "Default", isOverlayEnabled: true, isFlagged: false, sortOrder: 4),
-        SubGroupItem(id: DefaultGroupID.groupA, name: "专用组A (6)", subName: "第二语言", role: .secondaryLanguage, color: Color(red: 1.0, green: 0.1, blue: 0.6), isActive: false, style: "Default-L2", isOverlayEnabled: true, isFlagged: true, sortOrder: 5),
-        SubGroupItem(id: DefaultGroupID.groupB, name: "专用组B (7)", subName: "翻译副本", role: .translatedDraft, color: Color(red: 1.0, green: 0.3, blue: 0.1), isActive: false, style: "Default-L2", isOverlayEnabled: true, isFlagged: false, exportPolicy: .excludeByDefault, sortOrder: 6)
+        SubGroupItem(id: DefaultGroupID.group1, name: "组1", subName: "主字幕", role: .normal, color: Color(red: 1.0, green: 0.65, blue: 0.0), isActive: true, style: "Default", isOverlayEnabled: true, sortOrder: 0),
+        SubGroupItem(id: DefaultGroupID.group2, name: "组2", subName: "普通字幕", role: .normal, color: Color(red: 0.5, green: 0.85, blue: 0.0), isActive: false, style: "Default", isOverlayEnabled: true, sortOrder: 1),
+        SubGroupItem(id: DefaultGroupID.group3, name: "组3", subName: "普通字幕", role: .normal, color: Color(red: 0.0, green: 0.8, blue: 0.9), isActive: false, style: "Default", isOverlayEnabled: true, sortOrder: 2),
+        SubGroupItem(id: DefaultGroupID.group4, name: "组4", subName: "普通字幕", role: .normal, color: Color(red: 0.0, green: 0.5, blue: 1.0), isActive: false, style: "Default", isOverlayEnabled: true, sortOrder: 3),
+        SubGroupItem(id: DefaultGroupID.group5, name: "组5", subName: "普通字幕", role: .normal, color: Color(red: 0.6, green: 0.3, blue: 0.9), isActive: false, style: "Default", isOverlayEnabled: true, sortOrder: 4),
+        SubGroupItem(id: DefaultGroupID.groupA, name: "专用组A (6)", subName: "第二语言", role: .secondaryLanguage, color: Color(red: 1.0, green: 0.1, blue: 0.6), isActive: false, style: "Default-L2", isOverlayEnabled: true, sortOrder: 5),
+        SubGroupItem(id: DefaultGroupID.groupB, name: "专用组B (7)", subName: "翻译副本", role: .translatedDraft, color: Color(red: 1.0, green: 0.3, blue: 0.1), isActive: false, style: "Default-L2", isOverlayEnabled: true, exportPolicy: .excludeByDefault, sortOrder: 6)
     ]
 
     var sortedGroups: [SubGroupItem] {
@@ -301,7 +302,7 @@ final class StyleAndGroupStore: ObservableObject {
                 style: group.style,
                 isOverlayEnabled: group.isOverlayEnabled,
                 isLocked: group.isLocked,
-                isFlagged: group.isFlagged,
+                usesFadeInOut: group.usesFadeInOut,
                 exportPolicy: group.exportPolicy,
                 sortOrder: group.sortOrder
             )
@@ -355,7 +356,7 @@ final class StyleAndGroupStore: ObservableObject {
                     style: stored.style,
                     isOverlayEnabled: stored.isOverlayEnabled,
                     isLocked: stored.isLocked,
-                    isFlagged: stored.isFlagged,
+                    usesFadeInOut: stored.usesFadeInOut ?? false,
                     exportPolicy: stored.exportPolicy,
                     sortOrder: stored.sortOrder
                 )

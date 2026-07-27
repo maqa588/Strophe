@@ -88,9 +88,7 @@ extension HardSubtitleVideoExporter {
                     audioInput: audioInput,
                     writer: writer,
                     group: group,
-                    queue: audioQueue,
-                    durationSeconds: durationSeconds,
-                    progress: progress
+                    queue: audioQueue
                 )
             }
         }

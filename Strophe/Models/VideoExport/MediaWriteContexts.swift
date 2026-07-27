@@ -84,6 +84,44 @@ private extension NSLock {
     }
 }
 
+/// Coalesces frame-level progress into UI-sized updates. Export may process
+/// hundreds of frames per second, while the progress view only needs a few
+/// updates per second.
+nonisolated final class ExportProgressReporter: @unchecked Sendable {
+    private let lock = NSLock()
+    private let minimumInterval: CFTimeInterval
+    private let progress: @MainActor @Sendable (Double) -> Void
+    private var lastUpdateTime: CFTimeInterval = 0
+    private var lastProgress: Double = 0
+
+    init(
+        minimumInterval: CFTimeInterval = 0.1,
+        progress: @MainActor @Sendable @escaping (Double) -> Void
+    ) {
+        self.minimumInterval = minimumInterval
+        self.progress = progress
+    }
+
+    func report(_ rawProgress: Double) {
+        let value = min(max(rawProgress, 0), 1)
+        let now = CFAbsoluteTimeGetCurrent()
+        let shouldReport = lock.withLock {
+            guard value >= lastProgress,
+                  lastUpdateTime == 0 || now - lastUpdateTime >= minimumInterval else {
+                return false
+            }
+            lastProgress = value
+            lastUpdateTime = now
+            return true
+        }
+        guard shouldReport else { return }
+
+        Task { @MainActor [progress] in
+            progress(value)
+        }
+    }
+}
+
 nonisolated final class SubtitleCueCursor: @unchecked Sendable {
     private let lock = NSLock()
     private var index: Int
@@ -166,8 +204,6 @@ nonisolated final class FFmpegAudioWriteContext: @unchecked Sendable {
     private let writer: AVAssetWriter
     private let group: MediaWriteGroup
     private let queue: DispatchQueue
-    private let durationSeconds: Double
-    private let progress: @MainActor @Sendable (Double) -> Void
     private let startGate = OnceGate()
 
     init(
@@ -175,17 +211,13 @@ nonisolated final class FFmpegAudioWriteContext: @unchecked Sendable {
         audioInput: AVAssetWriterInput,
         writer: AVAssetWriter,
         group: MediaWriteGroup,
-        queue: DispatchQueue,
-        durationSeconds: Double,
-        progress: @MainActor @Sendable @escaping (Double) -> Void
+        queue: DispatchQueue
     ) {
         self.audioReader = audioReader
         self.audioInput = audioInput
         self.writer = writer
         self.group = group
         self.queue = queue
-        self.durationSeconds = durationSeconds
-        self.progress = progress
     }
 
     func start(offset: Double) {
@@ -209,13 +241,6 @@ nonisolated final class FFmpegAudioWriteContext: @unchecked Sendable {
                             return
                         }
 
-                        let seconds = CMSampleBufferGetPresentationTimeStamp(sample).seconds
-                        if seconds.isFinite {
-                            let fraction = 0.96 + min(max(seconds / self.durationSeconds, 0), 1) * 0.03
-                            Task { @MainActor in
-                                self.progress(fraction)
-                            }
-                        }
                     } catch {
                         self.audioInput.markAsFinished()
                         self.group.fail(error, writer: self.writer)
@@ -241,7 +266,7 @@ nonisolated final class AVFoundationWriteContext: @unchecked Sendable {
     private let preferredTransform: CGAffineTransform
     private let sourceDisplaySize: CGSize?
     private let durationSeconds: Double
-    private let progress: @MainActor @Sendable (Double) -> Void
+    private let progressReporter: ExportProgressReporter
     private let group: MediaWriteGroup
 
     init(
@@ -274,7 +299,7 @@ nonisolated final class AVFoundationWriteContext: @unchecked Sendable {
         self.preferredTransform = preferredTransform
         self.sourceDisplaySize = sourceDisplaySize
         self.durationSeconds = durationSeconds
-        self.progress = progress
+        progressReporter = ExportProgressReporter(progress: progress)
         self.group = group
     }
 
@@ -341,6 +366,7 @@ nonisolated final class AVFoundationWriteContext: @unchecked Sendable {
                         sourcePixelBuffer: sourceBuffer,
                         outputPixelBuffer: outputBuffer,
                         cue: cue,
+                        presentationTime: seconds,
                         renderSize: renderSize,
                         preferredTransform: preferredTransform,
                         sourceDisplaySize: sourceDisplaySize
@@ -357,11 +383,9 @@ nonisolated final class AVFoundationWriteContext: @unchecked Sendable {
                     return
                 }
 
-                let videoProgressScale = audioPipes.isEmpty ? 1.0 : 0.96
+                let videoProgressScale = audioPipes.isEmpty ? 1.0 : 0.99
                 let fraction = min(max(seconds / durationSeconds, 0), 1) * videoProgressScale
-                Task { @MainActor in
-                    progress(fraction)
-                }
+                progressReporter.report(fraction)
             }
         }
     }
@@ -379,7 +403,7 @@ nonisolated final class FFmpegVideoWriteContext: @unchecked Sendable {
     private let sourceDisplaySize: CGSize?
     private let frameDuration: CMTime
     private let durationSeconds: Double
-    private let progress: @MainActor @Sendable (Double) -> Void
+    private let progressReporter: ExportProgressReporter
     private let group: MediaWriteGroup
     private let videoState: FFmpegVideoWriteState
     private let hasAudio: Bool
@@ -414,7 +438,7 @@ nonisolated final class FFmpegVideoWriteContext: @unchecked Sendable {
         self.sourceDisplaySize = sourceDisplaySize
         self.frameDuration = frameDuration
         self.durationSeconds = durationSeconds
-        self.progress = progress
+        progressReporter = ExportProgressReporter(progress: progress)
         self.group = group
         self.videoState = videoState
         self.hasAudio = hasAudio
@@ -457,6 +481,7 @@ nonisolated final class FFmpegVideoWriteContext: @unchecked Sendable {
                         sourcePixelBuffer: frame.pixelBuffer,
                         outputPixelBuffer: outputBuffer,
                         cue: cue,
+                        presentationTime: seconds,
                         renderSize: renderSize,
                         preferredTransform: .identity,
                         sourceDisplaySize: sourceDisplaySize
@@ -470,11 +495,9 @@ nonisolated final class FFmpegVideoWriteContext: @unchecked Sendable {
                     }
                     videoState.setLastVideoPresentationTime(presentationTime)
 
-                    let videoProgressScale = hasAudio ? 0.96 : 1.0
+                    let videoProgressScale = hasAudio ? 0.99 : 1.0
                     let fraction = min(max(seconds / durationSeconds, 0), 1) * videoProgressScale
-                    Task { @MainActor in
-                        progress(fraction)
-                    }
+                    progressReporter.report(fraction)
                 } catch {
                     videoInput.markAsFinished()
                     group.fail(error, writer: writer)

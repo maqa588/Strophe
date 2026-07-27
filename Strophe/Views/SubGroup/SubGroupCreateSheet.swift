@@ -231,7 +231,6 @@ struct SubGroupCreateSheet: View {
             isActive: store.groups.isEmpty,
             style: defaultStyle,
             isOverlayEnabled: true,
-            isFlagged: role == .secondaryLanguage || role == .translatedDraft,
             exportPolicy: role == .metadata ? .referenceOnly : .includeInAllExports,
             sortOrder: store.groups.count
         )

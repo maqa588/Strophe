@@ -169,9 +169,10 @@ extension TimelineToolbarView {
                             .frame(width: 32, height: 28)
                     }
                     .buttonStyle(.plain)
+                    .keyboardShortcutIf(!isEditingText, "x", modifiers: [.option])
                     .glassEffect(.regular.interactive())
                     .popover(isPresented: $showSplitTip, arrowEdge: .top) {
-                        RichTooltipView(icon: "scissors", title: String(localized: "split_subtitles"), message: String(localized: "use_the_playhead_as_the"))
+                        RichTooltipView(icon: "scissors", title: String(localized: "split_subtitles"), message: String(localized: "use_the_playhead_as_the"), shortcut: "⌥X")
                     }
                     .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
                         #if os(iOS)
@@ -197,9 +198,10 @@ extension TimelineToolbarView {
                             .frame(width: 32, height: 28)
                     }
                     .buttonStyle(.plain)
+                    .keyboardShortcutIf(!isEditingText, "m", modifiers: [.option])
                     .glassEffect(.regular.interactive())
                     .popover(isPresented: $showMergeTip, arrowEdge: .top) {
-                        RichTooltipView(icon: "arrow.down.right.and.arrow.up.left", title: String(localized: "merge_subtitles"), message: String(localized: "merge_the_selected_consecutive_subtitle"))
+                        RichTooltipView(icon: "arrow.down.right.and.arrow.up.left", title: String(localized: "merge_subtitles"), message: String(localized: "merge_the_selected_consecutive_subtitle"), shortcut: "⌥M")
                     }
                     .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
                         #if os(iOS)
@@ -228,7 +230,7 @@ extension TimelineToolbarView {
                     .keyboardShortcutIf(!isEditingText, "s", modifiers: [.option])
                     .glassEffect(.regular.interactive())
                     .popover(isPresented: $showSoftSubtitlesTip, arrowEdge: .top) {
-                        RichTooltipView(icon: "captions.bubble", title: String(localized: "soft_subtitle_preview"), message: String(localized: "click_to_toggle_real_time"))
+                        RichTooltipView(icon: "captions.bubble", title: String(localized: "soft_subtitle_preview"), message: String(localized: "click_to_toggle_real_time"), shortcut: "⌥S")
                     }
                     .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
                         #if os(iOS)
@@ -254,9 +256,10 @@ extension TimelineToolbarView {
                             .frame(width: 32, height: 28)
                     }
                     .buttonStyle(.plain)
+                    .keyboardShortcutIf(!isEditingText, "h", modifiers: [.option])
                     .glassEffect(.regular.interactive())
                     .popover(isPresented: $showHardSubtitlesTip, arrowEdge: .top) {
-                        RichTooltipView(icon: "list.and.film", title: String(localized: "hard_subtitle_preview"), message: String(localized: "click_to_turn_onoff_the"))
+                        RichTooltipView(icon: "list.and.film", title: String(localized: "hard_subtitle_preview"), message: String(localized: "click_to_turn_onoff_the"), shortcut: "⌥H")
                     }
                     .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
                         #if os(iOS)
@@ -284,7 +287,7 @@ extension TimelineToolbarView {
                     .keyboardShortcutIf(!isEditingText, "v", modifiers: [])
                     .glassEffect(.regular.interactive())
                     .popover(isPresented: $showSelectionTip, arrowEdge: .top) {
-                        RichTooltipView(icon: "cursorarrow", title: String(localized: "selection_tool"), message: String(localized: "edit_script_text_drag_timeline"))
+                        RichTooltipView(icon: "cursorarrow", title: String(localized: "selection_tool"), message: String(localized: "edit_script_text_drag_timeline"), shortcut: "V")
                     }
                     .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
                         #if os(iOS)
@@ -312,7 +315,7 @@ extension TimelineToolbarView {
                     .keyboardShortcutIf(!isEditingText, "d", modifiers: [])
                     .glassEffect(.regular.interactive())
                     .popover(isPresented: $showCreationTip, arrowEdge: .top) {
-                        RichTooltipView(icon: "hand.draw", title: String(localized: "quick_creation_slap_tool"), message: String(localized: "drag_timeline_to_create_subtitle"))
+                        RichTooltipView(icon: "hand.draw", title: String(localized: "quick_creation_slap_tool"), message: String(localized: "drag_timeline_to_create_subtitle"), shortcut: "D")
                     }
                     .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
                         #if os(iOS)

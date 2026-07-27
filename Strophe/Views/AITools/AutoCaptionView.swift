@@ -12,6 +12,13 @@ enum CaptionGenerationMode: Sendable {
     case cloud
 }
 
+enum CloudConnectionTestState: Equatable {
+    case idle
+    case testing
+    case succeeded(String)
+    case failed(String)
+}
+
 struct AutoCaptionView: View {
     @ObservedObject var project: SubtitleProject
     @StateObject var modelManager = LocalModelManager.shared
@@ -30,6 +37,9 @@ struct AutoCaptionView: View {
     @State var vocalPreprocessing: String = "none"
     @State var referenceLyrics: String = ""
     @State var useVAD: Bool = true
+    @AppStorage(AIBackendClient.cloudBaseURLDefaultsKey)
+    var cloudBaseURLString: String = AIBackendClient.defaultCloudBaseURL.absoluteString
+    @State var cloudConnectionTestState: CloudConnectionTestState = .idle
     
     // UI steps & running state
     @State var selectedGenerationMode: CaptionGenerationMode? = nil
@@ -104,7 +114,15 @@ struct AutoCaptionView: View {
     }
 
     var canStartCloudCaptioning: Bool {
-        project.videoURL != nil && !isRunning
+        project.videoURL != nil && configuredCloudBaseURL != nil && !isRunning
+    }
+
+    var configuredCloudBaseURL: URL? {
+        try? AIBackendClient.normalizedCloudBaseURL(from: cloudBaseURLString)
+    }
+
+    var configuredCloudTranscribeURL: URL? {
+        configuredCloudBaseURL.map(AIBackendClient.cloudTranscribeURL(baseURL:))
     }
 
     var localRecognitionStatusText: String {
@@ -122,7 +140,8 @@ struct AutoCaptionView: View {
     }
 
     var cloudRecognitionDetailText: String {
-        "提交到 \(AIBackendClient.defaultCloudTranscribeURL.absoluteString)，返回完整句子时间轴。"
+        let address = configuredCloudTranscribeURL?.absoluteString ?? cloudBaseURLString
+        return "提交到 \(address)，返回完整句子时间轴。"
     }
 
     func handleChooseLocalButton() {
@@ -144,6 +163,30 @@ struct AutoCaptionView: View {
 
     func handleStartCloudButton() {
         startCloudCaptioningProcess()
+    }
+
+    func triggerCloudLocalNetworkPermission() {
+        guard let baseURL = configuredCloudBaseURL else { return }
+        AIBackendClient.triggerLocalNetworkPrivacyAlert(for: baseURL)
+    }
+
+    func handleTestCloudConnection() {
+        guard cloudConnectionTestState != .testing else { return }
+        cloudConnectionTestState = .testing
+
+        Task {
+            do {
+                let baseURL = try AIBackendClient.normalizedCloudBaseURL(from: cloudBaseURLString)
+                cloudBaseURLString = baseURL.absoluteString
+                let check = try await AIBackendClient.shared.testCloudConnection(baseURL: baseURL)
+                cloudConnectionTestState = check.isReady
+                    ? .succeeded(check.message)
+                    : .failed(check.message)
+            } catch {
+                let displayError = AIBackendClient.userFacingCloudError(error)
+                cloudConnectionTestState = .failed(displayError.localizedDescription)
+            }
+        }
     }
     
     func cleanSubtitleText(_ text: String) -> String {

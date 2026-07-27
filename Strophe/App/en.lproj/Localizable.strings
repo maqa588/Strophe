@@ -45,6 +45,8 @@
 "batch_translating" = "Batch Translating";
 "batch_translation_failed" = "Batch Translation Failed";
 "bold" = "Bold";
+"bgra_compatibility_mode" = "BGRA Compatibility Mode";
+"bgra_compatibility_mode_explanation" = "NV12 is used by default to reduce memory traffic. Enable BGRA only if export fails or colors look incorrect. Failed NV12 exports retry automatically.";
 "btn_bold" = "B";
 "btn_cancel" = "Cancel";
 "btn_italic" = "I";
@@ -83,13 +85,15 @@
 "cloud_generate_subtitles" = "Cloud Generate Subtitles";
 "cloud_recognition" = "Cloud Recognition";
 "cloud_speech_recognition_config" = "Cloud Speech Recognition Config";
+"test_connection" = "Test Connection";
+"testing_connection" = "Testing connection…";
 "color" = "Color";
 "common_vocabulary" = "Common Vocabulary";
 "config_required_for_recognition" = "Configuration required before using cloud or local recognition.";
 "confirm_split" = "Confirm Split";
 "continue" = "Continue";
 "continue_import" = "Continue Import";
-"control_method" = "Control Method";
+"control_method" = "Export Mode";
 "copy" = "Copy";
 "copy_original_to_translation" = "Copy Original to Translation";
 "copy_style" = "Copy Style";
@@ -102,9 +106,9 @@
 "coreml_encoder_not_downloaded" = "CoreML INT8 encoder not downloaded, will auto download when generating.";
 "create" = "Create";
 "create_subtitle_block" = "Create Subtitle Block";
-"crf" = "CRF";
-"crf_constant_rate_factor" = "CRF (Constant Rate Factor)";
-"crf_value_explanation" = "Lower CRF means higher quality, slower export, and larger file.";
+"constant_quality" = "CQ (Constant Quality)";
+"constant_quality_explanation" = "Higher values mean higher quality and a larger file; actual bitrate varies with scene complexity.";
+"constant_quality_short" = "CQ";
 "current_video_resolution_preview_scale" = "Current Video Resolution & Preview Scale";
 "cut_subtitle_block" = "Cut Subtitle Block";
 "delete" = "Delete";
@@ -144,13 +148,13 @@
 "enter_sample_text_for_live" = "Enter sample text for live preview, will not modify subtitle content";
 "error" = "Error";
 "example_speaker_0_hello_world" = "Example: [Speaker 0] Hello, world.";
-"experimental_yuv_buffer_explanation" = "Experimental option: try writing H.264/H.265 using YUV buffer.";
 "export" = "Export";
 "export_2pass_encoding" = "2-pass Encoding";
 "export_subtitles_or_share_project" = "Export subtitles or share project";
 "exporting_hard_subtitled_video" = "Exporting hard subtitled video";
 "external_hard_drive" = "External Hard Drive";
 "follow_group_style" = "Follow Group Style";
+"fade_in_out" = "Fade In and Out";
 "font" = "Font";
 "font_size" = "Font Size";
 "for_songs_it_is_recommended" = "For songs, it is recommended to paste line-by-line lyrics; the system will skip free recognition and directly force align according to these lyrics.";
@@ -229,7 +233,7 @@
 "move_subtitle_block_to_group" = "Move Subtitle Block to Group";
 "move_to_group" = "Move to Group";
 "multi_select_subtitle_blocks" = "Multi-select Subtitle Blocks";
-"multipass_videotoolbox_explanation" = "Default off. VideoToolbox analyzes multiple passes for low-motion or target bitrates.";
+"multipass_videotoolbox_explanation" = "Off by default. When supported, VideoToolbox performs multiple analysis passes for better compression efficiency at the cost of export time.";
 "name" = "Name";
 "new_group" = "New Group";
 "new_project" = "New Project";
@@ -249,7 +253,6 @@
 "note_clearing_cache_is_completely" = "Note: Clearing cache is completely safe. It will never delete your subtitle document projects, saved project files, or original audio/video source files.";
 "note_this_model_has_not" = "Note: This model has not been downloaded yet. It will be downloaded automatically from Hugging Face when generation starts.";
 "number_of_speakers" = "Number of Speakers";
-"nv12_pixel_buffer" = "NV12 Pixel Buffer";
 "ok" = "OK";
 "ok_1" = "OK";
 "ollama_connection_info" = "Ollama connects to localhost by default, no API key needed.";
@@ -355,6 +358,8 @@
 "smart_noise_reduction" = "Smart Noise Reduction";
 "smart_noise_reduction_auxiliary_settings" = "Smart Noise Reduction & Auxiliary Settings";
 "soft_subtitle_preview" = "Soft Subtitle Preview";
+"software_encoding" = "Software Encoding";
+"software_encoding_explanation" = "Disables hardware encoding and uses the system software encoder. Export will be slower.";
 "some_models_belong_to_restricted" = "Some models belong to restricted repositories and require a Hugging Face access token to download. You can obtain one from huggingface.co/settings/tokens.";
 "source_language" = "Source Language";
 "speaker_diarization" = "Speaker Diarization";
@@ -372,7 +377,6 @@
 "provider_settings" = "Provider Settings";
 "custom_model" = "Custom Model";
 "custom_model_name" = "Custom Model Name";
-"speed_size" = "Speed / Size";
 "split_subtitles" = "Split Subtitles";
 "start" = "Start";
 "start_from_blank_timeline" = "Start from Blank Timeline";

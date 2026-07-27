@@ -55,6 +55,9 @@ struct SubGroupPlaceholderView: View {
                         } label: {
                             Label(group.isLocked ? "unlock_this_group" : "lock_this_group", systemImage: group.isLocked ? "lock.open" : "lock")
                         }
+                        Toggle(isOn: fadeInOutBinding(for: group.id)) {
+                            Label("fade_in_out", systemImage: "circle.lefthalf.filled")
+                        }
                         Divider()
                         Button {
                             project.clearText(in: group.id)
@@ -198,15 +201,6 @@ struct SubGroupPlaceholderView: View {
                     }
                     .buttonStyle(.plain)
                     .help(group.isLocked ? "unlock_this_group" : "lock_this_group")
-
-                    // Flag
-                    Button { toggleFlag(group.id) } label: {
-                        Image(systemName: group.isFlagged ? "flag.fill" : "flag")
-                            .font(.system(size: 12))
-                            .foregroundStyle(group.isFlagged ? Color.stropheAccent : Color.secondary.opacity(0.4))
-                    }
-                    .buttonStyle(.plain)
-                    .help(group.isFlagged ? "cancel_tag" : "tag_group")
                 }
             }
             .padding(.leading, 13)
@@ -240,10 +234,14 @@ struct SubGroupPlaceholderView: View {
         }
     }
 
-    private func toggleFlag(_ id: UUID) {
-        if let i = store.groups.firstIndex(where: { $0.id == id }) {
-            store.groups[i].isFlagged.toggle()
-        }
+    private func fadeInOutBinding(for id: UUID) -> Binding<Bool> {
+        Binding(
+            get: { store.group(id: id)?.usesFadeInOut ?? false },
+            set: { isEnabled in
+                guard let index = store.groups.firstIndex(where: { $0.id == id }) else { return }
+                store.groups[index].usesFadeInOut = isEnabled
+            }
+        )
     }
 
     private func deleteGroup(_ id: UUID) {

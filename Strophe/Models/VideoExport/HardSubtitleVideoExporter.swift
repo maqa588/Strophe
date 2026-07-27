@@ -36,6 +36,43 @@ enum HardSubtitleVideoExporter {
         destinationURL: URL,
         progress: @MainActor @Sendable @escaping (Double) -> Void
     ) async throws {
+        do {
+            try await exportOnce(
+                inputURL: inputURL,
+                cues: cues,
+                settings: settings,
+                destinationURL: destinationURL,
+                progress: progress
+            )
+        } catch {
+            guard shouldRetryWithBGRA(after: error, settings: settings) else {
+                throw error
+            }
+
+            try Task.checkCancellation()
+            var fallbackSettings = settings
+            fallbackSettings.usesBGRACompatibilityPixelBuffers = true
+            print("🎞️ NV12 hard-subtitle export failed; retrying from the beginning with BGRA: \(error.localizedDescription)")
+            await MainActor.run {
+                progress(0)
+            }
+            try await exportOnce(
+                inputURL: inputURL,
+                cues: cues,
+                settings: fallbackSettings,
+                destinationURL: destinationURL,
+                progress: progress
+            )
+        }
+    }
+
+    private static func exportOnce(
+        inputURL: URL,
+        cues: [ResolvedSubtitleCue],
+        settings: HardSubtitleVideoExportSettings,
+        destinationURL: URL,
+        progress: @MainActor @Sendable @escaping (Double) -> Void
+    ) async throws {
         let unsupportedExtensions: Set<String> = ["mkv", "webm", "avi", "flv", "rmvb"]
         let ext = inputURL.pathExtension.lowercased()
         if unsupportedExtensions.contains(ext) {
@@ -56,6 +93,45 @@ enum HardSubtitleVideoExporter {
             destinationURL: destinationURL,
             progress: progress
         )
+    }
+
+    private static func shouldRetryWithBGRA(
+        after error: Error,
+        settings: HardSubtitleVideoExportSettings
+    ) -> Bool {
+        guard !settings.codec.isProRes,
+              !settings.exportsHDR,
+              !settings.usesBGRACompatibilityPixelBuffers,
+              !Task.isCancelled,
+              !(error is CancellationError) else {
+            return false
+        }
+
+        if error is SubtitleCompositorError {
+            return true
+        }
+
+        guard let exportError = error as? HardSubtitleVideoExportError else {
+            return false
+        }
+        switch exportError {
+        case .cannotCreateReader,
+             .cannotCreateWriter,
+             .cannotStartReading(_),
+             .cannotStartWriting(_),
+             .writerFailed(_),
+             .readerFailed(_):
+            return true
+        case .missingMedia,
+             .missingVideoTrack,
+             .unsupportedInput(_),
+             .cancelled,
+             .audioMuxFailed(_),
+             .ffmpegDecodeFailed(_),
+             .hdrRequiresCompatibleCodec,
+             .hdrSourceRequired:
+            return false
+        }
     }
 
     // exportViaAVFoundation is in HardSubtitleVideoExporter/AVFoundation.swift
@@ -96,7 +172,7 @@ enum HardSubtitleVideoExporter {
         if colorProfile.isHDR {
             return colorProfile.pixelFormat
         }
-        guard settings.usesExperimentalNV12PixelBuffers,
+        guard !settings.usesBGRACompatibilityPixelBuffers,
               !settings.codec.isProRes else {
             return kCVPixelFormatType_32BGRA
         }

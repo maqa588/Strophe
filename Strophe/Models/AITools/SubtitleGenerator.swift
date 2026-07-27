@@ -138,8 +138,15 @@ actor SubtitleGenerator {
                 })
             }
             globallyAlignedWords.sort { $0.start == $1.start ? $0.end < $1.end : $0.start < $1.start }
-            results = Self.makeSegments(words: globallyAlignedWords)
+            let timedWords = globallyAlignedWords.map {
+                SubtitleWordTiming(text: $0.text, startTime: $0.start, endTime: $0.end)
+            }
+            results = SubtitleSegmentation.makeSegments(words: timedWords)
         }
+        results = SubtitleSegmentation.smoothTimeline(
+            results,
+            threshold: SubtitleSegmentation.configuredContinuityThreshold
+        )
         progressCallback?(3, 1, "字幕时间轴生成完成")
         return results
         #else
@@ -249,63 +256,6 @@ actor SubtitleGenerator {
             }
         }
         return result
-    }
-
-    private static func makeSegments(words: [Qwen3AlignedWord]) -> [AIResultSegment] {
-        guard !words.isEmpty else { return [] }
-        var segments: [AIResultSegment] = []
-        var buffer: [Qwen3AlignedWord] = []
-
-        func flush() {
-            guard let first = buffer.first, let last = buffer.last else { return }
-            let text = joinedText(buffer.map(\.text))
-            if !text.isEmpty {
-                segments.append(AIResultSegment(
-                    text: text,
-                    startTime: first.start,
-                    endTime: max(last.end, first.start + 0.08)
-                ))
-            }
-            buffer.removeAll(keepingCapacity: true)
-        }
-
-        for (index, word) in words.enumerated() {
-            buffer.append(word)
-            let text = joinedText(buffer.map(\.text))
-            let terminal = word.text.last.map { "。；？！?!;".contains($0) } ?? false
-            let comma = word.text.last.map { "，、,".contains($0) } ?? false
-            let nextGap = index + 1 < words.count ? words[index + 1].start - word.end : 0
-            var shouldSplit = terminal || (comma && buffer.count >= 10) || nextGap > 1
-
-            if text.count >= 22 && !shouldSplit {
-                var naturalSplitSoon = false
-                let upper = min(words.count, index + 4)
-                if index + 1 < upper {
-                    for lookahead in (index + 1)..<upper {
-                        let candidate = words[lookahead]
-                        if candidate.text.last.map({ "，。、；？！,.?;!".contains($0) }) == true ||
-                            candidate.start - words[lookahead - 1].end > 0.5 {
-                            naturalSplitSoon = true
-                            break
-                        }
-                    }
-                }
-                shouldSplit = !naturalSplitSoon
-            }
-            if shouldSplit { flush() }
-        }
-        flush()
-        return segments
-    }
-
-    private static func joinedText(_ words: [String]) -> String {
-        var result = ""
-        for word in words {
-            let isCJK = word.unicodeScalars.contains { (0x3000...0x9FFF).contains(Int($0.value)) }
-            if !result.isEmpty && !isCJK && !(word.first.map { ",.!?;:，。！？；：".contains($0) } ?? false) { result.append(" ") }
-            result.append(word)
-        }
-        return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func modelLanguageName(for language: String) -> String? {

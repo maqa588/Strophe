@@ -44,6 +44,8 @@
 "batch_translating" = "一括翻訳中";
 "batch_translation_failed" = "一括翻訳に失敗しました";
 "bold" = "太字";
+"bgra_compatibility_mode" = "BGRA互換モード";
+"bgra_compatibility_mode_explanation" = "通常はメモリ負荷の低いNV12を使用します。書き出し失敗や色の異常がある場合のみBGRAを有効にしてください。NV12失敗時は自動的に再試行します。";
 "btn_bold" = "B";
 "btn_cancel" = "取消";
 "btn_italic" = "I";
@@ -82,13 +84,15 @@
 "cloud_generate_subtitles" = "クラウドで字幕生成";
 "cloud_recognition" = "クラウド認識";
 "cloud_speech_recognition_config" = "クラウド音声認識構成";
+"test_connection" = "接続をテスト";
+"testing_connection" = "接続をテスト中…";
 "color" = "色";
 "common_vocabulary" = "常用語彙";
 "config_required_for_recognition" = "クラウドおよび端末内認識を使用する前に構成が必要です。";
 "confirm_split" = "分割を確認";
 "continue" = "続行";
 "continue_import" = "読込を続行";
-"control_method" = "制御方法";
+"control_method" = "書き出しモード";
 "copy" = "複製";
 "copy_original_to_translation" = "原文を翻訳に複製";
 "copy_style" = "書式を複製";
@@ -101,9 +105,9 @@
 "coreml_encoder_not_downloaded" = "CoreML INT8符号化器はダウンロードされていません。生成開始時に自動ダウンロードされます。";
 "create" = "作成";
 "create_subtitle_block" = "字幕ブロックを作成";
-"crf" = "CRF";
-"crf_constant_rate_factor" = "CRF (画質係数)";
-"crf_value_explanation" = "CRF値が低いほど高品質になり、書出が遅くなり、ファイルが大きくなります。";
+"constant_quality" = "CQ（固定品質）";
+"constant_quality_explanation" = "値が高いほど高品質でファイルが大きくなり、実際のビットレートは映像の複雑さに応じて変化します。";
+"constant_quality_short" = "CQ";
 "current_video_resolution_preview_scale" = "現在の映像解像度と試写縮尺";
 "cut_subtitle_block" = "字幕ブロックを切り取り";
 "delete" = "削除";
@@ -143,13 +147,13 @@
 "enter_sample_text_for_live" = "リアルタイム試写用のサンプル文字を入力します。字幕内容は変更されません";
 "error" = "異常";
 "example_speaker_0_hello_world" = "例: [Speaker 0] こんにちは、世界。";
-"experimental_yuv_buffer_explanation" = "実験的選択肢：YUV緩衝を使用したH.264/H.265の書き込みを試みます。";
 "export" = "書出";
 "export_2pass_encoding" = "2パス符号化";
 "export_subtitles_or_share_project" = "字幕の書出または作品の共有";
 "exporting_hard_subtitled_video" = "焼込字幕付き映像を書出中";
 "external_hard_drive" = "外付けハードディスク";
 "follow_group_style" = "組書式に従う";
+"fade_in_out" = "フェードイン／フェードアウト";
 "font" = "書体";
 "font_size" = "書体サイズ";
 "for_songs_it_is_recommended" = "歌の場合は、歌詞を1行ずつ貼り付けることをお勧めします。システムは自由認識をスキップし、これらの歌詞に従って直接強制整合を行います。";
@@ -228,7 +232,7 @@
 "move_subtitle_block_to_group" = "字幕ブロックを組に移動";
 "move_to_group" = "組に移動";
 "multi_select_subtitle_blocks" = "字幕ブロックの複数選択";
-"multipass_videotoolbox_explanation" = "規定はオフ。VideoToolboxは低モーションまたはターゲットビットレートのためにマルチパス分析を行います。";
+"multipass_videotoolbox_explanation" = "初期設定はオフです。対応環境では、書き出し時間と引き換えにVideoToolboxが複数回解析し、圧縮効率を高めます。";
 "name" = "名前";
 "new_group" = "新規組";
 "new_project" = "新規作品";
@@ -248,7 +252,6 @@
 "note_clearing_cache_is_completely" = "注意：一時記憶のクリーンアップは完全に安全です。字幕書類作品、保存された作品ファイル、または元の音声/映像ソースファイルを削除することは決してありません。";
 "note_this_model_has_not" = "注意：この模型はまだダウンロードされていません。生成開始時に Hugging Face から自動的にダウンロードされます。";
 "number_of_speakers" = "話者数";
-"nv12_pixel_buffer" = "NV12ピクセル緩衝";
 "ok" = "OK";
 "ok_1" = "OK";
 "ollama_connection_info" = "Ollamaは規定で端末内役務に接続するため、APIキーは不要です。";
@@ -354,6 +357,8 @@
 "smart_noise_reduction" = "知能ノイズ低減";
 "smart_noise_reduction_auxiliary_settings" = "知能ノイズ低減と補助設定";
 "soft_subtitle_preview" = "外付字幕試写";
+"software_encoding" = "ソフトウェアエンコード";
+"software_encoding_explanation" = "ハードウェアエンコードを無効にして、システムのソフトウェアエンコーダを使用します。書き出し速度は遅くなります。";
 "some_models_belong_to_restricted" = "一部の模型は制限付きリポジトリに属しており、ダウンロードするには Hugging Face アクセストークンが必要です。huggingface.co/settings/tokens から取得できます。";
 "source_language" = "元の言語";
 "speaker_diarization" = "話者認識";
@@ -371,7 +376,6 @@
 "provider_settings" = "提供元設定";
 "custom_model" = "カスタム模型";
 "custom_model_name" = "カスタム模型名";
-"speed_size" = "速度 / サイズ";
 "split_subtitles" = "字幕分割";
 "start" = "開始";
 "start_from_blank_timeline" = "空白の時間軸から開始";

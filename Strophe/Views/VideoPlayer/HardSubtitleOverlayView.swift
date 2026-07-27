@@ -5,6 +5,7 @@ struct HardSubtitleOverlayView: View {
     @ObservedObject var project: SubtitleProject
     @ObservedObject private var store = StyleAndGroupStore.shared
     @State private var displayedCues: [ResolvedSubtitleCue] = []
+    @State private var displayedTime = 0.0
 
     var body: some View {
         GeometryReader { proxy in
@@ -35,11 +36,11 @@ struct HardSubtitleOverlayView: View {
                             x: placementRect.midX * displayScale,
                             y: placementRect.midY * displayScale
                         )
-                        .transition(.opacity)
+                        .opacity(cue.opacity(at: displayedTime))
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .animation(.easeInOut(duration: 0.08), value: displayedCues)
+            .animation(.linear(duration: 0.05), value: displayedTime)
         }
         .allowsHitTesting(false)
         .task {
@@ -71,6 +72,7 @@ struct HardSubtitleOverlayView: View {
 
     @MainActor
     private func refreshDisplayedCues(at time: Double) {
+        displayedTime = time
         let cues = project.resolvedSubtitleCues(at: time, store: store)
         guard cues != displayedCues else { return }
         displayedCues = cues

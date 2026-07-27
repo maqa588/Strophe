@@ -6,8 +6,56 @@
 //
 
 import Foundation
+import Darwin
 
 extension AIBackendClient {
+
+    func testCloudConnection(baseURL: URL) async throws -> AICloudConnectionCheck {
+        Self.triggerLocalNetworkPrivacyAlert(for: baseURL)
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 10
+        configuration.timeoutIntervalForResource = 30
+        configuration.waitsForConnectivity = true
+        let session = URLSession(configuration: configuration)
+        defer { session.finishTasksAndInvalidate() }
+
+        let healthURL = Self.cloudEndpointURL(baseURL: baseURL, path: "health")
+        let healthResponse: CloudProbeResponse
+        do {
+            healthResponse = try await Self.performCloudProbe(url: healthURL, session: session)
+        } catch {
+            throw Self.userFacingCloudError(error)
+        }
+        guard (200...299).contains(healthResponse.statusCode) else {
+            throw Self.cloudHTTPError(
+                endpoint: "/health",
+                statusCode: healthResponse.statusCode,
+                responseBody: healthResponse.body
+            )
+        }
+
+        let readyURL = Self.cloudEndpointURL(baseURL: baseURL, path: "ready")
+        let readyResponse: CloudProbeResponse
+        do {
+            readyResponse = try await Self.performCloudProbe(url: readyURL, session: session)
+        } catch {
+            throw Self.userFacingCloudError(error)
+        }
+        guard (200...299).contains(readyResponse.statusCode) else {
+            let detail = Self.limitedCloudResponseText(readyResponse.body)
+            let suffix = detail.isEmpty ? "" : "：\(detail)"
+            return AICloudConnectionCheck(
+                isReady: false,
+                message: "服务已启动，但模型尚未就绪（/ready HTTP \(readyResponse.statusCode)）\(suffix)"
+            )
+        }
+
+        return AICloudConnectionCheck(
+            isReady: true,
+            message: "连接成功，云端识别服务已就绪。"
+        )
+    }
 
     func generateCloudSubtitles(
         request: AICloudGenerateSubtitlesRequest,
@@ -40,7 +88,16 @@ extension AIBackendClient {
         let session = URLSession(configuration: configuration)
         defer { session.finishTasksAndInvalidate() }
 
-        let (bytes, response) = try await session.bytes(for: urlRequest)
+        let finalURL = urlRequest.url?.absoluteString ?? request.endpointURL.absoluteString
+        print("[Strophe] Cloud transcription endpoint: \(finalURL)")
+
+        let bytes: URLSession.AsyncBytes
+        let response: URLResponse
+        do {
+            (bytes, response) = try await session.bytes(for: urlRequest)
+        } catch {
+            throw Self.userFacingCloudError(error)
+        }
         guard let httpResponse = response as? HTTPURLResponse else {
             throw NSError(
                 domain: "AIBackendClient",
@@ -170,6 +227,150 @@ extension AIBackendClient {
             )
         }
         return url
+    }
+
+    struct CloudProbeResponse {
+        let statusCode: Int
+        let body: Data
+    }
+
+    /// A connected UDP socket performs no I/O, but it asks macOS to resolve the
+    /// app's Local Network privilege before the HTTP health check starts.
+    nonisolated static func triggerLocalNetworkPrivacyAlert(for baseURL: URL) {
+        guard let host = baseURL.host else { return }
+        let port = UInt16(baseURL.port ?? (baseURL.scheme?.lowercased() == "https" ? 443 : 80))
+
+        var destination = sockaddr_in()
+        destination.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        destination.sin_family = sa_family_t(AF_INET)
+        destination.sin_port = in_port_t(port).bigEndian
+        guard inet_pton(AF_INET, host, &destination.sin_addr) == 1 else { return }
+
+        let descriptor = Darwin.socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+        guard descriptor >= 0 else { return }
+        defer { Darwin.close(descriptor) }
+
+        let destinationLength = socklen_t(destination.sin_len)
+        withUnsafePointer(to: &destination) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { address in
+                _ = Darwin.connect(descriptor, address, destinationLength)
+            }
+        }
+    }
+
+    static func performCloudProbe(url: URL, session: URLSession) async throws -> CloudProbeResponse {
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 10
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+
+        print("[Strophe] Cloud connection probe: \(url.absoluteString)")
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(
+                domain: "AIBackendClient.CloudConnection",
+                code: 30,
+                userInfo: [NSLocalizedDescriptionKey: "云端识别服务返回了无效响应。"]
+            )
+        }
+        return CloudProbeResponse(statusCode: httpResponse.statusCode, body: data)
+    }
+
+    nonisolated static func cloudHTTPError(
+        endpoint: String,
+        statusCode: Int,
+        responseBody: Data
+    ) -> NSError {
+        let detail = limitedCloudResponseText(responseBody)
+        let suffix = detail.isEmpty ? "" : "：\(detail)"
+        return NSError(
+            domain: "AIBackendClient.CloudConnection",
+            code: statusCode,
+            userInfo: [
+                NSLocalizedDescriptionKey: "\(endpoint) 返回 HTTP \(statusCode)\(suffix)"
+            ]
+        )
+    }
+
+    nonisolated static func limitedCloudResponseText(_ data: Data, limit: Int = 2048) -> String {
+        let prefix = data.prefix(limit)
+        return String(decoding: prefix, as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    nonisolated static func userFacingCloudError(_ error: Error) -> NSError {
+        let nsError = error as NSError
+        if nsError.domain == "AIBackendClient.CloudConnection"
+            || nsError.domain == "AIBackendClient.CloudConfiguration" {
+            return nsError
+        }
+
+        let diagnostics = ([nsError.localizedDescription] + nsError.userInfo.values.map(String.init(describing:)))
+            .joined(separator: " ")
+            .lowercased()
+        if diagnostics.contains("local network prohibited")
+            || diagnostics.contains("local network denied") {
+            return NSError(
+                domain: "AIBackendClient.CloudConnection",
+                code: nsError.code,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "活字（Strophe）的本地网络访问被 macOS 拒绝。请前往“系统设置 → 隐私与安全性 → 本地网络”，允许“活字”访问后重试。"
+                ]
+            )
+        }
+
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .cannotConnectToHost:
+                let message = containsPOSIXError(nsError, code: .ECONNREFUSED)
+                    ? "连接被拒绝。请确认识别服务已启动、监听正确端口，并绑定到 0.0.0.0。"
+                    : "无法连接到识别服务。请检查 IP 地址、端口、局域网路由和服务器防火墙。"
+                return NSError(
+                    domain: "AIBackendClient.CloudConnection",
+                    code: urlError.errorCode,
+                    userInfo: [NSLocalizedDescriptionKey: message]
+                )
+            case .timedOut:
+                return NSError(
+                    domain: "AIBackendClient.CloudConnection",
+                    code: urlError.errorCode,
+                    userInfo: [NSLocalizedDescriptionKey: "连接超时。请检查网络是否可达，以及识别服务是否有响应。"]
+                )
+            case .cannotFindHost, .dnsLookupFailed:
+                return NSError(
+                    domain: "AIBackendClient.CloudConnection",
+                    code: urlError.errorCode,
+                    userInfo: [NSLocalizedDescriptionKey: "找不到识别服务主机，请检查服务地址。"]
+                )
+            case .networkConnectionLost:
+                return NSError(
+                    domain: "AIBackendClient.CloudConnection",
+                    code: urlError.errorCode,
+                    userInfo: [NSLocalizedDescriptionKey: "与识别服务的连接已中断，请检查局域网连接。"]
+                )
+            case .notConnectedToInternet:
+                return NSError(
+                    domain: "AIBackendClient.CloudConnection",
+                    code: urlError.errorCode,
+                    userInfo: [NSLocalizedDescriptionKey: "当前网络不可用，请检查本机网络连接。"]
+                )
+            default:
+                break
+            }
+        }
+
+        return nsError
+    }
+
+    nonisolated static func containsPOSIXError(_ error: NSError, code: POSIXErrorCode) -> Bool {
+        if error.domain == NSPOSIXErrorDomain && error.code == Int(code.rawValue) {
+            return true
+        }
+        guard let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError else {
+            return false
+        }
+        return containsPOSIXError(underlying, code: code)
     }
 
     static func makeCloudMultipartBody(audioURL: URL, language: String, boundary: String) throws -> Data {

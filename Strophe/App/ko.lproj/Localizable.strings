@@ -44,6 +44,8 @@
 "batch_translating" = "일괄 번역 중";
 "batch_translation_failed" = "일괄 번역 실패";
 "bold" = "굵게";
+"bgra_compatibility_mode" = "BGRA 호환 모드";
+"bgra_compatibility_mode_explanation" = "기본적으로 메모리 사용량이 적은 NV12를 사용합니다. 내보내기 실패나 색상 이상이 있을 때만 BGRA를 켜십시오. NV12 실패 시 자동으로 다시 시도합니다.";
 "btn_bold" = "B";
 "btn_cancel" = "취소";
 "btn_italic" = "I";
@@ -82,13 +84,15 @@
 "cloud_generate_subtitles" = "클라우드 자막 생성";
 "cloud_recognition" = "클라우드 인식";
 "cloud_speech_recognition_config" = "클라우드 음성 인식 설정";
+"test_connection" = "연결 테스트";
+"testing_connection" = "연결 테스트 중…";
 "color" = "색상";
 "common_vocabulary" = "상용 어휘";
 "config_required_for_recognition" = "클라우드 또는 로컬 인식을 사용하기 전에 설정이 필요합니다.";
 "confirm_split" = "분할 확인";
 "continue" = "계속";
 "continue_import" = "가져오기 계속";
-"control_method" = "제어 방식";
+"control_method" = "내보내기 모드";
 "copy" = "복사";
 "copy_original_to_translation" = "원본을 번역에 복사";
 "copy_style" = "스타일 복사";
@@ -101,9 +105,9 @@
 "coreml_encoder_not_downloaded" = "CoreML INT8 인코더가 다운로드되지 않았습니다. 생성 시 자동 다운로드됩니다.";
 "create" = "생성";
 "create_subtitle_block" = "자막 블록 생성";
-"crf" = "CRF";
-"crf_constant_rate_factor" = "CRF (화질 계수)";
-"crf_value_explanation" = "CRF 값이 낮을수록 화질이 높아지고 내보내기가 느려지며 파일이 커집니다.";
+"constant_quality" = "CQ(고정 품질)";
+"constant_quality_explanation" = "값이 높을수록 화질이 높고 파일이 커지며, 실제 비트레이트는 장면 복잡도에 따라 달라집니다.";
+"constant_quality_short" = "CQ";
 "current_video_resolution_preview_scale" = "현재 비디오 해상도 및 미리보기 비율";
 "cut_subtitle_block" = "자막 블록 잘라내기";
 "delete" = "삭제";
@@ -143,13 +147,13 @@
 "enter_sample_text_for_live" = "실시간 미리보기를 위한 샘플 텍스트를 입력하십시오. 자막 내용은 변경되지 않습니다";
 "error" = "오류";
 "example_speaker_0_hello_world" = "예: [Speaker 0] 안녕하세요, 세상.";
-"experimental_yuv_buffer_explanation" = "실험적 옵션: YUV 버퍼를 사용한 H.264/H.265 쓰기를 시도합니다.";
 "export" = "내보내기";
 "export_2pass_encoding" = "2패스 인코딩";
 "export_subtitles_or_share_project" = "자막 내보내기 또는 프로젝트 공유";
 "exporting_hard_subtitled_video" = "하드 자막 비디오 내보내는 중";
 "external_hard_drive" = "외장 하드 드라이브";
 "follow_group_style" = "그룹 스타일 따르기";
+"fade_in_out" = "페이드 인/아웃";
 "font" = "글꼴";
 "font_size" = "글꼴 크기";
 "for_songs_it_is_recommended" = "노래의 경우 가사를 한 줄씩 붙여넣는 것이 좋습니다. 시스템은 일반 인식을 건너뛰고 이 가사에 따라 직접 강제 정렬을 수행합니다.";
@@ -228,7 +232,7 @@
 "move_subtitle_block_to_group" = "자막 블록을 그룹으로 이동";
 "move_to_group" = "그룹으로 이동";
 "multi_select_subtitle_blocks" = "자막 블록 다중 선택";
-"multipass_videotoolbox_explanation" = "기본값은 비활성화. VideoToolbox는 저움직임 또는 대상 비트레이트를 위해 멀티패스 분석을 수행합니다.";
+"multipass_videotoolbox_explanation" = "기본값은 꺼짐입니다. 지원되는 경우 내보내기 시간을 더 사용하는 대신 VideoToolbox가 다중 분석을 수행해 압축 효율을 높입니다.";
 "name" = "이름";
 "new_group" = "새 그룹";
 "new_project" = "새 프로젝트";
@@ -248,7 +252,6 @@
 "note_clearing_cache_is_completely" = "참고: 캐시 정리 작업은 완전히 안전합니다. 자막 문서 프로젝트, 저장된 프로젝트 파일 또는 원본 오디오/비디오 소스 파일은 삭제되지 않습니다.";
 "note_this_model_has_not" = "참고: 이 모델은 아직 다운로드되지 않았습니다. 생성이 시작될 때 Hugging Face에서 자동으로 다운로드됩니다.";
 "number_of_speakers" = "화자 수";
-"nv12_pixel_buffer" = "NV12 픽셀 버퍼";
 "ok" = "확인";
 "ok_1" = "확인";
 "ollama_connection_info" = "Ollama는 기본적으로 로컬 서비스에 연결되므로 API 키가 필요하지 않습니다.";
@@ -354,6 +357,8 @@
 "smart_noise_reduction" = "스마트 노이즈 감소";
 "smart_noise_reduction_auxiliary_settings" = "스마트 노이즈 감소 및 보조 설정";
 "soft_subtitle_preview" = "소프트 자막 미리보기";
+"software_encoding" = "소프트웨어 인코딩";
+"software_encoding_explanation" = "하드웨어 인코딩을 비활성화하고 시스템 소프트웨어 인코더를 사용합니다. 내보내기 속도가 느려집니다.";
 "some_models_belong_to_restricted" = "일부 모델은 제한된 저장소에 속해 있어 다운로드하려면 Hugging Face 액세스 토큰이 필요합니다. huggingface.co/settings/tokens에서 얻을 수 있습니다.";
 "source_language" = "소스 언어";
 "speaker_diarization" = "화자 인식";
@@ -371,7 +376,6 @@
 "provider_settings" = "공급자 설정";
 "custom_model" = "사용자 지정 모델";
 "custom_model_name" = "사용자 지정 모델 이름";
-"speed_size" = "속도 / 크기";
 "split_subtitles" = "자막 분할";
 "start" = "시작";
 "start_from_blank_timeline" = "빈 템플릿으로 시작";

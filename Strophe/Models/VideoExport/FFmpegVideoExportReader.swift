@@ -30,6 +30,7 @@ nonisolated final class FFmpegVideoExportVideoReader {
     private var codecContext: UnsafeMutablePointer<AVCodecContext>?
     private var packet: UnsafeMutablePointer<AVPacket>?
     private var frame: UnsafeMutablePointer<AVFrame>?
+    private var softwareSwsContext: UnsafeMutablePointer<SwsContext>?
     private var pixelBufferPool: CVPixelBufferPool?
     private var poolWidth = 0
     private var poolHeight = 0
@@ -52,6 +53,10 @@ nonisolated final class FFmpegVideoExportVideoReader {
     }
 
     func close() {
+        if let softwareSwsContext {
+            sws_freeContext(softwareSwsContext)
+            self.softwareSwsContext = nil
+        }
         if let frame {
             var value: UnsafeMutablePointer<AVFrame>? = frame
             av_frame_free(&value)
@@ -344,7 +349,8 @@ nonisolated final class FFmpegVideoExportVideoReader {
             return nil
         }
 
-        let swsContext = sws_getContext(
+        softwareSwsContext = sws_getCachedContext(
+            softwareSwsContext,
             Int32(width),
             Int32(height),
             AVPixelFormat(rawValue: frame.pointee.format),
@@ -356,8 +362,7 @@ nonisolated final class FFmpegVideoExportVideoReader {
             nil,
             nil
         )
-        guard let swsContext else { return nil }
-        defer { sws_freeContext(swsContext) }
+        guard let softwareSwsContext else { return nil }
 
         var destinationData: [UnsafeMutablePointer<UInt8>?] = [
             yPlane.assumingMemoryBound(to: UInt8.self),
@@ -380,7 +385,7 @@ nonisolated final class FFmpegVideoExportVideoReader {
                 $0.withMemoryRebound(to: Int32.self, capacity: 8) { $0 }
             }
             return sws_scale(
-                swsContext,
+                softwareSwsContext,
                 sourceData,
                 sourceLinesize,
                 0,

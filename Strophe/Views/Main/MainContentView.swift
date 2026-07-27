@@ -20,9 +20,7 @@ struct MainContentView: View {
     @State private var exportText = ""
     @State private var exportFormat: SubtitleFormat = .srt
     @State private var hardSubtitleSettings = HardSubtitleVideoExportSettings()
-    @State private var hardSubtitleProgress: Double? = nil
-    @State private var hardSubtitleExportMessage: String? = nil
-    @State private var isShowingHardSubtitleExportAlert = false
+    @StateObject private var hardSubtitleExport = HardSubtitleExportCoordinator()
     @State private var isShowingDiscardProjectAlert = false
     @State private var pendingMediaURL: URL? = nil
     
@@ -78,7 +76,7 @@ struct MainContentView: View {
         }
         .background(Color.stropheSecondaryBackground)
         .overlay(alignment: .topTrailing) {
-            if let hardSubtitleProgress {
+            if let hardSubtitleProgress = hardSubtitleExport.progress {
                 hardSubtitleProgressView(progress: hardSubtitleProgress)
                     .padding(16)
             }
@@ -158,8 +156,15 @@ struct MainContentView: View {
         }
         .alert(
             String(localized: "hard_subtitle_export"),
-            isPresented: $isShowingHardSubtitleExportAlert,
-            presenting: hardSubtitleExportMessage
+            isPresented: Binding(
+                get: { hardSubtitleExport.completionMessage != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        hardSubtitleExport.clearCompletionMessage()
+                    }
+                }
+            ),
+            presenting: hardSubtitleExport.completionMessage
         ) { _ in
             Button(String(localized: "ok"), role: .cancel) {}
         } message: { message in
@@ -270,29 +275,11 @@ struct MainContentView: View {
     }
 
     private func exportHardSubtitleVideo(to url: URL) {
-        hardSubtitleProgress = 0
-        let didAccessDestination = url.startAccessingSecurityScopedResource()
-        Task {
-            defer {
-                if didAccessDestination {
-                    url.stopAccessingSecurityScopedResource()
-                }
-            }
-            do {
-                try await HardSubtitleVideoExporter.export(
-                    project: project,
-                    settings: hardSubtitleSettings,
-                    destinationURL: url
-                ) { progress in
-                    hardSubtitleProgress = progress
-                }
-                hardSubtitleExportMessage = String(localized: "export_completed_format \(url.lastPathComponent)")
-            } catch {
-                hardSubtitleExportMessage = error.localizedDescription
-            }
-            hardSubtitleProgress = nil
-            isShowingHardSubtitleExportAlert = true
-        }
+        hardSubtitleExport.start(
+            project: project,
+            settings: hardSubtitleSettings,
+            destinationURL: url
+        )
     }
 
     #if os(macOS)

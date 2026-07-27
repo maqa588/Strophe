@@ -46,6 +46,7 @@ nonisolated final class MetalSubtitleCompositor: @unchecked Sendable {
         sourcePixelBuffer: CVPixelBuffer,
         outputPixelBuffer: CVPixelBuffer,
         cue: ResolvedSubtitleCue?,
+        presentationTime: Double,
         renderSize: CGSize,
         preferredTransform: CGAffineTransform,
         sourceDisplaySize: CGSize? = nil
@@ -82,7 +83,7 @@ nonisolated final class MetalSubtitleCompositor: @unchecked Sendable {
                 canvasSize: renderSize,
                 style: cue.style
             )
-            let overlay = CIImage(
+            var overlay = CIImage(
                 cgImage: subtitle,
                 options: [.colorSpace: CGColorSpace(name: CGColorSpace.sRGB) as Any]
             )
@@ -92,6 +93,15 @@ nonisolated final class MetalSubtitleCompositor: @unchecked Sendable {
                         y: origin.y.rounded(.down)
                     )
                 )
+            let opacity = cue.opacity(at: presentationTime)
+            if opacity < 1 {
+                overlay = overlay.applyingFilter(
+                    "CIColorMatrix",
+                    parameters: [
+                        "inputAVector": CIVector(x: 0, y: 0, z: 0, w: CGFloat(opacity))
+                    ]
+                )
+            }
             output = overlay.composited(over: output)
         }
 

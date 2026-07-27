@@ -42,10 +42,19 @@ class SubtitleProject: ObservableObject {
     var currentIndexCacheUpperBound = -Double.infinity
     @Published var showSoftSubtitles: Bool = false {
         didSet {
+            if showSoftSubtitles && showHardSubtitles {
+                showHardSubtitles = false
+            }
             notifyChange()
         }
     }
-    @Published var showHardSubtitles: Bool = false
+    @Published var showHardSubtitles: Bool = false {
+        didSet {
+            if showHardSubtitles && showSoftSubtitles {
+                showSoftSubtitles = false
+            }
+        }
+    }
     @Published var isSeeking: Bool = false
     var subtitleBoundarySeekTask: Task<Void, Never>? = nil
     var subtitleBoundarySeekGeneration: UInt = 0

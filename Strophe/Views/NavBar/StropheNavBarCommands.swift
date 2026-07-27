@@ -242,8 +242,6 @@ struct StropheMainToolbar: ToolbarContent {
                 Button("hard_subtitled_video_ellipsis") {
                     onExportHardSubtitles()
                 }
-                Button("video_stream_coming_soon") {}.disabled(true)
-                Button("audio_stream_coming_soon") {}.disabled(true)
             } label: {
                 #if os(macOS)
                 Label("export", systemImage: "square.and.arrow.up")

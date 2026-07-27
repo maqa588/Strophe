@@ -122,6 +122,8 @@ nonisolated struct ResolvedSubtitleStyle: Sendable, Equatable, Hashable {
 }
 
 nonisolated struct ResolvedSubtitleCue: Identifiable, Sendable, Equatable, Hashable {
+    static let fadeDuration = 0.1
+
     var id: UUID
     var text: String
     var startTime: Double
@@ -129,6 +131,18 @@ nonisolated struct ResolvedSubtitleCue: Identifiable, Sendable, Equatable, Hasha
     var style: ResolvedSubtitleStyle
     var groupID: UUID?
     var trackIndex: Int
+    var usesFadeInOut: Bool = false
+
+    func opacity(at time: Double) -> Double {
+        guard usesFadeInOut, time.isFinite else { return 1 }
+        let duration = max(0, endTime - startTime)
+        let edgeDuration = min(Self.fadeDuration, duration / 2)
+        guard edgeDuration > 0 else { return 1 }
+
+        let fadeIn = (time - startTime) / edgeDuration
+        let fadeOut = (endTime - time) / edgeDuration
+        return max(0, min(1, min(fadeIn, fadeOut)))
+    }
 }
 
 struct HardSubtitleBitmapView: View {
@@ -235,7 +249,8 @@ extension SubtitleProject {
                 endTime: end,
                 style: resolvedStyle(for: item, group: group, store: store),
                 groupID: group?.id,
-                trackIndex: item.trackIndex
+                trackIndex: item.trackIndex,
+                usesFadeInOut: group?.usesFadeInOut ?? false
             )
         }
     }
@@ -306,7 +321,8 @@ extension SubtitleProject {
             endTime: end,
             style: resolvedStyle(for: item, group: group, store: store),
             groupID: group?.id,
-            trackIndex: item.trackIndex
+            trackIndex: item.trackIndex,
+            usesFadeInOut: group?.usesFadeInOut ?? false
         )
     }
 

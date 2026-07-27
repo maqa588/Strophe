@@ -24,6 +24,7 @@ struct RichTooltipView: View {
     let icon: String
     let title: String
     let message: String
+    var shortcut: String? = nil
     
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -33,9 +34,27 @@ struct RichTooltipView: View {
                 .padding(.top, 1)
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.subheadline.bold())
-                    .foregroundColor(.primary)
+                HStack(spacing: 8) {
+                    Text(title)
+                        .font(.subheadline.bold())
+                        .foregroundColor(.primary)
+
+                    Spacer(minLength: 0)
+
+                    if let shortcut {
+                        Text(shortcut)
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 5))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 5)
+                                    .stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
+                            }
+                            .accessibilityLabel(Text(verbatim: shortcut))
+                    }
+                }
                 Text(message)
                     .font(.footnote)
                     .foregroundColor(.secondary)

@@ -116,6 +116,7 @@ struct EditingModeControlsLegacy: View {
         tooltipMessage: String,
         shortcut: KeyEquivalent?,
         modifiers: EventModifiers = [],
+        shortcutLabel: String,
         @ViewBuilder label: () -> Content
     ) -> some View {
         Button(action: action) {
@@ -128,14 +129,15 @@ struct EditingModeControlsLegacy: View {
         }
         .buttonStyle(.plain)
         .optionalKeyboardShortcut(shortcut, enabled: !isEditingText, modifiers: modifiers)
-        #if os(iOS)
         .popover(isPresented: tipBinding, arrowEdge: .top) {
-            RichTooltipView(icon: tooltipIcon, title: tooltipTitle, message: tooltipMessage)
+            RichTooltipView(icon: tooltipIcon, title: tooltipTitle, message: tooltipMessage, shortcut: shortcutLabel)
         }
+        #if os(iOS)
         .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             tipBinding.wrappedValue = true
         })
+        #endif
         .onHover { hovering in
             hoverTask.wrappedValue?.cancel()
             if hovering {
@@ -145,12 +147,9 @@ struct EditingModeControlsLegacy: View {
                 }
             } else { tipBinding.wrappedValue = false }
         }
-        #else
-        .help("\(tooltipTitle)\n\(tooltipMessage)")
-        #endif
     }
     
-    /// 无快捷键版本的 legacyButton（用于切分/合并等操作按钮）
+    /// 用于切分/合并等非状态型操作按钮
     private func legacyActionButton<Content: View>(
         action: @escaping () -> Void,
         icon: String,
@@ -159,6 +158,9 @@ struct EditingModeControlsLegacy: View {
         tooltipIcon: String,
         tooltipTitle: String,
         tooltipMessage: String,
+        shortcut: KeyEquivalent,
+        modifiers: EventModifiers = [],
+        shortcutLabel: String,
         @ViewBuilder label: () -> Content
     ) -> some View {
         Button(action: action) {
@@ -170,14 +172,16 @@ struct EditingModeControlsLegacy: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        #if os(iOS)
+        .optionalKeyboardShortcut(shortcut, enabled: !isEditingText, modifiers: modifiers)
         .popover(isPresented: tipBinding, arrowEdge: .top) {
-            RichTooltipView(icon: tooltipIcon, title: tooltipTitle, message: tooltipMessage)
+            RichTooltipView(icon: tooltipIcon, title: tooltipTitle, message: tooltipMessage, shortcut: shortcutLabel)
         }
+        #if os(iOS)
         .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             tipBinding.wrappedValue = true
         })
+        #endif
         .onHover { hovering in
             hoverTask.wrappedValue?.cancel()
             if hovering {
@@ -187,9 +191,6 @@ struct EditingModeControlsLegacy: View {
                 }
             } else { tipBinding.wrappedValue = false }
         }
-        #else
-        .help("\(tooltipTitle)\n\(tooltipMessage)")
-        #endif
     }
     
     var body: some View {
@@ -202,7 +203,10 @@ struct EditingModeControlsLegacy: View {
                 hoverTask: $splitHoverTask,
                 tooltipIcon: "scissors",
                 tooltipTitle: String(localized: "split_subtitles"),
-                tooltipMessage: String(localized: "use_the_playhead_as_the")
+                tooltipMessage: String(localized: "use_the_playhead_as_the"),
+                shortcut: "x",
+                modifiers: [.option],
+                shortcutLabel: "⌥X"
             ) {
                 Image(systemName: "scissors")
                     .font(.body.weight(.medium))
@@ -216,7 +220,10 @@ struct EditingModeControlsLegacy: View {
                 hoverTask: $mergeHoverTask,
                 tooltipIcon: "arrow.down.right.and.arrow.up.left",
                 tooltipTitle: String(localized: "merge_subtitles"),
-                tooltipMessage: String(localized: "merge_the_selected_consecutive_subtitle")
+                tooltipMessage: String(localized: "merge_the_selected_consecutive_subtitle"),
+                shortcut: "m",
+                modifiers: [.option],
+                shortcutLabel: "⌥M"
             ) {
                 Image(systemName: "arrow.down.right.and.arrow.up.left")
                     .font(.body.weight(.medium))
@@ -233,7 +240,8 @@ struct EditingModeControlsLegacy: View {
                 tooltipTitle: String(localized: "soft_subtitle_preview"),
                 tooltipMessage: String(localized: "click_to_toggle_real_time"),
                 shortcut: "s",
-                modifiers: [.option]
+                modifiers: [.option],
+                shortcutLabel: "⌥S"
             ) {
                 Image(systemName: showSoftSubtitles ? "captions.bubble.fill" : "captions.bubble")
                     .font(.body.weight(.medium))
@@ -249,7 +257,9 @@ struct EditingModeControlsLegacy: View {
                 tooltipIcon: "list.and.film",
                 tooltipTitle: String(localized: "hard_subtitle_preview"),
                 tooltipMessage: String(localized: "click_to_turn_onoff_the"),
-                shortcut: nil
+                shortcut: "h",
+                modifiers: [.option],
+                shortcutLabel: "⌥H"
             ) {
                 Image(systemName: "list.and.film")
                     .font(.body.weight(.medium))
@@ -264,7 +274,8 @@ struct EditingModeControlsLegacy: View {
                 tooltipIcon: "cursorarrow",
                 tooltipTitle: String(localized: "selection_tool"),
                 tooltipMessage: String(localized: "edit_script_text_drag_timeline"),
-                shortcut: "v"
+                shortcut: "v",
+                shortcutLabel: "V"
             ) {
                 Image(systemName: "cursorarrow")
                     .font(.body.weight(.medium))
@@ -279,7 +290,8 @@ struct EditingModeControlsLegacy: View {
                 tooltipIcon: "hand.draw",
                 tooltipTitle: String(localized: "quick_creation_slap_tool"),
                 tooltipMessage: String(localized: "drag_timeline_to_create_subtitle"),
-                shortcut: "d"
+                shortcut: "d",
+                shortcutLabel: "D"
             ) {
                 Image(systemName: "hand.draw")
                     .font(.body.weight(.medium))

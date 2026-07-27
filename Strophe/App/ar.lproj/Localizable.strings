@@ -44,6 +44,8 @@
 "batch_translating" = "ترجمة دفعة قيد التشغيل";
 "batch_translation_failed" = "فشلت الترجمة الدفعة";
 "bold" = "عريض";
+"bgra_compatibility_mode" = "وضع توافق BGRA";
+"bgra_compatibility_mode_explanation" = "يُستخدم NV12 افتراضيًا لتقليل استهلاك الذاكرة. فعّل BGRA فقط إذا فشل التصدير أو ظهرت ألوان غير صحيحة. تتم إعادة المحاولة تلقائيًا عند فشل NV12.";
 "btn_bold" = "B";
 "btn_cancel" = "إلغاء";
 "btn_italic" = "I";
@@ -82,13 +84,15 @@
 "cloud_generate_subtitles" = "إنشاء ترجمات سحابية";
 "cloud_recognition" = "تعرف سحابي";
 "cloud_speech_recognition_config" = "تكوين التعرف على الكلام السحابي";
+"test_connection" = "اختبار الاتصال";
+"testing_connection" = "جارٍ اختبار الاتصال…";
 "color" = "اللون";
 "common_vocabulary" = "مفردات شائعة";
 "config_required_for_recognition" = "يلزم التكوين قبل استخدام التعرف السحابي أو المحلي.";
 "confirm_split" = "تأكيد التقسيم";
 "continue" = "متابعة";
 "continue_import" = "متابعة الاستيراد";
-"control_method" = "طريقة التحكم";
+"control_method" = "وضع التصدير";
 "copy" = "نسخ";
 "copy_original_to_translation" = "نسخ النص الأصلي إلى الترجمة";
 "copy_style" = "نسخ النمط";
@@ -101,9 +105,9 @@
 "coreml_encoder_not_downloaded" = "لم يتم تنزيل مشفر CoreML INT8، وسيتم تنزيله تلقائيًا عند البدء.";
 "create" = "إنشاء";
 "create_subtitle_block" = "إنشاء كتلة ترجمة";
-"crf" = "CRF";
-"crf_constant_rate_factor" = "CRF (عامل جودة الصورة)";
-"crf_value_explanation" = "يعني انخفاض CRF جودة أعلى، وتصديرًا أبطأ، وملفًا أكبر.";
+"constant_quality" = "CQ (جودة ثابتة)";
+"constant_quality_explanation" = "تعني القيمة الأعلى جودة أعلى وملفًا أكبر، ويتغير معدل البت الفعلي حسب تعقيد المشهد.";
+"constant_quality_short" = "CQ";
 "current_video_resolution_preview_scale" = "دقة الفيديو الحالية ومقياس المعاينة";
 "cut_subtitle_block" = "قص كتلة الترجمة";
 "delete" = "حذف";
@@ -143,13 +147,13 @@
 "enter_sample_text_for_live" = "أدخل نصًا عينيًا للمعاينة في الوقت الفعلي، فلن يتم تعديل محتوى الترجمة";
 "error" = "خطأ";
 "example_speaker_0_hello_world" = "مثال: [Speaker 0] مرحبًا بالعالم.";
-"experimental_yuv_buffer_explanation" = "خيار تجريبي: حاول كتابة H.264/H.265 باستخدام مخزن YUV المؤقت.";
 "export" = "تصدير";
 "export_2pass_encoding" = "ترميز ثنائي الممر";
 "export_subtitles_or_share_project" = "تصدير الترجمة أو مشاركة المشروع";
 "exporting_hard_subtitled_video" = "جاري تصدير فيديو بترجمة مدمجة";
 "external_hard_drive" = "قرص صلب خارجي";
 "follow_group_style" = "اتباع نمط المجموعة";
+"fade_in_out" = "تلاشي للداخل والخارج";
 "font" = "الخط";
 "font_size" = "حجم الخط";
 "for_songs_it_is_recommended" = "يُنصح بلصق كلمات الأغاني سطرًا بسطر؛ سيتخطى النظام التعرف الحر ويقوم بالمحاذاة القسرية مباشرة وفقًا لهذه الكلمات.";
@@ -228,7 +232,7 @@
 "move_subtitle_block_to_group" = "نقل كتلة الترجمة إلى مجموعة";
 "move_to_group" = "نقل إلى المجموعة";
 "multi_select_subtitle_blocks" = "تحديد كتل ترجمة متعددة";
-"multipass_videotoolbox_explanation" = "إيقاف افتراضي. يقوم VideoToolbox بتحليل تمريرات متعددة للحركات المنخفضة أو معدلات البت المستهدفة.";
+"multipass_videotoolbox_explanation" = "متوقف افتراضيًا. عند دعمه، يجري VideoToolbox تحليلاً متعدد التمريرات لتحسين كفاءة الضغط مقابل وقت تصدير أطول.";
 "name" = "الاسم";
 "new_group" = "مجموعة جديدة";
 "new_project" = "مشروع جديد";
@@ -248,7 +252,6 @@
 "note_clearing_cache_is_completely" = "ملاحظة: مسح ذاكرة التخزين المؤقت آمن تمامًا، فلن يحذف أبدًا مشاريع مستندات الترجمة الخاصة بك أو ملفات المشروع المحفوظة أو ملفات الصوت والفيديو الأصلية.";
 "note_this_model_has_not" = "ملاحظة: هذا النموذج لم يتم تنزيله بعد، وسيتم تنزيله تلقائيًا من Hugging Face عند بدء التوليد.";
 "number_of_speakers" = "عدد المتحدثين";
-"nv12_pixel_buffer" = "مخزن بكسل NV12";
 "ok" = "موافق";
 "ok_1" = "موافق";
 "ollama_connection_info" = "يتصل Ollama بالخدمة المحلية بشكل افتراضي، ولا يلزم مفتاح API.";
@@ -354,6 +357,8 @@
 "smart_noise_reduction" = "تقليل الضوضاء الذكي";
 "smart_noise_reduction_auxiliary_settings" = "تقليل الضوضاء الذكي والإعدادات المساعدة";
 "soft_subtitle_preview" = "معاينة الترجمة البرمجية";
+"software_encoding" = "الترميز البرمجي";
+"software_encoding_explanation" = "يعطّل ترميز العتاد ويستخدم مرمّز النظام البرمجي. ستكون عملية التصدير أبطأ.";
 "some_models_belong_to_restricted" = "بعض النماذج تنتمي إلى مستودعات مقيدة وتتطلب رمز وصول Hugging Face للتنزيل. يمكن الحصول عليه بالانتقال إلى huggingface.co/settings/tokens.";
 "source_language" = "اللغة المصدر";
 "speaker_diarization" = "التعرف على المتحدث";
@@ -371,7 +376,6 @@
 "provider_settings" = "إعدادات المزود";
 "custom_model" = "نموذج مخصص";
 "custom_model_name" = "اسم النموذج المخصص";
-"speed_size" = "السرعة / الحجم";
 "split_subtitles" = "تقسيم الترجمة";
 "start" = "ابدأ";
 "start_from_blank_timeline" = "البدء من خط زمني فارغ";

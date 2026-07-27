@@ -466,7 +466,7 @@ extension SubtitleProject {
     }
     
     private func formatSRTTime(_ seconds: TimeInterval) -> String {
-        let totalMs = Int(seconds * 1000)
+        let totalMs = Int((seconds * 1000).rounded())
         let ms = totalMs % 1000
         let s = (totalMs / 1000) % 60
         let m = (totalMs / (1000 * 60)) % 60
