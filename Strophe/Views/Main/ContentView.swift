@@ -50,6 +50,18 @@ struct ContentView: View {
     @State private var isQuittingAfterSave = false
     @State var keyboardMonitor: Any?
     #endif
+    @State var showSavedToast = false
+
+    func triggerSaveToast() {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            showSavedToast = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            withAnimation(.easeOut(duration: 0.4)) {
+                showSavedToast = false
+            }
+        }
+    }
 
     var usesLiquidGlassNavigation: Bool {
         if #available(anyAppleOS 26.0, *) { true } else { false }
@@ -74,6 +86,29 @@ struct ContentView: View {
         .overlay {
             if isShowingRestoreTimeAlert {
                 restoreTimeOverlay
+            }
+        }
+        .overlay(alignment: .top) {
+            if showSavedToast {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text(String(localized: "project_saved_success"))
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Color.stropheText)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(
+                    Capsule()
+                        .fill(Color.stropheSecondaryBackground)
+                        .shadow(color: Color.black.opacity(0.25), radius: 10, x: 0, y: 4)
+                )
+                .overlay(
+                    Capsule().stroke(Color.green.opacity(0.4), lineWidth: 1)
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .padding(.top, 12)
             }
         }
     }
@@ -114,6 +149,9 @@ struct ContentView: View {
                         try await project.saveStrophe(to: url)
                         didSave = true
                         WelcomeRecentProjectsStore.remember(url)
+                        await MainActor.run {
+                            triggerSaveToast()
+                        }
                         if let cachedURL = cachedProjectURLPendingPromotion,
                            cachedURL.standardizedFileURL != url.standardizedFileURL {
                             WelcomeRecentProjectsStore.remove(cachedURL, deletingCachedFile: true)

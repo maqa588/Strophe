@@ -18,7 +18,37 @@ struct StropheNavBarCommands: Commands {
     
     var body: some Commands {
         CommandGroup(replacing: .undoRedo) {
-            EmptyView()
+            Button(String(localized: "menu_undo")) {
+                performUndo()
+            }
+            .keyboardShortcut("z", modifiers: .command)
+
+            Button(String(localized: "menu_redo")) {
+                performRedo()
+            }
+            .keyboardShortcut("z", modifiers: [.command, .shift])
+        }
+
+        CommandGroup(replacing: .pasteboard) {
+            Button(String(localized: "cut_subtitle_block")) {
+                performCut()
+            }
+            .keyboardShortcut("x", modifiers: .command)
+
+            Button(String(localized: "copy_subtitle_block")) {
+                performCopy()
+            }
+            .keyboardShortcut("c", modifiers: .command)
+
+            Button(String(localized: "paste_subtitle_block")) {
+                performPaste()
+            }
+            .keyboardShortcut("v", modifiers: .command)
+
+            Button(String(localized: "select_all")) {
+                performSelectAll()
+            }
+            .keyboardShortcut("a", modifiers: .command)
         }
 
         timelineCommandMenu
@@ -50,7 +80,6 @@ struct StropheNavBarCommands: Commands {
                 NotificationCenter.default.post(name: .stropheSaveProject, object: nil)
             }
             .keyboardShortcut("s", modifiers: .command)
-            .disabled(!canSaveProject)
             
             Button(String(localized: "save_as")) {
                 NotificationCenter.default.post(name: .stropheSaveProjectAs, object: nil)
@@ -69,36 +98,26 @@ struct StropheNavBarCommands: Commands {
     @ViewBuilder
     private var timelineCommandItems: some View {
         Button("menu_undo") {
-            project.undo()
+            performUndo()
         }
-        .timelineShortcut("z", modifiers: .command)
-        .disabled(project.isEditingText || !project.canUndo)
 
         Button("menu_redo") {
-            project.redo()
+            performRedo()
         }
-        .timelineShortcut("z", modifiers: [.command, .shift])
-        .disabled(project.isEditingText || !project.canRedo)
 
         Divider()
 
         Button("cut_subtitle_block") {
-            project.cutSelectedSubtitleBlocks()
+            performCut()
         }
-        .timelineShortcut("x", modifiers: .command)
-        .disabled(!project.canCutSelectedSubtitleBlocks)
 
         Button("copy_subtitle_block") {
-            project.copySelectedSubtitleBlocks()
+            performCopy()
         }
-        .timelineShortcut("c", modifiers: .command)
-        .disabled(!project.canCopySelectedSubtitleBlocks)
 
         Button("paste_subtitle_block") {
-            project.pasteSubtitleBlocksIntoActiveGroup()
+            performPaste()
         }
-        .timelineShortcut("v", modifiers: .command)
-        .disabled(!project.canPasteSubtitleBlocks)
 
         Divider()
 
@@ -113,6 +132,102 @@ struct StropheNavBarCommands: Commands {
         }
         .timelineShortcut("]", modifiers: [])
         .disabled(project.isEditingText || project.items.isEmpty)
+    }
+
+    private func isTextEditingOrFocused() -> Bool {
+        #if os(macOS)
+        guard let keyWindow = NSApp.keyWindow,
+              let responder = keyWindow.firstResponder else { return false }
+        if responder is NSText || responder is NSTextView || responder is NSTextField {
+            return true
+        }
+        let className = String(describing: type(of: responder))
+        return className.contains("Text") || className.contains("Field") || className.contains("Editor") || className.contains("Search")
+        #else
+        return false
+        #endif
+    }
+
+    private func performUndo() {
+        #if os(macOS)
+        if isTextEditingOrFocused() || project.isEditingText {
+            NSApp.sendAction(Selector(("undo:")), to: nil, from: nil)
+        } else if project.canUndo {
+            project.undo()
+        } else {
+            NSApp.sendAction(Selector(("undo:")), to: nil, from: nil)
+        }
+        #else
+        if project.canUndo { project.undo() }
+        #endif
+    }
+
+    private func performRedo() {
+        #if os(macOS)
+        if isTextEditingOrFocused() || project.isEditingText {
+            NSApp.sendAction(Selector(("redo:")), to: nil, from: nil)
+        } else if project.canRedo {
+            project.redo()
+        } else {
+            NSApp.sendAction(Selector(("redo:")), to: nil, from: nil)
+        }
+        #else
+        if project.canRedo { project.redo() }
+        #endif
+    }
+
+    private func performCopy() {
+        #if os(macOS)
+        if isTextEditingOrFocused() {
+            NSApp.sendAction(#selector(NSText.copy(_:)), to: nil, from: nil)
+        } else if project.canCopySelectedSubtitleBlocks {
+            project.copySelectedSubtitleBlocks()
+        } else {
+            NSApp.sendAction(#selector(NSText.copy(_:)), to: nil, from: nil)
+        }
+        #else
+        if project.canCopySelectedSubtitleBlocks { project.copySelectedSubtitleBlocks() }
+        #endif
+    }
+
+    private func performCut() {
+        #if os(macOS)
+        if isTextEditingOrFocused() {
+            NSApp.sendAction(#selector(NSText.cut(_:)), to: nil, from: nil)
+        } else if project.canCutSelectedSubtitleBlocks {
+            project.cutSelectedSubtitleBlocks()
+        } else {
+            NSApp.sendAction(#selector(NSText.cut(_:)), to: nil, from: nil)
+        }
+        #else
+        if project.canCutSelectedSubtitleBlocks { project.cutSelectedSubtitleBlocks() }
+        #endif
+    }
+
+    private func performPaste() {
+        #if os(macOS)
+        if isTextEditingOrFocused() {
+            NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: nil)
+        } else if project.canPasteSubtitleBlocks {
+            project.pasteSubtitleBlocksIntoActiveGroup()
+        } else {
+            NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: nil)
+        }
+        #else
+        if project.canPasteSubtitleBlocks { project.pasteSubtitleBlocksIntoActiveGroup() }
+        #endif
+    }
+
+    private func performSelectAll() {
+        #if os(macOS)
+        if isTextEditingOrFocused() {
+            NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: nil)
+        } else {
+            project.selectAllSubtitles()
+        }
+        #else
+        project.selectAllSubtitles()
+        #endif
     }
 
     private var timelineCommandMenu: some Commands {

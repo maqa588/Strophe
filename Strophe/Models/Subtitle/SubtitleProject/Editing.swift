@@ -153,6 +153,10 @@ extension SubtitleProject {
         selectedIDs = Set(items.filter { belongsToGroup($0, groupID: groupID) }.map(\.id))
     }
 
+    func selectAllSubtitles() {
+        selectedIDs = Set(items.map(\.id))
+    }
+
     func clearText(in groupID: UUID) {
         let oldItems = items
         let oldSelectedIDs = selectedIDs

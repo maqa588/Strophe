@@ -174,9 +174,10 @@ struct BatchTranslationView: View {
         translationTask = Task {
             do {
                 var translatedByID: [UUID: String] = [:]
-                for start in stride(from: 0, to: requests.count, by: 5) {
+                let chunkSize = configuration.provider.batchChunkSize
+                for start in stride(from: 0, to: requests.count, by: chunkSize) {
                     try Task.checkCancellation()
-                    let chunk = Array(requests[start..<min(start + 5, requests.count)])
+                    let chunk = Array(requests[start..<min(start + chunkSize, requests.count)])
                     let translated = try await TranslationLLMClient.shared.translateBatch(
                         chunk,
                         sourceLanguage: sourceLanguage,

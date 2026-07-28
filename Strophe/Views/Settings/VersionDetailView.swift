@@ -95,6 +95,7 @@ struct VersionDetailView: View {
                 EmptyView()
             }
         }
+        .textSelection(.enabled)
         .formStyle(.grouped)
         .background(Color.stropheBackground)
         .navigationTitle("about_app_format \(AppIdentity.displayName)")

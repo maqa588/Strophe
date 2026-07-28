@@ -85,6 +85,9 @@ extension ContentView {
                 do {
                     try await project.saveStrophe(to: url)
                     WelcomeRecentProjectsStore.remember(url)
+                    await MainActor.run {
+                        triggerSaveToast()
+                    }
                 } catch {
                     print("⚠️ Failed to save Strophe project: \(error.localizedDescription)")
                 }

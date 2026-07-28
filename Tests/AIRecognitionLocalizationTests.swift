@@ -14,6 +14,7 @@ struct AIRecognitionLocalizationTests {
             "status_cloud_recognizing",
             "status_cloud_results_received",
             "status_generation_failed_format",
+            "status_recovering_parakeet_gaps_format",
         ]
 
         for locale in locales {
@@ -85,6 +86,12 @@ struct AIRecognitionLocalizationTests {
             locale: locale,
             key: "status_cloud_recognizing_segment_format",
             arguments: [7, 13]
+        )
+        format(
+            strings,
+            locale: locale,
+            key: "status_recovering_parakeet_gaps_format",
+            arguments: [2, 4]
         )
         format(
             strings,

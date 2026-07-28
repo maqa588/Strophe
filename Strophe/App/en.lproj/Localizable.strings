@@ -33,6 +33,7 @@
 "status_segmenting_audio" = "Segmenting audio…";
 "status_loading_parakeet" = "Loading Parakeet-JA Core ML model…";
 "status_recognizing_parakeet_format" = "Parakeet-JA is transcribing Japanese segment %1$d of %2$d…";
+"status_recovering_parakeet_gaps_format" = "Parakeet-JA is recovering missed speech %1$d of %2$d…";
 "status_loading_qwen3_asr" = "Loading Qwen3-ASR Core ML model…";
 "status_recognizing_segment_format" = "Transcribing speech segment %1$d of %2$d…";
 "status_loading_forced_aligner" = "Loading ForcedAligner Core ML model…";
@@ -652,7 +653,7 @@
 
 "trademarks_label" = "Trademarks";
 "disclaimer_label" = "Disclaimer";
-"trademark_disclaimer" = "Trademark Disclaimer\n\nAll third-party product names, logos, brands, and trademarks referenced within this software—including but not limited to OpenAI, Anthropic, Google, Google AI Studio, xAI, Grok, DeepSeek, NVIDIA, NVIDIA NIM, Ollama, Meta, Llama, Moonshot AI, Kimi, MiniMax, ByteDance, Volcengine, PLaMo, Baidu, Baidu Qianfan, Modal, Tencent, Tencent Cloud, OpenRouter, Sakana AI, Cloudflare, Zhipu AI, GLM, Alibaba, Tongyi Qwen, and others—are the property of their respective owners.\n\nTheir use in this software does not imply any affiliation, sponsorship, partnership, endorsement, or approval by these trademark holders. Strophe is an independent application, and all third-party integrations are provided solely for compatibility and utility purposes.\n\nFurthermore, Apple, ProRes, Apple ProRes, macOS, iOS, iPadOS, and any other Apple-related product names, logos, or format names referenced in this software are trademarks or registered trademarks of Apple Inc. in the United States and other countries. Strophe is an independent software application and has no relationship, affiliation, connection, partnership, sponsorship, or endorsement with Apple Inc. References to Apple ProRes and other Apple media formats are strictly for specifying compatibility with these audio/video formats.";
+"trademark_disclaimer" = "Trademark Disclaimer\n\nAll third-party product names, logos, brands, and trademarks referenced within this software—including but not limited to OpenAI, Anthropic, Google, Google AI Studio, xAI, Grok, DeepSeek, NVIDIA, NVIDIA NIM, Ollama, Meta, Llama, Moonshot AI, Kimi, MiniMax, ByteDance, Volcengine, PLaMo, Baidu, Baidu Qianfan, Modal, Tencent, Tencent Cloud, OpenRouter, Sakana AI, Cloudflare, Zhipu AI, GLM, Alibaba, Tongyi Qwen, FFmpeg, dav1d, and others—are the property of their respective owners.\n\nTheir use in this software is solely for the purpose of compatibility, technical interoperability, and identifying supported services. It does not imply any affiliation, sponsorship, partnership, endorsement, or approval by these trademark holders. Strophe is an independently developed application, and all third-party integrations are provided strictly for compatibility and utility purposes.\n\nFurthermore, Apple, ProRes, Apple ProRes, macOS, iOS, iPadOS, VideoToolbox, AVFoundation, and any other Apple-related product names, logos, or format names referenced in this software are trademarks or registered trademarks of Apple Inc. in the United States and other countries. Strophe is an independent software application and has no relationship, affiliation, connection, partnership, sponsorship, or endorsement with Apple Inc. References to Apple technologies and media formats are strictly for specifying technical compatibility with these audio/video frameworks and formats.";
 
 "eula_label" = "End User License Agreement";
 "cloud_agreement_label" = "Cloud Usage Agreement";
@@ -661,20 +662,19 @@
 Please read this software license agreement (\"License\") carefully before using the Strophe software. By using the Strophe software, you are agreeing to be bound by the terms of this License.
 
 1. General
-The Strophe software and any third-party software, documentation, interfaces, content, fonts, and any data accompanying this License whether on disk, in read-only memory, on any other media or in any other form are licensed, not sold, to you by Spencer Maqa for use only under the terms of this License.
+The Strophe software and any third-party software, documentation, interfaces, content, fonts, and any data accompanying this License whether on disk, in read-only memory, on any other media or in any other form are licensed, not sold, to you by Spencer Maqa for use only under the terms of this License. Spencer Maqa retains ownership of the Strophe software itself and reserves all rights not expressly granted to you.
 
-2. FSL 1.1 License and App Store Exclusivity
-The source code of Strophe is provided under the Functional Source License, Version 1.1, ALv2 Future License (FSL-1.1-ALv2). You are granted the right to use, copy, modify, create derivative works, publicly perform, publicly display, and redistribute the Software for any Permitted Purpose as defined in the FSL 1.1 license.
+2. Source License and Official Distribution Rights
+The source code of Strophe is made available under the Functional Source License, Version 1.1, with Apache License 2.0 as the Future License (FSL-1.1-ALv2). Under the FSL 1.1, you are granted the right to use, copy, modify, create derivative works, publicly perform, publicly display, and redistribute the Software for any Permitted Purpose as defined therein.
 
-CRITICAL EXCEPTION: Notwithstanding the permissions granted under the FSL 1.1 license, prior to the Change Date (when the software transitions to the Apache License 2.0), the exclusive right to distribute, publish, or otherwise make the Strophe application available on the Apple App Store (including iOS App Store and Mac App Store) is strictly reserved and owned solely by Spencer Maqa. 
-You may not compile, package, upload, or distribute this software, or any derivative works thereof, to the Apple App Store without the explicit, prior written consent of Spencer Maqa.
+App Store Distribution Restriction (Additional Term under FSL 1.1): Prior to the Change Date (the second anniversary of the date each version of the Software is first made publicly available via the Licensor's official source code repository), the exclusive right to publish the official Strophe application — bearing the Strophe name, brand, icon, and code-signing identity — on the Apple App Store (including the iOS App Store and Mac App Store) is reserved solely by Spencer Maqa. You may not use the Strophe name, trademarks, or official code-signing identity to distribute any build to the Apple App Store without Spencer Maqa's prior written consent. This restriction applies to the official brand and distribution channel only; independently branded derivative works that remove all Strophe trademarks are governed solely by the FSL 1.1 terms.
 
 3. Consent to Use of Data
 If you choose to allow diagnostic and usage collection, you agree that we may collect, maintain, process, and use diagnostic, technical, usage and related information to improve the software and services. All data is processed according to the applicable Privacy Policy and Cloud Usage Agreement.
 
 4. Disclaimer of Warranties
 YOU EXPRESSLY ACKNOWLEDGE AND AGREE THAT, TO THE EXTENT PERMITTED BY APPLICABLE LAW, USE OF THE STROPHE SOFTWARE AND ANY SERVICES PERFORMED BY OR ACCESSED THROUGH THE STROPHE SOFTWARE IS AT YOUR SOLE RISK.
-THE SOFTWARE AND SERVICES ARE PROVIDED \"AS IS\" AND \"AS AVAILABLE\", WITH ALL FAULTS AND WITHOUT WARRANTY OF ANY KIND. SPENCER MAQA AND LICENSORS HEREBY DISCLAIM ALL WARRANTIES AND CONDITIONS WITH RESPECT TO THE SOFTWARE AND SERVICES, EITHER EXPRESS, IMPLIED OR STATUTORY, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES AND/OR CONDITIONS OF MERCHANTABILITY, SATISFACTORY QUALITY, FITNESS FOR A PARTICULAR PURPOSE, ACCURACY, QUIET ENJOYMENT, AND NON-INFRINGEMENT OF THIRD PARTY RIGHTS.
+THE SOFTWARE AND SERVICES ARE PROVIDED \"AS IS\" AND \"AS AVAILABLE\", WITH ALL FAULTS AND WITHOUT WARRANTY OF ANY KIND. SPENCER MAQA HEREBY DISCLAIMS ALL WARRANTIES AND CONDITIONS WITH RESPECT TO THE SOFTWARE AND SERVICES, EITHER EXPRESS, IMPLIED OR STATUTORY, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES AND/OR CONDITIONS OF MERCHANTABILITY, SATISFACTORY QUALITY, FITNESS FOR A PARTICULAR PURPOSE, ACCURACY, QUIET ENJOYMENT, AND NON-INFRINGEMENT OF THIRD PARTY RIGHTS.
 
 5. Limitation of Liability
 TO THE EXTENT NOT PROHIBITED BY APPLICABLE LAW, IN NO EVENT SHALL SPENCER MAQA BE LIABLE FOR PERSONAL INJURY, OR ANY INCIDENTAL, SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES WHATSOEVER, INCLUDING, WITHOUT LIMITATION, DAMAGES FOR LOSS OF PROFITS, CORRUPTION OR LOSS OF DATA, FAILURE TO TRANSMIT OR RECEIVE ANY DATA, BUSINESS INTERRUPTION OR ANY OTHER COMMERCIAL DAMAGES OR LOSSES, ARISING OUT OF OR RELATED TO YOUR USE OR INABILITY TO USE THE STROPHE SOFTWARE AND SERVICES, HOWEVER CAUSED, REGARDLESS OF THE THEORY OF LIABILITY (CONTRACT, TORT OR OTHERWISE).
@@ -682,13 +682,24 @@ TO THE EXTENT NOT PROHIBITED BY APPLICABLE LAW, IN NO EVENT SHALL SPENCER MAQA B
 6. Export Control
 You may not use or otherwise export or re-export the Strophe software except as authorized by the laws of the People's Republic of China (including but not limited to the Export Control Law of the People's Republic of China) and the laws of the jurisdiction(s) in which the Strophe software was obtained.
 
-7. Third-Party Acknowledgements and Video Formats
-A. MPEG-4: This product is licensed under the MPEG-4 Visual Patent Portfolio License for the personal and non-commercial use of a consumer for encoding video in compliance with the MPEG-4 Visual Standard and/or decoding MPEG-4 video that was encoded by a consumer engaged in a personal and non-commercial activity.
-B. H.264/AVC: To the extent that the Strophe software contains AVC encoding and/or decoding functionality, commercial use of H.264/AVC requires additional licensing and the following provision applies: The AVC functionality in this product is licensed herein only for the personal and non-commercial use of a consumer to encode video in compliance with the AVC standard and/or decode AVC video.
-C. HEVC (H.265): To the extent that the Strophe software contains HEVC functionality, the following provision applies: This product contains technology subject to certain intellectual property rights of third parties in the HEVC/H.265 standard. Customers should consult with independent legal counsel to determine whether a license is required.
+7. Third-Party Components and Media Codec Notice
+Strophe incorporates open-source components, each governed by its own license. A complete list of third-party licenses is available within the application under Settings > About > Licenses.
+
+A. Media Decoding: Strophe performs audio and video decoding primarily through Apple VideoToolbox and AVFoundation (whose codec licenses are covered by Apple's platform agreements), supplemented by FFmpeg (LGPL v2.1+) for extended format support. Hardware-accelerated decoding on Apple platforms is handled entirely by the operating system.
+B. MPEG-4: This product may utilize MPEG-4 Visual decoding provided by the operating system. The MPEG-4 Visual Patent Portfolio License permits personal and non-commercial consumer use for encoding and decoding video in compliance with the MPEG-4 Visual Standard.
+C. H.264/AVC: To the extent that the Strophe software processes AVC video, such decoding is performed by Apple VideoToolbox or FFmpeg. The AVC functionality is intended for personal and non-commercial consumer use. Commercial use of H.264/AVC may require additional licensing from MPEG LA.
+D. HEVC (H.265): To the extent that the Strophe software processes HEVC video, such decoding is handled by Apple VideoToolbox (whose HEVC patent licenses are managed by Apple as part of the operating system) or by FFmpeg. Users engaging in commercial HEVC workflows should consult their own legal counsel regarding applicable patent pool obligations.
+E. AV1: Strophe supports AV1 video decoding via the open-source dav1d library (BSD 2-Clause License) and native operating system frameworks. AV1 is an open, royalty-free video coding format developed by the Alliance for Open Media (AOMedia).
+F. Apple ProRes: Strophe supports Apple ProRes video decoding exclusively via native Apple VideoToolbox and AVFoundation frameworks built into macOS, iOS, and iPadOS. ProRes decoding is handled natively by Apple operating system frameworks.
 
 8. Termination
-This License is effective until terminated. Your rights under this License will terminate automatically or otherwise cease to be effective without notice if you fail to comply with any term(s) of this License.";
+This License is effective until terminated. Your rights under this License will terminate automatically or otherwise cease to be effective without notice if you fail to comply with any term(s) of this License.
+
+9. Governing Law and Dispute Resolution
+This License shall be governed by and construed in accordance with the laws of the People's Republic of China. Spencer Maqa also respects and complies with applicable consumer protection, data privacy, and intellectual property laws and regulations in the jurisdictions where the Software is distributed, including but not limited to the laws of Taiwan, Hong Kong SAR, Japan, South Korea, the European Union, the United States, and countries in the Middle East. Any dispute arising from or related to this License shall first be resolved through amicable negotiation. If negotiation fails, the dispute shall be submitted to a court of competent jurisdiction in the People's Republic of China.
+
+10. Severability
+If any provision of this License is held to be invalid or unenforceable by a court of competent jurisdiction, the remaining provisions shall continue in full force and effect. The invalid or unenforceable provision shall be modified to the minimum extent necessary to make it valid and enforceable while preserving its original intent.";
 "cloud_agreement_body" = "CLOUD SERVICE & DATA PRIVACY AGREEMENT
 
 1. Cloud Services Overview
@@ -697,17 +708,61 @@ Strophe utilizes various cloud-based Artificial Intelligence services to provide
 2. Data Transmission and Processing Location
 By using the cloud-based features within Strophe, you acknowledge and agree that your audio data, video files, subtitles, and related text will be securely transmitted over the internet to remote servers for computation. These servers, including those operated by third-party AI providers (such as Baidu, Tencent, Alibaba, Moonshot AI, etc.), are primarily located within Mainland China.
 
+Note for International Users: If you are located outside Mainland China, you may choose to use Strophe's on-device (local) processing mode or configure third-party LLM APIs hosted in your own region. In these modes, your data does not transit through servers in Mainland China.
+
 3. Legal Compliance and Data Retention
-To strictly comply with the \"Cybersecurity Law of the People's Republic of China,\" the \"Data Security Law,\" the \"Personal Information Protection Law,\" and other applicable administrative regulations in Mainland China:
+To strictly comply with the \"Cybersecurity Law of the People's Republic of China,\" the \"Data Security Law,\" the \"Personal Information Protection Law,\" and other applicable regulations in Mainland China:
 
-- Data Retention and Logging: In order to ensure network operation security and assist in legitimate audits by relevant national departments, we will retain network operation logs, security incident records, and cloud service request metadata for a minimum period of six (6) months, as mandated by Article 21 of the Cybersecurity Law.
+- Data Retention and Logging: To ensure network operation security and assist in legitimate audits by relevant national departments, we will retain network operation logs, security incident records, and cloud service request metadata for a minimum period of six (6) months, as mandated by Article 21 of the Cybersecurity Law.
 
-- Data Security and Privacy: Your media data is used strictly for executing the transcription or translation tasks you request. We promise not to use your private media data to train our own core models without your authorization. However, please note that when data flows through third-party cloud service providers, it is also subject to the standard data retention and censorship policies established by those providers in compliance with Mainland Chinese laws.
+- Data Security and Privacy: Your media data is used strictly for executing the transcription or translation tasks you request. We promise not to use your private media data to train our own core models without your explicit authorization. However, please note that when data flows through third-party cloud service providers, it is also subject to the standard data retention and compliance policies established by those providers in accordance with applicable laws.
 
 4. Third-Party Custom LLM Disclaimer
-Strophe allows you to manually add and configure third-party Large Language Model (LLM) APIs for machine translation. Please note that any custom third-party services you add yourself are NOT under our supervision or regulation. When using these services, you must consciously abide by your local laws and regulations, as well as the terms of service and legal regulations of the respective third-party provider.
+Strophe allows you to manually add and configure third-party Large Language Model (LLM) APIs for machine translation. Any custom third-party services you add yourself are NOT under our supervision, control, or regulation. When using these services, you are solely responsible for complying with your local laws and regulations, as well as the terms of service of the respective third-party provider. Spencer Maqa shall not be liable for any data processing, privacy incidents, or legal compliance issues arising from your use of self-configured third-party services.
 
 5. User Consent & Opt-Out
 By enabling and utilizing the cloud features, you explicitly consent to your data being transmitted to servers in Mainland China for computation, and you agree to the aforementioned log retention and data processing rules.
 
-If you have any doubts or concerns regarding the processing of cloud content, you may choose not to use the cloud services we provide. You can always switch to Strophe's purely local (On-Device) offline processing mode, where all data is computed entirely on your device and is never uploaded.";
+If you have any concerns regarding the processing of cloud content, you may choose not to use the cloud services we provide. You can always switch to Strophe's purely local (On-Device) offline processing mode, where all data is computed entirely on your device and is never uploaded.
+
+6. Agreement Amendments
+Spencer Maqa reserves the right to modify this Agreement from time to time. Material changes will be communicated through in-app notifications or updates to this document. Your continued use of the cloud services following any such changes constitutes acceptance of the revised terms.";
+
+"provider_volcengine" = "ByteDance Volcengine";
+"provider_baidu" = "Baidu Qianfan";
+"provider_tencent" = "Tencent Cloud TokenHub";
+"provider_glm" = "Zhipu GLM";
+"provider_qwen" = "Tongyi Qwen";
+"provider_openai_compatible" = "GPT / OpenAI Compatible";
+"provider_anthropic_compatible" = "Anthropic Compatible";
+"language_chinese_simplified" = "Simplified Chinese";
+"language_chinese_traditional" = "Traditional Chinese";
+"language_english" = "English";
+"language_japanese" = "Japanese";
+"language_korean" = "Korean";
+"language_french" = "French";
+"language_german" = "German";
+"language_spanish" = "Spanish";
+"language_portuguese" = "Portuguese";
+"language_italian" = "Italian";
+"language_russian" = "Russian";
+"language_arabic" = "Arabic";
+"language_thai" = "Thai";
+"language_vietnamese" = "Vietnamese";
+"auto_wrap_words" = "Word-based";
+"auto_wrap_continuous" = "Continuous";
+"auto_wrap_insert_line_breaks" = "Insert Line Breaks";
+"auto_wrap_split_subtitle_blocks" = "Split Subtitle Blocks";
+"translation_error_invalid_endpoint" = "Invalid translation service endpoint.";
+"translation_error_missing_model" = "Please fill in the model name.";
+"translation_error_missing_api_key" = "Please fill in the API key.";
+"translation_error_missing_modal_credentials" = "Please fill in Modal-Key and Modal-Secret.";
+"translation_error_missing_cloudflare_account_id" = "Please fill in Cloudflare Account ID.";
+"translation_error_invalid_response" = "Translation service returned an unrecognized response.";
+"translation_service_request_failed_format %lld %@" = "Translation service request failed (%1$lld): %2$@";
+"translation_error_malformed" = "The model did not return subtitle translation results as requested.";
+"translation_error_unknown" = "Unknown Error";
+"btn_save_settings" = "Save Settings";
+"settings_saved_success" = "Machine Translation Settings Saved";
+"select_all" = "Select All";
+"project_saved_success" = "Project Saved";

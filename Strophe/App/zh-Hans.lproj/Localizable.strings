@@ -521,6 +521,7 @@
 "status_segmenting_audio" = "正在进行音频分段…";
 "status_loading_parakeet" = "正在加载 Parakeet-JA CoreML 模型…";
 "status_recognizing_parakeet_format" = "正在用 Parakeet-JA 识别第 %1$d/%2$d 个日语语音段…";
+"status_recovering_parakeet_gaps_format" = "正在用 Parakeet-JA 补充识别第 %1$d/%2$d 个漏识别语音段…";
 "status_loading_qwen3_asr" = "正在加载 Qwen3-ASR CoreML 模型…";
 "status_recognizing_segment_format" = "正在识别第 %1$d/%2$d 个语音段…";
 "status_loading_forced_aligner" = "正在加载 ForcedAligner CoreML 模型…";
@@ -651,7 +652,7 @@
 
 "trademarks_label" = "商标";
 "disclaimer_label" = "免责声明";
-"trademark_disclaimer" = "商标免责声明\n\n本软件中提及的所有第三方产品名称、徽标、品牌和商标——包括但不限于 OpenAI、Anthropic、Google、Google AI Studio、xAI、Grok、DeepSeek、NVIDIA、NVIDIA NIM、Ollama、Meta、Llama、Moonshot AI、Kimi、MiniMax、字节跳动、火山引擎、PLaMo、百度、百度千帆、Modal、腾讯、腾讯云、OpenRouter、Sakana AI、Cloudflare、智谱 AI、GLM、阿里巴巴、通义千问等——均为其各自所有者的财产。\n\n在本软件中使用这些内容并不意味着这些商标所有者与本软件有任何关联、赞助、合作、背书或批准。Strophe 是一个独立的应用程序，所有第三方集成仅为兼容性和实用性目的而提供。\n\n此外，本软件中提及的 Apple、ProRes、Apple ProRes、macOS、iOS、iPadOS 以及任何其他与 Apple 相关的产品名称、徽标或格式名称均为 Apple Inc. 在美国和其他国家注册的商标或注册商标。Strophe 是一款独立的软件应用程序，与 Apple Inc. 没有任何关系、关联、连接、合作、赞助或背书。对 Apple ProRes 和其他 Apple 媒体格式的提及仅用于说明与这些音视频格式的兼容性。";
+"trademark_disclaimer" = "商标免责声明\n\n本软件中提及的所有第三方产品名称、徽标、品牌和商标——包括但不限于 OpenAI、Anthropic、Google、Google AI Studio、xAI、Grok、DeepSeek、NVIDIA、NVIDIA NIM、Ollama、Meta、Llama、Moonshot AI、Kimi、MiniMax、字节跳动、火山引擎、PLaMo、百度、百度千帆、Modal、腾讯、腾讯云、OpenRouter、Sakana AI、Cloudflare、智谱 AI、GLM、阿里巴巴、通义千问、FFmpeg、dav1d 等——均为其各自所有者的财产。\n\n在本软件中使用这些名称仅用于兼容性、技术互操作性及标识所支持的服务。这并不意味着上述商标所有者与本软件存在任何关联、赞助、合作、背书或批准关系。Strophe 是一款独立开发的应用程序，所有第三方集成仅为兼容性和实用性目的而提供。\n\n此外，本软件中提及的 Apple、ProRes、Apple ProRes、macOS、iOS、iPadOS、VideoToolbox、AVFoundation 以及任何其他与 Apple 相关的产品名称、徽标或格式名称均为 Apple Inc. 在美国和其他国家的商标或注册商标。Strophe 是一款独立的软件应用程序，与 Apple Inc. 没有任何关系、关联、连接、合作、赞助或背书。对 Apple 技术和媒体格式的提及仅用于说明与这些音视频框架和格式的技术兼容性。";
 
 "eula_label" = "最终用户许可协议";
 "cloud_agreement_label" = "云端使用协议";
@@ -660,12 +661,12 @@
 在使用 Strophe（活字）软件之前，请仔细阅读本软件许可协议（“许可证”）。使用 Strophe 软件即表示您同意受本许可证条款的约束。
 
 1. 总则
-Strophe 软件及本许可证随附的任何第三方软件、文档、界面、内容、字体和任何数据，无论是存储在磁盘、只读存储器、任何其他介质还是任何其他形式，均由 Spencer Maqa 许可（而非出售）给您，您只能根据本许可证的条款进行使用。
+Strophe 软件及本许可证随附的任何第三方软件、文档、界面、内容、字体和任何数据，无论是存储在磁盘、只读存储器、任何其他介质还是任何其他形式，均由 Spencer Maqa 许可（而非出售）给您，您只能根据本许可证的条款进行使用。Spencer Maqa 保留对 Strophe 软件本身的所有权，以及未明确授予您的一切权利。
 
-2. FSL 1.1 许可证与 App Store 独家发行权
-Strophe 的源代码根据 Functional Source License, Version 1.1, ALv2 Future License (FSL-1.1-ALv2) 提供。您可以根据 FSL 1.1 许可证的规定，出于任何允许的目的使用、复制、修改、创建衍生作品、公开表演、公开展示和重新分发本软件。
+2. 源代码许可与官方发行权
+Strophe 的源代码根据 Functional Source License, Version 1.1, ALv2 Future License (FSL-1.1-ALv2) 提供。根据 FSL 1.1 许可证的规定，您可以出于其中定义的任何允许目的使用、复制、修改、创建衍生作品、公开表演、公开展示和重新分发本软件。
 
-特别例外及限制：尽管 FSL 1.1 许可证授予了上述权限，但在转换日期（即软件代码正式转换为 Apache 2.0 许可证的年限日期）到达之前，在 Apple App Store（包括 iOS App Store 和 Mac App Store）上分发、发布或以上架形式提供 Strophe 应用程序的独家发行权，完全且唯一地归属于 Spencer Maqa 本人。未经 Spencer Maqa 事先明确的书面许可，您绝对不得将本软件或其任何衍生作品编译、打包、上传或分发至 Apple App Store。
+App Store 发行限制（FSL 1.1 附加条款）：在转换日期（即本软件各版本通过许可人官方源代码仓库首次公开发布之日起两年）到达之前，在 Apple App Store（包括 iOS App Store 和 Mac App Store）上发布使用 Strophe 名称、品牌标识、图标及代码签名身份的官方 Strophe 应用程序的独家权利，由 Spencer Maqa 保留。未经 Spencer Maqa 事先书面同意，您不得使用 Strophe 名称、商标或官方代码签名身份将任何构建版本分发至 Apple App Store。此限制仅适用于官方品牌和分发渠道；移除了所有 Strophe 商标的独立品牌衍生作品仅受 FSL 1.1 条款约束。
 
 3. 同意使用数据
 如您选择允许收集分析数据，即表示您同意我们可以收集、维护、处理和使用诊断性、技术性、使用及相关信息，以便提供和改善产品和服务。所有数据均按照适用的隐私政策和云端使用协议进行处理。
@@ -679,32 +680,87 @@ Strophe 的源代码根据 Functional Source License, Version 1.1, ALv2 Future L
 6. 出口管制
 除《中华人民共和国出口管制法》等中国法律以及获得 Strophe 软件的所在司法管辖区的法律授权外，您不得使用或以任何方式出口或转口 Strophe 软件。
 
-7. 第三方确认及视频格式声明
-A. MPEG-4 的使用。本产品是依据 MPEG-4 视频专利组合许可证特许予消费者个人和非商业性使用，以按照 MPEG-4 视频标准对从事个人和非商业活动的消费者所编码的视频，和/或从获授权提供 MPEG-4 视频的视频提供者取得的视频进行解码。
-B. H.264/AVC 声明。在软件包含 AVC 编码/解码功能的范围内，H.264/AVC 的商业性使用需要额外的许可，且以下规定适用：本许可证许可本产品的 AVC 功能仅供消费者的个人和非商业性使用，以按照 AVC 标准进行编码或解码。
-C. HEVC (H.265)。在软件包含 HEVC 功能的范围内，以下规定适用：本产品包含符合 HEVC/H.265 标准的技术，因此可能适用对 HEVC/H.265 标准拥有相关专利权的各种专利池的第三方专利许可义务。在确定是否需要许可证时，顾客应咨询独立法律顾问。
+7. 第三方组件与媒体编解码器声明
+Strophe 集成了多个开源组件，各组件受其各自许可证的约束。完整的第三方许可证列表可在应用程序内的 设置 > 关于 > 许可证 中查阅。
+
+A. 媒体解码：Strophe 的音视频解码主要通过 Apple VideoToolbox 和 AVFoundation 完成（其编解码器许可由 Apple 平台协议覆盖），并辅以 FFmpeg（LGPL v2.1+）提供扩展格式支持。Apple 平台上的硬件加速解码完全由操作系统处理。
+B. MPEG-4：本产品可能使用操作系统提供的 MPEG-4 视频解码。MPEG-4 视频专利组合许可证允许消费者出于个人和非商业目的，按照 MPEG-4 视频标准进行编码和解码。
+C. H.264/AVC：在 Strophe 软件处理 AVC 视频的范围内，此类解码由 Apple VideoToolbox 或 FFmpeg 执行。AVC 功能旨在供消费者个人和非商业性使用。H.264/AVC 的商业性使用可能需要向 MPEG LA 获取额外许可。
+D. HEVC (H.265)：在 Strophe 软件处理 HEVC 视频的范围内，此类解码由 Apple VideoToolbox（其 HEVC 专利许可由 Apple 作为操作系统的一部分进行管理）或 FFmpeg 处理。从事商业 HEVC 工作流的用户应就适用的专利池义务咨询自己的法律顾问。
+E. AV1：Strophe 支持通过开源 dav1d 库（BSD 2-Clause 许可证）及原生操作系统框架进行 AV1 视频解码。AV1 是由开放媒体联盟（AOMedia）开发的免专利使用费、开放式视频编码格式。
+F. Apple ProRes：Strophe 对 Apple ProRes 视频解码的支持完全通过 macOS、iOS 及 iPadOS 内置的 Apple 原生 VideoToolbox 及 AVFoundation 框架实现。ProRes 解码由 Apple 操作系统框架原生处理。
 
 8. 终止
-本许可证在终止前持续有效。如果您未能遵守本许可证的任何条款，您在本许可证下的权利将自动终止或失效，恕不另行通知。";
+本许可证在终止前持续有效。如果您未能遵守本许可证的任何条款，您在本许可证下的权利将自动终止或失效，恕不另行通知。
+
+9. 适用法律与争议解决
+本许可证受中华人民共和国法律管辖并依其解释。Spencer Maqa 同时尊重并遵守本软件分发所在地区的适用消费者保护、数据隐私及知识产权法律法规，包括但不限于中国台湾地区、中国香港特别行政区、日本、韩国、欧盟、美国以及中东地区的法律。因本许可证产生的或与本许可证相关的任何争议，应首先通过友好协商解决。如协商不成，应提交中华人民共和国有管辖权的法院裁决。
+
+10. 可分割性
+如果本许可证的任何条款被有管辖权的法院认定为无效或不可执行，其余条款应继续完全有效。无效或不可执行的条款应在保留其原始意图的前提下，进行最低限度的修改，使其成为有效和可执行的条款。";
 "cloud_agreement_body" = "云端服务及数据使用协议
 
 1. 云端服务概述
 Strophe（活字）集成了多种基于云端的人工智能服务，以提供先进的语音识别（ASR）、强制对齐和机器翻译功能。
 
 2. 数据传输与处理位置
-当您使用 Strophe 的云端功能时，您知晓并同意：您的音频数据、视频文件、字幕及相关文本数据将通过互联网加密传输至远程服务器进行计算与处理。这些计算服务器及第三方 AI 服务提供商（例如百度、腾讯、阿里巴巴、月之暗面等）的服务器均位于【中国大陆】境内。
+当您使用 Strophe 的云端功能时，您知晓并同意：您的音频数据、视频文件、字幕及相关文本数据将通过互联网加密传输至远程服务器进行计算与处理。这些计算服务器及第三方 AI 服务提供商（例如百度、腾讯、阿里巴巴、月之暗面等）的服务器均位于中国大陆境内。
+
+国际用户须知：如果您位于中国大陆以外的地区，您可以选择使用 Strophe 的本地（On-Device）处理模式，或配置托管在您所在地区的第三方 LLM API。在这些模式下，您的数据不会经过中国大陆的服务器。
 
 3. 法律合规与数据留档
 为严格遵守《中华人民共和国网络安全法》、《中华人民共和国数据安全法》、《中华人民共和国个人信息保护法》等中国大陆相关法律法规及行政部门的要求：
 
 - 数据留档与日志保存：为了保障网络运行安全及配合国家相关部门的合法审计，我们将按照《网络安全法》第二十一条的规定，对网络运行状态、网络安全事件、云端服务请求日志等相关网络运行日志进行留存，留存期限不少于六（6）个月。
 
-- 数据安全与隐私：您的媒体数据仅用于执行您所请求的转写或翻译任务。我们承诺不会在未经您授权的情况下，将您的私人媒体数据用于训练我们自己的核心模型。但请注意，数据在流经第三方云服务提供商时，将同时受限于该提供商遵守中国大陆法律法规所制定的标准数据保留与审查政策。
+- 数据安全与隐私：您的媒体数据仅用于执行您所请求的转写或翻译任务。我们承诺不会在未经您明确授权的情况下，将您的私人媒体数据用于训练我们自己的核心模型。但请注意，数据在流经第三方云服务提供商时，将同时受限于该提供商遵守适用法律法规所制定的标准数据保留与合规政策。
 
 4. 第三方 LLM 自定义接入免责声明
-Strophe 允许您自行添加和配置用于机器翻译的第三方大语言模型（LLM）API。请注意，机器翻译服务中您自己添加的第三方 LLM 提供商并不处于我们的监管控制之内。您在使用此类服务时，请自觉遵守您当地的法律，以及对应提供商的法律法规和服务条款。
+Strophe 允许您自行添加和配置用于机器翻译的第三方大语言模型（LLM）API。您自行添加的任何第三方服务均不在我们的监管、控制或规管范围内。您在使用此类服务时，需自行负责遵守您当地的法律法规以及相应第三方提供商的服务条款。对于因您使用自行配置的第三方服务而引起的任何数据处理、隐私事件或法律合规问题，Spencer Maqa 不承担任何责任。
 
 5. 用户同意与退出机制
 开启并使用云端功能即表示您明确同意您的数据将被传输至中国大陆的服务器进行计算，并同意上述基于法律法规的日志留档及数据处理规则。
 
-如果您对云端内容处理有任何疑虑，您可以选择不使用我们提供的云端服务。您可以随时切换至 Strophe 提供的纯本地（On-Device）离线处理模式，在该模式下，所有计算仅在您的设备上进行，绝对不会进行任何数据上传。";
+如果您对云端内容处理有任何疑虑，您可以选择不使用我们提供的云端服务。您可以随时切换至 Strophe 提供的纯本地（On-Device）离线处理模式，在该模式下，所有计算仅在您的设备上进行，绝对不会进行任何数据上传。
+
+6. 协议修订
+Spencer Maqa 保留不时修改本协议的权利。重大变更将通过应用内通知或更新本文档的方式告知。您在任何此类变更后继续使用云端服务，即表示接受修订后的条款。";
+
+"provider_volcengine" = "字节火山";
+"provider_baidu" = "百度千帆";
+"provider_tencent" = "腾讯云 TokenHub";
+"provider_glm" = "智谱 GLM";
+"provider_qwen" = "通义千问 Qwen";
+"provider_openai_compatible" = "GPT / OpenAI 兼容";
+"provider_anthropic_compatible" = "Anthropic 兼容";
+"language_chinese_simplified" = "简体中文";
+"language_chinese_traditional" = "繁体中文";
+"language_english" = "英语";
+"language_japanese" = "日语";
+"language_korean" = "韩语";
+"language_french" = "法语";
+"language_german" = "德语";
+"language_spanish" = "西班牙语";
+"language_portuguese" = "葡萄牙语";
+"language_italian" = "意大利语";
+"language_russian" = "俄语";
+"language_arabic" = "阿拉伯语";
+"language_thai" = "泰语";
+"language_vietnamese" = "越南语";
+"auto_wrap_words" = "单词型";
+"auto_wrap_continuous" = "连续型";
+"auto_wrap_insert_line_breaks" = "插入换行符";
+"auto_wrap_split_subtitle_blocks" = "切分字幕块";
+"translation_error_invalid_endpoint" = "翻译服务地址无效。";
+"translation_error_missing_model" = "请填写模型名称。";
+"translation_error_missing_api_key" = "请填写 API 密钥。";
+"translation_error_missing_modal_credentials" = "请填写 Modal-Key 和 Modal-Secret。";
+"translation_error_missing_cloudflare_account_id" = "请填写 Cloudflare Account ID。";
+"translation_error_invalid_response" = "翻译服务返回了无法识别的响应。";
+"translation_service_request_failed_format %lld %@" = "翻译服务请求失败（%1$lld）：%2$@";
+"translation_error_malformed" = "模型没有按要求返回字幕翻译结果。";
+"translation_error_unknown" = "未知错误";
+"btn_save_settings" = "保存设置";
+"settings_saved_success" = "机器翻译设置已保存";
+"select_all" = "全选";
+"project_saved_success" = "工程已保存";

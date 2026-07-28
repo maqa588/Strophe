@@ -12,14 +12,14 @@ enum TranslationClientError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidEndpoint: return "翻译服务地址无效。"
-        case .missingModel: return "请填写模型名称。"
-        case .missingAPIKey: return "请填写 API 密钥。"
-        case .missingModalCredentials: return "请填写 Modal-Key 和 Modal-Secret。"
-        case .missingCloudflareAccountID: return "请填写 Cloudflare Account ID。"
-        case .invalidResponse: return "翻译服务返回了无法识别的响应。"
-        case let .server(status, message): return "翻译服务请求失败（\(status)）：\(message)"
-        case .malformedTranslation: return "模型没有按要求返回字幕翻译结果。"
+        case .invalidEndpoint: return String(localized: "translation_error_invalid_endpoint")
+        case .missingModel: return String(localized: "translation_error_missing_model")
+        case .missingAPIKey: return String(localized: "translation_error_missing_api_key")
+        case .missingModalCredentials: return String(localized: "translation_error_missing_modal_credentials")
+        case .missingCloudflareAccountID: return String(localized: "translation_error_missing_cloudflare_account_id")
+        case .invalidResponse: return String(localized: "translation_error_invalid_response")
+        case let .server(status, message): return String(localized: "translation_service_request_failed_format \(status) \(message)")
+        case .malformedTranslation: return String(localized: "translation_error_malformed")
         }
     }
 }
@@ -114,7 +114,11 @@ actor TranslationLLMClient {
                     ["role": "system", "content": "You translate subtitles precisely and return only the requested output."],
                     ["role": "user", "content": prompt]
                 ],
-                "options": ["temperature": 0.1]
+                "options": [
+                    "temperature": 0.1,
+                    "num_ctx": configuration.provider.maxTokens,
+                    "num_predict": configuration.provider.maxTokens
+                ]
             ]
             if isJSON {
                 ollamaBody["format"] = "json"
@@ -129,6 +133,7 @@ actor TranslationLLMClient {
             }
             var openAIBody: [String: Any] = [
                 "model": configuration.model,
+                "max_tokens": configuration.provider.maxTokens,
                 "messages": [
                     ["role": "system", "content": "You translate subtitles precisely and return only the requested output."],
                     ["role": "user", "content": prompt]
@@ -151,7 +156,7 @@ actor TranslationLLMClient {
             request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
             body = [
                 "model": configuration.model,
-                "max_tokens": 8192,
+                "max_tokens": configuration.provider.maxTokens,
                 "temperature": 0.1,
                 "system": "You translate subtitles precisely and return only the requested output.",
                 "messages": [["role": "user", "content": prompt]]
@@ -215,7 +220,7 @@ actor TranslationLLMClient {
             if let error = json["error"] as? String { return error }
             if let message = json["message"] as? String { return message }
         }
-        return String(data: data, encoding: .utf8)?.prefix(500).description ?? "未知错误"
+        return String(data: data, encoding: .utf8)?.prefix(500).description ?? String(localized: "translation_error_unknown")
     }
 
     private func decodeBatch(_ raw: String) -> [TranslationResponseItem]? {

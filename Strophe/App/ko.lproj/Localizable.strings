@@ -521,6 +521,7 @@
 "status_segmenting_audio" = "오디오 분할 중…";
 "status_loading_parakeet" = "Parakeet-JA Core ML 모델 로딩 중…";
 "status_recognizing_parakeet_format" = "Parakeet-JA로 일본어 음성 구간 %1$d/%2$d 인식 중…";
+"status_recovering_parakeet_gaps_format" = "Parakeet-JA로 누락 음성 구간 %1$d/%2$d을(를) 다시 인식하는 중…";
 "status_loading_qwen3_asr" = "Qwen3-ASR Core ML 모델 로딩 중…";
 "status_recognizing_segment_format" = "음성 구간 %1$d/%2$d 인식 중…";
 "status_loading_forced_aligner" = "ForcedAligner Core ML 모델 로딩 중…";
@@ -651,7 +652,7 @@
 
 "trademarks_label" = "상표";
 "disclaimer_label" = "면책 조항";
-"trademark_disclaimer" = "상표 면책 조항\n\n본 소프트웨어 내에서 언급된 모든 제3자 제품명, 로고, 브랜드 및 상표(OpenAI, Anthropic, Google, Google AI Studio, xAI, Grok, DeepSeek, NVIDIA, NVIDIA NIM, Ollama, Meta, Llama, Moonshot AI, Kimi, MiniMax, ByteDance, Volcengine, PLaMo, Baidu, Baidu Qianfan, Modal, Tencent, Tencent Cloud, OpenRouter, Sakana AI, Cloudflare, Zhipu AI, GLM, Alibaba, Tongyi Qwen 등을 포함하되 이에 국한되지 않음)는 해당 소유자의 자산입니다.\n\n본 소프트웨어에서의 이러한 사용은 상표 소유자들의 본 소프트웨어에 대한 제휴, 후원, 파트너십, 보증 또는 승인을 의미하지 않습니다. Strophe는 독립적인 애플리케이션이며, 모든 제3자 연동은 오직 호환성 및 편의 목적으로만 제공됩니다.\n\n또한, 본 소프트웨어에서 언급된 Apple, ProRes, Apple ProRes, macOS, iOS, iPadOS 및 기타 모든 Apple 관련 제품명, 로고 또는 포맷 이름은 미국 및 기타 국가에 등록된 Apple Inc.의 상표 또는 등록상표입니다. Strophe는 독립적인 소프트웨어 애플리케이션이며 Apple Inc.와 아무런 관계, 제휴, 연결, 파트너십, 후원 또는 보증 관계가 없습니다. Apple ProRes 및 기타 Apple 미디어 포맷에 대한 언급은 오직 이러한 오디오/비디오 포맷과의 호환성을 명시하기 위한 목적입니다.";
+"trademark_disclaimer" = "상표 면책 조항\n\n본 소프트웨어 내에서 언급된 모든 제3자 제품명, 로고, 브랜드 및 상표(OpenAI, Anthropic, Google, Google AI Studio, xAI, Grok, DeepSeek, NVIDIA, NVIDIA NIM, Ollama, Meta, Llama, Moonshot AI, Kimi, MiniMax, ByteDance, Volcengine, PLaMo, Baidu, Baidu Qianfan, Modal, Tencent, Tencent Cloud, OpenRouter, Sakana AI, Cloudflare, Zhipu AI, GLM, Alibaba, Tongyi Qwen, FFmpeg, dav1d 등을 포함하되 이에 국한되지 않음)는 해당 소유자의 자산입니다.\n\n본 소프트웨어에서 이러한 명칭의 사용은 오직 호환성, 기술적 상호 운용성 및 지원 서비스 식별을 위한 것입니다. 이는 해당 상표 소유자에 의한 제휴, 후원, 파트너십, 보증 또는 승인을 의미하지 않습니다. Strophe는 독립적으로 개발된 애플리케이션이며, 모든 제3자 연동은 오직 호환성 및 편의 목적으로만 제공됩니다.\n\n또한, 본 소프트웨어에서 언급된 Apple, ProRes, Apple ProRes, macOS, iOS, iPadOS, VideoToolbox, AVFoundation 및 기타 모든 Apple 관련 제품명, 로고 또는 포맷 이름은 미국 및 기타 국가에서 Apple Inc.의 상표 또는 등록상표입니다. Strophe는 독립적인 소프트웨어 애플리케이션이며 Apple Inc.와 아무런 관계, 제휴, 연결, 파트너십, 후원 또는 보증 관계가 없습니다. Apple 기술 및 미디어 포맷에 대한 언급은 오직 이러한 오디오/비디오 프레임워크 및 포맷과의 기술적 호환성을 명시하기 위한 목적입니다.";
 
 "eula_label" = "최종 사용자 라이선스 계약";
 "cloud_agreement_label" = "클라우드 사용 계약";
@@ -660,12 +661,12 @@
 Strophe 소프트웨어를 사용하기 전에 본 소프트웨어 라이선스 계약(\"라이선스\")을 주의 깊게 읽어보시기 바랍니다. Strophe 소프트웨어를 사용함으로써 귀하는 본 라이선스의 조건에 구속되는 데 동의하게 됩니다.
 
 1. 일반 사항
-본 라이선스와 함께 제공되는 Strophe 소프트웨어 및 제3자 소프트웨어, 문서, 인터페이스, 콘텐츠, 폰트 및 데이터는 Spencer 가 귀하에게 판매하는 것이 아니라 본 라이선스 조건에 따라 사용하도록 허락하는 것입니다.
+본 라이선스와 함께 제공되는 Strophe 소프트웨어 및 제3자 소프트웨어, 문서, 인터페이스, 콘텐츠, 폰트 및 데이터는 Spencer Maqa가 귀하에게 판매하는 것이 아니라 본 라이선스 조건에 따라 사용하도록 허락하는 것입니다. Spencer Maqa는 Strophe 소프트웨어 자체의 소유권을 보유하며, 명시적으로 부여되지 않은 모든 권리를 유보합니다.
 
-2. FSL 1.1 라이선스 및 App Store 독점 배포권
-Strophe의 소스 코드는 Functional Source License, Version 1.1, ALv2 Future License (FSL-1.1-ALv2)에 따라 제공됩니다. 귀하는 FSL 1.1 라이선스에 정의된 허용된 목적을 위해 소프트웨어를 사용, 복사, 수정, 파생물 생성, 공개 실행 및 재배포할 수 있는 권리를 부여받습니다.
+2. 소스 라이선스 및 공식 배포권
+Strophe의 소스 코드는 Functional Source License, Version 1.1, ALv2 Future License (FSL-1.1-ALv2)에 따라 제공됩니다. FSL 1.1에 따라 귀하에게는 해당 라이선스에서 정의된 허용된 목적을 위해 소프트웨어를 사용, 복사, 수정, 파생물 생성, 공개 실행, 공개 표시 및 재배포할 수 있는 권리가 부여됩니다.
 
-중요한 예외 조항: FSL 1.1 라이선스에 따라 부여된 허가에도 불구하고, 변경일(소프트웨어가 Apache License 2.0으로 전환되는 날짜) 이전에 Apple App Store(iOS App Store 및 Mac App Store 포함)에서 Strophe 애플리케이션을 배포, 게시 또는 제공할 수 있는 독점적 권리는 오직 Spencer Maqa 본인에게만 엄격하게 유보 및 소유됩니다. Spencer Maqa의 사전 명시적 서면 동의 없이는 본 소프트웨어 또는 그 파생물을 Apple App Store에 배포할 수 없습니다.
+App Store 배포 제한(FSL 1.1 추가 조항): 변경일(본 소프트웨어의 각 버전이 라이선서의 공식 소스 코드 저장소를 통해 최초로 공개된 날로부터 2주년이 되는 날) 이전에, Strophe 이름, 브랜드, 아이콘 및 코드 서명 ID를 사용하는 공식 Strophe 애플리케이션을 Apple App Store(iOS App Store 및 Mac App Store 포함)에 게시할 수 있는 독점적 권리는 Spencer Maqa 본인에게만 엄격하게 유보됩니다. Spencer Maqa의 사전 서면 동의 없이 Strophe 이름, 상표 또는 공식 코드 서명 ID를 사용하여 Apple App Store에 빌드를 배포할 수 없습니다. 이 제한은 공식 브랜드 및 배포 채널에만 적용됩니다. 모든 Strophe 상표를 제거한 독립 브랜드 파생물은 FSL 1.1 조항에 의해서만 규율됩니다.
 
 3. 데이터 사용 동의
 진단 및 사용 정보 수집을 허용하기로 선택한 경우, 귀하는 당사가 제품 및 서비스를 개선하기 위해 진단, 기술, 사용 및 관련 정보를 수집, 유지 관리, 처리 및 사용할 수 있음에 동의합니다. 모든 데이터는 적용되는 개인정보 처리방침 및 클라우드 사용 계약에 따라 처리됩니다.
@@ -679,32 +680,87 @@ Strophe의 소스 코드는 Functional Source License, Version 1.1, ALv2 Future 
 6. 수출 통제
 귀하는 중화인민공화국의 법률(중화인민공화국 수출 통제법 포함하되 이에 국한되지 않음) 및 Strophe 소프트웨어를 취득한 관할권의 법률에 의해 승인된 경우를 제외하고 Strophe 소프트웨어를 사용하거나 수출 또는 재수출할 수 없습니다.
 
-7. 제3자 인정 및 비디오 형식 선언
-A. MPEG-4: 본 제품은 소비자가 개인적이고 비상업적인 활동에 참여하여 인코딩한 MPEG-4 비디오를 디코딩하거나 MPEG-4 비주얼 표준을 준수하여 비디오를 인코딩하기 위해 소비자의 개인적이고 비상업적인 사용을 위해 MPEG-4 Visual Patent Portfolio License에 따라 라이선스가 부여됩니다.
-B. H.264/AVC: Strophe 소프트웨어에 AVC 인코딩 및/또는 디코딩 기능이 포함된 경우 H.264/AVC의 상업적 사용에는 추가 라이선스가 필요하며 다음 규정이 적용됩니다. 본 제품의 AVC 기능은 AVC 표준을 준수하여 비디오를 인코딩하거나 AVC 비디오를 디코딩하기 위한 소비자의 개인적이고 비상업적인 사용을 위해서만 본 계약에 따라 라이선스가 부여됩니다.
-C. HEVC (H.265): Strophe 소프트웨어에 HEVC 기능이 포함된 경우 다음 규정이 적용됩니다. 본 제품에는 HEVC/H.265 표준에서 제3자의 특정 지적 재산권이 적용되는 기술이 포함되어 있습니다. 고객은 라이선스가 필요한지 판단하기 위해 독립적인 법률 고문과 상의해야 합니다.
+7. 제3자 컴포넌트 및 미디어 코덱 고지
+Strophe는 여러 오픈 소스 컴포넌트를 통합하고 있으며, 각 컴포넌트는 자체 라이선스에 의해 규율됩니다. 제3자 라이선스의 전체 목록은 애플리케이션 내 설정 > 정보 > 라이선스에서 확인할 수 있습니다.
+
+A. 미디어 디코딩: Strophe의 오디오 및 비디오 디코딩은 주로 Apple VideoToolbox 및 AVFoundation(해당 코덱 라이선스는 Apple 플랫폼 계약으로 처리됨)을 통해 수행되며, 확장 포맷 지원을 위해 FFmpeg(LGPL v2.1+)가 보완적으로 사용됩니다. Apple 플랫폼에서의 하드웨어 가속 디코딩은 전적으로 운영 체제에 의해 처리됩니다.
+B. MPEG-4: 본 제품은 운영 체제에서 제공하는 MPEG-4 비주얼 디코딩을 사용할 수 있습니다. MPEG-4 Visual Patent Portfolio License는 MPEG-4 비주얼 표준을 준수하여 인코딩 및 디코딩하기 위한 소비자의 개인적이고 비상업적인 사용을 허용합니다.
+C. H.264/AVC: Strophe 소프트웨어가 AVC 비디오를 처리하는 한, 해당 디코딩은 Apple VideoToolbox 또는 FFmpeg에 의해 수행됩니다. AVC 기능은 소비자의 개인적이고 비상업적인 사용을 위한 것입니다. H.264/AVC의 상업적 사용에는 MPEG LA로부터 추가 라이선스가 필요할 수 있습니다.
+D. HEVC (H.265): Strophe 소프트웨어가 HEVC 비디오를 처리하는 한, 해당 디코딩은 Apple VideoToolbox(HEVC 특허 라이선스는 Apple이 운영 체제의 일부로 관리) 또는 FFmpeg에 의해 처리됩니다. 상업적 HEVC 워크플로에 종사하는 사용자는 적용 가능한 특허 풀 의무에 대해 자체 법률 고문과 상의해야 합니다.
+E. AV1: Strophe는 오픈 소스 dav1d 라이브러리(BSD 2-Clause 라이선스) 및 기본 운영 체제 프레임워크를 사용한 AV1 비디오 디코딩을 지원합니다. AV1은 Alliance for Open Media(AOMedia)에서 개발한 로열티 프리 오픈 비디오 코딩 포맷입니다.
+F. Apple ProRes: Strophe의 Apple ProRes 비디오 디코딩 지원은 macOS, iOS 및 iPadOS에 내장된 Apple 기본 VideoToolbox 및 AVFoundation 프레임워크를 통해 전적으로 제공됩니다. ProRes 디코딩은 Apple 운영 체제 프레임워크에 의해 기본으로 처리됩니다.
 
 8. 계약 종료
-본 라이선스는 종료될 때까지 유효합니다. 본 라이선스의 조건을 준수하지 않을 경우 본 라이선스에 따른 귀하의 권리는 통지 없이 자동으로 종료되거나 효력을 상실합니다.";
+본 라이선스는 종료될 때까지 유효합니다. 본 라이선스의 조건을 준수하지 않을 경우 본 라이선스에 따른 귀하의 권리는 통지 없이 자동으로 종료되거나 효력을 상실합니다.
+
+9. 준거법 및 분쟁 해결
+본 라이선스는 중화인민공화국의 법률에 의해 규율되고 해석됩니다. Spencer Maqa는 본 소프트웨어가 배포되는 관할권에서 적용되는 소비자 보호, 데이터 프라이버시 및 지적 재산권 법률 및 규정도 존중하고 준수합니다. 이에는 대만 지역, 홍콩 특별행정구, 일본, 한국, 유럽연합, 미국 및 중동 지역의 법률이 포함되되 이에 국한되지 않습니다. 본 라이선스로 인해 발생하거나 이와 관련된 분쟁은 먼저 우호적 협상을 통해 해결해야 합니다. 협상이 실패할 경우 분쟁은 중화인민공화국의 관할 법원에 제출됩니다.
+
+10. 분리 가능성
+본 라이선스의 어떤 조항이 관할 법원에 의해 무효 또는 집행 불능으로 판단되는 경우, 나머지 조항은 계속하여 완전한 효력을 유지합니다. 무효 또는 집행 불능 조항은 원래의 의도를 유지하면서 유효하고 집행 가능하게 만드는 데 필요한 최소한의 범위로 수정됩니다.";
 "cloud_agreement_body" = "클라우드 사용 및 데이터 개인정보 보호 계약
 
 1. 클라우드 서비스 개요
 Strophe는 고급 음성 인식(ASR), 강제 정렬 및 기계 번역 기능을 제공하기 위해 다양한 클라우드 기반 인공지능 서비스를 통합하여 사용합니다.
 
 2. 데이터 전송 및 처리 위치
-Strophe의 클라우드 기능을 사용함으로써 귀하는 오디오 데이터, 비디오 파일, 자막 및 관련 텍스트 데이터가 계산 및 처리를 위해 인터넷을 통해 원격 서버로 안전하게 전송된다는 점을 인지하고 이에 동의합니다. 타사 AI 서비스 제공업체(예: Baidu, Tencent, Alibaba, Moonshot AI 등)가 운영하는 서버를 포함한 이러한 계산 서버는 주로 [중국 본토]에 위치하고 있습니다.
+Strophe의 클라우드 기능을 사용함으로써 귀하는 오디오 데이터, 비디오 파일, 자막 및 관련 텍스트 데이터가 계산 및 처리를 위해 인터넷을 통해 원격 서버로 안전하게 전송된다는 점을 인지하고 이에 동의합니다. 타사 AI 서비스 제공업체(예: Baidu, Tencent, Alibaba, Moonshot AI 등)가 운영하는 서버를 포함한 이러한 계산 서버는 주로 중국 본토에 위치하고 있습니다.
+
+해외 사용자 안내: 중국 본토 외 지역에 거주하는 경우, Strophe의 온디바이스(로컬) 처리 모드를 사용하거나 귀하의 지역에서 호스팅되는 타사 LLM API를 구성할 수 있습니다. 이러한 모드에서는 데이터가 중국 본토의 서버를 경유하지 않습니다.
 
 3. 법적 준수 및 데이터 보관
 '중화인민공화국 사이버 보안법', '데이터 보안법', '개인정보 보호법' 및 기타 중국 본토의 관련 법률, 규정 및 행정 요구 사항을 엄격히 준수하기 위해 다음과 같이 조치합니다:
 
 - 데이터 보관 및 로그 저장: 네트워크 운영 보안을 보장하고 국가 관련 부서의 합법적인 감사에 협조하기 위해, 당사는 사이버 보안법 제21조의 규정에 따라 네트워크 운영 상태, 사이버 보안 사고, 클라우드 서비스 요청 로그 등의 관련 네트워크 운영 로그를 최소 6개월 이상 보관합니다.
 
-- 데이터 보안 및 프라이버시: 귀하의 미디어 데이터는 귀하가 요청한 기록 또는 번역 작업을 실행하는 데만 사용됩니다. 당사는 귀하의 허가 없이 귀하의 개인 미디어 데이터를 당사의 자체 핵심 모델을 학습시키는 데 사용하지 않을 것을 약속합니다. 단, 데이터가 타사 클라우드 서비스 제공업체를 거쳐갈 때 해당 제공업체가 중국 본토 법률을 준수하기 위해 제정한 표준 데이터 보존 및 검열 정책의 적용도 받게 된다는 점에 유의하시기 바랍니다.
+- 데이터 보안 및 프라이버시: 귀하의 미디어 데이터는 귀하가 요청한 기록 또는 번역 작업을 실행하는 데만 사용됩니다. 당사는 귀하의 명시적 허가 없이 귀하의 개인 미디어 데이터를 당사의 자체 핵심 모델을 학습시키는 데 사용하지 않을 것을 약속합니다. 단, 데이터가 타사 클라우드 서비스 제공업체를 거쳐갈 때 해당 제공업체가 적용 법률을 준수하기 위해 제정한 표준 데이터 보존 및 법령 준수 정책의 적용도 받게 된다는 점에 유의하시기 바랍니다.
 
 4. 타사 LLM 사용자 지정 면책 조항
-Strophe는 기계 번역을 위해 타사 LLM(대형 언어 모델) API를 직접 추가하고 구성할 수 있도록 허용합니다. 귀하가 직접 추가한 타사 LLM 제공업체는 당사의 규제나 감독 대상이 아님을 유의하시기 바랍니다. 이러한 서비스를 사용할 때 귀하는 현지 법률은 물론 해당 제공업체의 법적 규정 및 서비스 약관을 자발적으로 준수해야 합니다.
+Strophe는 기계 번역을 위해 타사 LLM(대형 언어 모델) API를 직접 추가하고 구성할 수 있도록 허용합니다. 귀하가 직접 추가한 타사 서비스는 당사의 감독, 통제 또는 규제 대상이 아닙니다. 이러한 서비스를 사용할 때 귀하는 현지 법률 및 규정, 그리고 해당 타사 제공업체의 서비스 약관을 스스로 준수할 책임이 있습니다. 귀하가 직접 구성한 타사 서비스의 사용으로 인해 발생하는 데이터 처리, 개인정보 사고 또는 법적 준수 문제에 대해 Spencer Maqa는 어떠한 책임도 지지 않습니다.
 
 5. 사용자 동의 및 수신 거부
 클라우드 기능을 활성화하고 사용함으로써 귀하는 귀하의 데이터가 계산을 위해 중국 본토의 서버로 전송되는 것에 명시적으로 동의하며, 상기 법률 및 규정에 기반한 로그 보관 및 데이터 처리 규칙에 동의합니다.
 
-클라우드 콘텐츠 처리 방식에 대해 의문이 있거나 우려되는 경우, 당사가 제공하는 클라우드 서비스를 사용하지 않도록 선택할 수 있습니다. 언제든지 Strophe가 제공하는 완전한 로컬(On-Device) 오프라인 처리 모드로 전환할 수 있으며, 이 경우 모든 데이터는 기기에서만 계산되고 절대 업로드되지 않습니다.";
+클라우드 콘텐츠 처리 방식에 대해 의문이 있거나 우려되는 경우, 당사가 제공하는 클라우드 서비스를 사용하지 않도록 선택할 수 있습니다. 언제든지 Strophe가 제공하는 완전한 로컬(On-Device) 오프라인 처리 모드로 전환할 수 있으며, 이 경우 모든 데이터는 기기에서만 계산되고 절대 업로드되지 않습니다.
+
+6. 계약 수정
+Spencer Maqa는 본 계약을 수시로 수정할 권리를 보유합니다. 중요한 변경 사항은 앱 내 알림 또는 본 문서 업데이트를 통해 통지됩니다. 이러한 변경 후에도 클라우드 서비스를 계속 사용하면 수정된 조건에 동의한 것으로 간주됩니다.";
+
+"provider_volcengine" = "ByteDance Volcengine";
+"provider_baidu" = "Baidu Qianfan";
+"provider_tencent" = "Tencent Cloud TokenHub";
+"provider_glm" = "Zhipu GLM";
+"provider_qwen" = "Tongyi Qwen";
+"provider_openai_compatible" = "GPT / OpenAI 호환";
+"provider_anthropic_compatible" = "Anthropic 호환";
+"language_chinese_simplified" = "간체 중국어";
+"language_chinese_traditional" = "번체 중국어";
+"language_english" = "영어";
+"language_japanese" = "일본어";
+"language_korean" = "한국어";
+"language_french" = "프랑스어";
+"language_german" = "독일어";
+"language_spanish" = "스페인어";
+"language_portuguese" = "포르투갈어";
+"language_italian" = "이탈리아어";
+"language_russian" = "러시아어";
+"language_arabic" = "아랍어";
+"language_thai" = "태국어";
+"language_vietnamese" = "베트남어";
+"auto_wrap_words" = "단어 단위";
+"auto_wrap_continuous" = "연속형";
+"auto_wrap_insert_line_breaks" = "줄 바꿈 삽입";
+"auto_wrap_split_subtitle_blocks" = "자막 블록 분할";
+"translation_error_invalid_endpoint" = "번역 서비스 주소가 올바르지 않습니다.";
+"translation_error_missing_model" = "모델 이름을 입력하세요.";
+"translation_error_missing_api_key" = "API 키를 입력하세요.";
+"translation_error_missing_modal_credentials" = "Modal-Key 및 Modal-Secret을 입력하세요.";
+"translation_error_missing_cloudflare_account_id" = "Cloudflare Account ID를 입력하세요.";
+"translation_error_invalid_response" = "번역 서비스에서 인식할 수 없는 응답을 반환했습니다.";
+"translation_service_request_failed_format %lld %@" = "번역 서비스 요청 실패（%1$lld）：%2$@";
+"translation_error_malformed" = "모델이 요청된 자막 번역 결과를 반환하지 않았습니다.";
+"translation_error_unknown" = "알 수 없는 오류";
+"btn_save_settings" = "설정 저장";
+"settings_saved_success" = "기계 번역 설정이 저장되었습니다";
+"select_all" = "전체 선택";
+"project_saved_success" = "프로젝트가 저장되었습니다";

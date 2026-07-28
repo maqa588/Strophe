@@ -202,6 +202,19 @@ struct TranslationConfigView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+
+            Section {
+                Button(action: saveWithFeedback) {
+                    HStack {
+                        Spacer()
+                        Label(String(localized: "btn_save_settings"), systemImage: "checkmark.circle.fill")
+                            .font(.subheadline.weight(.semibold))
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .listRowBackground(Color.clear)
+            }
         }
         .formStyle(.grouped)
         .background(Color.stropheBackground)
@@ -209,11 +222,51 @@ struct TranslationConfigView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        .overlay(alignment: .top) {
+            if showSavedToast {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text(String(localized: "settings_saved_success"))
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Color.stropheText)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(
+                    Capsule()
+                        .fill(Color.stropheSecondaryBackground)
+                        .shadow(color: Color.black.opacity(0.25), radius: 10, x: 0, y: 4)
+                )
+                .overlay(
+                    Capsule().stroke(Color.green.opacity(0.4), lineWidth: 1)
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .padding(.top, 12)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheSaveProject)) { _ in
+            saveWithFeedback()
+        }
         .onAppear {
             initializeSelection()
         }
         .onDisappear {
             settings.save()
+        }
+    }
+
+    @State private var showSavedToast = false
+    
+    private func saveWithFeedback() {
+        settings.save()
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            showSavedToast = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            withAnimation(.easeOut(duration: 0.4)) {
+                showSavedToast = false
+            }
         }
     }
     

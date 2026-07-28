@@ -60,6 +60,7 @@ actor SubtitleGenerator {
             )
         )
         let islands: [CoreMLFireRedVAD.VoiceIsland]
+        let vadRecoveryRanges: [ParakeetAdaptiveRecovery.TimeRange]
         if useVAD {
             // Keep VAD in a nested scope so its Core ML model is released before
             // the much larger ASR model is loaded.
@@ -71,6 +72,12 @@ actor SubtitleGenerator {
             // ForcedAligner decoder sequences comfortably within their budget.
             let merged = Self.mergeIslands(rawIslands, gapSamples: 24000, maxSamples: 320000)
             islands = Self.splitIslands(merged, maxSamples: 320000)
+            vadRecoveryRanges = rawIslands.map {
+                ParakeetAdaptiveRecovery.TimeRange(
+                    start: $0.startTime,
+                    end: $0.endTime
+                )
+            }
             print("VAD: \(rawIslands.count) 个原始岛 → 合并为 \(islands.count) 个语音块")
         } else {
             // Cut uniformly into 20-second segments (320000 samples at 16kHz)
@@ -90,6 +97,7 @@ actor SubtitleGenerator {
                 offset += chunkSamples
             }
             islands = uniformIslands
+            vadRecoveryRanges = []
             print("VAD Disabled: 均匀切分为 \(islands.count) 个语音块")
         }
         
@@ -145,6 +153,92 @@ actor SubtitleGenerator {
                             )
                         }
                     )
+                }
+
+                let recoveryConfiguration = ParakeetAdaptiveRecovery.Configuration()
+                let initialMissingRanges = ParakeetAdaptiveRecovery.missingSpeechRanges(
+                    speechRanges: vadRecoveryRanges,
+                    tokenRanges: nativeTimedTokens.map {
+                        ParakeetAdaptiveRecovery.TimeRange(
+                            start: $0.startTime,
+                            end: $0.endTime
+                        )
+                    },
+                    minimumDuration: recoveryConfiguration.minimumMissingDuration
+                )
+                if !initialMissingRanges.isEmpty {
+                    print(
+                        "Parakeet-JA: 检测到 \(initialMissingRanges.count) 个 VAD 有声但无 token 的区间，开始自适应补漏"
+                    )
+                }
+                let audioDuration = Double(samples.count) / 16_000.0
+                for (index, missing) in initialMissingRanges.enumerated() {
+                    try Task.checkCancellation()
+                    progressCallback?(
+                        1,
+                        0.9 + 0.09 * Double(index) / Double(max(1, initialMissingRanges.count)),
+                        String(
+                            format: NSLocalizedString(
+                                "status_recovering_parakeet_gaps_format",
+                                comment: "ASR recovery progress"
+                            ),
+                            index + 1,
+                            initialMissingRanges.count
+                        )
+                    )
+
+                    let contextual = ParakeetAdaptiveRecovery.contextualWindow(
+                        for: missing,
+                        audioDuration: audioDuration,
+                        configuration: recoveryConfiguration
+                    )
+                    Self.appendParakeetRecoveryTokens(
+                        try Self.transcribeParakeetRecoveryWindow(
+                            contextual,
+                            samples: samples,
+                            asr: asr
+                        ),
+                        acceptance: contextual.acceptance,
+                        to: &nativeTimedTokens
+                    )
+
+                    // A broad ±4-second retry usually restores the missing
+                    // sentence. If any one-second token-free portion remains,
+                    // deliberately reposition it near the start of a fixed
+                    // encoder window and retry only that residual portion.
+                    let residualRanges = ParakeetAdaptiveRecovery.missingSpeechRanges(
+                        speechRanges: [missing],
+                        tokenRanges: nativeTimedTokens.map {
+                            ParakeetAdaptiveRecovery.TimeRange(
+                                start: $0.startTime,
+                                end: $0.endTime
+                            )
+                        },
+                        minimumDuration: recoveryConfiguration.minimumMissingDuration
+                    )
+                    for residual in residualRanges {
+                        for shifted in ParakeetAdaptiveRecovery.shiftedWindows(
+                            for: residual,
+                            audioDuration: audioDuration,
+                            configuration: recoveryConfiguration
+                        ) {
+                            try Task.checkCancellation()
+                            Self.appendParakeetRecoveryTokens(
+                                try Self.transcribeParakeetRecoveryWindow(
+                                    shifted,
+                                    samples: samples,
+                                    asr: asr
+                                ),
+                                acceptance: shifted.acceptance,
+                                to: &nativeTimedTokens
+                            )
+                        }
+                    }
+                }
+                nativeTimedTokens.sort {
+                    $0.startTime == $1.startTime
+                        ? $0.endTime < $1.endTime
+                        : $0.startTime < $1.startTime
                 }
             }
             results = SubtitleSegmentation.makeSegments(words: nativeTimedTokens)
@@ -261,6 +355,112 @@ actor SubtitleGenerator {
     }
 
     #if STROPHE_LOCAL_AI
+    @available(iOS 18.0, macOS 15.0, *)
+    private static func transcribeParakeetRecoveryWindow(
+        _ window: ParakeetAdaptiveRecovery.RetryWindow,
+        samples: [Float],
+        asr: CoreMLParakeetJA
+    ) throws -> [SubtitleWordTiming] {
+        let sampleRate = 16_000.0
+        let startSample = max(
+            0,
+            min(samples.count, Int(floor(window.audio.start * sampleRate)))
+        )
+        let endSample = max(
+            startSample,
+            min(samples.count, Int(ceil(window.audio.end * sampleRate)))
+        )
+        guard endSample > startSample else { return [] }
+
+        let transcription = try autoreleasepool {
+            try asr.transcribe(audio: Array(samples[startSample..<endSample]))
+        }
+        let offset = Double(startSample) / sampleRate
+        return transcription.tokenTimings.compactMap {
+            let timing = SubtitleWordTiming(
+                text: $0.text,
+                startTime: $0.startTime + offset,
+                endTime: $0.endTime + offset
+            )
+            let center = (timing.startTime + timing.endTime) / 2
+            // FireRedVAD boundaries include only 250 ms of padding. Keep a
+            // little more leading room so the first Japanese subword is not
+            // clipped (for example `き` in `きっかけ`).
+            guard center >= window.acceptance.start - 0.35,
+                  center < window.acceptance.end else {
+                return nil
+            }
+            return timing
+        }
+    }
+
+    private static func appendParakeetRecoveryTokens(
+        _ recoveredTokens: [SubtitleWordTiming],
+        acceptance: ParakeetAdaptiveRecovery.TimeRange,
+        to existingTokens: inout [SubtitleWordTiming]
+    ) {
+        guard !recoveredTokens.isEmpty else { return }
+        var recovered = recoveredTokens.sorted {
+            $0.startTime == $1.startTime
+                ? $0.endTime < $1.endTime
+                : $0.startTime < $1.startTime
+        }
+        let existing = existingTokens.sorted {
+            $0.startTime == $1.startTime
+                ? $0.endTime < $1.endTime
+                : $0.startTime < $1.startTime
+        }
+
+        // A recovery window deliberately overlaps the original pass. Remove
+        // identical token sequences at both stitching boundaries while
+        // preserving repeated tokens produced inside the recovered sentence.
+        let previous = existing.filter {
+            ($0.startTime + $0.endTime) / 2 < acceptance.start
+        }
+        if let previousEnd = previous.last?.endTime,
+           let recoveredStart = recovered.first?.startTime,
+           recoveredStart - previousEnd <= 1.0 {
+            let overlap = tokenOverlapCount(
+                suffixOf: previous,
+                prefixOf: recovered
+            )
+            if overlap > 0 {
+                recovered.removeFirst(overlap)
+            }
+        }
+
+        let following = existing.filter {
+            ($0.startTime + $0.endTime) / 2 >= acceptance.end
+        }
+        if let recoveredEnd = recovered.last?.endTime,
+           let followingStart = following.first?.startTime,
+           followingStart - recoveredEnd <= 0.5 {
+            let overlap = tokenOverlapCount(
+                suffixOf: recovered,
+                prefixOf: following
+            )
+            if overlap > 0 {
+                recovered.removeLast(overlap)
+            }
+        }
+
+        existingTokens.append(contentsOf: recovered)
+    }
+
+    private static func tokenOverlapCount(
+        suffixOf left: [SubtitleWordTiming],
+        prefixOf right: [SubtitleWordTiming]
+    ) -> Int {
+        let limit = min(12, left.count, right.count)
+        guard limit > 0 else { return 0 }
+        for count in stride(from: limit, through: 1, by: -1) {
+            if left.suffix(count).map(\.text) == right.prefix(count).map(\.text) {
+                return count
+            }
+        }
+        return 0
+    }
+
     /// 移除 Qwen3-ASR 偶发泄漏的 prompt 指令伪影（如 "language None"）。
     private static func stripPromptLeakage(from text: String) -> String {
         guard let regex = try? NSRegularExpression(pattern: "language\\s+None", options: [.caseInsensitive]) else {

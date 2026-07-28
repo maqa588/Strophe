@@ -13,6 +13,7 @@ xcuserdata/
 ## Build results
 build/
 DerivedData/
+*.build/
 
 ## Schemes
 ## build/

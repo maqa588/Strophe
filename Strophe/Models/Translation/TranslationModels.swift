@@ -70,18 +70,18 @@ enum TranslationProvider: String, CaseIterable, Identifiable, Codable, Sendable 
         case .meta: return "Meta Llama"
         case .kimi: return "Kimi / Moonshot"
         case .minimax: return "MiniMax"
-        case .volcengine: return "字节火山"
+        case .volcengine: return String(localized: "provider_volcengine")
         case .plamo: return "PLaMo"
-        case .baidu: return "百度千帆"
+        case .baidu: return String(localized: "provider_baidu")
         case .modal: return "Modal"
-        case .tencent: return "腾讯云 TokenHub"
+        case .tencent: return String(localized: "provider_tencent")
         case .openrouter: return "OpenRouter"
         case .sakana: return "Sakana AI"
         case .cloudflare: return "Cloudflare Workers AI"
-        case .glm: return "智谱 GLM"
-        case .qwen: return "通义千问 Qwen"
-        case .openAICompatible: return "GPT / OpenAI 兼容"
-        case .anthropicCompatible: return "Anthropic 兼容"
+        case .glm: return String(localized: "provider_glm")
+        case .qwen: return String(localized: "provider_qwen")
+        case .openAICompatible: return String(localized: "provider_openai_compatible")
+        case .anthropicCompatible: return String(localized: "provider_anthropic_compatible")
         }
     }
 
@@ -115,7 +115,7 @@ enum TranslationProvider: String, CaseIterable, Identifiable, Codable, Sendable 
         switch self {
         case .openai: return "gpt-5.6-terra"
         case .anthropic: return "claude-sonnet-5"
-        case .google: return "gemini-3.5-flash"
+        case .google: return "gemini-3.6-flash"
         case .grok: return "grok-4.5"
         case .deepseek: return "deepseek-v4-flash"
         case .nvidia: return "nvidia/nemotron-3-super-120b-a12b"
@@ -142,9 +142,9 @@ enum TranslationProvider: String, CaseIterable, Identifiable, Codable, Sendable 
         case .openai:
             return ["gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.6-luna"]
         case .anthropic:
-            return ["claude-sonnet-5", "claude-opus-4-8", "claude-fable-5", "claude-haiku-4-5"]
+            return ["claude-sonnet-5", "claude-opus-5", "claude-fable-5", "claude-haiku-4-5"]
         case .google:
-            return ["gemini-3.5-flash", "gemini-3.1-pro-preview", "gemini-3.1-flash-lite"]
+            return ["gemini-3.6-flash", "gemini-3.1-pro-preview", "gemini-3.5-flash-lite"]
         case .grok:
             return ["grok-4.5", "grok-4.3", "grok-4.20-0309-non-reasoning", "grok-4.20-0309-reasoning"]
         case .deepseek:
@@ -185,6 +185,14 @@ enum TranslationProvider: String, CaseIterable, Identifiable, Codable, Sendable 
     }
 
     nonisolated var needsAPIKey: Bool { self != .ollama }
+
+    nonisolated var maxTokens: Int {
+        self == .ollama ? 8192 : 65536
+    }
+
+    nonisolated var batchChunkSize: Int {
+        self == .ollama ? 30 : 200
+    }
 }
 
 struct TranslationLLMConfiguration: Sendable {
@@ -227,21 +235,21 @@ enum SubtitleLanguage: String, CaseIterable, Identifiable, Sendable {
 
     nonisolated var title: String {
         switch self {
-        case .auto: return "auto_detect"
-        case .chineseSimplified: return "简体中文"
-        case .chineseTraditional: return "繁体中文"
-        case .english: return "英语"
-        case .japanese: return "日语"
-        case .korean: return "韩语"
-        case .french: return "法语"
-        case .german: return "德语"
-        case .spanish: return "西班牙语"
-        case .portuguese: return "葡萄牙语"
-        case .italian: return "意大利语"
-        case .russian: return "俄语"
-        case .arabic: return "阿拉伯语"
-        case .thai: return "泰语"
-        case .vietnamese: return "越南语"
+        case .auto: return String(localized: "auto_detect")
+        case .chineseSimplified: return String(localized: "language_chinese_simplified")
+        case .chineseTraditional: return String(localized: "language_chinese_traditional")
+        case .english: return String(localized: "language_english")
+        case .japanese: return String(localized: "language_japanese")
+        case .korean: return String(localized: "language_korean")
+        case .french: return String(localized: "language_french")
+        case .german: return String(localized: "language_german")
+        case .spanish: return String(localized: "language_spanish")
+        case .portuguese: return String(localized: "language_portuguese")
+        case .italian: return String(localized: "language_italian")
+        case .russian: return String(localized: "language_russian")
+        case .arabic: return String(localized: "language_arabic")
+        case .thai: return String(localized: "language_thai")
+        case .vietnamese: return String(localized: "language_vietnamese")
         }
     }
 }
@@ -251,7 +259,7 @@ enum AutoWrapLanguageMode: String, CaseIterable, Identifiable, Sendable {
     case continuous
 
     var id: String { rawValue }
-    var title: String { self == .words ? "单词型" : "连续型" }
+    var title: String { self == .words ? String(localized: "auto_wrap_words") : String(localized: "auto_wrap_continuous") }
 }
 
 enum AutoWrapOutputMode: String, CaseIterable, Identifiable, Sendable {
@@ -259,7 +267,7 @@ enum AutoWrapOutputMode: String, CaseIterable, Identifiable, Sendable {
     case splitSubtitleBlocks
 
     var id: String { rawValue }
-    var title: String { self == .insertLineBreaks ? "插入换行符" : "切分字幕块" }
+    var title: String { self == .insertLineBreaks ? String(localized: "auto_wrap_insert_line_breaks") : String(localized: "auto_wrap_split_subtitle_blocks") }
 }
 
 @MainActor

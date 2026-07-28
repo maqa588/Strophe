@@ -17,7 +17,7 @@ extension ContentView {
             if let keyWindow = NSApp.keyWindow,
                let responder = keyWindow.firstResponder {
                 let className = String(describing: type(of: responder))
-                if responder is NSText || className.contains("Text") || className.contains("Field") || className.contains("Editor") {
+                if responder is NSText || className.contains("Text") || className.contains("Field") || className.contains("Editor") || className.contains("Search") {
                     return event
                 }
             }
@@ -38,23 +38,9 @@ extension ContentView {
 
             if isKeyDown {
                 let mod = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-                if mod == .command, event.charactersIgnoringModifiers == "z" {
-                    project.undo(); return nil
-                }
-                if mod == [.command, .shift], event.charactersIgnoringModifiers == "Z" {
-                    project.redo(); return nil
-                }
-                if mod == .command, event.charactersIgnoringModifiers?.lowercased() == "c" {
-                    guard project.canCopySelectedSubtitleBlocks else { return event }
-                    project.copySelectedSubtitleBlocks(); return nil
-                }
-                if mod == .command, event.charactersIgnoringModifiers?.lowercased() == "x" {
-                    guard project.canCutSelectedSubtitleBlocks else { return event }
-                    project.cutSelectedSubtitleBlocks(); return nil
-                }
-                if mod == .command, event.charactersIgnoringModifiers?.lowercased() == "v" {
-                    guard project.canPasteSubtitleBlocks else { return event }
-                    project.pasteSubtitleBlocksIntoActiveGroup(); return nil
+                if mod == .command || mod == [.command, .shift] {
+                    // Handled by main menu commands with proper text/timeline routing
+                    return event
                 }
                 if mod.isEmpty {
                     switch event.keyCode {
