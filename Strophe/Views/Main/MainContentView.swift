@@ -17,10 +17,15 @@ struct MainContentView: View {
     @State private var isShowingExport = false
     @State private var isShowingHardSubtitleExport = false
     @State private var isShowingHardSubtitleExportSettings = false
+    @State private var isShowingEmbeddedSubtitleExport = false
     @State private var exportText = ""
     @State private var exportFormat: SubtitleFormat = .srt
+    @State private var isShowingDeliveryExport = false
+    @State private var deliveryFormat: SubtitleDeliveryFormat = .csv
+    @State private var deliveryData = Data()
     @State private var hardSubtitleSettings = HardSubtitleVideoExportSettings()
     @StateObject private var hardSubtitleExport = HardSubtitleExportCoordinator()
+    @StateObject private var embeddedSubtitleExport = EmbeddedSubtitleExportCoordinator()
     @State private var isShowingDiscardProjectAlert = false
     @State private var pendingMediaURL: URL? = nil
     
@@ -76,10 +81,21 @@ struct MainContentView: View {
         }
         .background(Color.stropheSecondaryBackground)
         .overlay(alignment: .topTrailing) {
-            if let hardSubtitleProgress = hardSubtitleExport.progress {
-                hardSubtitleProgressView(progress: hardSubtitleProgress)
-                    .padding(16)
+            VStack(alignment: .trailing, spacing: 10) {
+                if let hardSubtitleProgress = hardSubtitleExport.progress {
+                    exportProgressView(
+                        progress: hardSubtitleProgress,
+                        title: String(localized: "exporting_hard_subtitled_video")
+                    )
+                }
+                if let embeddedSubtitleProgress = embeddedSubtitleExport.progress {
+                    exportProgressView(
+                        progress: embeddedSubtitleProgress,
+                        title: String(localized: "exporting_embedded_subtitle_video")
+                    )
+                }
             }
+            .padding(16)
         }
         #if os(macOS)
         .navigationTitle(String(localized: "app_name"))
@@ -97,8 +113,23 @@ struct MainContentView: View {
                 onExportSoftSubtitles: { format in
                     exportSubtitles(format: format)
                 },
+                onExportEmbeddedSubtitles: {
+                    #if os(macOS)
+                    showEmbeddedSubtitleSavePanel()
+                    #else
+                    isShowingEmbeddedSubtitleExport = true
+                    #endif
+                },
                 onExportHardSubtitles: {
+                    hardSubtitleSettings.rangeStartSeconds = project.inPoint
+                    hardSubtitleSettings.rangeEndSeconds = project.outPoint
+                    if !hasValidProjectExportRange {
+                        hardSubtitleSettings.usesProjectRange = false
+                    }
                     isShowingHardSubtitleExportSettings = true
+                },
+                onExportDelivery: { format in
+                    exportDelivery(format)
                 },
                 onSaveProject: onSaveProject,
                 onSaveProjectAs: onSaveProjectAs,
@@ -132,7 +163,22 @@ struct MainContentView: View {
             contentType: UTType.fromFormat(exportFormat),
             defaultFilename: "subtitles.\(exportFormat.fileExtension)"
         ) { _ in }
+        .fileExporter(
+            isPresented: $isShowingDeliveryExport,
+            document: BinaryDeliveryDocument(data: deliveryData),
+            contentType: deliveryFormat.contentType,
+            defaultFilename: "\(deliveryBaseName).\(deliveryFormat.fileExtension)"
+        ) { _ in }
         #if os(iOS)
+        .fileExporter(
+            isPresented: $isShowingEmbeddedSubtitleExport,
+            document: MediaContainerExportDocument(),
+            contentType: .stropheMatroskaVideo,
+            defaultFilename: embeddedSubtitleDefaultFilename
+        ) { result in
+            guard case .success(let url) = result else { return }
+            embeddedSubtitleExport.start(project: project, destinationURL: url)
+        }
         .fileExporter(
             isPresented: $isShowingHardSubtitleExport,
             document: VideoExportPlaceholderDocument(),
@@ -144,7 +190,10 @@ struct MainContentView: View {
         }
         #endif
         .sheet(isPresented: $isShowingHardSubtitleExportSettings) {
-            HardSubtitleExportSettingsSheet(settings: $hardSubtitleSettings) {
+            HardSubtitleExportSettingsSheet(
+                settings: $hardSubtitleSettings,
+                mediaURL: hardSubtitleSourceURL
+            ) {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
                     #if os(macOS)
                     showHardSubtitleSavePanel()
@@ -171,12 +220,30 @@ struct MainContentView: View {
             Text(message)
         }
         .alert(
+            String(localized: "embedded_soft_subtitle_video"),
+            isPresented: Binding(
+                get: { embeddedSubtitleExport.completionMessage != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        embeddedSubtitleExport.clearCompletionMessage()
+                    }
+                }
+            ),
+            presenting: embeddedSubtitleExport.completionMessage
+        ) { _ in
+            Button(String(localized: "ok"), role: .cancel) {}
+        } message: { message in
+            Text(message)
+        }
+        .alert(
             String(localized: "discard_original_project_confirm"),
             isPresented: $isShowingDiscardProjectAlert
         ) {
             Button(String(localized: "ok_1")) {
                 if let url = pendingMediaURL {
-                    project.importMediaAsNewProject(from: url)
+                    Task {
+                        await project.importMediaAsNewProject(from: url)
+                    }
                 }
                 pendingMediaURL = nil
             }
@@ -200,6 +267,25 @@ struct MainContentView: View {
         return "\(baseName)-hard-subtitles.\(hardSubtitleSettings.codec.fileExtension)"
     }
 
+    private var embeddedSubtitleDefaultFilename: String {
+        let baseName = project.videoURL?
+            .deletingPathExtension()
+            .lastPathComponent
+            ?? (project.documentDisplayName.isEmpty
+                ? "subtitles"
+                : project.documentDisplayName)
+        return "\(baseName)-soft-subtitles.mkv"
+    }
+
+    private var hardSubtitleSourceURL: URL? {
+        if project.mediaAccessStatus.canRead,
+           let resolvedURL = project.mediaAccessStatus.resolvedURL {
+            return resolvedURL
+        }
+        guard let videoURL = project.videoURL else { return nil }
+        return project.resolveOriginalURL(videoURL)
+    }
+
     private func requestImportMedia() {
         guard !isShowingImportMedia else { return }
         DispatchQueue.main.async {
@@ -219,7 +305,9 @@ struct MainContentView: View {
                     pendingMediaURL = url
                     isShowingDiscardProjectAlert = true
                 } else {
-                    project.importMediaAsNewProject(from: url)
+                    Task {
+                        await project.importMediaAsNewProject(from: url)
+                    }
                 }
             }
         }
@@ -229,12 +317,17 @@ struct MainContentView: View {
         project.videoURL != nil || project.projectURL != nil || !project.items.isEmpty || project.isDirty
     }
 
-    private func hardSubtitleProgressView(progress: Double) -> some View {
+    private var hasValidProjectExportRange: Bool {
+        guard let start = project.inPoint, let end = project.outPoint else { return false }
+        return start.isFinite && end.isFinite && end > start
+    }
+
+    private func exportProgressView(progress: Double, title: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 ProgressView()
                     .controlSize(.small)
-                Text("exporting_hard_subtitled_video")
+                Text(title)
                     .font(.caption.weight(.semibold))
             }
             ProgressView(value: progress)
@@ -252,26 +345,22 @@ struct MainContentView: View {
     }
     
     private func exportSubtitles(format: SubtitleFormat) {
-        let blocks = project.items.compactMap { item -> SubtitleBlock? in
-            guard let start = item.startTime, let end = item.endTime else { return nil }
-            return SubtitleBlock(id: item.id, startTime: start, endTime: end, text: item.text)
-        }
-        
-        let generatedText: String
-        switch format {
-        case .srt:
-            generatedText = SRTProcessor().generate(blocks: blocks)
-        case .ass:
-            generatedText = ASSProcessor().generate(blocks: blocks)
-        case .lrc:
-            generatedText = LRCProcessor().generate(blocks: blocks)
-        case .vtt:
-            generatedText = WebVTTProcessor().generate(blocks: blocks)
-        }
+        let generatedText = SubtitleEngine.generate(project.subtitleDocument(for: format))
         
         exportFormat = format
         exportText = generatedText
         isShowingExport = true
+    }
+
+    private func exportDelivery(_ format: SubtitleDeliveryFormat) {
+        deliveryFormat = format
+        deliveryData = SubtitleDeliveryExporter.export(project: project, format: format)
+        isShowingDeliveryExport = true
+    }
+
+    private var deliveryBaseName: String {
+        let name = project.documentDisplayName.isEmpty ? "subtitles" : project.documentDisplayName
+        return "\(name)-subtitles"
     }
 
     private func exportHardSubtitleVideo(to url: URL) {
@@ -283,6 +372,18 @@ struct MainContentView: View {
     }
 
     #if os(macOS)
+    private func showEmbeddedSubtitleSavePanel() {
+        let panel = NSSavePanel()
+        panel.canCreateDirectories = true
+        panel.isExtensionHidden = false
+        panel.nameFieldStringValue = embeddedSubtitleDefaultFilename
+        panel.allowedContentTypes = [.stropheMatroskaVideo]
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            embeddedSubtitleExport.start(project: project, destinationURL: url)
+        }
+    }
+
     private func showHardSubtitleSavePanel() {
         let panel = NSSavePanel()
         panel.canCreateDirectories = true

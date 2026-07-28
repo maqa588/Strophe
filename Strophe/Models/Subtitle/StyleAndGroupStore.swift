@@ -252,10 +252,123 @@ final class StyleAndGroupStore: ObservableObject {
         groups = updatedGroups
     }
 
+    /// Imports ASS styles as editable Strophe styles without replacing the
+    /// user's built-in styles. The returned map is keyed by the original ASS
+    /// style name so cues can bind to the imported visual style while retaining
+    /// their exact source name in interchange metadata.
+    @discardableResult
+    func importASSStyles(
+        _ records: [ASSStyleRecord],
+        playResolutionX: Double?,
+        playResolutionY: Double?
+    ) -> [String: UUID] {
+        var importedIDs: [String: UUID] = [:]
+
+        for record in records {
+            let sourceName = record.name
+            let displayName = "ASS · \(sourceName)"
+            let styleID = styles.first(where: { $0.name == displayName })?.id ?? UUID()
+            let primary = assColor(record.value(named: "primarycolour")) ?? .white
+            let outline = assColor(record.value(named: "outlinecolour")) ?? .black
+            let shadow = assColor(record.value(named: "backcolour")) ?? .black
+            let borderStyle = Int(record.value(named: "borderstyle") ?? "") ?? 1
+            let marginL = Double(record.value(named: "marginl") ?? "") ?? 0
+            let marginR = Double(record.value(named: "marginr") ?? "") ?? 0
+            let marginV = Double(record.value(named: "marginv") ?? "") ?? 0
+
+            let imported = SubgroupStyle(
+                id: styleID,
+                name: displayName,
+                description: "ASS: \(sourceName)",
+                color: primary.color,
+                fontName: nonEmpty(record.value(named: "fontname")),
+                fontSize: Double(record.value(named: "fontsize") ?? "") ?? 58,
+                isBold: assBoolean(record.value(named: "bold")),
+                isItalic: assBoolean(record.value(named: "italic")),
+                isUnderline: assBoolean(record.value(named: "underline")),
+                isStrikethrough: assBoolean(record.value(named: "strikeout")),
+                outlineColor: outline.color,
+                outlineWidth: Double(record.value(named: "outline") ?? "") ?? 0,
+                shadowColor: shadow.color,
+                shadowRadius: Double(record.value(named: "shadow") ?? "") ?? 0,
+                backgroundColor: shadow.color,
+                backgroundAlpha: borderStyle == 3 ? shadow.alpha : 0,
+                isGlowing: false,
+                alignment: assAlignment(record.value(named: "alignment")),
+                marginLeftPercent: percent(marginL, of: playResolutionX),
+                marginRightPercent: percent(marginR, of: playResolutionX),
+                marginVerticalPercent: percent(marginV, of: playResolutionY),
+                scaleX: (Double(record.value(named: "scalex") ?? "") ?? 100) / 100,
+                scaleY: (Double(record.value(named: "scaley") ?? "") ?? 100) / 100,
+                characterSpacing: Double(record.value(named: "spacing") ?? "") ?? 0,
+                rotationDegrees: Double(record.value(named: "angle") ?? "") ?? 0
+            )
+
+            if let index = styles.firstIndex(where: { $0.id == styleID }) {
+                styles[index] = imported
+            } else {
+                styles.append(imported)
+            }
+            importedIDs[sourceName] = styleID
+        }
+        return importedIDs
+    }
+
     func shortcutGroup(number: Int) -> SubGroupItem? {
         let index = number - 1
         guard sortedGroups.indices.contains(index) else { return nil }
         return sortedGroups[index]
+    }
+
+    private func nonEmpty(_ value: String?) -> String? {
+        guard let value, !value.isEmpty else { return nil }
+        return value
+    }
+
+    private func assBoolean(_ value: String?) -> Bool {
+        guard let number = Int(value ?? "") else { return false }
+        return number != 0
+    }
+
+    private func percent(_ value: Double, of dimension: Double?) -> Double {
+        guard let dimension, dimension > 0 else { return 5 }
+        return max(0, min(49, value / dimension * 100))
+    }
+
+    private func assAlignment(_ value: String?) -> SubtitleStyle.Alignment {
+        switch Int(value ?? "") ?? 2 {
+        case 1: return .bottomLeft
+        case 2: return .bottomCenter
+        case 3: return .bottomRight
+        case 4: return .middleLeft
+        case 5: return .middleCenter
+        case 6: return .middleRight
+        case 7: return .topLeft
+        case 8: return .topCenter
+        case 9: return .topRight
+        default: return .bottomCenter
+        }
+    }
+
+    private func assColor(_ value: String?) -> ResolvedRGBAColor? {
+        guard var raw = value?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased(),
+              !raw.isEmpty else {
+            return nil
+        }
+        raw = raw.replacingOccurrences(of: "&H", with: "")
+        raw = raw.replacingOccurrences(of: "&", with: "")
+        guard let encoded = UInt64(raw, radix: 16) else { return nil }
+
+        let hasAlpha = raw.count > 6
+        let alphaByte = hasAlpha ? Double((encoded >> 24) & 0xFF) : 0
+        return ResolvedRGBAColor(
+            red: Double(encoded & 0xFF) / 255,
+            green: Double((encoded >> 8) & 0xFF) / 255,
+            blue: Double((encoded >> 16) & 0xFF) / 255,
+            alpha: 1 - alphaByte / 255
+        )
     }
 
     func storedStyles() -> [StoredSubgroupStyle] {

@@ -131,7 +131,13 @@ nonisolated struct ResolvedSubtitleCue: Identifiable, Sendable, Equatable, Hasha
     var style: ResolvedSubtitleStyle
     var groupID: UUID?
     var trackIndex: Int
+    var layer: Int
+    var position: ResolvedSubtitlePosition?
     var usesFadeInOut: Bool = false
+
+    var resolvedAnchor: SubtitleStyle.Alignment {
+        position?.anchor ?? style.alignment
+    }
 
     func opacity(at time: Double) -> Double {
         guard usesFadeInOut, time.isFinite else { return 1 }
@@ -150,15 +156,17 @@ struct HardSubtitleBitmapView: View {
     let style: ResolvedSubtitleStyle
     let canvasSize: CGSize
     let displayScale: CGFloat
+    var anchor: SubtitleStyle.Alignment? = nil
 
     var body: some View {
-        if let image = SubtitleBitmapRenderer.makeImage(
+        if let bitmap = SubtitleBitmapRenderer.makeBitmap(
             text: text,
             style: style,
+            anchor: anchor ?? style.alignment,
             canvasSize: canvasSize
         ) {
             Image(
-                decorative: image,
+                decorative: bitmap.image,
                 scale: max(0.0001, 1 / displayScale),
                 orientation: .up
             )
@@ -250,6 +258,8 @@ extension SubtitleProject {
                 style: resolvedStyle(for: item, group: group, store: store),
                 groupID: group?.id,
                 trackIndex: item.trackIndex,
+                layer: item.layer,
+                position: resolvedPosition(for: item, store: store),
                 usesFadeInOut: group?.usesFadeInOut ?? false
             )
         }
@@ -300,6 +310,23 @@ extension SubtitleProject {
         }
     }
 
+    func resolvedSubtitleFrameScene(
+        at time: Double,
+        canvasSize: CGSize,
+        store: StyleAndGroupStore = .shared
+    ) -> SubtitleFrameScene {
+        let forcedIDs = activeSlapSubtitleID.map { Set([$0]) } ?? []
+        return SubtitleFrameSceneResolver.resolve(
+            cues: resolvedSubtitleCues(store: store),
+            at: time,
+            canvasSize: canvasSize,
+            collisionMode: subtitleCollisionMode,
+            forcedCueIDs: forcedIDs
+        ) { cue in
+            SubtitleBitmapRenderer.metrics(cue: cue, canvasSize: canvasSize)
+        }
+    }
+
     private func resolvedCue(for item: SubtitleItem, store: StyleAndGroupStore) -> ResolvedSubtitleCue? {
         guard let start = item.startTime,
               let end = item.endTime,
@@ -322,8 +349,38 @@ extension SubtitleProject {
             style: resolvedStyle(for: item, group: group, store: store),
             groupID: group?.id,
             trackIndex: item.trackIndex,
+            layer: item.layer,
+            position: resolvedPosition(for: item, store: store),
             usesFadeInOut: group?.usesFadeInOut ?? false
         )
+    }
+
+    private func resolvedPosition(
+        for item: SubtitleItem,
+        store: StyleAndGroupStore
+    ) -> ResolvedSubtitlePosition? {
+        guard let override = item.positionOverride,
+              override.x != nil || override.y != nil || override.alignmentRaw != nil else {
+            return nil
+        }
+
+        let anchor = override.alignmentRaw
+            .flatMap(SubtitleStyle.Alignment.init(rawValue:))
+            ?? resolvedAnchorFallback(for: item, store: store)
+        return ResolvedSubtitlePosition(
+            x: override.x,
+            y: override.y,
+            coordinateSpace: override.coordinateSpace ?? .canvas,
+            anchor: anchor
+        )
+    }
+
+    private func resolvedAnchorFallback(
+        for item: SubtitleItem,
+        store: StyleAndGroupStore
+    ) -> SubtitleStyle.Alignment {
+        let group = resolvedGroup(for: item, store: store)
+        return resolvedStyle(for: item, group: group, store: store).alignment
     }
 
     private func resolvedGroup(for item: SubtitleItem, store: StyleAndGroupStore) -> SubGroupItem? {

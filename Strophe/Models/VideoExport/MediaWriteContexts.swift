@@ -18,6 +18,11 @@ nonisolated struct AudioPipe: @unchecked Sendable {
     var hasMarkedFinished = false
 }
 
+nonisolated struct FFmpegAudioPipe: @unchecked Sendable {
+    let reader: FFmpegVideoExportAudioReader
+    let input: AVAssetWriterInput
+}
+
 nonisolated final class MediaWriteGroup: @unchecked Sendable {
     private let lock = NSLock()
     private var pendingCount: Int
@@ -122,23 +127,38 @@ nonisolated final class ExportProgressReporter: @unchecked Sendable {
     }
 }
 
-nonisolated final class SubtitleCueCursor: @unchecked Sendable {
+nonisolated final class SubtitleSceneCursor: @unchecked Sendable {
     private let lock = NSLock()
-    private var index: Int
+    private var nextIndex: Int
+    private var active: [ResolvedSubtitleCue] = []
+    private var lastTime = -Double.infinity
 
     init(index: Int = 0) {
-        self.index = index
+        nextIndex = index
     }
 
-    func activeCue(at seconds: Double, cues: [ResolvedSubtitleCue]) -> ResolvedSubtitleCue? {
+    func activeCues(
+        at seconds: Double,
+        cues: [ResolvedSubtitleCue]
+    ) -> [ResolvedSubtitleCue] {
         lock.withLock {
-            while index < cues.count, cues[index].endTime < seconds {
-                index += 1
+            guard seconds.isFinite else { return [] }
+            if seconds < lastTime {
+                nextIndex = 0
+                active.removeAll(keepingCapacity: true)
             }
+            lastTime = seconds
 
-            guard index < cues.count else { return nil }
-            let cue = cues[index]
-            return seconds >= cue.startTime && seconds <= cue.endTime ? cue : nil
+            while nextIndex < cues.count,
+                  cues[nextIndex].startTime <= seconds {
+                let cue = cues[nextIndex]
+                if cue.endTime > seconds {
+                    active.append(cue)
+                }
+                nextIndex += 1
+            }
+            active.removeAll { $0.endTime <= seconds }
+            return active
         }
     }
 }
@@ -261,10 +281,12 @@ nonisolated final class AVFoundationWriteContext: @unchecked Sendable {
     private let writer: AVAssetWriter
     private let compositor: MetalSubtitleCompositor
     private let sortedCues: [ResolvedSubtitleCue]
-    private let cueCursor: SubtitleCueCursor
+    private let cueCursor: SubtitleSceneCursor
+    private let collisionMode: SubtitleCollisionMode
     private let renderSize: CGSize
     private let preferredTransform: CGAffineTransform
     private let sourceDisplaySize: CGSize?
+    private let timelineStartSeconds: Double
     private let durationSeconds: Double
     private let progressReporter: ExportProgressReporter
     private let group: MediaWriteGroup
@@ -278,10 +300,12 @@ nonisolated final class AVFoundationWriteContext: @unchecked Sendable {
         writer: AVAssetWriter,
         compositor: MetalSubtitleCompositor,
         sortedCues: [ResolvedSubtitleCue],
-        cueCursor: SubtitleCueCursor,
+        cueCursor: SubtitleSceneCursor,
+        collisionMode: SubtitleCollisionMode,
         renderSize: CGSize,
         preferredTransform: CGAffineTransform,
         sourceDisplaySize: CGSize?,
+        timelineStartSeconds: Double,
         durationSeconds: Double,
         progress: @MainActor @Sendable @escaping (Double) -> Void,
         group: MediaWriteGroup
@@ -295,9 +319,11 @@ nonisolated final class AVFoundationWriteContext: @unchecked Sendable {
         self.compositor = compositor
         self.sortedCues = sortedCues
         self.cueCursor = cueCursor
+        self.collisionMode = collisionMode
         self.renderSize = renderSize
         self.preferredTransform = preferredTransform
         self.sourceDisplaySize = sourceDisplaySize
+        self.timelineStartSeconds = timelineStartSeconds
         self.durationSeconds = durationSeconds
         progressReporter = ExportProgressReporter(progress: progress)
         self.group = group
@@ -359,14 +385,19 @@ nonisolated final class AVFoundationWriteContext: @unchecked Sendable {
 
                 let presentationTime = CMSampleBufferGetPresentationTimeStamp(sample)
                 let seconds = presentationTime.seconds.isFinite ? presentationTime.seconds : 0
-                let cue = cueCursor.activeCue(at: seconds, cues: sortedCues)
+                let activeCues = cueCursor.activeCues(at: seconds, cues: sortedCues)
+                let scene = compositor.makeFrameScene(
+                    cues: activeCues,
+                    at: seconds,
+                    renderSize: renderSize,
+                    collisionMode: collisionMode
+                )
 
                 do {
                     try compositor.render(
                         sourcePixelBuffer: sourceBuffer,
                         outputPixelBuffer: outputBuffer,
-                        cue: cue,
-                        presentationTime: seconds,
+                        scene: scene,
                         renderSize: renderSize,
                         preferredTransform: preferredTransform,
                         sourceDisplaySize: sourceDisplaySize
@@ -384,7 +415,8 @@ nonisolated final class AVFoundationWriteContext: @unchecked Sendable {
                 }
 
                 let videoProgressScale = audioPipes.isEmpty ? 1.0 : 0.99
-                let fraction = min(max(seconds / durationSeconds, 0), 1) * videoProgressScale
+                let elapsed = max(0, seconds - timelineStartSeconds)
+                let fraction = min(max(elapsed / durationSeconds, 0), 1) * videoProgressScale
                 progressReporter.report(fraction)
             }
         }
@@ -398,16 +430,18 @@ nonisolated final class FFmpegVideoWriteContext: @unchecked Sendable {
     private let writer: AVAssetWriter
     private let compositor: MetalSubtitleCompositor
     private let sortedCues: [ResolvedSubtitleCue]
-    private let cueCursor: SubtitleCueCursor
+    private let cueCursor: SubtitleSceneCursor
+    private let collisionMode: SubtitleCollisionMode
     private let renderSize: CGSize
     private let sourceDisplaySize: CGSize?
     private let frameDuration: CMTime
+    private let sourceRange: Range<Double>?
     private let durationSeconds: Double
     private let progressReporter: ExportProgressReporter
     private let group: MediaWriteGroup
     private let videoState: FFmpegVideoWriteState
     private let hasAudio: Bool
-    private let audioWriteContext: FFmpegAudioWriteContext?
+    private let audioWriteContexts: [FFmpegAudioWriteContext]
 
     init(
         videoReader: FFmpegVideoExportVideoReader,
@@ -416,16 +450,17 @@ nonisolated final class FFmpegVideoWriteContext: @unchecked Sendable {
         writer: AVAssetWriter,
         compositor: MetalSubtitleCompositor,
         sortedCues: [ResolvedSubtitleCue],
-        cueCursor: SubtitleCueCursor,
+        cueCursor: SubtitleSceneCursor,
+        collisionMode: SubtitleCollisionMode,
         renderSize: CGSize,
         sourceDisplaySize: CGSize?,
         frameDuration: CMTime,
+        sourceRange: Range<Double>?,
         durationSeconds: Double,
         progress: @MainActor @Sendable @escaping (Double) -> Void,
         group: MediaWriteGroup,
         videoState: FFmpegVideoWriteState,
-        hasAudio: Bool,
-        audioWriteContext: FFmpegAudioWriteContext?
+        audioWriteContexts: [FFmpegAudioWriteContext]
     ) {
         self.videoReader = videoReader
         self.videoInput = videoInput
@@ -434,15 +469,17 @@ nonisolated final class FFmpegVideoWriteContext: @unchecked Sendable {
         self.compositor = compositor
         self.sortedCues = sortedCues
         self.cueCursor = cueCursor
+        self.collisionMode = collisionMode
         self.renderSize = renderSize
         self.sourceDisplaySize = sourceDisplaySize
         self.frameDuration = frameDuration
+        self.sourceRange = sourceRange
         self.durationSeconds = durationSeconds
         progressReporter = ExportProgressReporter(progress: progress)
         self.group = group
         self.videoState = videoState
-        self.hasAudio = hasAudio
-        self.audioWriteContext = audioWriteContext
+        self.hasAudio = !audioWriteContexts.isEmpty
+        self.audioWriteContexts = audioWriteContexts
     }
 
     func start(queue: DispatchQueue) {
@@ -452,14 +489,31 @@ nonisolated final class FFmpegVideoWriteContext: @unchecked Sendable {
                     guard let frame = try videoReader.nextFrame() else {
                         videoInput.markAsFinished()
                         if hasAudio {
-                            audioWriteContext?.start(offset: 0)
+                            audioWriteContexts.forEach {
+                                $0.start(offset: sourceRange?.lowerBound ?? 0)
+                            }
+                        }
+                        group.finish()
+                        return
+                    }
+
+                    if let sourceRange,
+                       frame.pts < sourceRange.lowerBound {
+                        continue
+                    }
+                    if let sourceRange,
+                       frame.pts >= sourceRange.upperBound {
+                        videoInput.markAsFinished()
+                        audioWriteContexts.forEach {
+                            $0.start(offset: sourceRange.lowerBound)
                         }
                         group.finish()
                         return
                     }
 
                     let basePTS = videoState.basePTS(for: frame.pts)
-                    audioWriteContext?.start(offset: basePTS)
+                    let audioOffset = sourceRange?.lowerBound ?? basePTS
+                    audioWriteContexts.forEach { $0.start(offset: audioOffset) }
                     let seconds = videoState.adjustedSeconds(for: frame.pts, basePTS: basePTS, frameDuration: frameDuration)
 
                     guard let pool = adaptor.pixelBufferPool else {
@@ -476,12 +530,21 @@ nonisolated final class FFmpegVideoWriteContext: @unchecked Sendable {
                         return
                     }
 
-                    let cue = cueCursor.activeCue(at: seconds, cues: sortedCues)
+                    let sourceSeconds = frame.pts
+                    let activeCues = cueCursor.activeCues(
+                        at: sourceSeconds,
+                        cues: sortedCues
+                    )
+                    let scene = compositor.makeFrameScene(
+                        cues: activeCues,
+                        at: sourceSeconds,
+                        renderSize: renderSize,
+                        collisionMode: collisionMode
+                    )
                     try compositor.render(
                         sourcePixelBuffer: frame.pixelBuffer,
                         outputPixelBuffer: outputBuffer,
-                        cue: cue,
-                        presentationTime: seconds,
+                        scene: scene,
                         renderSize: renderSize,
                         preferredTransform: .identity,
                         sourceDisplaySize: sourceDisplaySize

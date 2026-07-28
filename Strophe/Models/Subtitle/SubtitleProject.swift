@@ -63,18 +63,30 @@ class SubtitleProject: ObservableObject {
     @Published var isSubtitleMultiSelecting: Bool = false
     @Published var isEditingText: Bool = false
     @Published var subtitleClipboard: [SubtitleItem] = []
+    @Published var subtitleSourceDocuments: [SubtitleSourceDocument] = []
+    @Published var lastSubtitleImportDiagnostics: [SubtitleParseDiagnostic] = []
+    @Published var quickSearchText: String = ""
     
     @Published var projectURL: URL?
     @Published private(set) var isDirty: Bool = false
     @Published private(set) var documentName: String = ""
     @Published var mediaLoadError: String? = nil
+    @Published var mediaAccessStatus: MediaAccessStatus = .none
     @Published var isLoadingProject: Bool = false
+    @Published var markers: [ProjectMarker] = []
+    @Published var inPoint: TimeInterval?
+    @Published var outPoint: TimeInterval?
+    @Published var loopsSelection: Bool = false
+
+    var projectIdentifier = UUID()
+    var projectCreatedAt = Date()
     
     let undoManager = UndoManager()
     
     var autoSaveTimer: Timer?
     var dirtyObserver: Any?
     var mediaAccessURL: URL?
+    var mediaAccessGeneration: UInt = 0
     var projectURLBookmark: Data?
     
     init() {
@@ -161,6 +173,12 @@ class SubtitleProject: ObservableObject {
     @Published var videoFrameRate: Double = 30.0
     @Published var isAudioOnly: Bool = false
     @Published var videoSize: CGSize = .zero
+    @Published var subtitleCollisionMode: SubtitleCollisionMode = .normal {
+        didSet {
+            guard oldValue != subtitleCollisionMode else { return }
+            notifyChange()
+        }
+    }
     
     private(set) var activeEngine: (any PlayerEngine)? = nil
     private(set) var activeEngineURL: URL? = nil

@@ -20,16 +20,18 @@ extension HardSubtitleVideoExporter {
         compositor: MetalSubtitleCompositor,
         sortedCues: [ResolvedSubtitleCue],
         cueIndex: Int,
+        collisionMode: SubtitleCollisionMode,
         renderSize: CGSize,
         preferredTransform: CGAffineTransform,
         sourceDisplaySize: CGSize?,
+        timelineStartSeconds: Double,
         durationSeconds: Double,
         progress: @MainActor @Sendable @escaping (Double) -> Void
     ) async throws {
         let group = MediaWriteGroup(count: 1 + audioPipes.count)
         let videoQueue = DispatchQueue(label: "com.strophe.export.video-writer", qos: .userInitiated)
         let audioQueue = DispatchQueue(label: "com.strophe.export.audio-writer", qos: .userInitiated, attributes: .concurrent)
-        let cueCursor = SubtitleCueCursor(index: cueIndex)
+        let cueCursor = SubtitleSceneCursor(index: cueIndex)
 
         let context = AVFoundationWriteContext(
             reader: reader,
@@ -41,9 +43,11 @@ extension HardSubtitleVideoExporter {
             compositor: compositor,
             sortedCues: sortedCues,
             cueCursor: cueCursor,
+            collisionMode: collisionMode,
             renderSize: renderSize,
             preferredTransform: preferredTransform,
             sourceDisplaySize: sourceDisplaySize,
+            timelineStartSeconds: timelineStartSeconds,
             durationSeconds: durationSeconds,
             progress: progress,
             group: group
@@ -61,36 +65,38 @@ extension HardSubtitleVideoExporter {
 
     static func writeFFmpegStreams(
         videoReader: FFmpegVideoExportVideoReader,
-        audioReader: FFmpegVideoExportAudioReader?,
+        audioPipes: [FFmpegAudioPipe],
         videoInput: AVAssetWriterInput,
         adaptor: AVAssetWriterInputPixelBufferAdaptor,
-        audioInput: AVAssetWriterInput?,
         writer: AVAssetWriter,
         compositor: MetalSubtitleCompositor,
         sortedCues: [ResolvedSubtitleCue],
         cueIndex: Int,
+        collisionMode: SubtitleCollisionMode,
         renderSize: CGSize,
         sourceDisplaySize: CGSize?,
         frameDuration: CMTime,
+        sourceRange: Range<Double>?,
         durationSeconds: Double,
         progress: @MainActor @Sendable @escaping (Double) -> Void
     ) async throws -> CMTime {
-        let hasAudio = audioReader != nil && audioInput != nil
-        let group = MediaWriteGroup(count: hasAudio ? 2 : 1)
+        let group = MediaWriteGroup(count: 1 + audioPipes.count)
         let videoQueue = DispatchQueue(label: "com.strophe.export.ffmpeg-video-writer", qos: .userInitiated)
-        let audioQueue = DispatchQueue(label: "com.strophe.export.ffmpeg-audio-writer", qos: .userInitiated)
-        let cueCursor = SubtitleCueCursor(index: cueIndex)
+        let audioQueue = DispatchQueue(
+            label: "com.strophe.export.ffmpeg-audio-writer",
+            qos: .userInitiated,
+            attributes: .concurrent
+        )
+        let cueCursor = SubtitleSceneCursor(index: cueIndex)
         let videoState = FFmpegVideoWriteState()
-        let audioWriteContext = audioReader.flatMap { audioReader in
-            audioInput.map { audioInput in
-                FFmpegAudioWriteContext(
-                    audioReader: audioReader,
-                    audioInput: audioInput,
-                    writer: writer,
-                    group: group,
-                    queue: audioQueue
-                )
-            }
+        let audioWriteContexts = audioPipes.map { pipe in
+            FFmpegAudioWriteContext(
+                audioReader: pipe.reader,
+                audioInput: pipe.input,
+                writer: writer,
+                group: group,
+                queue: audioQueue
+            )
         }
 
         let context = FFmpegVideoWriteContext(
@@ -101,15 +107,16 @@ extension HardSubtitleVideoExporter {
             compositor: compositor,
             sortedCues: sortedCues,
             cueCursor: cueCursor,
+            collisionMode: collisionMode,
             renderSize: renderSize,
             sourceDisplaySize: sourceDisplaySize,
             frameDuration: frameDuration,
+            sourceRange: sourceRange,
             durationSeconds: durationSeconds,
             progress: progress,
             group: group,
             videoState: videoState,
-            hasAudio: hasAudio,
-            audioWriteContext: audioWriteContext
+            audioWriteContexts: audioWriteContexts
         )
 
         context.start(queue: videoQueue)

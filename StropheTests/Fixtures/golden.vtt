@@ -1,0 +1,21 @@
+WEBVTT Kind: captions
+Language: zh-CN
+
+STYLE
+::cue(.green) { color: lime; }
+
+REGION
+id:bottom
+width:80%
+lines:3
+
+NOTE editor metadata
+This block must survive export.
+
+speaker-1
+00:01.230 --> 00:04.560 line:90% position:50% align:center region:bottom
+<v Alice><c.green>Hello</c>, <i>brave</i> world.</v>
+
+speaker-2
+00:05.000 --> 00:07.100
+<lang zh>第二行</lang>

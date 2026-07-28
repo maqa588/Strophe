@@ -7,6 +7,11 @@ nonisolated struct FormatDetectionResult: Equatable, Sendable {
     let hasVideoTrack: Bool
     let detectedFPS: Double?
     var isRemoteNetworkVolume: Bool = false
+    var sourceAccessFailure: MediaAccessState? = nil
+
+    var isSourceAccessible: Bool {
+        sourceAccessFailure == nil
+    }
 
     static nonisolated let audioOnly = FormatDetectionResult(
         isAVFoundationCompatible: true,
@@ -54,7 +59,43 @@ final class FormatDetector {
         #endif
     }
 
+    nonisolated static func prefersAVFoundation(for url: URL) -> Bool {
+        switch url.pathExtension.lowercased() {
+        case "mp4", "mov", "m4v",
+             "mp3", "m4a", "aac", "wav", "caf", "aif", "aiff":
+            return true
+        default:
+            return false
+        }
+    }
+
     func detect(url: URL) async -> FormatDetectionResult {
+        if url.isFileURL {
+            let resolvedURL = url.resolvingSymlinksInPath()
+            guard FileManager.default.fileExists(atPath: resolvedURL.path) else {
+                let result = FormatDetectionResult(
+                    isAVFoundationCompatible: false,
+                    errorMessage: "The media file does not exist.",
+                    hasVideoTrack: false,
+                    detectedFPS: nil,
+                    sourceAccessFailure: .missing
+                )
+                print("🔍 Format detection skipped for \(url.lastPathComponent): source file is missing")
+                return result
+            }
+            guard FileManager.default.isReadableFile(atPath: resolvedURL.path) else {
+                let result = FormatDetectionResult(
+                    isAVFoundationCompatible: false,
+                    errorMessage: "The media file is not readable.",
+                    hasVideoTrack: false,
+                    detectedFPS: nil,
+                    sourceAccessFailure: .permissionDenied
+                )
+                print("🔍 Format detection skipped for \(url.lastPathComponent): source file is not readable")
+                return result
+            }
+        }
+
         if let cached = cache[url] {
             print("🔍 Format detection result (cached): \(cached.isAVFoundationCompatible) for \(url.lastPathComponent) (engine: \(cached.isAVFoundationCompatible ? "AVFoundation" : "FFmpeg"))")
             return cached
@@ -90,7 +131,16 @@ final class FormatDetector {
             return result
         }
 
-        let result = await probe(url: url)
+        var result = await probe(url: url)
+        if !result.isAVFoundationCompatible,
+           Self.prefersAVFoundation(for: url) {
+            result = FormatDetectionResult(
+                isAVFoundationCompatible: true,
+                errorMessage: result.errorMessage,
+                hasVideoTrack: !["mp3", "m4a", "aac", "wav", "caf", "aif", "aiff"].contains(ext),
+                detectedFPS: result.detectedFPS
+            )
+        }
         cache[url] = result
         print("🔍 Format detection result: \(result.isAVFoundationCompatible) for \(url.lastPathComponent) (engine: \(result.isAVFoundationCompatible ? "AVFoundation" : "FFmpeg"))")
         return result

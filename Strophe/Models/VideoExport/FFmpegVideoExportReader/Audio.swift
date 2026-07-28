@@ -19,13 +19,15 @@ nonisolated final class FFmpegVideoExportAudioReader {
     private var packet: UnsafeMutablePointer<AVPacket>?
     private var frame: UnsafeMutablePointer<AVFrame>?
     private var pendingSampleBuffer: CMSampleBuffer?
-    private var nextFallbackPTS: Double = 0
+    private var nextFallbackSourcePTS: Double = 0
     private var reachedEOF = false
 
     private(set) var audioStreamIndex: Int32 = -1
     private(set) var sampleRate: Int32 = 48_000
     private(set) var channelCount: Int32 = 2
     var timeOffset: Double = 0
+    var minimumSourceTime: Double = 0
+    var maximumSourceTime: Double?
     var isFinished = false
 
     var writerOutputSettings: [String: Any] {
@@ -37,8 +39,8 @@ nonisolated final class FFmpegVideoExportAudioReader {
         ]
     }
 
-    init(url: URL) throws {
-        try open(url: url)
+    init(url: URL, audioTrackOrdinal: Int = 0) throws {
+        try open(url: url, audioTrackOrdinal: audioTrackOrdinal)
     }
 
     deinit {
@@ -90,7 +92,10 @@ nonisolated final class FFmpegVideoExportAudioReader {
         return try nextSampleBuffer()
     }
 
-    private func open(url: URL) throws {
+    private func open(url: URL, audioTrackOrdinal: Int) throws {
+        guard audioTrackOrdinal >= 0 else {
+            throw HardSubtitleVideoExportError.ffmpegDecodeFailed("Invalid audio track selection.")
+        }
         var ctx: UnsafeMutablePointer<AVFormatContext>?
         guard avformat_open_input(&ctx, url.path, nil, nil) >= 0, let openedContext = ctx else {
             throw HardSubtitleVideoExportError.ffmpegDecodeFailed("无法打开音频输入文件。")
@@ -101,17 +106,23 @@ nonisolated final class FFmpegVideoExportAudioReader {
             throw HardSubtitleVideoExportError.ffmpegDecodeFailed("无法读取音频流信息。")
         }
 
+        var encounteredAudioTracks = 0
         for index in 0..<openedContext.pointee.nb_streams {
             guard let stream = openedContext.pointee.streams[Int(index)] else { continue }
             if stream.pointee.codecpar.pointee.codec_type == AVMEDIA_TYPE_AUDIO {
-                audioStreamIndex = Int32(index)
-                break
+                if encounteredAudioTracks == audioTrackOrdinal {
+                    audioStreamIndex = Int32(index)
+                    break
+                }
+                encounteredAudioTracks += 1
             }
         }
 
         guard audioStreamIndex >= 0,
               let stream = openedContext.pointee.streams[Int(audioStreamIndex)] else {
-            throw HardSubtitleVideoExportError.missingVideoTrack
+            throw HardSubtitleVideoExportError.ffmpegDecodeFailed(
+                "Audio track \(audioTrackOrdinal + 1) is unavailable."
+            )
         }
 
         let codecParameters = stream.pointee.codecpar!
@@ -179,7 +190,26 @@ nonisolated final class FFmpegVideoExportAudioReader {
             let receiveStatus = avcodec_receive_frame(codecContext, frame)
             if receiveStatus >= 0 {
                 defer { av_frame_unref(frame) }
-                return try sampleBuffer(from: frame, formatContext: formatContext, resampler: swrContext)
+                let sourcePresentationTime = sourceAudioPTS(
+                    frame,
+                    formatContext: formatContext
+                )
+                let sourceDuration = Double(max(frame.pointee.nb_samples, 0))
+                    / Double(max(sampleRate, 1))
+                nextFallbackSourcePTS = sourcePresentationTime + sourceDuration
+                if sourcePresentationTime + sourceDuration <= minimumSourceTime {
+                    continue
+                }
+                if let maximumSourceTime,
+                   sourcePresentationTime >= maximumSourceTime {
+                    isFinished = true
+                    return nil
+                }
+                return try sampleBuffer(
+                    from: frame,
+                    resampler: swrContext,
+                    sourcePresentationTime: sourcePresentationTime
+                )
             }
 
             if reachedEOF {
@@ -208,8 +238,8 @@ nonisolated final class FFmpegVideoExportAudioReader {
 
     private func sampleBuffer(
         from frame: UnsafeMutablePointer<AVFrame>,
-        formatContext: UnsafeMutablePointer<AVFormatContext>,
-        resampler: OpaquePointer
+        resampler: OpaquePointer,
+        sourcePresentationTime: Double
     ) throws -> CMSampleBuffer? {
         let inputSamples = Int(frame.pointee.nb_samples)
         guard inputSamples > 0 else { return nil }
@@ -244,18 +274,17 @@ nonisolated final class FFmpegVideoExportAudioReader {
         }
 
         let dataLength = Int(convertedSamples) * sampleByteCount
-        let presentationTime = audioPTS(frame, formatContext: formatContext)
+        let presentationTime = max(0, sourcePresentationTime - timeOffset)
         let sampleBuffer = try makeAudioSampleBuffer(
             audioData: audioData,
             dataLength: dataLength,
             sampleCount: Int(convertedSamples),
             presentationTime: presentationTime
         )
-        nextFallbackPTS = presentationTime + Double(convertedSamples) / Double(sampleRate)
         return sampleBuffer
     }
 
-    private func audioPTS(
+    private func sourceAudioPTS(
         _ frame: UnsafeMutablePointer<AVFrame>,
         formatContext: UnsafeMutablePointer<AVFormatContext>
     ) -> Double {
@@ -264,10 +293,10 @@ nonisolated final class FFmpegVideoExportAudioReader {
             : frame.pointee.pts
         guard timestamp != ffmpegExportNoPTS,
               let stream = formatContext.pointee.streams[Int(audioStreamIndex)] else {
-            return max(0, nextFallbackPTS - timeOffset)
+            return max(0, nextFallbackSourcePTS)
         }
         let timeBase = stream.pointee.time_base
-        return max(0, Double(timestamp) * Double(timeBase.num) / Double(timeBase.den) - timeOffset)
+        return max(0, Double(timestamp) * Double(timeBase.num) / Double(timeBase.den))
     }
 
     private func makeAudioSampleBuffer(

@@ -57,6 +57,7 @@ extension SubtitleProject {
             originalIndex: updated[index].originalIndex,
             groupID: updated[index].groupID,
             trackIndex: updated[index].trackIndex,
+            layer: updated[index].layer,
             styleID: updated[index].styleID,
             styleOverrides: updated[index].styleOverrides,
             positionOverride: updated[index].positionOverride,

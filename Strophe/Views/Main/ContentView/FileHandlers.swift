@@ -14,7 +14,9 @@ extension ContentView {
         switch result {
         case .success(let urls):
             guard let url = urls.first else { return }
-            project.replaceMedia(with: url)
+            Task {
+                await project.replaceMedia(with: url)
+            }
             selectedTab = .editor
             settingsPath.removeAll()
         case .failure(let error):
@@ -27,8 +29,7 @@ extension ContentView {
         case .success(let urls):
             guard let url = urls.first else { return }
             do {
-                let rawText = try SubtitleEngine.loadRawText(from: url)
-                project.importScript(rawText)
+                try project.importSubtitle(from: url)
                 selectedTab = .editor
                 settingsPath.removeAll()
             } catch {

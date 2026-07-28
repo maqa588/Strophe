@@ -12,6 +12,8 @@ struct TimeGridView: View {
     let duration: Double
     let visibleStartTime: Double
     let viewWidth: CGFloat
+    let inPoint: TimeInterval?
+    let outPoint: TimeInterval?
     
     var body: some View {
         Canvas { context, size in
@@ -42,7 +44,112 @@ struct TimeGridView: View {
                     }
                 }
             }
+
+            drawRangeMarkers(in: &context, canvasSize: size)
         }
+    }
+
+    private func drawRangeMarkers(
+        in context: inout GraphicsContext,
+        canvasSize: CGSize
+    ) {
+        let safeDuration = duration.isFinite ? max(0, duration) : 0
+        let safePixelsPerSecond =
+            pixelsPerSecond.isFinite ? max(0.001, pixelsPerSecond) : 50
+
+        let validInPoint = normalizedPoint(inPoint, duration: safeDuration)
+        let validOutPoint = normalizedPoint(outPoint, duration: safeDuration)
+
+        if let start = validInPoint,
+           let end = validOutPoint,
+           end > start {
+            let startX = CGFloat(start * safePixelsPerSecond)
+            let endX = CGFloat(end * safePixelsPerSecond)
+            context.fill(
+                Path(
+                    CGRect(
+                        x: startX,
+                        y: max(0, canvasSize.height - 4),
+                        width: max(1, endX - startX),
+                        height: 4
+                    )
+                ),
+                with: .color(Color.stropheBlue.opacity(0.32))
+            )
+        }
+
+        if let start = validInPoint {
+            drawBoundaryMarker(
+                in: &context,
+                x: CGFloat(start * safePixelsPerSecond),
+                label: "I",
+                color: Color.stropheBlue,
+                pointsRight: true,
+                canvasHeight: canvasSize.height
+            )
+        }
+
+        if let end = validOutPoint {
+            drawBoundaryMarker(
+                in: &context,
+                x: CGFloat(end * safePixelsPerSecond),
+                label: "O",
+                color: .orange,
+                pointsRight: false,
+                canvasHeight: canvasSize.height
+            )
+        }
+    }
+
+    private func normalizedPoint(
+        _ point: TimeInterval?,
+        duration: Double
+    ) -> TimeInterval? {
+        guard let point, point.isFinite, duration > 0 else { return nil }
+        return point.clamped(to: 0...duration)
+    }
+
+    private func drawBoundaryMarker(
+        in context: inout GraphicsContext,
+        x: CGFloat,
+        label: String,
+        color: Color,
+        pointsRight: Bool,
+        canvasHeight: CGFloat
+    ) {
+        let lineWidth: CGFloat = 1.5
+        context.fill(
+            Path(
+                CGRect(
+                    x: x - lineWidth / 2,
+                    y: 0,
+                    width: lineWidth,
+                    height: canvasHeight
+                )
+            ),
+            with: .color(color)
+        )
+
+        let flagWidth: CGFloat = 13
+        let flagHeight: CGFloat = 11
+        let flagX = pointsRight ? x : x - flagWidth
+        let flagRect = CGRect(
+            x: flagX,
+            y: 0,
+            width: flagWidth,
+            height: flagHeight
+        )
+        context.fill(
+            Path(roundedRect: flagRect, cornerRadius: 2),
+            with: .color(color)
+        )
+        context.draw(
+            Text(label)
+                .font(.system(size: 8, weight: .bold, design: .rounded))
+                .foregroundColor(.white),
+            at: CGPoint(x: flagRect.midX, y: flagRect.midY),
+            anchor: .center
+        )
     }
     
     private func formatGridTime(_ t: Double, step: Double) -> String {

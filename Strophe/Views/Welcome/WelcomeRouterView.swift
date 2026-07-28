@@ -23,6 +23,7 @@ struct WelcomeRouterView: View {
     @State private var isShowingSubtitleImporter = false
     @State private var isShowingProjectImporter = false
     @State private var errorMessage: String?
+    @State private var didHandleUITestEditorLaunch = false
 
     var body: some View {
         Group {
@@ -105,6 +106,11 @@ struct WelcomeRouterView: View {
         }
         .onAppear {
             recentStore.reload()
+            if !didHandleUITestEditorLaunch,
+               ProcessInfo.processInfo.arguments.contains("-ui-testing-open-editor") {
+                didHandleUITestEditorLaunch = true
+                handleAction(.newProject)
+            }
         }
         .onOpenURL { url in
             handleExternalOpen(url)
@@ -144,8 +150,17 @@ struct WelcomeRouterView: View {
     }
 
     private func handleMediaImport(_ result: Result<[URL], Error>) {
-        guard case .success(let urls) = result, let url = urls.first else { return }
-        project.importMediaAsNewProject(from: url)
+        guard case .success(let urls) = result, let url = urls.first else {
+            if case .failure(let error) = result,
+               (error as? CocoaError)?.code != .userCancelled {
+                errorMessage = error.localizedDescription
+                print("❌ Media picker failed: \(error.localizedDescription)")
+            }
+            return
+        }
+        Task {
+            await project.importMediaAsNewProject(from: url)
+        }
         revealEditor()
     }
 
@@ -153,8 +168,7 @@ struct WelcomeRouterView: View {
         guard case .success(let urls) = result, let url = urls.first else { return }
 
         do {
-            let rawText = try SubtitleEngine.loadRawText(from: url)
-            project.importScript(rawText)
+            try project.importSubtitle(from: url)
             revealEditor()
         } catch {
             errorMessage = error.localizedDescription
@@ -170,7 +184,9 @@ struct WelcomeRouterView: View {
         if url.pathExtension.lowercased() == "strophe" {
             openProject(url)
         } else {
-            project.importMediaAsNewProject(from: url)
+            Task {
+                await project.importMediaAsNewProject(from: url)
+            }
             revealEditor()
         }
     }

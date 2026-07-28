@@ -1,0 +1,23 @@
+[Script Info]
+; This comment and the custom key must survive.
+Title: Lossless ASS Golden Sample
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+YCbCr Matrix: TV.709
+X-Strophe-Unknown: keep-me
+
+[Aegisub Project Garbage]
+Audio File: ?video.mp4
+Video Position: 144
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Main,Noto Sans CJK SC,62,&H00FFFFFF,&H0000FFFF,&H00101010,&H64000000,-1,0,0,0,100,100,1.5,0,1,3,1,2,80,80,54,1
+Style: Translation,Helvetica Neue,46,&H0000FFFF,&H000000FF,&H00101010,&H64000000,0,-1,0,0,100,100,0,0,1,2,1,2,80,80,110,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, CustomField, Text
+Comment: 0,0:00:00.00,0:00:02.00,Main,,0,0,0,,comment-data,editor-note
+Dialogue: 2,0:00:01.23,0:00:04.56,Main,Narrator,0010,0020,0030,fx,custom-data,{\an8\blur1.5\foo(17)}Hello, brave\Nworld
+Dialogue: 1,0:00:05.00,0:00:07.10,Translation,,0,0,0,,another-field,{\pos(960,920)\bord4}<未知> 标签

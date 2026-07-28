@@ -8,6 +8,7 @@ extension HardSubtitleVideoExporter {
     static func exportViaAVFoundation(
         inputURL: URL,
         cues: [ResolvedSubtitleCue],
+        collisionMode: SubtitleCollisionMode,
         settings: HardSubtitleVideoExportSettings,
         destinationURL: URL,
         progress: @MainActor @Sendable @escaping (Double) -> Void
@@ -30,6 +31,13 @@ extension HardSubtitleVideoExporter {
         let audioTracks = try await asset.loadTracks(withMediaType: .audio)
 
         let duration = try await asset.load(.duration)
+        let sourceDurationSeconds = max(duration.seconds.isFinite ? duration.seconds : 0, 0)
+        let exportRange = try settings.resolvedTimeRange(maxDuration: sourceDurationSeconds)
+        let timelineStartSeconds = exportRange?.lowerBound ?? 0
+        let durationSeconds = max(
+            exportRange.map { $0.upperBound - $0.lowerBound } ?? sourceDurationSeconds,
+            0.001
+        )
         let naturalSize = try await videoTrack.load(.naturalSize)
         let preferredTransform = try await videoTrack.load(.preferredTransform)
         let nominalFrameRate = try await videoTrack.load(.nominalFrameRate)
@@ -52,6 +60,15 @@ extension HardSubtitleVideoExporter {
             reader = try AVAssetReader(asset: asset)
         } catch {
             throw HardSubtitleVideoExportError.cannotCreateReader
+        }
+        if let exportRange {
+            reader.timeRange = CMTimeRange(
+                start: CMTime(seconds: exportRange.lowerBound, preferredTimescale: 600),
+                duration: CMTime(
+                    seconds: exportRange.upperBound - exportRange.lowerBound,
+                    preferredTimescale: 600
+                )
+            )
         }
 
         let exportPixelFormat = outputPixelFormat(
@@ -83,7 +100,8 @@ extension HardSubtitleVideoExporter {
         }
 
         var audioPipes: [AudioPipe] = []
-        for audioTrack in audioTracks {
+        for (ordinal, audioTrack) in audioTracks.enumerated()
+        where settings.includesAudioTrack(ordinal: ordinal) {
             let sourceFormatHint = ((try? await audioTrack.load(.formatDescriptions)) ?? []).first
             let audioOutput = AVAssetReaderTrackOutput(track: audioTrack, outputSettings: nil)
             audioOutput.alwaysCopiesSampleData = false
@@ -144,12 +162,21 @@ extension HardSubtitleVideoExporter {
         guard writer.startWriting() else {
             throw HardSubtitleVideoExportError.cannotStartWriting(writer.error?.localizedDescription ?? "Unknown error")
         }
-        writer.startSession(atSourceTime: .zero)
+        writer.startSession(
+            atSourceTime: CMTime(seconds: timelineStartSeconds, preferredTimescale: 600)
+        )
 
-        let compositor = MetalSubtitleCompositor(outputColorProfile: outputColorProfile)
+        let compositor = MetalSubtitleCompositor(
+            outputColorProfile: outputColorProfile,
+            rendersTransparentBackground: settings.rendersTransparentBackground,
+            overlays: VideoBurnInOverlaySettings(
+                exportSettings: settings,
+                frameRate: Double(nominalFrameRate),
+                timelineStartSeconds: timelineStartSeconds
+            )
+        )
         let sortedCues = cues.sorted { $0.startTime < $1.startTime }
         let cueIndex = 0
-        let durationSeconds = max(duration.seconds.isFinite ? duration.seconds : 0, 0.001)
 
         try await writeAVFoundationStreams(
             reader: reader,
@@ -161,9 +188,11 @@ extension HardSubtitleVideoExporter {
             compositor: compositor,
             sortedCues: sortedCues,
             cueIndex: cueIndex,
+            collisionMode: collisionMode,
             renderSize: renderSize,
             preferredTransform: preferredTransform,
             sourceDisplaySize: geometry.sourceDisplaySize,
+            timelineStartSeconds: timelineStartSeconds,
             durationSeconds: durationSeconds,
             progress: progress
         )

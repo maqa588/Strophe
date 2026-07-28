@@ -41,59 +41,84 @@ public final class SubtitleEngine {
     
     /// 统一导入入口
     public static func importSubtitle(from url: URL) throws -> (format: SubtitleFormat, blocks: [SubtitleBlock]) {
+        let result = try importDocument(from: url)
+        return (result.document.format, result.document.blocks)
+    }
+
+    /// Lossless import entry point used by the project editor.
+    public static func importDocument(from url: URL) throws -> SubtitleParseResult {
         let pathExtension = url.pathExtension.lowercased()
         guard let format = SubtitleFormat(rawValue: pathExtension) else {
             throw NSError(domain: "FormatError", code: -2, userInfo: [NSLocalizedDescriptionKey: String(localized: "unsupported_media_file_extension")])
         }
-        
+
         let rawText = try loadRawText(from: url)
-        guard let processor = processors[format] else { return (format, []) }
-        
-        return (format, processor.parse(text: rawText))
+        guard let processor = processors[format] else {
+            return SubtitleParseResult(document: SubtitleDocument(format: format, blocks: []))
+        }
+        return processor.parseDocument(text: rawText, sourceFileName: url.lastPathComponent)
     }
-    
+
     /// 自动判断纯文本/字幕内容并解析
     public static func parseAnyText(_ rawText: String) -> (hasTimeline: Bool, blocks: [SubtitleBlock]) {
+        let parsed = parseAnyDocument(rawText)
+        return (parsed.hasTimeline, parsed.result.document.blocks)
+    }
+
+    /// Sniff pasted subtitle text while retaining source metadata.
+    public static func parseAnyDocument(
+        _ rawText: String
+    ) -> (hasTimeline: Bool, result: SubtitleParseResult) {
         // 1. 判断是否为 ASS 字幕
-        if rawText.contains("Dialogue:") {
-            let blocks = ASSProcessor().parse(text: rawText)
-            if !blocks.isEmpty {
-                return (true, blocks)
+        if rawText.range(of: #"(?im)^\s*Dialogue\s*:"#,
+                         options: .regularExpression) != nil {
+            let result = ASSProcessor().parseDocument(text: rawText, sourceFileName: nil)
+            if !result.document.blocks.isEmpty {
+                return (true, result)
             }
         }
-        
+
         // 1.5 判断是否为 WebVTT 字幕
-        if rawText.contains("WEBVTT") {
-            let blocks = WebVTTProcessor().parse(text: rawText)
-            if !blocks.isEmpty {
-                return (true, blocks)
+        if rawText.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("WEBVTT") {
+            let result = WebVTTProcessor().parseDocument(text: rawText, sourceFileName: nil)
+            if !result.document.blocks.isEmpty {
+                return (true, result)
             }
         }
-        
+
         // 2. 判断是否为 SRT 字幕
         if rawText.contains("-->") {
-            let blocks = SRTProcessor().parse(text: rawText)
-            if !blocks.isEmpty {
-                return (true, blocks)
+            let result = SRTProcessor().parseDocument(text: rawText, sourceFileName: nil)
+            if !result.document.blocks.isEmpty {
+                return (true, result)
             }
         }
-        
+
         // 3. 判断是否为 LRC 歌词 (检测类似 [01:23.45] 的标签)
-        if rawText.range(of: "\\[\\d{2,}:\\d{2}", options: .regularExpression) != nil {
-            let blocks = LRCProcessor().parse(text: rawText)
-            if !blocks.isEmpty {
-                return (true, blocks)
+        if rawText.range(of: "\\[\\d{1,3}:\\d{2}", options: .regularExpression) != nil {
+            let result = LRCProcessor().parseDocument(text: rawText, sourceFileName: nil)
+            if !result.document.blocks.isEmpty {
+                return (true, result)
             }
         }
-        
+
         // 4. 降级为普通文本 (换行 txt)
         let lines = rawText.components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-            
+
         let blocks = lines.map { line in
             SubtitleBlock(startTime: 0, endTime: 0, text: line)
         }
-        return (false, blocks)
+        return (
+            false,
+            SubtitleParseResult(
+                document: SubtitleDocument(format: .srt, blocks: blocks)
+            )
+        )
+    }
+
+    public static func generate(_ document: SubtitleDocument) -> String {
+        processors[document.format]?.generate(document: document) ?? ""
     }
 }

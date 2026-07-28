@@ -37,12 +37,15 @@ struct MediaDocumentPicker: UIViewControllerRepresentable {
         }
 
         func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            let names = urls.map(\.lastPathComponent).joined(separator: ", ")
+            print("📂 Document picker selected: \(names)")
             DispatchQueue.main.async {
                 self.onCompletion(.success(urls))
             }
         }
 
         func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            print("ℹ️ Document picker cancelled")
             DispatchQueue.main.async {
                 self.onCompletion(.failure(CocoaError(.userCancelled)))
             }

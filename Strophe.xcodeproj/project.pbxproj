@@ -22,6 +22,23 @@
 		4CA29607300AE83E00CD7403 /* Libswscale.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4CA295E2300AE75900CD7403 /* Libswscale.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		A1000000000000000000000A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4C35662D2FB81D160046E36C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4C5A10902FD1C00100A1090A;
+			remoteInfo = Strophe;
+		};
+		B1000000000000000000000A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4C35662D2FB81D160046E36C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4C5A10902FD1C00100A1090A;
+			remoteInfo = Strophe;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXCopyFilesBuildPhase section */
 		4CA295FB300AE83600CD7403 /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
@@ -50,6 +67,8 @@
 		4CA295E1300AE75900CD7403 /* Libdav1d.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libdav1d.xcframework; path = ../FFmpegBuild/Sources/Libdav1d.xcframework; sourceTree = "<group>"; };
 		4CA295E2300AE75900CD7403 /* Libswscale.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libswscale.xcframework; path = ../FFmpegBuild/Sources/Libswscale.xcframework; sourceTree = "<group>"; };
 		4CA295E3300AE75900CD7403 /* Libswresample.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libswresample.xcframework; path = ../FFmpegBuild/Sources/Libswresample.xcframework; sourceTree = "<group>"; };
+		A10000000000000000000002 /* StropheTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = StropheTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000000000000000000002 /* StropheUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = StropheUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -72,6 +91,16 @@
 			path = Strophe;
 			sourceTree = "<group>";
 		};
+		A10000000000000000000001 /* StropheTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = StropheTests;
+			sourceTree = "<group>";
+		};
+		B10000000000000000000001 /* StropheUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = StropheUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -88,6 +117,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A10000000000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B10000000000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -96,6 +139,8 @@
 			children = (
 				4C289B502FBDE46700F034AD /* Strophe.icon */,
 				4C3566372FB81D160046E36C /* Strophe */,
+				A10000000000000000000001 /* StropheTests */,
+				B10000000000000000000001 /* StropheUITests */,
 				4C88C8FC2FBB71E500142A61 /* Frameworks */,
 				4C3566362FB81D160046E36C /* Products */,
 			);
@@ -105,6 +150,8 @@
 			isa = PBXGroup;
 			children = (
 				4C5A10702FD1C00100A1070A /* Strophe.app */,
+				A10000000000000000000002 /* StropheTests.xctest */,
+				B10000000000000000000002 /* StropheUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -148,6 +195,52 @@
 			productReference = 4C5A10702FD1C00100A1070A /* Strophe.app */;
 			productType = "com.apple.product-type.application";
 		};
+		A10000000000000000000003 /* StropheTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10000000000000000000009 /* Build configuration list for PBXNativeTarget "StropheTests" */;
+			buildPhases = (
+				A10000000000000000000004 /* Sources */,
+				A10000000000000000000005 /* Frameworks */,
+				A10000000000000000000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A1000000000000000000000B /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				A10000000000000000000001 /* StropheTests */,
+			);
+			name = StropheTests;
+			packageProductDependencies = (
+			);
+			productName = StropheTests;
+			productReference = A10000000000000000000002 /* StropheTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		B10000000000000000000003 /* StropheUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B10000000000000000000009 /* Build configuration list for PBXNativeTarget "StropheUITests" */;
+			buildPhases = (
+				B10000000000000000000004 /* Sources */,
+				B10000000000000000000005 /* Frameworks */,
+				B10000000000000000000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B1000000000000000000000B /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				B10000000000000000000001 /* StropheUITests */,
+			);
+			name = StropheUITests;
+			packageProductDependencies = (
+			);
+			productName = StropheUITests;
+			productReference = B10000000000000000000002 /* StropheUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -160,6 +253,14 @@
 				TargetAttributes = {
 					4C5A10902FD1C00100A1090A = {
 						CreatedOnToolsVersion = 26.4.1;
+					};
+					A10000000000000000000003 = {
+						CreatedOnToolsVersion = 27.0;
+						TestTargetID = 4C5A10902FD1C00100A1090A;
+					};
+					B10000000000000000000003 = {
+						CreatedOnToolsVersion = 27.0;
+						TestTargetID = 4C5A10902FD1C00100A1090A;
 					};
 				};
 			};
@@ -185,6 +286,8 @@
 			projectRoot = "";
 			targets = (
 				4C5A10902FD1C00100A1090A /* Strophe */,
+				A10000000000000000000003 /* StropheTests */,
+				B10000000000000000000003 /* StropheUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -198,6 +301,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A10000000000000000000006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B10000000000000000000006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -208,7 +325,34 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A10000000000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B10000000000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A1000000000000000000000B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4C5A10902FD1C00100A1090A /* Strophe */;
+			targetProxy = A1000000000000000000000A /* PBXContainerItemProxy */;
+		};
+		B1000000000000000000000B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4C5A10902FD1C00100A1090A /* Strophe */;
+			targetProxy = B1000000000000000000000A /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		4C3566402FB81D170046E36C /* Debug */ = {
@@ -474,6 +618,96 @@
 			};
 			name = Release;
 		};
+		A10000000000000000000007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = "$(ARCHS_STANDARD)";
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3XV7UWT8UV;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = top.maqa.StropheTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				"TEST_HOST[sdk=iphoneos*]" = "$(BUILT_PRODUCTS_DIR)/Strophe.app/Strophe";
+				"TEST_HOST[sdk=iphonesimulator*]" = "$(BUILT_PRODUCTS_DIR)/Strophe.app/Strophe";
+				"TEST_HOST[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/Strophe.app/Contents/MacOS/Strophe";
+			};
+			name = Debug;
+		};
+		A10000000000000000000008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = "$(ARCHS_STANDARD)";
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3XV7UWT8UV;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = top.maqa.StropheTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				"TEST_HOST[sdk=iphoneos*]" = "$(BUILT_PRODUCTS_DIR)/Strophe.app/Strophe";
+				"TEST_HOST[sdk=iphonesimulator*]" = "$(BUILT_PRODUCTS_DIR)/Strophe.app/Strophe";
+				"TEST_HOST[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/Strophe.app/Contents/MacOS/Strophe";
+			};
+			name = Release;
+		};
+		B10000000000000000000007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = "$(ARCHS_STANDARD)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3XV7UWT8UV;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = top.maqa.StropheUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Strophe;
+			};
+			name = Debug;
+		};
+		B10000000000000000000008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = "$(ARCHS_STANDARD)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3XV7UWT8UV;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = top.maqa.StropheUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Strophe;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -491,6 +725,24 @@
 			buildConfigurations = (
 				4C5A10A12FD1C00100A10A1A /* Debug */,
 				4C5A10A22FD1C00100A10A2A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A10000000000000000000009 /* Build configuration list for PBXNativeTarget "StropheTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000000000000000000007 /* Debug */,
+				A10000000000000000000008 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B10000000000000000000009 /* Build configuration list for PBXNativeTarget "StropheUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B10000000000000000000007 /* Debug */,
+				B10000000000000000000008 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

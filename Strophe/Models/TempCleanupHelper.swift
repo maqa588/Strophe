@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 #if os(macOS)
 import AppKit
 #else
@@ -6,21 +7,83 @@ import UIKit
 #endif
 
 nonisolated final class TempCleanupHelper {
+    private static let exportDirectoryName = "StropheExports"
+    private static let exportSessionName =
+        "\(ProcessInfo.processInfo.processIdentifier)-\(UUID().uuidString)"
+
+    private static var exportRootDirectoryURL: URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent(exportDirectoryName, isDirectory: true)
+    }
+
+    static var exportSessionDirectoryURL: URL {
+        let directory = exportRootDirectoryURL
+            .appendingPathComponent(exportSessionName, isDirectory: true)
+        try? FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        return directory
+    }
 
     private static func isCleanupCandidate(_ url: URL) -> Bool {
         let name = url.lastPathComponent
         return name.hasPrefix("strophe_ai_") ||
-            name == "StropheExports" ||
             name.hasSuffix(".mlmodelc") ||
             name.hasSuffix(".strophe") ||
             (name.count == 36 && name.filter { $0 == "-" }.count == 4)
+    }
+
+    private static func exportCleanupCandidates(
+        removeCurrentSession: Bool
+    ) -> [URL] {
+        guard let items = try? FileManager.default.contentsOfDirectory(
+            at: exportRootDirectoryURL,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return []
+        }
+
+        return items.filter { item in
+            let name = item.lastPathComponent
+            if name == exportSessionName {
+                return removeCurrentSession
+            }
+
+            guard let pidComponent = name.split(
+                separator: "-",
+                maxSplits: 1
+            ).first,
+            let pid = Int32(pidComponent) else {
+                // Files created by older Strophe versions are not session
+                // scoped, so they are safe to treat as crash leftovers.
+                return true
+            }
+            return !isProcessRunning(pid)
+        }
+    }
+
+    private static func isProcessRunning(_ pid: Int32) -> Bool {
+        guard pid > 0 else { return false }
+        if pid == getpid() { return true }
+
+        errno = 0
+        if kill(pid, 0) == 0 {
+            return true
+        }
+        // A sandbox may deny process inspection even while the process is
+        // alive. Preserving its directory is safer than deleting active work.
+        return errno == EPERM
     }
 
     // MARK: - General Temp Directory Cleanup
 
     /// 删除应用临时目录下的所有文件和文件夹。
     @discardableResult
-    static func cleanupTempDirectory() -> Int {
+    static func cleanupTempDirectory(
+        removeCurrentExportSession: Bool = false
+    ) -> Int {
         let tempDir = FileManager.default.temporaryDirectory
         guard let contents = try? FileManager.default.contentsOfDirectory(
             at: tempDir,
@@ -34,7 +97,11 @@ nonisolated final class TempCleanupHelper {
         print("🧹 TempCleanupHelper: Starting cleanup of temporary directory...")
         var removedCount = 0
         var failedCount = 0
-        for fileURL in contents where isCleanupCandidate(fileURL) {
+        let candidates = contents.filter(isCleanupCandidate)
+            + exportCleanupCandidates(
+                removeCurrentSession: removeCurrentExportSession
+            )
+        for fileURL in candidates {
             let name = fileURL.lastPathComponent
 
             do {
@@ -97,7 +164,9 @@ nonisolated final class TempCleanupHelper {
         ) { _ in
             print("💾 TempCleanupHelper: App is terminating, performing exit cleanup...")
             cleanupAIModelTempCopies()   // 优先清理 AI 模型副本（可能很大）
-            cleanupTempDirectory()       // 再清理其余临时文件
+            cleanupTempDirectory(
+                removeCurrentExportSession: true
+            )                            // 再清理其余临时文件
         }
     }
 
@@ -111,6 +180,7 @@ nonisolated final class TempCleanupHelper {
         ) else { return }
 
         let userFiles = contents.filter(isCleanupCandidate)
+            + exportCleanupCandidates(removeCurrentSession: false)
 
         guard !userFiles.isEmpty else {
             print("🧹 TempCleanupHelper: No leftover temp files detected at startup.")
@@ -134,7 +204,12 @@ nonisolated final class TempCleanupHelper {
             options: [.skipsSubdirectoryDescendants]
         ) else { return 0 }
 
-        for root in contents where isCleanupCandidate(root) {
+        var roots = contents.filter(isCleanupCandidate)
+        if FileManager.default.fileExists(atPath: exportRootDirectoryURL.path) {
+            roots.append(exportRootDirectoryURL)
+        }
+
+        for root in roots {
             if let rootValues = try? root.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey]),
                rootValues.isDirectory != true {
                 size += Int64(rootValues.fileSize ?? 0)

@@ -8,11 +8,23 @@
 import Foundation
 
 protocol SubtitleProcessor {
-    /// 将导入的纯文本文件解析为标准统一的字幕块数组
-    func parse(text: String) -> [SubtitleBlock]
-    
-    /// 将标准字幕块数组序列化为导出的文本字符串
-    func generate(blocks: [SubtitleBlock]) -> String
+    var format: SubtitleFormat { get }
+
+    /// Parse editable cue text and retain lossless source metadata.
+    func parseDocument(text: String, sourceFileName: String?) -> SubtitleParseResult
+
+    /// Serialize a document, reusing retained metadata where possible.
+    func generate(document: SubtitleDocument) -> String
+}
+
+extension SubtitleProcessor {
+    func parse(text: String) -> [SubtitleBlock] {
+        parseDocument(text: text, sourceFileName: nil).document.blocks
+    }
+
+    func generate(blocks: [SubtitleBlock]) -> String {
+        generate(document: SubtitleDocument(format: format, blocks: blocks))
+    }
 }
 
 // 时间格式化公共辅助工具（解耦核心算法）
@@ -48,14 +60,11 @@ struct SubtitleTimeFormatter {
     
     // 秒数转字符串辅助
     static func format(seconds: TimeInterval, format: SubtitleFormat) -> String {
-        let hrs = Int(seconds) / 3600
-        let mins = (Int(seconds) % 3600) / 60
-        let secs = Int(seconds) % 60
-        let ms = Int((seconds.truncatingRemainder(dividingBy: 1)) * 1000)
+        let safeSeconds = max(0, seconds.isFinite ? seconds : 0)
 
         switch format {
         case .srt:
-            let totalMilliseconds = Int((seconds * 1000).rounded())
+            let totalMilliseconds = Int((safeSeconds * 1000).rounded())
             let milliseconds = totalMilliseconds % 1000
             let totalSeconds = totalMilliseconds / 1000
             let wholeSeconds = totalSeconds % 60
@@ -69,15 +78,37 @@ struct SubtitleTimeFormatter {
                 milliseconds
             )
         case .ass:
-            // ASS 小时只有 1 位，毫秒只保留 2 位
-            let cs = ms / 10 // 厘秒
-            return String(format: "%1d:%02d:%02d.%02d", hrs, mins, secs, cs)
+            let totalCentiseconds = Int((safeSeconds * 100).rounded())
+            let centiseconds = totalCentiseconds % 100
+            let totalSeconds = totalCentiseconds / 100
+            return String(
+                format: "%d:%02d:%02d.%02d",
+                totalSeconds / 3600,
+                (totalSeconds / 60) % 60,
+                totalSeconds % 60,
+                centiseconds
+            )
         case .lrc:
-            let totalMins = hrs * 60 + mins
-            let cs = ms / 10
-            return String(format: "[%02d:%02d.%02d]", totalMins, secs, cs)
+            let totalCentiseconds = Int((safeSeconds * 100).rounded())
+            let centiseconds = totalCentiseconds % 100
+            let totalSeconds = totalCentiseconds / 100
+            return String(
+                format: "[%02d:%02d.%02d]",
+                totalSeconds / 60,
+                totalSeconds % 60,
+                centiseconds
+            )
         case .vtt:
-            return String(format: "%02d:%02d:%02d.%03d", hrs, mins, secs, ms)
+            let totalMilliseconds = Int((safeSeconds * 1000).rounded())
+            let milliseconds = totalMilliseconds % 1000
+            let totalSeconds = totalMilliseconds / 1000
+            return String(
+                format: "%02d:%02d:%02d.%03d",
+                totalSeconds / 3600,
+                (totalSeconds / 60) % 60,
+                totalSeconds % 60,
+                milliseconds
+            )
         }
     }
 }

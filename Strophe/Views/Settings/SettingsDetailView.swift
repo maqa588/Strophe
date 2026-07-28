@@ -9,14 +9,19 @@ import SwiftUI
 
 struct SettingsDetailView: View {
     let route: SettingsRoute
+    @ObservedObject var project: SubtitleProject
 
     var body: some View {
         Group {
             switch route {
             case .version:
                 VersionDetailView()
+            case .currentMediaInfo:
+                CurrentMediaInfoView(project: project)
             case .cache:
                 CacheSettingView()
+            case .projectRecovery:
+                ProjectRecoveryView(project: project)
             case .whisperConfig:
                 ModelConfigView(type: .whisper)
             case .alignerConfig:

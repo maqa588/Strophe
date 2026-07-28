@@ -26,7 +26,9 @@ struct VideoPlayerView: View {
 
     var body: some View {
         ZStack {
-            if let mediaError = project.mediaLoadError {
+            if project.mediaAccessStatus.state == .resolving {
+                mediaResolvingState
+            } else if let mediaError = project.mediaLoadError {
                 mediaErrorState(mediaError)
             } else if project.videoURL != nil {
                 ZStack {
@@ -120,7 +122,7 @@ struct VideoPlayerView: View {
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
                 if let url = url {
                     Task { @MainActor in
-                        project.videoURL = url
+                        await project.replaceMedia(with: url)
                     }
                 }
             }
@@ -143,16 +145,16 @@ struct VideoPlayerView: View {
                         guard let ffmpegEngine = await project.acquirePlayerEngine(
                             for: url,
                             makeEngine: { FFmpegEngine() }
-                        ), project.videoURL == url else { return }
+                        ), project.videoURL == url else {
+                            project.reportMediaPlaybackFailure(
+                                for: url,
+                                state: .unreadable,
+                                technicalMessage: "FFmpeg could not open the remote media source."
+                            )
+                            return
+                        }
 
-                        currentURL = url
-                        engine = ffmpegEngine
-                        _ = await ffmpegEngine.seek(
-                            to: project.currentTime.clampedFinite(to: 0...ffmpegEngine.duration)
-                        )
-                        setupScrubTask()
-                        setupFrameRateDetection(url: url, engine: ffmpegEngine)
-                        // Window adjustment will happen automatically in setupFrameRateDetection after size is fetched
+                        await activateLoadedEngine(ffmpegEngine, url: url)
                     }
                 }
                 pendingCompatibilityURL = nil
@@ -175,7 +177,9 @@ struct VideoPlayerView: View {
             allowsMultipleSelection: false
         ) { result in
             guard case .success(let urls) = result, let url = urls.first else { return }
-            project.replaceMedia(with: url)
+            Task {
+                await project.replaceMedia(with: url)
+            }
         }
     }
 
@@ -239,6 +243,30 @@ struct VideoPlayerView: View {
     }
     
     // MARK: - Media Error State
+
+    private var mediaResolvingState: some View {
+        ZStack {
+            #if os(macOS)
+            VisualEffectView(material: .underPageBackground, blendingMode: .behindWindow)
+            #else
+            VisualEffectView(style: .systemMaterial)
+            #endif
+            VStack(spacing: 14) {
+                ProgressView()
+                    .controlSize(.large)
+                Text(String(localized: "preparing_selected_media"))
+                    .font(.headline)
+                if let mediaName = project.mediaAccessStatus.requestedURL?.lastPathComponent {
+                    Text(mediaName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .padding(40)
+        }
+    }
     
     private func mediaErrorState(_ mediaName: String) -> some View {
         ZStack {

@@ -55,6 +55,25 @@ extension ContentView {
                     default:
                         break
                     }
+
+                    switch event.charactersIgnoringModifiers?.lowercased() {
+                    case "j":
+                        project.transportJogBackward(); return nil
+                    case "k":
+                        project.transportStop(); return nil
+                    case "l":
+                        project.transportShuttleForward(); return nil
+                    case "i":
+                        project.setInPoint(); return nil
+                    case "o":
+                        project.setOutPoint(); return nil
+                    case "m":
+                        project.addMarker(); return nil
+                    case "/":
+                        project.toggleCurrentSubtitleLoop(); return nil
+                    default:
+                        break
+                    }
                 }
                 if mod == .option,
                    let rawKey = event.charactersIgnoringModifiers,

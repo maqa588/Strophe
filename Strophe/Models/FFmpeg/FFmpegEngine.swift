@@ -343,7 +343,10 @@ final class FrameQueue: @unchecked Sendable {
         currentFrameGeneration += 1
         await core.seekClearAndNewGeneration(generation: currentFrameGeneration)
         
-        await core.loadSession(url: url)
+        guard await core.loadSession(url: url), !Task.isCancelled else {
+            rate = 0
+            return false
+        }
         
         if cachedAudioStreamIndex >= 0 {
             audioPlayer.seek(to: 0.0)
@@ -358,7 +361,7 @@ final class FrameQueue: @unchecked Sendable {
         await core.setStartPlaybackTime(0.0)
         
         rate = 0.0
-        return !Task.isCancelled
+        return true
     }
     
     func play() {

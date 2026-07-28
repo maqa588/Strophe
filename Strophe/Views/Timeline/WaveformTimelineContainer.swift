@@ -78,7 +78,9 @@ struct WaveformTimelineContainer: View {
                     pixelsPerSecond: safePixelsPerSecond,
                     duration: safeDuration,
                     visibleStartTime: visibleStartTime,
-                    viewWidth: safeViewWidth
+                    viewWidth: safeViewWidth,
+                    inPoint: project.inPoint,
+                    outPoint: project.outPoint
                 )
                     .frame(width: safeTotalWidth, height: rulerHeight)
                     .contentShape(Rectangle())

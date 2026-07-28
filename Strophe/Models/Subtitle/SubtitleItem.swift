@@ -14,10 +14,30 @@ struct SubtitleStyleOverrides: Codable, Sendable, Equatable {
     var isItalic: Bool?
 }
 
+enum SubtitlePositionCoordinateSpace: String, Codable, Sendable, Equatable {
+    /// Coordinates are expressed in source-video pixels.
+    case canvas
+    /// Coordinates are normalized to the 0...1 range.
+    case normalized
+}
+
 struct SubtitlePositionOverride: Codable, Sendable, Equatable {
     var x: Double?
     var y: Double?
+    /// Backward-compatible anchor field. Values use SubtitleStyle.Alignment raw values.
     var alignmentRaw: String?
+    var coordinateSpace: SubtitlePositionCoordinateSpace?
+}
+
+enum SubtitleCollisionMode: String, Codable, Sendable, Equatable, CaseIterable {
+    /// Earlier/lower-track subtitles retain the base position and later tracks
+    /// are moved toward the center of the frame.
+    case normal
+    /// Later/higher-track subtitles retain the base position and earlier tracks
+    /// are moved toward the center of the frame.
+    case reverse
+    /// Preserve every cue's authored position even when rectangles overlap.
+    case disabled
 }
 
 struct SubtitleItem: Identifiable, Equatable, Codable, Sendable {
@@ -30,6 +50,8 @@ struct SubtitleItem: Identifiable, Equatable, Codable, Sendable {
     // Style & bilingual extensibility
     var groupID: UUID?
     var trackIndex: Int
+    /// Compositing layer. Higher layers are drawn later and therefore appear on top.
+    var layer: Int
     var styleID: UUID?
     var styleOverrides: SubtitleStyleOverrides?
     var positionOverride: SubtitlePositionOverride?
@@ -38,6 +60,9 @@ struct SubtitleItem: Identifiable, Equatable, Codable, Sendable {
     var bilingualPairID: UUID?
     var isHidden: Bool
     var isLocked: Bool
+    /// Lossless source-format information (ASS tags/style fields, VTT settings,
+    /// original cue identifiers, and similar data).
+    var interchangeMetadata: SubtitleCueInterchangeMetadata?
     
     init(
         id: UUID = UUID(),
@@ -47,6 +72,7 @@ struct SubtitleItem: Identifiable, Equatable, Codable, Sendable {
         originalIndex: Int = 0,
         groupID: UUID? = nil,
         trackIndex: Int = 0,
+        layer: Int = 0,
         styleID: UUID? = nil,
         styleOverrides: SubtitleStyleOverrides? = nil,
         positionOverride: SubtitlePositionOverride? = nil,
@@ -54,7 +80,8 @@ struct SubtitleItem: Identifiable, Equatable, Codable, Sendable {
         languageCode: String? = nil,
         bilingualPairID: UUID? = nil,
         isHidden: Bool = false,
-        isLocked: Bool = false
+        isLocked: Bool = false,
+        interchangeMetadata: SubtitleCueInterchangeMetadata? = nil
     ) {
         self.id = id
         self.text = text
@@ -63,6 +90,7 @@ struct SubtitleItem: Identifiable, Equatable, Codable, Sendable {
         self.originalIndex = originalIndex
         self.groupID = groupID
         self.trackIndex = trackIndex
+        self.layer = layer
         self.styleID = styleID
         self.styleOverrides = styleOverrides
         self.positionOverride = positionOverride
@@ -71,6 +99,7 @@ struct SubtitleItem: Identifiable, Equatable, Codable, Sendable {
         self.bilingualPairID = bilingualPairID
         self.isHidden = isHidden
         self.isLocked = isLocked
+        self.interchangeMetadata = interchangeMetadata
     }
     
     var isTimed: Bool {
@@ -89,6 +118,7 @@ struct SubtitleItem: Identifiable, Equatable, Codable, Sendable {
         case originalIndex
         case groupID
         case trackIndex
+        case layer
         case styleID
         case styleOverrides
         case positionOverride
@@ -97,6 +127,7 @@ struct SubtitleItem: Identifiable, Equatable, Codable, Sendable {
         case bilingualPairID
         case isHidden
         case isLocked
+        case interchangeMetadata
     }
 
     init(from decoder: Decoder) throws {
@@ -108,6 +139,7 @@ struct SubtitleItem: Identifiable, Equatable, Codable, Sendable {
         originalIndex = try container.decodeIfPresent(Int.self, forKey: .originalIndex) ?? 0
         groupID = try container.decodeIfPresent(UUID.self, forKey: .groupID)
         trackIndex = try container.decodeIfPresent(Int.self, forKey: .trackIndex) ?? 0
+        layer = try container.decodeIfPresent(Int.self, forKey: .layer) ?? 0
         styleID = try container.decodeIfPresent(UUID.self, forKey: .styleID)
         styleOverrides = try container.decodeIfPresent(SubtitleStyleOverrides.self, forKey: .styleOverrides)
         positionOverride = try container.decodeIfPresent(SubtitlePositionOverride.self, forKey: .positionOverride)
@@ -116,6 +148,10 @@ struct SubtitleItem: Identifiable, Equatable, Codable, Sendable {
         bilingualPairID = try container.decodeIfPresent(UUID.self, forKey: .bilingualPairID)
         isHidden = try container.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
         isLocked = try container.decodeIfPresent(Bool.self, forKey: .isLocked) ?? false
+        interchangeMetadata = try container.decodeIfPresent(
+            SubtitleCueInterchangeMetadata.self,
+            forKey: .interchangeMetadata
+        )
     }
 
     func encode(to encoder: Encoder) throws {
@@ -127,6 +163,7 @@ struct SubtitleItem: Identifiable, Equatable, Codable, Sendable {
         try container.encode(originalIndex, forKey: .originalIndex)
         try container.encodeIfPresent(groupID, forKey: .groupID)
         try container.encode(trackIndex, forKey: .trackIndex)
+        try container.encode(layer, forKey: .layer)
         try container.encodeIfPresent(styleID, forKey: .styleID)
         try container.encodeIfPresent(styleOverrides, forKey: .styleOverrides)
         try container.encodeIfPresent(positionOverride, forKey: .positionOverride)
@@ -135,5 +172,6 @@ struct SubtitleItem: Identifiable, Equatable, Codable, Sendable {
         try container.encodeIfPresent(bilingualPairID, forKey: .bilingualPairID)
         try container.encode(isHidden, forKey: .isHidden)
         try container.encode(isLocked, forKey: .isLocked)
+        try container.encodeIfPresent(interchangeMetadata, forKey: .interchangeMetadata)
     }
 }

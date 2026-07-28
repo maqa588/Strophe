@@ -11,7 +11,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 import VideoToolbox
 
-enum HardSubtitleVideoExportError: LocalizedError {
+nonisolated enum HardSubtitleVideoExportError: LocalizedError {
     case missingMedia
     case missingVideoTrack
     case unsupportedInput(String)
@@ -26,6 +26,7 @@ enum HardSubtitleVideoExportError: LocalizedError {
     case ffmpegDecodeFailed(String)
     case hdrRequiresCompatibleCodec
     case hdrSourceRequired
+    case invalidExportRange
 
     var errorDescription: String? {
         switch self {
@@ -57,13 +58,16 @@ enum HardSubtitleVideoExportError: LocalizedError {
             return String(localized: "HDR 导出需要使用 H.265 / HEVC 或 Apple ProRes。")
         case .hdrSourceRequired:
             return String(localized: "当前视频不是可识别的 PQ/HLG HDR 视频，无法开启 HDR 导出。")
+        case .invalidExportRange:
+            return String(localized: "video_export_invalid_range")
         }
     }
 }
 
-enum HardSubtitleVideoCodec: String, CaseIterable, Identifiable, Sendable {
+nonisolated enum HardSubtitleVideoCodec: String, CaseIterable, Identifiable, Sendable {
     case h264
     case h265
+    case proRes4444
     case proRes422HQ
     case proRes422
     case proRes422LT
@@ -75,6 +79,7 @@ enum HardSubtitleVideoCodec: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .h264: return "H.264"
         case .h265: return "H.265 / HEVC"
+        case .proRes4444: return "Apple ProRes 4444"
         case .proRes422HQ: return "Apple ProRes 422 HQ"
         case .proRes422: return "Apple ProRes 422"
         case .proRes422LT: return "Apple ProRes 422 LT"
@@ -86,6 +91,7 @@ enum HardSubtitleVideoCodec: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .h264: return .h264
         case .h265: return .hevc
+        case .proRes4444: return .proRes4444
         case .proRes422HQ: return .proRes422HQ
         case .proRes422: return .proRes422
         case .proRes422LT: return .proRes422LT
@@ -96,29 +102,37 @@ enum HardSubtitleVideoCodec: String, CaseIterable, Identifiable, Sendable {
     var fileType: AVFileType {
         switch self {
         case .h264, .h265: return .mp4
-        case .proRes422HQ, .proRes422, .proRes422LT, .proRes422Proxy: return .mov
+        case .proRes4444, .proRes422HQ, .proRes422, .proRes422LT, .proRes422Proxy:
+            return .mov
         }
     }
 
     var contentType: UTType {
         switch self {
         case .h264, .h265: return .mpeg4Movie
-        case .proRes422HQ, .proRes422, .proRes422LT, .proRes422Proxy: return .quickTimeMovie
+        case .proRes4444, .proRes422HQ, .proRes422, .proRes422LT, .proRes422Proxy:
+            return .quickTimeMovie
         }
     }
 
     var fileExtension: String {
         switch self {
         case .h264, .h265: return "mp4"
-        case .proRes422HQ, .proRes422, .proRes422LT, .proRes422Proxy: return "mov"
+        case .proRes4444, .proRes422HQ, .proRes422, .proRes422LT, .proRes422Proxy:
+            return "mov"
         }
     }
     
     var isProRes: Bool {
         switch self {
-        case .proRes422HQ, .proRes422, .proRes422LT, .proRes422Proxy: return true
+        case .proRes4444, .proRes422HQ, .proRes422, .proRes422LT, .proRes422Proxy:
+            return true
         default: return false
         }
+    }
+
+    var supportsAlpha: Bool {
+        self == .proRes4444
     }
 
     var supportsHDR: Bool {
@@ -192,7 +206,7 @@ enum HardSubtitleVideoCodec: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-enum HardSubtitleVideoRateControlMode: String, CaseIterable, Identifiable, Sendable {
+nonisolated enum HardSubtitleVideoRateControlMode: String, CaseIterable, Identifiable, Sendable {
     case constantQuality
     case bitrate
 
@@ -206,7 +220,7 @@ enum HardSubtitleVideoRateControlMode: String, CaseIterable, Identifiable, Senda
     }
 }
 
-struct HardSubtitleVideoExportSettings: Sendable, Equatable {
+nonisolated struct HardSubtitleVideoExportSettings: Sendable, Equatable {
     var codec: HardSubtitleVideoCodec = .h264
     var rateControlMode: HardSubtitleVideoRateControlMode = .constantQuality
     var constantQualityPercent: Double = 50
@@ -219,6 +233,18 @@ struct HardSubtitleVideoExportSettings: Sendable, Equatable {
     var usesBGRACompatibilityPixelBuffers: Bool = false
     var usesMultiPassEncoding: Bool = false
     var exportsHDR: Bool = false
+    /// When enabled with ProRes 4444, only graphics and subtitles are rendered;
+    /// the source video is replaced by transparent pixels.
+    var exportsTransparentBackground: Bool = false
+    /// Project in/out points are copied into these fields when the export sheet opens.
+    var usesProjectRange: Bool = false
+    var rangeStartSeconds: Double?
+    var rangeEndSeconds: Double?
+    var watermarkText: String = ""
+    var burnsTimecode: Bool = false
+    var timecodeStartsAtZero: Bool = false
+    /// `nil` means all audio tracks. An empty set exports no audio.
+    var includedAudioTrackOrdinals: Set<Int>? = nil
 
     var resolvedConstantQualityFactor: Double {
         min(max(constantQualityPercent, 0), 100) / 100.0
@@ -226,6 +252,65 @@ struct HardSubtitleVideoExportSettings: Sendable, Equatable {
 
     var resolvedTargetBitrate: Int {
         Int(min(max(targetBitrateMbps, 0.3), 200) * 1_000_000)
+    }
+
+    var rendersTransparentBackground: Bool {
+        exportsTransparentBackground && codec.supportsAlpha
+    }
+
+    func resolvedTimeRange(maxDuration: Double) throws -> Range<Double>? {
+        guard usesProjectRange else { return nil }
+        guard let rawStart = rangeStartSeconds,
+              let rawEnd = rangeEndSeconds,
+              rawStart.isFinite,
+              rawEnd.isFinite else {
+            throw HardSubtitleVideoExportError.invalidExportRange
+        }
+        let start = min(max(rawStart, 0), maxDuration)
+        let end = min(max(rawEnd, 0), maxDuration)
+        guard end > start else {
+            throw HardSubtitleVideoExportError.invalidExportRange
+        }
+        return start..<end
+    }
+
+    func includesAudioTrack(ordinal: Int) -> Bool {
+        includedAudioTrackOrdinals?.contains(ordinal) ?? true
+    }
+}
+
+nonisolated struct VideoBurnInOverlaySettings: Sendable, Equatable {
+    var watermarkText: String
+    var burnsTimecode: Bool
+    var timecodeStartsAtZero: Bool
+    var frameRate: Double
+    var timelineStartSeconds: Double
+
+    init(
+        watermarkText: String = "",
+        burnsTimecode: Bool = false,
+        timecodeStartsAtZero: Bool = false,
+        frameRate: Double = 30,
+        timelineStartSeconds: Double = 0
+    ) {
+        self.watermarkText = watermarkText
+        self.burnsTimecode = burnsTimecode
+        self.timecodeStartsAtZero = timecodeStartsAtZero
+        self.frameRate = frameRate
+        self.timelineStartSeconds = timelineStartSeconds
+    }
+
+    init(
+        exportSettings: HardSubtitleVideoExportSettings,
+        frameRate: Double,
+        timelineStartSeconds: Double
+    ) {
+        watermarkText = exportSettings.watermarkText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        burnsTimecode = exportSettings.burnsTimecode
+        timecodeStartsAtZero = exportSettings.timecodeStartsAtZero
+        self.frameRate = frameRate
+        self.timelineStartSeconds = timelineStartSeconds
     }
 }
 

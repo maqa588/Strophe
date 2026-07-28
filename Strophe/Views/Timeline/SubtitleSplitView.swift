@@ -57,141 +57,62 @@ struct SubtitleSplitView: View {
     }
 
     var body: some View {
+        #if os(macOS)
+        macOSContent
+        #else
+        iOSContent
+        #endif
+    }
+
+    #if os(macOS)
+    private var macOSContent: some View {
         VStack(spacing: 0) {
-            // ── Header ───────────────────────────────────────────
+            // Header
             HStack {
-                Image(systemName: "scissors")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(Color.stropheAccent)
-                Text(String(localized: "split_subtitles"))
-                    .font(.headline)
+                Text("split_subtitles")
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.stropheText)
+
                 Spacer()
+
                 Button(action: onDismiss) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.title3)
                         .foregroundStyle(.secondary)
+                        .font(.title3)
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 24)
             .padding(.top, 20)
             .padding(.bottom, 12)
 
             Divider()
+                .background(Color.stropheBorder)
 
-            // ── Main scrollable area ──────────────────────────────
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 16) {
-                    Text(String(localized: "click_character_spacing_to_move"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    // 文本分词显示
-                    splitTextView
-                        .padding(.horizontal, 8)
-
-                    // 左右箭头微调
-                    HStack(spacing: 20) {
-                        Button(action: {
-                            if cursorPosition > 1 { cursorPosition -= 1 }
-                        }) {
-                            Image(systemName: "chevron.left.circle.fill")
-                                .font(.title2)
-                                .foregroundStyle(cursorPosition > 1 ? Color.stropheAccent : Color.secondary.opacity(0.3))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(cursorPosition <= 1)
-
-                        Text(String(localized: "playhead_position_format \(cursorPosition) \(characters.count)"))
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.secondary)
-
-                        Button(action: {
-                            if cursorPosition < characters.count - 1 { cursorPosition += 1 }
-                        }) {
-                            Image(systemName: "chevron.right.circle.fill")
-                                .font(.title2)
-                                .foregroundStyle(cursorPosition < characters.count - 1 ? Color.stropheAccent : Color.secondary.opacity(0.3))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(cursorPosition >= characters.count - 1)
-                    }
-
-                    Divider()
-
-                    // ── 时间范围预览 ──────────────────────────────
-                    HStack(alignment: .top, spacing: 0) {
-                        // 左半
-                        VStack(spacing: 4) {
-                            HStack(spacing: 4) {
-                                Circle()
-                                    .fill(Color.stropheBlue)
-                                    .frame(width: 8, height: 8)
-                                Text(String(localized: "left_half"))
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.secondary)
-                            }
-                            Text(formatTime(item.startTime ?? 0) + " → " + formatTime(splitTime))
-                                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                .foregroundStyle(.primary)
-                                .minimumScaleFactor(0.75)
-                                .lineLimit(1)
-                            Text("bracket_format \(leftText)")
-                                .font(.caption)
-                                .foregroundStyle(Color.stropheBlue)
-                                .lineLimit(2)
-                                .multilineTextAlignment(.center)
-                        }
-                        .frame(maxWidth: .infinity)
-
-                        Rectangle()
-                            .fill(Color.secondary.opacity(0.3))
-                            .frame(width: 1, height: 56)
-                            .padding(.top, 4)
-
-                        // 右半
-                        VStack(spacing: 4) {
-                            HStack(spacing: 4) {
-                                Circle()
-                                    .fill(Color.orange)
-                                    .frame(width: 8, height: 8)
-                                Text(String(localized: "right_half"))
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.secondary)
-                            }
-                            Text(formatTime(splitTime) + " → " + formatTime(item.endTime ?? 0))
-                                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                .foregroundStyle(.primary)
-                                .minimumScaleFactor(0.75)
-                                .lineLimit(1)
-                            Text("bracket_format \(rightText)")
-                                .font(.caption)
-                                .foregroundStyle(Color.orange)
-                                .lineLimit(2)
-                                .multilineTextAlignment(.center)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .padding(.horizontal, 4)
+                    cursorSplitCard
+                    splitResultPreviewCard
                 }
+                .padding(.horizontal, 24)
                 .padding(.vertical, 16)
-                .padding(.horizontal, 20)
             }
 
             Divider()
+                .background(Color.stropheBorder)
 
-            // ── 操作按钮 ─────────────────────────────────────────
-            HStack(spacing: 12) {
-                Button(action: onDismiss) {
-                    Text(String(localized: "cancel"))
-                        .frame(maxWidth: .infinity)
+            // Bottom Actions
+            HStack {
+                Spacer()
+
+                Button(String(localized: "cancel")) {
+                    onDismiss()
                 }
                 .buttonStyle(.bordered)
-                #if os(macOS)
-                .keyboardShortcut(.escape, modifiers: [])
-                #endif
+                .tint(Color.stropheText)
 
-                Button(action: {
+                Button(String(localized: "confirm_split")) {
                     project.splitSubtitle(
                         id: item.id,
                         at: splitTime,
@@ -199,41 +120,165 @@ struct SubtitleSplitView: View {
                         rightText: rightText
                     )
                     onDismiss()
-                }) {
-                    Text(String(localized: "confirm_split"))
-                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Color.stropheAccent)
                 .disabled(leftText.isEmpty || rightText.isEmpty)
-                #if os(macOS)
-                .keyboardShortcut(.return, modifiers: [])
-                #endif
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 24)
             .padding(.vertical, 16)
         }
-        // ── 平台适配尺寸与背景 ────────────────────────────────────
-        #if os(macOS)
-        .frame(width: 440, height: 400)
+        .frame(width: 500, height: 480)
         .background(VisualEffectView(material: .sheet, blendingMode: .behindWindow))
-        .cornerRadius(16)
-        .background(
-            SubtitleSplitKeyMonitor(
-                moveLeft: {
-                    if cursorPosition > 1 { cursorPosition -= 1 }
-                },
-                moveRight: {
-                    if cursorPosition < characters.count - 1 { cursorPosition += 1 }
+    }
+    #endif
+
+    private var iOSContent: some View {
+        NavigationStack {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 16) {
+                    cursorSplitCard
+                    splitResultPreviewCard
                 }
-            )
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+            }
+            .navigationTitle(String(localized: "split_subtitles"))
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(String(localized: "cancel")) { onDismiss() }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(String(localized: "confirm_split")) {
+                        project.splitSubtitle(
+                            id: item.id,
+                            at: splitTime,
+                            leftText: leftText,
+                            rightText: rightText
+                        )
+                        onDismiss()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color.stropheAccent)
+                    .disabled(leftText.isEmpty || rightText.isEmpty)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var cursorSplitCard: some View {
+        VStack(spacing: 14) {
+            Text(String(localized: "click_character_spacing_to_move"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            // 文本分词显示
+            splitTextView
+                .padding(.horizontal, 8)
+
+            // 左右箭头微调
+            HStack(spacing: 20) {
+                Button(action: {
+                    if cursorPosition > 1 { cursorPosition -= 1 }
+                }) {
+                    Image(systemName: "chevron.left.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(cursorPosition > 1 ? Color.stropheAccent : Color.secondary.opacity(0.3))
+                }
+                .buttonStyle(.plain)
+                .disabled(cursorPosition <= 1)
+
+                Text(String(localized: "playhead_position_format \(cursorPosition) \(characters.count)"))
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+
+                Button(action: {
+                    if cursorPosition < characters.count - 1 { cursorPosition += 1 }
+                }) {
+                    Image(systemName: "chevron.right.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(cursorPosition < characters.count - 1 ? Color.stropheAccent : Color.secondary.opacity(0.3))
+                }
+                .buttonStyle(.plain)
+                .disabled(cursorPosition >= characters.count - 1)
+            }
+        }
+        .padding(16)
+        .background(Color.stropheSecondaryBackground.opacity(0.5))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.stropheBorder, lineWidth: 1)
         )
-        #else
-        // iOS/iPadOS: 全宽自适应，背景由系统 sheet 提供，无需手动设
-        .frame(maxWidth: .infinity)
-        .background(Color(uiColor: .systemGroupedBackground))
-        .cornerRadius(16)
-        #endif
+    }
+
+    private var splitResultPreviewCard: some View {
+        VStack(spacing: 12) {
+            HStack(alignment: .top, spacing: 0) {
+                // 左半
+                VStack(spacing: 4) {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(Color.stropheBlue)
+                            .frame(width: 8, height: 8)
+                        Text(String(localized: "left_half"))
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(formatTime(item.startTime ?? 0) + " → " + formatTime(splitTime))
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.primary)
+                        .minimumScaleFactor(0.75)
+                        .lineLimit(1)
+                    Text("bracket_format \(leftText)")
+                        .font(.caption)
+                        .foregroundStyle(Color.stropheBlue)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+
+                Rectangle()
+                    .fill(Color.secondary.opacity(0.3))
+                    .frame(width: 1, height: 56)
+                    .padding(.top, 4)
+
+                // 右半
+                VStack(spacing: 4) {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(Color.orange)
+                            .frame(width: 8, height: 8)
+                        Text(String(localized: "right_half"))
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(formatTime(splitTime) + " → " + formatTime(item.endTime ?? 0))
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.primary)
+                        .minimumScaleFactor(0.75)
+                        .lineLimit(1)
+                    Text("bracket_format \(rightText)")
+                        .font(.caption)
+                        .foregroundStyle(Color.orange)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(16)
+        .background(Color.stropheSecondaryBackground.opacity(0.5))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.stropheBorder, lineWidth: 1)
+        )
     }
 
     // MARK: - 分词文本视图

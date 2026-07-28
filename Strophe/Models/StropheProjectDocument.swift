@@ -30,7 +30,7 @@ struct StropheProjectDocument: FileDocument {
             throw CocoaError(.fileReadCorruptFile)
         }
         let decoded = try JSONDecoder().decode(StropheProjectData.self, from: rawData)
-        self.data = decoded
+        self.data = try StropheProjectMigrator.migrate(decoded)
     }
     
     nonisolated func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {

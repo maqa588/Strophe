@@ -76,13 +76,17 @@ struct SubtitleStyle: Codable, Sendable, Identifiable, Equatable {
 }
 
 nonisolated struct StropheProjectData: Sendable, Codable {
-    let version: Int
+    static let currentVersion = 2
+
+    var version: Int
     let metadata: StropheMetadata
     let media: StropheMedia?
     var tracks: [StropheTrack]
     var styles: [SubtitleStyle]
     var subgroupStyles: [StoredSubgroupStyle]? = nil
     var subtitleGroups: [StoredSubGroupItem]? = nil
+    var interchangeDocuments: [SubtitleSourceDocument]? = nil
+    var timeline: ProjectTimelineState? = nil
     
     /// For backward compatibility with interfaces expecting a flat items array.
     var items: [SubtitleItem] {
@@ -90,11 +94,13 @@ nonisolated struct StropheProjectData: Sendable, Codable {
     }
     
     struct StropheMetadata: Sendable, Codable {
+        var projectID: UUID?
         var videoFrameRate: Double
         var videoSize: StropheVideoSize?
         var isAudioOnly: Bool
         var showSoftSubtitles: Bool
         var editingModeRaw: String
+        var subtitleCollisionModeRaw: String?
         var currentTime: Double
         var createdAt: Date
         var modifiedAt: Date
@@ -115,11 +121,13 @@ extension StropheProjectData {
     nonisolated static func blank() -> StropheProjectData {
         let now = Date()
         let metadata = StropheMetadata(
+            projectID: UUID(),
             videoFrameRate: 30.0,
             videoSize: nil,
             isAudioOnly: false,
             showSoftSubtitles: false,
             editingModeRaw: "selection",
+            subtitleCollisionModeRaw: SubtitleCollisionMode.normal.rawValue,
             currentTime: 0,
             createdAt: now,
             modifiedAt: now
@@ -134,13 +142,15 @@ extension StropheProjectData {
             trackType: .primary
         )
         return StropheProjectData(
-            version: 1,
+            version: currentVersion,
             metadata: metadata,
             media: nil,
             tracks: [defaultTrack],
             styles: [],
             subgroupStyles: [],
-            subtitleGroups: []
+            subtitleGroups: [],
+            interchangeDocuments: [],
+            timeline: ProjectTimelineState()
         )
     }
 }
@@ -148,6 +158,10 @@ extension StropheProjectData {
 extension StropheProjectData.StropheMetadata {
     var editingMode: TimelineEditingMode {
         TimelineEditingMode(rawValue: editingModeRaw) ?? .selection
+    }
+
+    var subtitleCollisionMode: SubtitleCollisionMode {
+        SubtitleCollisionMode(rawValue: subtitleCollisionModeRaw ?? "") ?? .normal
     }
 }
 

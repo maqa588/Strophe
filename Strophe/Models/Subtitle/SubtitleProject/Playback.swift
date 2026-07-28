@@ -30,6 +30,16 @@ extension SubtitleProject {
 
         currentTime = time
 
+        if loopsSelection,
+           let inPoint,
+           let outPoint,
+           outPoint > inPoint,
+           safeRate > 0,
+           time >= outPoint {
+            seek(to: inPoint)
+            return
+        }
+
         if rateChanged || safeRate == 0 {
             referenceTime = time
             referenceDate = now

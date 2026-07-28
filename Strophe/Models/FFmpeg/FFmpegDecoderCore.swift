@@ -162,7 +162,8 @@ actor FFmpegDecoderCore {
     }
     
     // Performs load session entirely off the MainActor
-    func loadSession(url: URL) async {
+    @discardableResult
+    func loadSession(url: URL) async -> Bool {
         closeFFmpeg()
         print("🔄 loadSession start: \(url.lastPathComponent)")
         let success = openInput(url: url)
@@ -179,6 +180,7 @@ actor FFmpegDecoderCore {
         }
         notifyStateChanged()
         print("🔄 loadSession complete")
+        return success
     }
     
     // Performs seek session entirely off the MainActor

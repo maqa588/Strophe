@@ -8,6 +8,7 @@ extension HardSubtitleVideoExporter {
     static func exportViaFFmpeg(
         inputURL: URL,
         cues: [ResolvedSubtitleCue],
+        collisionMode: SubtitleCollisionMode,
         settings: HardSubtitleVideoExportSettings,
         destinationURL: URL,
         progress: @MainActor @Sendable @escaping (Double) -> Void
@@ -33,8 +34,26 @@ extension HardSubtitleVideoExporter {
             sourceProfile: videoReader.sourceColorProfile
         )
 
-        let audioReader = try? FFmpegVideoExportAudioReader(url: inputURL)
-        defer { audioReader?.close() }
+        let mediaSnapshot = try? await MediaInformationProbe.load(from: inputURL)
+        let detectedAudioTrackCount = mediaSnapshot?.audioStreamCount ?? 1
+        let requestedAudioTrackOrdinals: [Int]
+        if let selected = settings.includedAudioTrackOrdinals {
+            requestedAudioTrackOrdinals = selected
+                .filter { $0 >= 0 && $0 < detectedAudioTrackCount }
+                .sorted()
+        } else {
+            requestedAudioTrackOrdinals = Array(0..<detectedAudioTrackCount)
+        }
+        var audioReaders: [FFmpegVideoExportAudioReader] = []
+        for ordinal in requestedAudioTrackOrdinals {
+            if let reader = try? FFmpegVideoExportAudioReader(
+                url: inputURL,
+                audioTrackOrdinal: ordinal
+            ) {
+                audioReaders.append(reader)
+            }
+        }
+        defer { audioReaders.forEach { $0.close() } }
 
         let geometry = renderGeometry(
             naturalSize: videoReader.storageSize,
@@ -45,7 +64,19 @@ extension HardSubtitleVideoExporter {
         let width = Int(renderSize.width.rounded(.toNearestOrAwayFromZero))
         let height = Int(renderSize.height.rounded(.toNearestOrAwayFromZero))
         let frameRate = videoReader.frameRate > 0 ? videoReader.frameRate : 30
-        let durationSeconds = max(videoReader.duration, 0.001)
+        let exportRange = try settings.resolvedTimeRange(
+            maxDuration: videoReader.duration
+        )
+        let timelineStartSeconds = exportRange?.lowerBound ?? 0
+        let durationSeconds = max(
+            exportRange.map { $0.upperBound - $0.lowerBound }
+                ?? videoReader.duration,
+            0.001
+        )
+        for audioReader in audioReaders {
+            audioReader.minimumSourceTime = timelineStartSeconds
+            audioReader.maximumSourceTime = exportRange?.upperBound
+        }
 
         let writer: AVAssetWriter
         do {
@@ -87,8 +118,8 @@ extension HardSubtitleVideoExporter {
         }
         writer.add(writerInput)
 
-        let audioInput: AVAssetWriterInput?
-        if let audioReader {
+        var audioPipes: [FFmpegAudioPipe] = []
+        for audioReader in audioReaders {
             let input = AVAssetWriterInput(
                 mediaType: .audio,
                 outputSettings: audioReader.writerOutputSettings
@@ -96,12 +127,10 @@ extension HardSubtitleVideoExporter {
             input.expectsMediaDataInRealTime = false
             if writer.canAdd(input) {
                 writer.add(input)
-                audioInput = input
-            } else {
-                audioInput = nil
+                audioPipes.append(
+                    FFmpegAudioPipe(reader: audioReader, input: input)
+                )
             }
-        } else {
-            audioInput = nil
         }
 
         guard writer.startWriting() else {
@@ -109,7 +138,15 @@ extension HardSubtitleVideoExporter {
         }
         writer.startSession(atSourceTime: .zero)
 
-        let compositor = MetalSubtitleCompositor(outputColorProfile: outputColorProfile)
+        let compositor = MetalSubtitleCompositor(
+            outputColorProfile: outputColorProfile,
+            rendersTransparentBackground: settings.rendersTransparentBackground,
+            overlays: VideoBurnInOverlaySettings(
+                exportSettings: settings,
+                frameRate: frameRate,
+                timelineStartSeconds: timelineStartSeconds
+            )
+        )
         let sortedCues = cues.sorted { $0.startTime < $1.startTime }
         let cueIndex = 0
         let frameDuration = CMTime(
@@ -119,27 +156,32 @@ extension HardSubtitleVideoExporter {
 
         let lastVideoPresentationTime = try await writeFFmpegStreams(
             videoReader: videoReader,
-            audioReader: audioReader,
+            audioPipes: audioPipes,
             videoInput: writerInput,
             adaptor: adaptor,
-            audioInput: audioInput,
             writer: writer,
             compositor: compositor,
             sortedCues: sortedCues,
             cueIndex: cueIndex,
+            collisionMode: collisionMode,
             renderSize: renderSize,
             sourceDisplaySize: geometry.sourceDisplaySize,
             frameDuration: frameDuration,
+            sourceRange: exportRange,
             durationSeconds: durationSeconds,
             progress: progress
         )
         print("🎞️ FFmpeg hard-sub export: video input finished at \(lastVideoPresentationTime.seconds)")
 
-        if lastVideoPresentationTime.isValid {
-            let appendedVideoEnd = CMTimeAdd(lastVideoPresentationTime, frameDuration)
-            let sourceEnd = CMTime(seconds: durationSeconds, preferredTimescale: writerInput.mediaTimeScale)
-            writer.endSession(atSourceTime: CMTimeMaximum(appendedVideoEnd, sourceEnd))
+        guard lastVideoPresentationTime.isValid else {
+            writer.cancelWriting()
+            throw HardSubtitleVideoExportError.writerFailed(
+                "No decodable video frames fell inside the requested export range."
+            )
         }
+        let appendedVideoEnd = CMTimeAdd(lastVideoPresentationTime, frameDuration)
+        let sourceEnd = CMTime(seconds: durationSeconds, preferredTimescale: writerInput.mediaTimeScale)
+        writer.endSession(atSourceTime: CMTimeMaximum(appendedVideoEnd, sourceEnd))
 
         print("🎞️ FFmpeg hard-sub export: finishing writer")
         try await finish(writer: writer)

@@ -25,6 +25,18 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+private enum WorkspaceSheet: String, Identifiable {
+    case subtitleEditingTools
+    case bilingualEditor
+    case projectMarkers
+
+    var id: String { rawValue }
+
+    var isTextEditingWorkspace: Bool {
+        self == .subtitleEditingTools || self == .bilingualEditor
+    }
+}
+
 struct ContentView: View {
     @ObservedObject var project: SubtitleProject
     var embedsCompactEditorInNavigationStack = true
@@ -45,6 +57,7 @@ struct ContentView: View {
     @State var pendingStropheURL: URL? = nil
     @State var isShowingRestoreTimeAlert = false
     @State var pendingRestoreTime: Double = 0
+    @State private var presentedWorkspaceSheet: WorkspaceSheet?
     #if os(macOS)
     @State private var isShowingSaveOnQuitAlert = false
     @State private var isQuittingAfterSave = false
@@ -76,6 +89,9 @@ struct ContentView: View {
                 wideLayout          // iPad / macOS
             }
         }
+        #if os(iOS)
+        .ignoresSafeArea(.keyboard, edges: .bottom)
+        #endif
         .tint(Color.stropheAccent)
         .stropheHardwareKeyboardMonitor(project: project)
         .overlay {
@@ -258,6 +274,19 @@ struct ContentView: View {
             Text(String(localized: "unsaved_changes_will_be_lost"))
         }
         #endif
+        .sheet(item: $presentedWorkspaceSheet) { sheet in
+            switch sheet {
+            case .subtitleEditingTools:
+                SubtitleEditingToolsView(project: project)
+            case .bilingualEditor:
+                BilingualComparisonEditorView(project: project)
+            case .projectMarkers:
+                ProjectMarkersView(project: project)
+            }
+        }
+        .stropheOnChange(of: presentedWorkspaceSheet) { sheet in
+            project.isEditingText = sheet?.isTextEditingWorkspace == true
+        }
         .stropheOnChange(of: project.loadedPlayheadTime) { newValue in
             if let time = newValue {
                 pendingRestoreTime = time
@@ -303,6 +332,18 @@ struct ContentView: View {
         #endif
         .onReceive(NotificationCenter.default.publisher(for: .stropheShowAbout)) { _ in
             showAboutPage()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheShowCurrentMediaInfo)) { _ in
+            showCurrentMediaInfoPage()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheOpenEditingTools)) { _ in
+            presentedWorkspaceSheet = .subtitleEditingTools
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheOpenBilingualEditor)) { _ in
+            presentedWorkspaceSheet = .bilingualEditor
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheShowProjectMarkers)) { _ in
+            presentedWorkspaceSheet = .projectMarkers
         }
         .onReceive(NotificationCenter.default.publisher(for: .stropheOpenModelSettings)) { notification in
             let route = notification.object as? SettingsRoute ?? .whisperConfig

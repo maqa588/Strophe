@@ -28,6 +28,18 @@ struct SettingsPlaceholderView: View {
                             .foregroundStyle(Color.stropheAccent)
                     }
                 }
+
+                Button {
+                    open(.currentMediaInfo)
+                } label: {
+                    Label {
+                        Text("current_media_info")
+                            .foregroundStyle(Color.stropheText)
+                    } icon: {
+                        Image(systemName: "film.stack.fill")
+                            .foregroundStyle(Color.stropheAccent)
+                    }
+                }
             }
 
             Section(header: Text("ai_engine_model_management")) {
@@ -78,6 +90,18 @@ struct SettingsPlaceholderView: View {
             }
 
             Section(header: Text("storage_maintenance")) {
+                Button {
+                    open(.projectRecovery)
+                } label: {
+                    Label {
+                        Text("project_recovery")
+                            .foregroundStyle(Color.stropheText)
+                    } icon: {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .foregroundStyle(Color.stropheAccent)
+                    }
+                }
+
                 Button {
                     open(.cache)
                 } label: {

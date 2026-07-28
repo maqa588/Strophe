@@ -218,25 +218,79 @@ extension SubtitleProject {
     }
     
     func importScript(_ text: String) {
+        let parsed = SubtitleEngine.parseAnyDocument(text)
+        importSubtitleDocument(parsed.result, hasTimeline: parsed.hasTimeline)
+    }
+
+    func importSubtitle(from url: URL) throws {
+        let parsed = try SubtitleEngine.importDocument(from: url)
+        importSubtitleDocument(parsed, hasTimeline: true)
+    }
+
+    func importSubtitleDocument(_ result: SubtitleParseResult, hasTimeline: Bool = true) {
         let oldItems = items
         let oldSelectedIDs = selectedIDs
         let activeGroupID = StyleAndGroupStore.shared.activeGroupID
-        
-        let (hasTimeline, blocks) = SubtitleEngine.parseAnyText(text)
 
-        self.items = blocks.enumerated().map { index, block in
-            SubtitleItem(
+        let importedStyleIDs: [String: UUID]
+        if let source = result.document.source {
+            subtitleSourceDocuments = [source]
+            importedStyleIDs = importASSStylesIfNeeded(from: source)
+        } else {
+            subtitleSourceDocuments = []
+            importedStyleIDs = [:]
+        }
+        lastSubtitleImportDiagnostics = result.diagnostics
+
+        self.items = result.document.blocks.enumerated().map { index, block in
+            let assFields = block.interchangeMetadata?.ass?.fields
+            let importedStyleName = block.interchangeMetadata?.ass?.styleName
+            return SubtitleItem(
                 id: block.id,
                 text: block.text,
                 startTime: hasTimeline ? snapToFrame(block.startTime) : nil,
                 endTime: hasTimeline ? snapToFrame(block.endTime) : nil,
                 originalIndex: index,
-                groupID: activeGroupID
+                groupID: activeGroupID,
+                layer: Int(assFields?["layer"] ?? "") ?? 0,
+                styleID: importedStyleName.flatMap {
+                    importedStyleIDs[$0] ?? StyleAndGroupStore.shared.style(named: $0)?.id
+                },
+                interchangeMetadata: block.interchangeMetadata
             )
         }
         self.currentIndex = 0
         registerUndo(label: String(localized: "import_script_1"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
+    }
+
+    func subtitleDocument(for format: SubtitleFormat) -> SubtitleDocument {
+        let blocks = items.compactMap { item -> SubtitleBlock? in
+            guard let start = item.startTime, let end = item.endTime else { return nil }
+            return SubtitleBlock(
+                id: item.id,
+                startTime: start,
+                endTime: end,
+                text: item.text,
+                interchangeMetadata: item.interchangeMetadata
+            )
+        }
+        let referencedDocumentIDs = Set(
+            blocks.compactMap { $0.interchangeMetadata?.sourceDocumentID }
+        )
+        let source = subtitleSourceDocuments.first {
+            $0.format == format && referencedDocumentIDs.contains($0.id)
+        }
+        return SubtitleDocument(format: format, blocks: blocks, source: source)
+    }
+
+    private func importASSStylesIfNeeded(from source: SubtitleSourceDocument) -> [String: UUID] {
+        guard let ass = source.ass else { return [:] }
+        return StyleAndGroupStore.shared.importASSStyles(
+            ass.styles,
+            playResolutionX: ass.playResolutionX,
+            playResolutionY: ass.playResolutionY
+        )
     }
     
     func markCurrentTime(_ time: TimeInterval) {

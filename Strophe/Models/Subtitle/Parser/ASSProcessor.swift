@@ -2,70 +2,293 @@
 //  ASSProcessor.swift
 //  SwiftSub
 //
-//  Created by maqa on 2026/5/18.
+//  Lossless ASS/SSA import and export.
 //
 
 import Foundation
 
 struct ASSProcessor: SubtitleProcessor {
-    func parse(text: String) -> [SubtitleBlock] {
-        var blocks: [SubtitleBlock] = []
-        let lines = text.components(separatedBy: .newlines)
-        
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            // 专注于对白行，无视 [Script Info] 或 [V4+ Styles] 样式头
-            guard trimmed.hasPrefix("Dialogue:") else { continue }
-            
-            // 剥离 "Dialogue:" 前缀
-            let record = trimmed.replacingOccurrences(of: "Dialogue:", with: "").trimmingCharacters(in: .whitespaces)
-            // ASS 标准：Dialogue: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-            // 前面有 9 个逗号分隔的属性，第 10 个字段往后才是真正的文本内容
-            let fields = record.components(separatedBy: ",")
-            guard fields.count >= 10 else { continue }
-            
-            let startTimeStr = fields[1].trimmingCharacters(in: .whitespaces)
-            let endTimeStr = fields[2].trimmingCharacters(in: .whitespaces)
-            
-            let startSec = SubtitleTimeFormatter.parseTimestamp(startTimeStr)
-            let endSec = SubtitleTimeFormatter.parseTimestamp(endTimeStr)
-            
-            // 重新拼接可能包含逗号的对白文本内容
-            let rawText = fields[9...].joined(separator: ",")
-            
-            // 🧼 核心无视样式：使用正则，将所有大括号 {} 及其内部的特殊属性特效过滤个一干二净！
-            let cleanText = rawText.replacingOccurrences(of: "\\{[^}]+\\}", with: "", options: .regularExpression)
-                .replacingOccurrences(of: "\\N", with: "\n") // ASS 的换行符是 \N，替换回原生系统换行
-            
-            blocks.append(SubtitleBlock(startTime: startSec, endTime: endSec, text: cleanText.trimmingCharacters(in: .whitespacesAndNewlines)))
+    let format: SubtitleFormat = .ass
+
+    private static let defaultEventFormat = [
+        "Layer", "Start", "End", "Style", "Name",
+        "MarginL", "MarginR", "MarginV", "Effect", "Text"
+    ]
+
+    func parseDocument(text: String, sourceFileName: String?) -> SubtitleParseResult {
+        let normalizedText = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .replacingOccurrences(of: "\u{FEFF}", with: "")
+        let lines = normalizedText.components(separatedBy: "\n")
+        let eventsIndex = lines.firstIndex {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+                .caseInsensitiveCompare("[Events]") == .orderedSame
         }
-        return blocks
+        let preambleLines = eventsIndex.map { Array(lines[..<$0]) } ?? lines
+        let preamble = preambleLines.joined(separator: "\n")
+        let documentID = UUID()
+        let styleMetadata = parseStyleMetadata(from: preambleLines)
+
+        var eventFormat = Self.defaultEventFormat
+        var preservedEventLines: [String] = []
+        var blocks: [SubtitleBlock] = []
+        var diagnostics: [SubtitleParseDiagnostic] = []
+
+        guard let eventsIndex else {
+            diagnostics.append(
+                SubtitleParseDiagnostic(
+                    severity: .error,
+                    message: "ASS document has no [Events] section."
+                )
+            )
+            let source = SubtitleSourceDocument(
+                id: documentID,
+                format: .ass,
+                sourceFileName: sourceFileName,
+                ass: ASSDocumentMetadata(
+                    preamble: preamble,
+                    eventFormat: eventFormat,
+                    styleFormat: styleMetadata.format,
+                    styles: styleMetadata.styles,
+                    playResolutionX: styleMetadata.playResolutionX,
+                    playResolutionY: styleMetadata.playResolutionY
+                )
+            )
+            return SubtitleParseResult(
+                document: SubtitleDocument(format: .ass, blocks: [], source: source),
+                diagnostics: diagnostics
+            )
+        }
+
+        for (offset, line) in lines[(eventsIndex + 1)...].enumerated() {
+            let lineNumber = eventsIndex + offset + 2
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+
+            if let formatValue = value(afterPrefix: "Format:", in: trimmed) {
+                let parsedFormat = formatValue.split(separator: ",", omittingEmptySubsequences: false)
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .filter { !$0.isEmpty }
+                if !parsedFormat.isEmpty {
+                    eventFormat = parsedFormat
+                }
+                continue
+            }
+
+            guard let colon = trimmed.firstIndex(of: ":") else {
+                preservedEventLines.append(line)
+                continue
+            }
+            let eventType = trimmed[..<colon].trimmingCharacters(in: .whitespaces)
+            guard eventType.caseInsensitiveCompare("Dialogue") == .orderedSame else {
+                preservedEventLines.append(line)
+                continue
+            }
+
+            let recordStart = trimmed.index(after: colon)
+            let record = trimmed[recordStart...].trimmingCharacters(in: .whitespaces)
+            guard let values = splitRecord(record, fieldCount: eventFormat.count) else {
+                diagnostics.append(
+                    SubtitleParseDiagnostic(
+                        severity: .warning,
+                        line: lineNumber,
+                        message: "Skipped an ASS dialogue with fewer fields than its Format declaration."
+                    )
+                )
+                continue
+            }
+
+            var fields: [String: String] = [:]
+            for (fieldName, value) in zip(eventFormat, values) {
+                fields[fieldName.lowercased()] = value
+            }
+            guard let startValue = fields["start"],
+                  let endValue = fields["end"],
+                  let rawPayload = fields["text"] else {
+                diagnostics.append(
+                    SubtitleParseDiagnostic(
+                        severity: .warning,
+                        line: lineNumber,
+                        message: "Skipped an ASS dialogue because Start, End or Text is missing."
+                    )
+                )
+                continue
+            }
+
+            let styledText = PreservedStyledText.ass(rawPayload)
+            let cue = ASSCueMetadata(
+                eventType: String(eventType),
+                fields: fields,
+                styledText: styledText
+            )
+            blocks.append(
+                SubtitleBlock(
+                    startTime: SubtitleTimeFormatter.parseTimestamp(startValue),
+                    endTime: SubtitleTimeFormatter.parseTimestamp(endValue),
+                    text: styledText.plainTextAtImport,
+                    interchangeMetadata: SubtitleCueInterchangeMetadata(
+                        sourceDocumentID: documentID,
+                        ass: cue
+                    )
+                )
+            )
+        }
+
+        let source = SubtitleSourceDocument(
+            id: documentID,
+            format: .ass,
+            sourceFileName: sourceFileName,
+            ass: ASSDocumentMetadata(
+                preamble: preamble,
+                eventFormat: eventFormat,
+                preservedEventLines: preservedEventLines,
+                styleFormat: styleMetadata.format,
+                styles: styleMetadata.styles,
+                playResolutionX: styleMetadata.playResolutionX,
+                playResolutionY: styleMetadata.playResolutionY
+            )
+        )
+        return SubtitleParseResult(
+            document: SubtitleDocument(format: .ass, blocks: blocks, source: source),
+            diagnostics: diagnostics
+        )
     }
-    
-    func generate(blocks: [SubtitleBlock]) -> String {
-        // 构建满足底层渲染的最基本简易无样式格式头
-        var output = """
-        [Script Info]
-        ScriptType: v4.00+
-        PlayResX: 1920
-        PlayResY: 1080
-        
-        [V4+ Styles]
-        Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-        Style: Default,Arial,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,2,2,10,10,10,1
-        
-        [Events]
-        Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-        """
-        
-        for block in blocks {
-            let startStr = SubtitleTimeFormatter.format(seconds: block.startTime, format: .ass)
-            let endStr = SubtitleTimeFormatter.format(seconds: block.endTime, format: .ass)
-            // 将真实系统的物理换行符编码为 ASS 看得懂的 \N
-            let encodedText = block.text.replacingOccurrences(of: "\n", with: "\\N")
-            
-            output += "\nDialogue: 0,\(startStr),\(endStr),Default,,0,0,0,,\(encodedText)"
+
+    func generate(document: SubtitleDocument) -> String {
+        let metadata = document.source?.ass
+        var output = metadata?.preamble ?? Self.defaultPreamble
+        while output.hasSuffix("\n\n") {
+            output.removeLast()
+        }
+        if !output.isEmpty, !output.hasSuffix("\n") {
+            output += "\n"
+        }
+        output += "[Events]\n"
+
+        let eventFormat = metadata?.eventFormat.isEmpty == false
+            ? metadata!.eventFormat
+            : Self.defaultEventFormat
+        output += "Format: \(eventFormat.joined(separator: ", "))\n"
+
+        if let preservedLines = metadata?.preservedEventLines {
+            for line in preservedLines {
+                output += line
+                if !line.hasSuffix("\n") { output += "\n" }
+            }
+        }
+
+        for block in document.blocks {
+            let cue = block.interchangeMetadata?.ass
+            var values = cue?.fields ?? [:]
+            values["start"] = SubtitleTimeFormatter.format(seconds: block.startTime, format: .ass)
+            values["end"] = SubtitleTimeFormatter.format(seconds: block.endTime, format: .ass)
+            values["text"] = cue?.styledText.encoded(editableText: block.text)
+                ?? block.text.replacingOccurrences(of: "\n", with: "\\N")
+
+            let serializedFields = eventFormat.map { fieldName -> String in
+                let key = fieldName.lowercased()
+                if let value = values[key] { return value }
+                return defaultValue(forEventField: key)
+            }
+            output += "\(cue?.eventType ?? "Dialogue"): \(serializedFields.joined(separator: ","))\n"
         }
         return output
     }
+
+    private func parseStyleMetadata(
+        from lines: [String]
+    ) -> (
+        format: [String],
+        styles: [ASSStyleRecord],
+        playResolutionX: Double?,
+        playResolutionY: Double?
+    ) {
+        var currentSection = ""
+        var styleFormat: [String] = []
+        var styles: [ASSStyleRecord] = []
+        var playResolutionX: Double?
+        var playResolutionY: Double?
+
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("["), trimmed.hasSuffix("]") {
+                currentSection = trimmed.lowercased()
+                continue
+            }
+
+            if let value = value(afterPrefix: "PlayResX:", in: trimmed) {
+                playResolutionX = Double(value.trimmingCharacters(in: .whitespaces))
+            } else if let value = value(afterPrefix: "PlayResY:", in: trimmed) {
+                playResolutionY = Double(value.trimmingCharacters(in: .whitespaces))
+            }
+
+            guard currentSection == "[v4+ styles]" || currentSection == "[v4 styles]" else {
+                continue
+            }
+            if let value = value(afterPrefix: "Format:", in: trimmed) {
+                styleFormat = value.split(separator: ",", omittingEmptySubsequences: false)
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                continue
+            }
+            guard let value = value(afterPrefix: "Style:", in: trimmed),
+                  !styleFormat.isEmpty,
+                  let fieldValues = splitRecord(value, fieldCount: styleFormat.count) else {
+                continue
+            }
+            var values: [String: String] = [:]
+            for (fieldName, fieldValue) in zip(styleFormat, fieldValues) {
+                values[fieldName.lowercased()] = fieldValue
+            }
+            styles.append(ASSStyleRecord(values: values, rawLine: line))
+        }
+
+        return (styleFormat, styles, playResolutionX, playResolutionY)
+    }
+
+    private func splitRecord(_ record: String, fieldCount: Int) -> [String]? {
+        guard fieldCount > 0 else { return [] }
+        var fields: [String] = []
+        var remainder = record[record.startIndex...]
+
+        for _ in 0..<(fieldCount - 1) {
+            guard let comma = remainder.firstIndex(of: ",") else { return nil }
+            fields.append(String(remainder[..<comma]).trimmingCharacters(in: .whitespaces))
+            remainder = remainder[remainder.index(after: comma)...]
+        }
+        fields.append(String(remainder))
+        return fields
+    }
+
+    private func value(afterPrefix prefix: String, in value: String) -> String? {
+        guard value.count >= prefix.count else { return nil }
+        let end = value.index(value.startIndex, offsetBy: prefix.count)
+        guard value[..<end].caseInsensitiveCompare(prefix) == .orderedSame else { return nil }
+        return String(value[end...])
+    }
+
+    private func defaultValue(forEventField field: String) -> String {
+        switch field {
+        case "layer", "marked", "marginl", "marginr", "marginv":
+            return "0"
+        case "style":
+            return "Default"
+        case "start", "end":
+            return "0:00:00.00"
+        default:
+            return ""
+        }
+    }
+
+    private static let defaultPreamble = """
+    [Script Info]
+    ScriptType: v4.00+
+    PlayResX: 1920
+    PlayResY: 1080
+
+    [V4+ Styles]
+    Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+    Style: Default,Arial,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,2,2,10,10,10,1
+
+    """
 }

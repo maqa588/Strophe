@@ -16,40 +16,118 @@ private let bookmarkCreationOptions = URL.BookmarkCreationOptions()
 private let bookmarkResolutionOptions = URL.BookmarkResolutionOptions()
 #endif
 
+private nonisolated struct MediaFileProbeResult: Sendable {
+    let resolvedURL: URL?
+    let state: MediaAccessState
+    let technicalMessage: String
+}
+
+private nonisolated func probeReadableMediaFile(at url: URL) -> MediaFileProbeResult {
+    let fileManager = FileManager.default
+
+    if fileManager.isUbiquitousItem(at: url) {
+        do {
+            try fileManager.startDownloadingUbiquitousItem(at: url)
+        } catch {
+            return MediaFileProbeResult(
+                resolvedURL: nil,
+                state: .unreadable,
+                technicalMessage: "iCloud could not start downloading the selected media: \(error.localizedDescription)"
+            )
+        }
+    }
+
+    let coordinator = NSFileCoordinator(filePresenter: nil)
+    var coordinationError: NSError?
+    var probeResult: MediaFileProbeResult?
+
+    coordinator.coordinate(
+        readingItemAt: url,
+        options: .withoutChanges,
+        error: &coordinationError
+    ) { coordinatedURL in
+        let resolvedURL = coordinatedURL.resolvingSymlinksInPath()
+        do {
+            let handle = try FileHandle(forReadingFrom: resolvedURL)
+            try handle.close()
+            probeResult = MediaFileProbeResult(
+                resolvedURL: resolvedURL,
+                state: .ready,
+                technicalMessage: "The selected media file is ready."
+            )
+        } catch {
+            let cocoaError = error as NSError
+            let state: MediaAccessState =
+                cocoaError.domain == NSCocoaErrorDomain
+                && cocoaError.code == NSFileNoSuchFileError
+                ? .missing
+                : .permissionDenied
+            probeResult = MediaFileProbeResult(
+                resolvedURL: resolvedURL,
+                state: state,
+                technicalMessage: "The selected media could not be opened for reading: \(error.localizedDescription)"
+            )
+        }
+    }
+
+    if let coordinationError {
+        let state: MediaAccessState =
+            coordinationError.domain == NSCocoaErrorDomain
+            && coordinationError.code == NSFileNoSuchFileError
+            ? .missing
+            : .unreadable
+        return MediaFileProbeResult(
+            resolvedURL: nil,
+            state: state,
+            technicalMessage: "File Provider could not prepare the selected media: \(coordinationError.localizedDescription)"
+        )
+    }
+
+    return probeResult ?? MediaFileProbeResult(
+        resolvedURL: nil,
+        state: .unreadable,
+        technicalMessage: "File Provider returned no readable media URL."
+    )
+}
+
 extension SubtitleProject {
     func createNewProject() {
         pause()
         stopAutoSave()
+        mediaAccessGeneration &+= 1
         mediaAccessURL?.stopAccessingSecurityScopedResource()
         mediaAccessURL = nil
         videoURL = nil
         resetForNewMedia()
     }
 
-    func importMedia(from url: URL) {
+    func importMedia(from url: URL) async {
         pause()
         if items.isEmpty {
             resetForNewMedia()
-            prepareMediaAccess(for: url)
-            videoURL = url
+            videoURL = nil
+            if let preparedURL = await prepareMediaAccess(for: url) {
+                videoURL = preparedURL
+            }
         } else {
-            replaceMedia(with: url)
+            await replaceMedia(with: url)
         }
     }
 
-    func importMediaAsNewProject(from url: URL) {
+    func importMediaAsNewProject(from url: URL) async {
         pause()
         stopAutoSave()
         resetForNewMedia()
         setDocumentName(url.deletingPathExtension().lastPathComponent)
 
+        videoURL = nil
+        guard let preparedURL = await prepareMediaAccess(for: url) else { return }
+        videoURL = preparedURL
+
         if let cacheURL = cachedProjectURL(for: url) {
             projectURL = cacheURL
             projectURLBookmark = nil
         }
-
-        prepareMediaAccess(for: url)
-        videoURL = url
 
         if let cacheURL = projectURL {
             Task { @MainActor in
@@ -96,21 +174,98 @@ extension SubtitleProject {
         self.currentIndex = 0
     }
     
-    func prepareMediaAccess(for url: URL) {
+    @discardableResult
+    func prepareMediaAccess(for url: URL) async -> URL? {
+        mediaAccessGeneration &+= 1
+        let generation = mediaAccessGeneration
         mediaAccessURL?.stopAccessingSecurityScopedResource()
-        if url.startAccessingSecurityScopedResource() {
+        mediaAccessURL = nil
+        mediaLoadError = nil
+        mediaAccessStatus = MediaAccessStatus(
+            state: .resolving,
+            requestedURL: url,
+            resolvedURL: nil,
+            usesSecurityScope: false,
+            technicalMessage: nil
+        )
+
+        print("📥 Preparing selected media: \(url.lastPathComponent)")
+        let didAccess = url.startAccessingSecurityScopedResource()
+        print("🔐 Media security scope \(didAccess ? "granted" : "not required") for \(url.lastPathComponent)")
+
+        let probe = await Task.detached(priority: .userInitiated) {
+            probeReadableMediaFile(at: url)
+        }.value
+
+        guard generation == mediaAccessGeneration else {
+            if didAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+            print("⚠️ Ignored stale media preparation result for \(url.lastPathComponent)")
+            return nil
+        }
+
+        guard probe.state == .ready, let resolvedURL = probe.resolvedURL else {
+            if didAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+            mediaAccessStatus = MediaAccessStatus(
+                state: probe.state,
+                requestedURL: url,
+                resolvedURL: probe.resolvedURL,
+                usesSecurityScope: false,
+                technicalMessage: probe.technicalMessage
+            )
+            mediaLoadError = url.lastPathComponent
+            print("❌ Media preparation failed [\(probe.state.rawValue)]: \(probe.technicalMessage)")
+            return nil
+        }
+
+        if didAccess {
             mediaAccessURL = url
         }
+        mediaLoadError = nil
+        mediaAccessStatus = .ready(
+            requestedURL: url,
+            resolvedURL: resolvedURL,
+            usesSecurityScope: didAccess
+        )
+        print("✅ Media ready for playback: \(url.lastPathComponent)")
+        return url
     }
     
-    func replaceMedia(with url: URL) {
+    func replaceMedia(with url: URL) async {
+        pause()
+        videoURL = nil
         mediaLoadError = nil
-        prepareMediaAccess(for: url)
-        videoURL = url
+        mediaAccessStatus = .none
+        if let preparedURL = await prepareMediaAccess(for: url) {
+            videoURL = preparedURL
+        }
+    }
+
+    func reportMediaPlaybackFailure(
+        for url: URL,
+        state: MediaAccessState,
+        technicalMessage: String
+    ) {
+        guard videoURL == url else { return }
+        let originalURL = mediaAccessStatus.requestedURL ?? resolveOriginalURL(url)
+        let resolvedURL = state == .missing ? nil : url.resolvingSymlinksInPath()
+        mediaAccessStatus = MediaAccessStatus(
+            state: state,
+            requestedURL: originalURL,
+            resolvedURL: resolvedURL,
+            usesSecurityScope: mediaAccessURL != nil,
+            technicalMessage: technicalMessage
+        )
+        mediaLoadError = originalURL.lastPathComponent
     }
     
     func resetForNewMedia() {
         items = []
+        subtitleSourceDocuments = []
+        lastSubtitleImportDiagnostics = []
         currentIndex = 0
         scrollTargetID = nil
         selectedIDs = []
@@ -121,12 +276,19 @@ extension SubtitleProject {
         videoSize = .zero
         isAudioOnly = false
         showSoftSubtitles = false
+        subtitleCollisionMode = .normal
         editingMode = .selection
         projectURL = nil
         setDocumentName("")
         mediaLoadError = nil
         projectURLBookmark = nil
         waveformData = nil
+        markers = []
+        inPoint = nil
+        outPoint = nil
+        loopsSelection = false
+        projectIdentifier = UUID()
+        projectCreatedAt = Date()
         markClean()
     }
 
@@ -212,13 +374,15 @@ extension SubtitleProject {
             media = StropheProjectData.StropheMedia(originalURL: originalURL, bookmark: bookmark)
         }
         let metadata = StropheProjectData.StropheMetadata(
+            projectID: projectIdentifier,
             videoFrameRate: videoFrameRate,
             videoSize: videoSize != .zero ? StropheProjectData.StropheVideoSize(width: videoSize.width, height: videoSize.height) : nil,
             isAudioOnly: isAudioOnly,
             showSoftSubtitles: showSoftSubtitles,
             editingModeRaw: editingMode.rawValue,
+            subtitleCollisionModeRaw: subtitleCollisionMode.rawValue,
             currentTime: currentTime,
-            createdAt: Date(),
+            createdAt: projectCreatedAt,
             modifiedAt: Date()
         )
         let defaultTrack = StropheTrack(
@@ -231,13 +395,20 @@ extension SubtitleProject {
             trackType: .primary
         )
         let data = StropheProjectData(
-            version: 1,
+            version: StropheProjectData.currentVersion,
             metadata: metadata,
             media: media,
             tracks: [defaultTrack],
             styles: [],
             subgroupStyles: StyleAndGroupStore.shared.storedStyles(),
-            subtitleGroups: StyleAndGroupStore.shared.storedGroups()
+            subtitleGroups: StyleAndGroupStore.shared.storedGroups(),
+            interchangeDocuments: subtitleSourceDocuments,
+            timeline: ProjectTimelineState(
+                markers: markers,
+                inPoint: inPoint,
+                outPoint: outPoint,
+                loopsSelection: loopsSelection
+            )
         )
         return StropheProjectDocument(data: data)
     }
@@ -251,7 +422,7 @@ extension SubtitleProject {
         let didAccess = url.startAccessingSecurityScopedResource()
         defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
         
-        try encoded.write(to: url)
+        try await writeProjectData(encoded, to: url)
         projectURL = url
         setDocumentName(url.deletingPathExtension().lastPathComponent)
         projectURLBookmark = createProjectURLBookmark(url)
@@ -264,30 +435,39 @@ extension SubtitleProject {
         let decoded = try await Task.detached(priority: .userInitiated) {
             let rawData = try Data(contentsOf: url)
             let decoder = JSONDecoder()
-            return try decoder.decode(StropheProjectData.self, from: rawData)
+            let decoded = try decoder.decode(StropheProjectData.self, from: rawData)
+            return try StropheProjectMigrator.migrate(decoded)
         }.value
 
         try await loadStropheData(decoded, from: url)
     }
 
     func loadStropheData(_ decoded: StropheProjectData, from url: URL?) async throws {
-        guard decoded.version == 1 else {
-            throw NSError(domain: "app_name", code: 1, userInfo: [NSLocalizedDescriptionKey: "Unsupported project version"])
-        }
+        let decoded = try StropheProjectMigrator.migrate(decoded)
         
         // Reset old project state first, which stops activeEngine, resets videoURL to nil, clears waveformData, etc.
         resetForNewMedia()
         videoURL = nil
         
         items = decoded.items
+        subtitleSourceDocuments = decoded.interchangeDocuments ?? []
+        lastSubtitleImportDiagnostics = []
         StyleAndGroupStore.shared.restore(styles: decoded.subgroupStyles, groups: decoded.subtitleGroups)
+        projectIdentifier = decoded.metadata.projectID ?? UUID()
+        projectCreatedAt = decoded.metadata.createdAt
         videoFrameRate = decoded.metadata.videoFrameRate
         if let sz = decoded.metadata.videoSize {
             videoSize = CGSize(width: sz.width, height: sz.height)
         }
         isAudioOnly = decoded.metadata.isAudioOnly
         showSoftSubtitles = decoded.metadata.showSoftSubtitles
+        subtitleCollisionMode = decoded.metadata.subtitleCollisionMode
         editingMode = decoded.metadata.editingMode
+        let timeline = decoded.timeline ?? ProjectTimelineState()
+        markers = timeline.markers
+        inPoint = timeline.inPoint
+        outPoint = timeline.outPoint
+        loopsSelection = timeline.loopsSelection
         currentTime = 0
         currentIndex = 0
         
@@ -315,30 +495,88 @@ extension SubtitleProject {
             } else {
                 videoURL = nil
                 mediaLoadError = mediaName
+                if mediaAccessStatus.state == .resolving || mediaAccessStatus.state == .none {
+                    mediaAccessStatus = MediaAccessStatus(
+                        state: .missing,
+                        requestedURL: media.originalURL,
+                        resolvedURL: nil,
+                        usesSecurityScope: false,
+                        technicalMessage: "The linked media file could not be resolved."
+                    )
+                }
             }
         } else {
             videoURL = nil
+            mediaAccessStatus = .none
         }
         
         markClean()
     }
     
     func resolveMediaURL(media: StropheProjectData.StropheMedia) -> URL? {
+        mediaAccessStatus = MediaAccessStatus(
+            state: .resolving,
+            requestedURL: media.originalURL,
+            resolvedURL: nil,
+            usesSecurityScope: false,
+            technicalMessage: nil
+        )
         if let bookmark = media.bookmark, bookmark.count > 64 {
             if let resolved = resolveSecurityScopedBookmark(bookmark) {
-                if resolved.startAccessingSecurityScopedResource() {
+                let didAccess = resolved.startAccessingSecurityScopedResource()
+                guard FileManager.default.isReadableFile(atPath: resolved.path) else {
+                    if didAccess {
+                        resolved.stopAccessingSecurityScopedResource()
+                    }
+                    mediaAccessStatus = MediaAccessStatus(
+                        state: .permissionDenied,
+                        requestedURL: media.originalURL,
+                        resolvedURL: resolved,
+                        usesSecurityScope: false,
+                        technicalMessage: "The saved bookmark resolved, but the file is not readable."
+                    )
+                    return nil
+                }
+                if didAccess {
                     mediaAccessURL?.stopAccessingSecurityScopedResource()
                     mediaAccessURL = resolved
                 }
+                mediaAccessStatus = .ready(
+                    requestedURL: media.originalURL ?? resolved,
+                    resolvedURL: resolved,
+                    usesSecurityScope: didAccess
+                )
                 return resolved
             }
         }
         if let originalURL = media.originalURL {
             let resolved = originalURL.resolvingSymlinksInPath()
             if FileManager.default.fileExists(atPath: resolved.path) {
+                guard FileManager.default.isReadableFile(atPath: resolved.path) else {
+                    mediaAccessStatus = MediaAccessStatus(
+                        state: .permissionDenied,
+                        requestedURL: originalURL,
+                        resolvedURL: resolved,
+                        usesSecurityScope: false,
+                        technicalMessage: "The original media path exists but is not readable."
+                    )
+                    return nil
+                }
+                mediaAccessStatus = .ready(
+                    requestedURL: originalURL,
+                    resolvedURL: resolved,
+                    usesSecurityScope: false
+                )
                 return originalURL
             }
             print("⚠️ Original file not found at: \(resolved.path)")
+            mediaAccessStatus = MediaAccessStatus(
+                state: .missing,
+                requestedURL: originalURL,
+                resolvedURL: nil,
+                usesSecurityScope: false,
+                technicalMessage: "The original media path no longer exists."
+            )
         }
         return nil
     }
@@ -438,11 +676,25 @@ extension SubtitleProject {
             let data = stropheDocument.data
             let encoder = JSONEncoder()
             let encoded = try encoder.encode(data)
-            try encoded.write(to: resolvedURL ?? url)
+            try await writeProjectData(encoded, to: resolvedURL ?? url)
             markClean()
         } catch {
             print("⚠️ Auto-save failed: \(error.localizedDescription)")
         }
+    }
+
+    private func writeProjectData(_ encoded: Data, to url: URL) async throws {
+        let projectID = projectIdentifier
+        try await Task.detached(priority: .utility) {
+            if let previous = try? Data(contentsOf: url), previous != encoded {
+                ProjectBackupStore.archive(
+                    previous,
+                    projectID: projectID,
+                    sourceURL: url
+                )
+            }
+            try encoded.write(to: url, options: .atomic)
+        }.value
     }
     
     var documentDisplayName: String {

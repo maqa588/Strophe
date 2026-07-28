@@ -56,20 +56,42 @@ extension VideoPlayerView {
             let result = await FormatDetector.shared.detect(url: url)
             guard !Task.isCancelled, setupGeneration == generation, project.videoURL == url else { return }
 
+            guard result.isSourceAccessible else {
+                project.reportMediaPlaybackFailure(
+                    for: url,
+                    state: result.sourceAccessFailure ?? .unreadable,
+                    technicalMessage: result.errorMessage ?? "The media source is not accessible."
+                )
+                return
+            }
+
             if result.isAVFoundationCompatible {
-                guard let avEngine = await project.acquirePlayerEngine(
+                if let avEngine = await project.acquirePlayerEngine(
                     for: url,
                     makeEngine: { AVFoundationEngine() }
-                ) else { return }
+                ) {
+                    guard !Task.isCancelled, setupGeneration == generation, project.videoURL == url else { return }
+                    await activateLoadedEngine(avEngine, url: url)
+                    return
+                }
+
+                // Native Apple containers always try AVFoundation first. A codec
+                // unsupported on this OS may still be playable through FFmpeg.
                 guard !Task.isCancelled, setupGeneration == generation, project.videoURL == url else { return }
-                currentURL = url
-                engine = avEngine
-                _ = await avEngine.seek(to: project.currentTime.clampedFinite(to: 0...avEngine.duration))
-                setupScrubTask()
+                if let ffmpegEngine = await project.acquirePlayerEngine(
+                    for: url,
+                    makeEngine: { FFmpegEngine() }
+                ) {
+                    guard !Task.isCancelled, setupGeneration == generation, project.videoURL == url else { return }
+                    await activateLoadedEngine(ffmpegEngine, url: url)
+                    return
+                }
 
-                setupFrameRateDetection(url: url, engine: avEngine)
-
-                // Window adjustment will happen automatically in setupFrameRateDetection after size is fetched
+                project.reportMediaPlaybackFailure(
+                    for: url,
+                    state: .unsupported,
+                    technicalMessage: "Neither AVFoundation nor FFmpeg could open this media file."
+                )
             } else {
                 // Not native AVFoundation compatible (MKV, WebM, RMVB, AVI, FLV etc.) or SMB remote share
                 if result.isRemoteNetworkVolume {
@@ -83,18 +105,30 @@ extension VideoPlayerView {
                     guard let ffmpegEngine = await project.acquirePlayerEngine(
                         for: url,
                         makeEngine: { FFmpegEngine() }
-                    ), project.videoURL == url else { return }
+                    ), project.videoURL == url else {
+                        project.reportMediaPlaybackFailure(
+                            for: url,
+                            state: .unsupported,
+                            technicalMessage: result.errorMessage ?? "FFmpeg could not open this media file."
+                        )
+                        return
+                    }
 
-                    currentURL = url
-                    engine = ffmpegEngine
-                    _ = await ffmpegEngine.seek(
-                        to: project.currentTime.clampedFinite(to: 0...ffmpegEngine.duration)
-                    )
-                    setupScrubTask()
-                    setupFrameRateDetection(url: url, engine: ffmpegEngine)
+                    await activateLoadedEngine(ffmpegEngine, url: url)
                 }
             }
         }
+    }
+
+    func activateLoadedEngine(_ loadedEngine: PlayerEngine, url: URL) async {
+        guard project.videoURL == url else { return }
+        currentURL = url
+        engine = loadedEngine
+        _ = await loadedEngine.seek(
+            to: project.currentTime.clampedFinite(to: 0...loadedEngine.duration)
+        )
+        setupScrubTask()
+        setupFrameRateDetection(url: url, engine: loadedEngine)
     }
 
     func tearDownCurrentPlayer() {

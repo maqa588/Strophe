@@ -73,6 +73,12 @@ struct StropheNavBarCommands: Commands {
                 NotificationCenter.default.post(name: .stropheOpenProject, object: nil)
             }
             .keyboardShortcut("o", modifiers: [.command, .shift])
+
+            Divider()
+
+            Button(String(localized: "current_media_info")) {
+                NotificationCenter.default.post(name: .stropheShowCurrentMediaInfo, object: nil)
+            }
         }
         
         CommandGroup(replacing: .saveItem) {
@@ -118,6 +124,71 @@ struct StropheNavBarCommands: Commands {
         Button("paste_subtitle_block") {
             performPaste()
         }
+
+        Divider()
+
+        Button("search_replace_filter") {
+            NotificationCenter.default.post(name: .stropheOpenEditingTools, object: nil)
+        }
+        .keyboardShortcut("f", modifiers: .command)
+        .disabled(project.isEditingText)
+
+        Button("bilingual_comparison_editor") {
+            NotificationCenter.default.post(name: .stropheOpenBilingualEditor, object: nil)
+        }
+        .disabled(project.items.isEmpty)
+
+        Divider()
+
+        Button("markers_and_chapters") {
+            NotificationCenter.default.post(name: .stropheShowProjectMarkers, object: nil)
+        }
+
+        Button("add_marker") {
+            project.addMarker(kind: .marker)
+        }
+        .timelineShortcut("m", modifiers: [])
+        .disabled(project.isEditingText)
+
+        Button("add_chapter") {
+            project.addMarker(kind: .chapter)
+        }
+        .disabled(project.isEditingText)
+
+        Button("set_in_point") {
+            project.setInPoint()
+        }
+        .timelineShortcut("i", modifiers: [])
+        .disabled(project.isEditingText)
+
+        Button("set_out_point") {
+            project.setOutPoint()
+        }
+        .timelineShortcut("o", modifiers: [])
+        .disabled(project.isEditingText)
+
+        Button("clear_range") {
+            project.clearInOutPoints()
+        }
+        .disabled(
+            (project.inPoint == nil && project.outPoint == nil)
+                || project.isEditingText
+        )
+
+        Button("loop_in_out_range") {
+            project.toggleInOutLoop()
+        }
+        .disabled(
+            project.inPoint == nil
+                || project.outPoint == nil
+                || project.isEditingText
+        )
+
+        Button("loop_current_subtitle") {
+            project.toggleCurrentSubtitleLoop()
+        }
+        .timelineShortcut("/", modifiers: [])
+        .disabled(project.isEditingText || project.items.isEmpty)
 
         Divider()
 
@@ -269,15 +340,17 @@ struct StropheMainToolbar: ToolbarContent {
     @ObservedObject var project: SubtitleProject
     var horizontalSizeClass: UserInterfaceSizeClass?
     var onExportSoftSubtitles: (SubtitleFormat) -> Void
+    var onExportEmbeddedSubtitles: () -> Void
     var onExportHardSubtitles: () -> Void
+    var onExportDelivery: (SubtitleDeliveryFormat) -> Void
     var onSaveProject: () -> Void
     var onSaveProjectAs: () -> Void
     @Binding var selectedTab: StropheTab
 
     var body: some ToolbarContent {
         // Left side: back button (on compact iPhone) and import folder
-        ToolbarItemGroup(placement: .navigation) {
-            #if os(iOS)
+        #if os(iOS)
+        ToolbarItemGroup(placement: .topBarLeading) {
             if horizontalSizeClass == .compact {
                 Button(action: {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -288,7 +361,6 @@ struct StropheMainToolbar: ToolbarContent {
                         .font(.system(size: 16, weight: .semibold))
                 }
                 .help(String(localized: "return_to_document_list"))
-
             }
 
             Menu {
@@ -297,15 +369,17 @@ struct StropheMainToolbar: ToolbarContent {
                 Image(systemName: "folder")
             }
             .help(String(localized: "project_file_operations"))
-            #else
+        }
+        #else
+        ToolbarItemGroup(placement: .navigation) {
             Menu {
                 projectFileMenuItems
             } label: {
                 Label("project", systemImage: "folder")
             }
             .help(String(localized: "project_file_operations"))
-            #endif
         }
+        #endif
 
         #if os(iOS)
         ToolbarItem(placement: .principal) {
@@ -318,55 +392,285 @@ struct StropheMainToolbar: ToolbarContent {
         #endif
 
         // Right side items
-        ToolbarItemGroup(placement: .primaryAction) {
-            // Save Project Button
+        #if os(iOS)
+        ToolbarItemGroup(placement: .topBarTrailing) {
             Button(action: onSaveProject) {
-                #if os(macOS)
-                Label("save", systemImage: "square.and.arrow.down")
-                #else
                 Image(systemName: "square.and.arrow.down")
-                #endif
             }
             .help(String(localized: "save_current_project_file"))
 
-            // Export Menu
             Menu {
-                Menu("format_soft_subtitles") {
-                    Button("format_srt") {
-                        onExportSoftSubtitles(.srt)
-                    }
-                    Button("format_ass") {
-                        onExportSoftSubtitles(.ass)
-                    }
-                    Button("format_lrc") {
-                        onExportSoftSubtitles(.lrc)
-                    }
-                    Button("format_vtt") {
-                        onExportSoftSubtitles(.vtt)
-                    }
-                }
-
-                Divider()
-
-                Button("strophe_project_strophe") {
-                    onSaveProjectAs()
-                }
-
-                Divider()
-
-                Button("hard_subtitled_video_ellipsis") {
-                    onExportHardSubtitles()
-                }
+                iosOverflowMenuItems
             } label: {
-                #if os(macOS)
+                Image(systemName: "ellipsis")
+            }
+            .help(String(localized: "more_actions"))
+        }
+        #else
+        ToolbarItemGroup(placement: .primaryAction) {
+            Button(action: onSaveProject) {
+                Label("save", systemImage: "square.and.arrow.down")
+            }
+            .help(String(localized: "save_current_project_file"))
+
+            Menu {
+                exportMenuItems
+            } label: {
                 Label("export", systemImage: "square.and.arrow.up")
-                #else
-                Image(systemName: "square.and.arrow.up")
-                #endif
             }
             .help(String(localized: "export_subtitles_or_share_project"))
         }
+        #endif
     }
+
+    @ViewBuilder
+    private var exportMenuItems: some View {
+        Menu {
+            Button {
+                onExportSoftSubtitles(.srt)
+            } label: {
+                Label("format_srt", systemImage: "doc.text")
+            }
+            Button {
+                onExportSoftSubtitles(.ass)
+            } label: {
+                Label("format_ass", systemImage: "doc.richtext")
+            }
+            Button {
+                onExportSoftSubtitles(.lrc)
+            } label: {
+                Label("format_lrc", systemImage: "music.note.list")
+            }
+            Button {
+                onExportSoftSubtitles(.vtt)
+            } label: {
+                Label("format_vtt", systemImage: "text.bubble")
+            }
+        } label: {
+            Label("format_soft_subtitles", systemImage: "captions.bubble")
+        }
+
+        Divider()
+
+        Menu {
+            Button {
+                onExportDelivery(.csv)
+            } label: {
+                Label("format_csv", systemImage: "doc.text")
+            }
+            Button {
+                onExportDelivery(.excel)
+            } label: {
+                Label("format_excel", systemImage: "tablecells.fill")
+            }
+            Button {
+                onExportDelivery(.fcpxml)
+            } label: {
+                Label("format_fcpxml", systemImage: "film.stack")
+            }
+        } label: {
+            Label("delivery_data_and_nle", systemImage: "tablecells")
+        }
+
+        Divider()
+
+        Button {
+            onSaveProjectAs()
+        } label: {
+            Label("strophe_project_strophe", systemImage: "folder")
+        }
+
+        Divider()
+
+        Button {
+            onExportEmbeddedSubtitles()
+        } label: {
+            Label("embedded_soft_subtitle_video_ellipsis", systemImage: "video")
+        }
+        .disabled(project.videoURL == nil || project.items.isEmpty)
+
+        Button {
+            onExportHardSubtitles()
+        } label: {
+            Label("hard_subtitled_video_ellipsis", systemImage: "film")
+        }
+        .disabled(project.videoURL == nil || project.items.isEmpty)
+    }
+
+    #if os(iOS)
+    @ViewBuilder
+    private var iosOverflowMenuItems: some View {
+        Menu {
+            exportMenuItems
+        } label: {
+            Label("export", systemImage: "square.and.arrow.up")
+        }
+        .tint(Color.primary)
+
+        Menu {
+            iosSubtitleEditingMenuItems
+        } label: {
+            Label("subtitle_editing_tools", systemImage: "text.magnifyingglass")
+        }
+        .tint(Color.primary)
+
+        Menu {
+            iosMarkersMenuItems
+        } label: {
+            Label("markers_and_chapters", systemImage: "bookmark")
+        }
+        .tint(Color.primary)
+
+        Divider()
+
+        Button {
+            NotificationCenter.default.post(name: .stropheShowCurrentMediaInfo, object: nil)
+        } label: {
+            Label("current_media_info", systemImage: "info.square")
+        }
+    }
+
+    @ViewBuilder
+    private var iosSubtitleEditingMenuItems: some View {
+        Button {
+            NotificationCenter.default.post(name: .stropheOpenEditingTools, object: nil)
+        } label: {
+            Label("search_replace_filter", systemImage: "magnifyingglass")
+        }
+        .disabled(project.isEditingText)
+
+        Divider()
+
+        Button {
+            project.undo()
+        } label: {
+            Label("menu_undo", systemImage: "arrow.uturn.backward")
+        }
+        .disabled(!project.canUndo || project.isEditingText)
+
+        Button {
+            project.redo()
+        } label: {
+            Label("menu_redo", systemImage: "arrow.uturn.forward")
+        }
+        .disabled(!project.canRedo || project.isEditingText)
+
+        Divider()
+
+        Button {
+            project.cutSelectedSubtitleBlocks()
+        } label: {
+            Label("cut_subtitle_block", systemImage: "scissors")
+        }
+        .disabled(!project.canCutSelectedSubtitleBlocks || project.isEditingText)
+
+        Button {
+            project.copySelectedSubtitleBlocks()
+        } label: {
+            Label("copy_subtitle_block", systemImage: "doc.on.doc")
+        }
+        .disabled(!project.canCopySelectedSubtitleBlocks || project.isEditingText)
+
+        Button {
+            project.pasteSubtitleBlocksIntoActiveGroup()
+        } label: {
+            Label("paste_subtitle_block", systemImage: "doc.on.clipboard")
+        }
+        .disabled(!project.canPasteSubtitleBlocks || project.isEditingText)
+
+        Button {
+            project.selectAllSubtitles()
+        } label: {
+            Label("select_all", systemImage: "checkmark.circle")
+        }
+        .disabled(project.items.isEmpty || project.isEditingText)
+
+        Divider()
+
+        Button {
+            project.seekToSubtitleBoundary(.left)
+        } label: {
+            Label("align_subtitle_block_left", systemImage: "text.alignleft")
+        }
+        .disabled(project.items.isEmpty || project.isEditingText)
+
+        Button {
+            project.seekToSubtitleBoundary(.right)
+        } label: {
+            Label("align_subtitle_block_right", systemImage: "text.alignright")
+        }
+        .disabled(project.items.isEmpty || project.isEditingText)
+    }
+
+    @ViewBuilder
+    private var iosMarkersMenuItems: some View {
+        Button {
+            NotificationCenter.default.post(name: .stropheShowProjectMarkers, object: nil)
+        } label: {
+            Label("markers_and_chapters", systemImage: "list.bullet.rectangle")
+        }
+
+        Divider()
+
+        Button {
+            project.addMarker(kind: .marker)
+        } label: {
+            Label("add_marker", systemImage: "bookmark")
+        }
+        .disabled(project.isEditingText)
+
+        Button {
+            project.addMarker(kind: .chapter)
+        } label: {
+            Label("add_chapter", systemImage: "book.closed")
+        }
+        .disabled(project.isEditingText)
+
+        Divider()
+
+        Button {
+            project.setInPoint()
+        } label: {
+            Label("set_in_point", systemImage: "arrow.right.to.line")
+        }
+        .disabled(project.isEditingText)
+
+        Button {
+            project.setOutPoint()
+        } label: {
+            Label("set_out_point", systemImage: "arrow.left.to.line")
+        }
+        .disabled(project.isEditingText)
+
+        Button(role: .destructive) {
+            project.clearInOutPoints()
+        } label: {
+            Label("clear_range", systemImage: "xmark.rectangle")
+        }
+        .disabled((project.inPoint == nil && project.outPoint == nil) || project.isEditingText)
+
+        Button {
+            project.toggleInOutLoop()
+        } label: {
+            Label(
+                "loop_in_out_range",
+                systemImage: project.loopsSelection ? "repeat.circle.fill" : "repeat"
+            )
+        }
+        .disabled(
+            project.inPoint == nil
+                || project.outPoint == nil
+                || project.isEditingText
+        )
+
+        Button {
+            project.toggleCurrentSubtitleLoop()
+        } label: {
+            Label("loop_current_subtitle", systemImage: "repeat.1")
+        }
+        .disabled(project.items.isEmpty || project.isEditingText)
+    }
+    #endif
 
     @ViewBuilder
     private var projectFileMenuItems: some View {
@@ -444,6 +748,12 @@ struct StropheSidebarToolbar: ToolbarContent {
                         }
                     } label: {
                         Label("language_processing", systemImage: "globe")
+                    }
+                    Divider()
+                    Button {
+                        NotificationCenter.default.post(name: .stropheOpenBilingualEditor, object: nil)
+                    } label: {
+                        Label("bilingual_comparison_editor", systemImage: "rectangle.split.2x1")
                     }
                 } label: {
                     Image(systemName: "plus")

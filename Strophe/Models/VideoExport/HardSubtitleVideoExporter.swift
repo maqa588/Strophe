@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 import VideoToolbox
 
 
-enum HardSubtitleVideoExporter {
+nonisolated enum HardSubtitleVideoExporter {
     @MainActor
     static func export(
         project: SubtitleProject,
@@ -19,10 +19,12 @@ enum HardSubtitleVideoExporter {
 
         let inputURL = project.resolveOriginalURL(mediaURL)
         let cues = project.resolvedSubtitleCues()
+        let collisionMode = project.subtitleCollisionMode
 
         try await export(
             inputURL: inputURL,
             cues: cues,
+            collisionMode: collisionMode,
             settings: settings,
             destinationURL: destinationURL,
             progress: progress
@@ -32,6 +34,33 @@ enum HardSubtitleVideoExporter {
     static func export(
         inputURL: URL,
         cues: [ResolvedSubtitleCue],
+        collisionMode: SubtitleCollisionMode = .normal,
+        settings: HardSubtitleVideoExportSettings,
+        destinationURL: URL,
+        progress: @MainActor @Sendable @escaping (Double) -> Void
+    ) async throws {
+        let worker = Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
+            try await exportOnWorker(
+                inputURL: inputURL,
+                cues: cues,
+                collisionMode: collisionMode,
+                settings: settings,
+                destinationURL: destinationURL,
+                progress: progress
+            )
+        }
+        try await withTaskCancellationHandler {
+            try await worker.value
+        } onCancel: {
+            worker.cancel()
+        }
+    }
+
+    private static func exportOnWorker(
+        inputURL: URL,
+        cues: [ResolvedSubtitleCue],
+        collisionMode: SubtitleCollisionMode,
         settings: HardSubtitleVideoExportSettings,
         destinationURL: URL,
         progress: @MainActor @Sendable @escaping (Double) -> Void
@@ -40,6 +69,7 @@ enum HardSubtitleVideoExporter {
             try await exportOnce(
                 inputURL: inputURL,
                 cues: cues,
+                collisionMode: collisionMode,
                 settings: settings,
                 destinationURL: destinationURL,
                 progress: progress
@@ -59,6 +89,7 @@ enum HardSubtitleVideoExporter {
             try await exportOnce(
                 inputURL: inputURL,
                 cues: cues,
+                collisionMode: collisionMode,
                 settings: fallbackSettings,
                 destinationURL: destinationURL,
                 progress: progress
@@ -69,6 +100,7 @@ enum HardSubtitleVideoExporter {
     private static func exportOnce(
         inputURL: URL,
         cues: [ResolvedSubtitleCue],
+        collisionMode: SubtitleCollisionMode,
         settings: HardSubtitleVideoExportSettings,
         destinationURL: URL,
         progress: @MainActor @Sendable @escaping (Double) -> Void
@@ -79,6 +111,7 @@ enum HardSubtitleVideoExporter {
             try await exportViaFFmpeg(
                 inputURL: inputURL,
                 cues: cues,
+                collisionMode: collisionMode,
                 settings: settings,
                 destinationURL: destinationURL,
                 progress: progress
@@ -89,6 +122,7 @@ enum HardSubtitleVideoExporter {
         try await exportViaAVFoundation(
             inputURL: inputURL,
             cues: cues,
+            collisionMode: collisionMode,
             settings: settings,
             destinationURL: destinationURL,
             progress: progress
@@ -129,27 +163,14 @@ enum HardSubtitleVideoExporter {
              .audioMuxFailed(_),
              .ffmpegDecodeFailed(_),
              .hdrRequiresCompatibleCodec,
-             .hdrSourceRequired:
+             .hdrSourceRequired,
+             .invalidExportRange:
             return false
         }
     }
 
     // exportViaAVFoundation is in HardSubtitleVideoExporter/AVFoundation.swift
     // exportViaFFmpeg is in HardSubtitleVideoExporter/FFmpeg.swift
-
-    static func activeCue(
-        at seconds: Double,
-        cues: [ResolvedSubtitleCue],
-        index: inout Int
-    ) -> ResolvedSubtitleCue? {
-        while index < cues.count, cues[index].endTime < seconds {
-            index += 1
-        }
-
-        guard index < cues.count else { return nil }
-        let cue = cues[index]
-        return seconds >= cue.startTime && seconds <= cue.endTime ? cue : nil
-    }
 
     static func resolvedOutputColorProfile(
         settings: HardSubtitleVideoExportSettings,
@@ -326,15 +347,29 @@ enum HardSubtitleVideoExporter {
             }
         }
 
-        if writer.status == .failed {
+        guard writer.status == .completed else {
             throw HardSubtitleVideoExportError.writerFailed(writer.error?.localizedDescription ?? "Unknown error")
+        }
+        guard FileManager.default.fileExists(atPath: writer.outputURL.path) else {
+            let parent = writer.outputURL.deletingLastPathComponent()
+            let entries = (try? FileManager.default.contentsOfDirectory(
+                at: parent,
+                includingPropertiesForKeys: nil
+            ))?.map(\.lastPathComponent) ?? []
+            print(
+                "🎞️ Writer completed without a visible output file. "
+                    + "URL=\(writer.outputURL.path), parentExists="
+                    + "\(FileManager.default.fileExists(atPath: parent.path)), "
+                    + "entries=\(entries)"
+            )
+            throw HardSubtitleVideoExportError.writerFailed(
+                "The media writer completed without creating an output file."
+            )
         }
     }
 
     static func temporaryExportURL(fileExtension: String) -> URL {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("StropheExports", isDirectory: true)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let directory = TempCleanupHelper.exportSessionDirectoryURL
         return directory.appendingPathComponent(UUID().uuidString).appendingPathExtension(fileExtension)
     }
 

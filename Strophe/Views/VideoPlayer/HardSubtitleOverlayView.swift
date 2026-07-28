@@ -4,8 +4,10 @@ import SwiftUI
 struct HardSubtitleOverlayView: View {
     @ObservedObject var project: SubtitleProject
     @ObservedObject private var store = StyleAndGroupStore.shared
-    @State private var displayedCues: [ResolvedSubtitleCue] = []
-    @State private var displayedTime = 0.0
+    @State private var displayedScene = SubtitleFrameScene.empty(
+        at: 0,
+        canvasSize: CGSize(width: 1920, height: 1080)
+    )
 
     var body: some View {
         GeometryReader { proxy in
@@ -15,32 +17,26 @@ struct HardSubtitleOverlayView: View {
             let displayScale = proxy.size.height / videoSize.height
 
             ZStack {
-                ForEach(displayedCues) { cue in
-                    let placementRect = SubtitlePlacementMetrics.placementRect(
-                        for: videoSize,
-                        style: cue.style
-                    )
-
+                ForEach(displayedScene.items) { item in
                     HardSubtitleBitmapView(
-                        text: cue.text,
-                        style: cue.style,
+                        text: item.cue.text,
+                        style: item.cue.style,
                         canvasSize: videoSize,
-                        displayScale: displayScale
+                        displayScale: displayScale,
+                        anchor: item.cue.resolvedAnchor
                     )
-                        .frame(
-                            width: placementRect.width * displayScale,
-                            height: placementRect.height * displayScale,
-                            alignment: cue.style.alignment.swiftUIAlignment
-                        )
                         .position(
-                            x: placementRect.midX * displayScale,
-                            y: placementRect.midY * displayScale
+                            x: (item.origin.x + item.size.width / 2) * displayScale,
+                            y: (item.origin.y + item.size.height / 2) * displayScale
                         )
-                        .opacity(cue.opacity(at: displayedTime))
+                        .opacity(item.cue.opacity(at: displayedScene.presentationTime))
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .animation(.linear(duration: 0.05), value: displayedTime)
+            .animation(
+                .linear(duration: 0.05),
+                value: displayedScene.presentationTime
+            )
         }
         .allowsHitTesting(false)
         .task {
@@ -72,10 +68,16 @@ struct HardSubtitleOverlayView: View {
 
     @MainActor
     private func refreshDisplayedCues(at time: Double) {
-        displayedTime = time
-        let cues = project.resolvedSubtitleCues(at: time, store: store)
-        guard cues != displayedCues else { return }
-        displayedCues = cues
+        let videoSize = project.videoSize.width > 0 && project.videoSize.height > 0
+            ? project.videoSize
+            : CGSize(width: 1920, height: 1080)
+        let scene = project.resolvedSubtitleFrameScene(
+            at: time,
+            canvasSize: videoSize,
+            store: store
+        )
+        guard scene != displayedScene else { return }
+        displayedScene = scene
     }
 
 }

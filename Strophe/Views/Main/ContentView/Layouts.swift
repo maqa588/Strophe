@@ -30,7 +30,7 @@ extension ContentView {
                     onSaveProjectAs: saveProjectAs
                 )
                     .navigationDestination(for: SettingsRoute.self) { route in
-                        SettingsDetailView(route: route)
+                        SettingsDetailView(route: route, project: project)
                     }
             }
         }
@@ -149,6 +149,12 @@ extension ContentView {
                                 } label: {
                                     Label("language_processing", systemImage: "globe")
                                 }
+                                Divider()
+                                Button {
+                                    NotificationCenter.default.post(name: .stropheOpenBilingualEditor, object: nil)
+                                } label: {
+                                    Label("bilingual_comparison_editor", systemImage: "rectangle.split.2x1")
+                                }
                             } label: {
                                 Image(systemName: "plus")
                             }
@@ -172,7 +178,7 @@ extension ContentView {
                 SettingsPlaceholderView(settingsPath: $settingsPath)
                     .inlineNavigationTitle(String(localized: "settings"))
                     .navigationDestination(for: SettingsRoute.self) { route in
-                        SettingsDetailView(route: route)
+                        SettingsDetailView(route: route, project: project)
                     }
             }
         }
@@ -182,6 +188,13 @@ extension ContentView {
         selectedTab = .settings
         DispatchQueue.main.async {
             settingsPath = [.version]
+        }
+    }
+
+    func showCurrentMediaInfoPage() {
+        selectedTab = .settings
+        DispatchQueue.main.async {
+            settingsPath = [.currentMediaInfo]
         }
     }
 }
