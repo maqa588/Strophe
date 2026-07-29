@@ -88,6 +88,15 @@ extension AutoCaptionView {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
+            Divider()
+
+            Toggle("generate_karaoke_subtitles", isOn: $generateKaraoke)
+                .tint(Color.stropheAccent)
+
+            Label("generate_karaoke_subtitles_explanation", systemImage: "music.note.list")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
             if !areRequiredLocalModelsDownloaded {
                 Divider()
                 Text(LocalizedStringKey(localMissingModelsHintKey))
@@ -142,6 +151,7 @@ extension AutoCaptionView {
                     modelSelectionSection
                     languageSection
                     vadSection
+                    karaokeSection
                     if !areRequiredLocalModelsDownloaded {
                         Section {
                             Text(LocalizedStringKey(localMissingModelsHintKey))
@@ -272,6 +282,19 @@ extension AutoCaptionView {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } header: { Text("voice_activity_detection") }
+    }
+
+    @ViewBuilder
+    private var karaokeSection: some View {
+        Section {
+            Toggle("generate_karaoke_subtitles", isOn: $generateKaraoke)
+                .tint(Color.stropheAccent)
+            Text("generate_karaoke_subtitles_explanation")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } header: {
+            Label("karaoke_mode", systemImage: "music.note.list")
+        }
     }
     #endif
 

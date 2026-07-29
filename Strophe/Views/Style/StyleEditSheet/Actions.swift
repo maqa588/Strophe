@@ -31,6 +31,10 @@ extension StyleEditSheet {
         shadowRadius = style.shadowRadius
         backgroundColor = style.backgroundColor
         backgroundAlpha = style.backgroundAlpha
+        dropShadowColor = style.dropShadowColor
+        dropShadowOffset = style.dropShadowOffset
+        dropShadowAlpha = style.dropShadowAlpha
+        dropShadowAngle = style.dropShadowAngle
         isGlowing = style.isGlowing
         alignment = style.alignment
         marginLeftPercent = style.marginLeftPercent
@@ -60,6 +64,10 @@ extension StyleEditSheet {
             store.styles[index].shadowRadius = shadowRadius
             store.styles[index].backgroundColor = backgroundColor
             store.styles[index].backgroundAlpha = backgroundAlpha
+            store.styles[index].dropShadowColor = dropShadowColor
+            store.styles[index].dropShadowOffset = dropShadowOffset
+            store.styles[index].dropShadowAlpha = dropShadowAlpha
+            store.styles[index].dropShadowAngle = dropShadowAngle
             store.styles[index].isGlowing = isGlowing
             store.styles[index].alignment = alignment
             store.styles[index].marginLeftPercent = marginLeftPercent

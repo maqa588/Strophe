@@ -8,10 +8,23 @@ import Foundation
 /// A word-level timestamp produced by ForcedAligner.
 ///
 /// Segmentation only reads these values. It never rewrites word-level timing.
-nonisolated struct SubtitleWordTiming: Sendable, Equatable {
+nonisolated struct SubtitleWordTiming: Sendable, Codable, Equatable, Hashable {
     let text: String
     let startTime: Double
     let endTime: Double
+    let confidence: Double?
+
+    init(
+        text: String,
+        startTime: Double,
+        endTime: Double,
+        confidence: Double? = nil
+    ) {
+        self.text = text
+        self.startTime = startTime
+        self.endTime = endTime
+        self.confidence = confidence
+    }
 }
 
 /// Converts aligned words into readable subtitle cues, then repairs the final
@@ -87,7 +100,8 @@ nonisolated enum SubtitleSegmentation {
             result[index] = AIResultSegment(
                 text: current.text,
                 startTime: current.startTime,
-                endTime: nextStart
+                endTime: nextStart,
+                words: current.words
             )
         }
         return result
@@ -322,7 +336,8 @@ nonisolated enum SubtitleSegmentation {
         return AIResultSegment(
             text: text,
             startTime: first.startTime,
-            endTime: max(last.endTime, first.startTime + 0.08)
+            endTime: max(last.endTime, first.startTime + 0.08),
+            words: span.words
         )
     }
 

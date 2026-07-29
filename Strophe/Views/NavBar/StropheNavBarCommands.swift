@@ -317,6 +317,10 @@ struct StropheNavBarCommands: Commands {
             NotificationCenter.default.post(name: .stropheStartBatchTranslation, object: nil)
         }
 
+        Button("karaoke_batch_recognition_ellipsis") {
+            NotificationCenter.default.post(name: .stropheOpenKaraokeBatchRecognition, object: nil)
+        }
+
         Divider()
 
         Button("chinese_to_pinyin_ellipsis") {
@@ -735,6 +739,11 @@ struct StropheSidebarToolbar: ToolbarContent {
                             NotificationCenter.default.post(name: .stropheStartBatchTranslation, object: nil)
                         } label: {
                             Label("batch_translate_subtitles", systemImage: "text.bubble")
+                        }
+                        Button {
+                            NotificationCenter.default.post(name: .stropheOpenKaraokeBatchRecognition, object: nil)
+                        } label: {
+                            Label("karaoke_batch_recognition", systemImage: "music.note.list")
                         }
                         Button {
                             NotificationCenter.default.post(name: .stropheConvertSelectedToPinyin, object: nil)

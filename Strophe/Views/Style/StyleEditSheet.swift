@@ -34,6 +34,10 @@ struct StyleEditSheet: View {
     @State var shadowRadius: Double = 5
     @State var backgroundColor: Color = .black
     @State var backgroundAlpha: Double = 0
+    @State var dropShadowColor: Color = .black
+    @State var dropShadowOffset: Double = 0
+    @State var dropShadowAlpha: Double = 1.0
+    @State var dropShadowAngle: Double = 45
     @State var isGlowing: Bool = false
     @State var alignment: SubtitleStyle.Alignment = .bottomCenter
     @State var marginLeftPercent: Double = 5

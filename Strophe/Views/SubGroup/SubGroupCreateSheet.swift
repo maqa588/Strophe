@@ -9,11 +9,12 @@ import SwiftUI
 
 struct SubGroupCreateSheet: View {
     @Binding var isPresented: Bool
+    var groupID: UUID? = nil
     
     @ObservedObject var store = StyleAndGroupStore.shared
     
     @State private var name: String = ""
-    @State private var subName: String = "默认分组"
+    @State private var subName: String = ""
     @State private var role: SubtitleGroupRole = .normal
     @State private var selectedStyleName: String = ""
     @State private var selectedColorIndex: Int = 0
@@ -43,7 +44,7 @@ struct SubGroupCreateSheet: View {
                         Button("cancel") { isPresented = false }
                     }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("create") { createGroup() }
+                        Button(groupID == nil ? "create" : "save") { saveGroup() }
                             .fontWeight(.bold)
                             .disabled(name.isEmpty)
                     }
@@ -57,7 +58,7 @@ struct SubGroupCreateSheet: View {
             #if os(macOS)
             // Header for macOS
             HStack {
-                Text("new_group")
+                Text(groupID == nil ? "new_group" : "edit_group")
                     .font(.title3)
                     .fontWeight(.bold)
                     .foregroundStyle(Color.stropheText)
@@ -198,8 +199,8 @@ struct SubGroupCreateSheet: View {
                 .buttonStyle(.bordered)
                 .tint(Color.stropheText)
                 
-                Button(action: createGroup) {
-                    Text("create")
+                Button(action: saveGroup) {
+                    Text(groupID == nil ? "create" : "save")
                         .fontWeight(.bold)
                 }
                 .buttonStyle(.borderedProminent)
@@ -211,30 +212,53 @@ struct SubGroupCreateSheet: View {
             #endif
         }
         .onAppear {
-            if name.isEmpty {
-                name = "组 \(store.groups.count + 1)"
+            if let groupID, let group = store.groups.first(where: { $0.id == groupID }) {
+                name = group.name
+                let rawSub = group.subName.isEmpty ? group.role.title : group.subName
+                subName = NSLocalizedString(rawSub, comment: "")
+                role = group.role
+                selectedStyleName = group.style
+                if let index = availableColors.firstIndex(where: { $0 == group.color }) {
+                    selectedColorIndex = index
+                }
+            } else {
+                if name.isEmpty {
+                    name = "Group \(store.groups.count + 1)"
+                }
+                if subName.isEmpty {
+                    subName = NSLocalizedString("group_subname_normal", comment: "")
+                }
+                if selectedStyleName.isEmpty {
+                    selectedStyleName = store.styles.first?.name ?? "Default"
+                }
+                selectedColorIndex = store.groups.count % availableColors.count
             }
-            if selectedStyleName.isEmpty {
-                selectedStyleName = store.styles.first?.name ?? "Default"
-            }
-            selectedColorIndex = store.groups.count % availableColors.count
         }
     }
     
-    private func createGroup() {
+    private func saveGroup() {
         let defaultStyle = selectedStyleName.isEmpty ? (store.styles.first?.name ?? "Default") : selectedStyleName
-        let newGroup = SubGroupItem(
-            name: name.isEmpty ? "未命名组" : name,
-            subName: subName,
-            role: role,
-            color: availableColors[selectedColorIndex],
-            isActive: store.groups.isEmpty,
-            style: defaultStyle,
-            isOverlayEnabled: true,
-            exportPolicy: role == .metadata ? .referenceOnly : .includeInAllExports,
-            sortOrder: store.groups.count
-        )
-        store.groups.append(newGroup)
+        if let groupID, let index = store.groups.firstIndex(where: { $0.id == groupID }) {
+            store.groups[index].name = name.isEmpty ? "Group" : name
+            store.groups[index].subName = subName
+            store.groups[index].role = role
+            store.groups[index].color = availableColors[selectedColorIndex]
+            store.groups[index].style = defaultStyle
+            store.groups[index].exportPolicy = role == .metadata ? .referenceOnly : .includeInAllExports
+        } else {
+            let newGroup = SubGroupItem(
+                name: name.isEmpty ? "Group" : name,
+                subName: subName,
+                role: role,
+                color: availableColors[selectedColorIndex],
+                isActive: store.groups.isEmpty,
+                style: defaultStyle,
+                isOverlayEnabled: true,
+                exportPolicy: role == .metadata ? .referenceOnly : .includeInAllExports,
+                sortOrder: store.groups.count
+            )
+            store.groups.append(newGroup)
+        }
         isPresented = false
     }
 }

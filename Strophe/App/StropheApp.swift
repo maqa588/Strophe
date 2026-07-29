@@ -93,8 +93,21 @@ struct StropheApp: App {
     var body: some Scene {
         #if os(macOS)
         Window("title_welcome", id: "welcome") {
-            MacWelcomeSceneView(project: project)
-                .ignoresSafeArea()
+            Group {
+                if ProcessInfo.processInfo.arguments.contains(
+                    "-ui-testing-open-editor"
+                ) {
+                    // Keep the editor in the initially materialized window for
+                    // UI tests. Opening a second scene from the welcome
+                    // window's first onAppear can race with closing that
+                    // window and leave XCTest with no accessible window.
+                    WelcomeRouterView(project: project)
+                        .frame(width: 1_200, height: 750)
+                } else {
+                    MacWelcomeSceneView(project: project)
+                        .ignoresSafeArea()
+                }
+            }
                 .onAppear { appDelegate.project = project }
         }
         .windowStyle(.hiddenTitleBar)
@@ -203,6 +216,7 @@ extension Notification.Name {
     static let stropheStartBatchTranslation = Notification.Name("com.strophe.startBatchTranslation")
     static let stropheConvertSelectedToPinyin = Notification.Name("com.strophe.convertSelectedToPinyin")
     static let stropheOpenAutoLineWrap = Notification.Name("com.strophe.openAutoLineWrap")
+    static let stropheOpenKaraokeBatchRecognition = Notification.Name("com.strophe.openKaraokeBatchRecognition")
     static let stropheOpenEditingTools = Notification.Name("com.strophe.openEditingTools")
     static let stropheShowProjectMarkers = Notification.Name("com.strophe.showProjectMarkers")
     static let stropheOpenBilingualEditor = Notification.Name("com.strophe.openBilingualEditor")
@@ -210,4 +224,5 @@ extension Notification.Name {
     static let stropheShowSaveOnQuitAlert = Notification.Name("com.strophe.showSaveOnQuitAlert")
     static let stropheScrubTimeChanged = Notification.Name("com.strophe.scrubTimeChanged")
     static let stropheShowWelcome = Notification.Name("com.strophe.showWelcome")
+    static let stropheShowSuccessToast = Notification.Name("com.strophe.showSuccessToast")
 }

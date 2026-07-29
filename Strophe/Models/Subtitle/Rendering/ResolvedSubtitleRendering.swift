@@ -81,6 +81,9 @@ nonisolated struct ResolvedSubtitleStyle: Sendable, Equatable, Hashable {
     var shadowColor: ResolvedRGBAColor
     var shadowRadius: Double
     var backgroundColor: ResolvedRGBAColor?
+    var dropShadowColor: ResolvedRGBAColor
+    var dropShadowOffset: Double
+    var dropShadowAngle: Double
     var isBold: Bool
     var isItalic: Bool
     var isUnderline: Bool
@@ -105,6 +108,9 @@ nonisolated struct ResolvedSubtitleStyle: Sendable, Equatable, Hashable {
         shadowColor: .black.withAlpha(0.75),
         shadowRadius: 5,
         backgroundColor: nil,
+        dropShadowColor: .black.withAlpha(0),
+        dropShadowOffset: 0,
+        dropShadowAngle: 45,
         isBold: false,
         isItalic: false,
         isUnderline: false,
@@ -133,6 +139,7 @@ nonisolated struct ResolvedSubtitleCue: Identifiable, Sendable, Equatable, Hasha
     var trackIndex: Int
     var layer: Int
     var position: ResolvedSubtitlePosition?
+    var karaoke: KaraokeProgram? = nil
     var usesFadeInOut: Bool = false
 
     var resolvedAnchor: SubtitleStyle.Alignment {
@@ -176,6 +183,29 @@ struct HardSubtitleBitmapView: View {
     }
 }
 
+struct KaraokeSubtitleBitmapView: View {
+    let cue: ResolvedSubtitleCue
+    let presentationTime: Double
+    let canvasSize: CGSize
+    let displayScale: CGFloat
+
+    var body: some View {
+        if let image = KaraokeFrameRenderer.shared.makeCGImage(
+            cue: cue,
+            presentationTime: presentationTime,
+            canvasSize: canvasSize
+        ) {
+            Image(
+                decorative: image,
+                scale: max(0.0001, 1 / displayScale),
+                orientation: .up
+            )
+            .interpolation(.high)
+            .fixedSize()
+        }
+    }
+}
+
 extension Color {
     nonisolated var resolvedRGBA: ResolvedRGBAColor {
         #if canImport(AppKit)
@@ -206,7 +236,7 @@ extension Color {
     }
 }
 
-extension ResolvedRGBAColor {
+nonisolated extension ResolvedRGBAColor {
     init?(hex: String?) {
         guard let hex else { return nil }
         var raw = hex.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -260,6 +290,7 @@ extension SubtitleProject {
                 trackIndex: item.trackIndex,
                 layer: item.layer,
                 position: resolvedPosition(for: item, store: store),
+                karaoke: item.activeKaraoke,
                 usesFadeInOut: group?.usesFadeInOut ?? false
             )
         }
@@ -293,7 +324,8 @@ extension SubtitleProject {
 
     func resolvedSubtitleCues(at time: Double, store: StyleAndGroupStore = .shared) -> [ResolvedSubtitleCue] {
         guard time.isFinite else { return [] }
-        return items.compactMap { item -> ResolvedSubtitleCue? in
+        return timelineIndex.visibleItems(in: time...time).compactMap {
+            item -> ResolvedSubtitleCue? in
             guard let start = item.startTime,
                   let end = item.endTime,
                   time >= start,
@@ -316,14 +348,30 @@ extension SubtitleProject {
         store: StyleAndGroupStore = .shared
     ) -> SubtitleFrameScene {
         let forcedIDs = activeSlapSubtitleID.map { Set([$0]) } ?? []
+        var cues = resolvedSubtitleCues(at: time, store: store)
+        if let activeSlapSubtitleID,
+           !cues.contains(where: { $0.id == activeSlapSubtitleID }),
+           let item = timelineIndex.item(id: activeSlapSubtitleID),
+           let cue = resolvedCue(for: item, store: store) {
+            cues.append(cue)
+        }
         return SubtitleFrameSceneResolver.resolve(
-            cues: resolvedSubtitleCues(store: store),
+            cues: cues,
             at: time,
             canvasSize: canvasSize,
             collisionMode: subtitleCollisionMode,
             forcedCueIDs: forcedIDs
         ) { cue in
-            SubtitleBitmapRenderer.metrics(cue: cue, canvasSize: canvasSize)
+            if cue.karaoke != nil {
+                return KaraokeFrameRenderer.shared.metrics(
+                    cue: cue,
+                    canvasSize: canvasSize
+                )
+            }
+            return SubtitleBitmapRenderer.metrics(
+                cue: cue,
+                canvasSize: canvasSize
+            )
         }
     }
 
@@ -351,6 +399,7 @@ extension SubtitleProject {
             trackIndex: item.trackIndex,
             layer: item.layer,
             position: resolvedPosition(for: item, store: store),
+            karaoke: item.activeKaraoke,
             usesFadeInOut: group?.usesFadeInOut ?? false
         )
     }
@@ -429,6 +478,11 @@ extension SubtitleProject {
         resolved.rotationDegrees = subgroupStyle?.rotationDegrees ?? resolved.rotationDegrees
         if let subgroupStyle, subgroupStyle.backgroundAlpha > 0 {
             resolved.backgroundColor = subgroupStyle.backgroundColor.resolvedRGBA.withAlpha(subgroupStyle.backgroundAlpha)
+        }
+        if let subgroupStyle, subgroupStyle.dropShadowAlpha > 0 {
+            resolved.dropShadowColor = subgroupStyle.dropShadowColor.resolvedRGBA.withAlpha(subgroupStyle.dropShadowAlpha)
+            resolved.dropShadowOffset = subgroupStyle.dropShadowOffset
+            resolved.dropShadowAngle = subgroupStyle.dropShadowAngle
         }
 
         if resolved.name.localizedCaseInsensitiveContains("box") {

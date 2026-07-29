@@ -140,7 +140,7 @@ struct StylePlaceholderView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(style.name)
                     .font(.system(size: 13, weight: .medium))
-                Text(style.description)
+                Text(NSLocalizedString(style.description, comment: style.description))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }

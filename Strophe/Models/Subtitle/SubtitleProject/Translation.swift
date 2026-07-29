@@ -93,7 +93,9 @@ extension SubtitleProject {
         let oldSelectedIDs = selectedIDs
         var updated = items
         for index in updated.indices where editableIDs.contains(updated[index].id) {
-            updated[index].text = LanguageProcessingService.pinyinWithToneMarks(updated[index].text)
+            updated[index].replaceTextPreservingKaraoke(
+                LanguageProcessingService.pinyinWithToneMarks(updated[index].text)
+            )
         }
         items = updated
         registerUndo(label: String(localized: "chinese_to_pinyin"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
@@ -114,7 +116,7 @@ extension SubtitleProject {
         let lookupKey = TranslationLookupKey(sourceID: sourceID, groupID: targetGroupID)
         if let existingIndex = translationIndexBySourceID[lookupKey] {
             guard !isLockedForEditing(items[existingIndex]) else { return nil }
-            items[existingIndex].text = text
+            items[existingIndex].replaceTextPreservingKaraoke(text)
             items[existingIndex].languageCode = languageCode
             return items[existingIndex].id
         }

@@ -110,6 +110,11 @@ struct WelcomeRouterView: View {
                ProcessInfo.processInfo.arguments.contains("-ui-testing-open-editor") {
                 didHandleUITestEditorLaunch = true
                 handleAction(.newProject)
+                if ProcessInfo.processInfo.arguments.contains(
+                    "-ui-testing-karaoke-demo"
+                ) {
+                    installKaraokeUITestFixture()
+                }
             }
         }
         .onOpenURL { url in
@@ -219,6 +224,71 @@ struct WelcomeRouterView: View {
         } else {
             openEditorWindow?()
         }
+    }
+
+    private func installKaraokeUITestFixture() {
+        let cueStart = 0.8
+        let text = "君のことが好き"
+        let words = [
+            SubtitleWordTiming(
+                text: "君",
+                startTime: 1.0,
+                endTime: 1.42,
+                confidence: 0.99
+            ),
+            SubtitleWordTiming(
+                text: "の",
+                startTime: 1.42,
+                endTime: 1.73,
+                confidence: 0.98
+            ),
+            SubtitleWordTiming(
+                text: "こと",
+                startTime: 1.73,
+                endTime: 2.58,
+                confidence: 0.97
+            ),
+            SubtitleWordTiming(
+                text: "が",
+                startTime: 2.58,
+                endTime: 2.92,
+                confidence: 0.96
+            ),
+            SubtitleWordTiming(
+                text: "好き",
+                startTime: 2.92,
+                endTime: 4.05,
+                confidence: 0.99
+            )
+        ]
+        var program = KaraokeProgram.fromAlignedWords(
+            words,
+            cueText: text,
+            cueStartTime: cueStart,
+            cueEndTime: 4.4,
+            template: .glow
+        )
+        program?.template.activeColorHex = "#46E6FFFF"
+        let item = SubtitleItem(
+            text: text,
+            startTime: cueStart,
+            endTime: 4.4,
+            originalIndex: 0,
+            trackIndex: 0,
+            layer: 2,
+            karaoke: program
+        )
+
+        let waveform = WaveformData()
+        waveform.duration = 8
+        waveform.sampleRate = 44_100
+        project.waveformData = waveform
+        project.videoSize = CGSize(width: 1920, height: 1080)
+        project.videoFrameRate = 30
+        project.items = [item]
+        project.selectedIDs = [item.id]
+        project.currentTime = 2.18
+        project.showHardSubtitles = true
     }
 }
 

@@ -64,12 +64,22 @@ struct ContentView: View {
     @State var keyboardMonitor: Any?
     #endif
     @State var showSavedToast = false
+    @State private var successToastMessage = String(localized: "project_saved_success")
+    @State private var successToastGeneration = 0
 
     func triggerSaveToast() {
+        triggerSuccessToast(String(localized: "project_saved_success"))
+    }
+
+    private func triggerSuccessToast(_ message: String) {
+        successToastGeneration += 1
+        let generation = successToastGeneration
+        successToastMessage = message
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
             showSavedToast = true
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            guard generation == successToastGeneration else { return }
             withAnimation(.easeOut(duration: 0.4)) {
                 showSavedToast = false
             }
@@ -109,7 +119,7 @@ struct ContentView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
-                    Text(String(localized: "project_saved_success"))
+                    Text(successToastMessage)
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(Color.stropheText)
                 }
@@ -126,6 +136,10 @@ struct ContentView: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
                 .padding(.top, 12)
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheShowSuccessToast)) { notification in
+            guard let message = notification.object as? String, !message.isEmpty else { return }
+            triggerSuccessToast(message)
         }
     }
 

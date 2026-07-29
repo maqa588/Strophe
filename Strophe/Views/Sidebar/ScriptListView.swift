@@ -28,6 +28,7 @@ struct ScriptListView: View {
     @State private var isShowingBatchTranslation = false
     @State private var isShowingPinyinConversion = false
     @State private var isShowingAutoLineWrap = false
+    @State private var isShowingKaraokeBatchRecognition = false
     @State private var isSearchRevealed = false
     @State private var isListAtTop = true
     @State private var subtitleListSearchOffset: CGFloat = 0
@@ -139,6 +140,9 @@ struct ScriptListView: View {
         .onReceive(NotificationCenter.default.publisher(for: .stropheOpenAutoLineWrap)) { _ in
             isShowingAutoLineWrap = true
         }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheOpenKaraokeBatchRecognition)) { _ in
+            isShowingKaraokeBatchRecognition = true
+        }
         .sheet(isPresented: $isShowingAutoCaption) {
             AutoCaptionView(project: project)
         }
@@ -157,6 +161,9 @@ struct ScriptListView: View {
         .sheet(isPresented: $isShowingAutoLineWrap) {
             AutoLineWrapSheet(project: project)
         }
+        .sheet(isPresented: $isShowingKaraokeBatchRecognition) {
+            KaraokeBatchRecognitionSheet(project: project)
+        }
         .stropheOnChange(of: isShowingTranslationAssistant) { newValue in
             project.isEditingText = newValue
             if !newValue { translationStartItemID = nil }
@@ -164,6 +171,7 @@ struct ScriptListView: View {
         .stropheOnChange(of: isShowingBatchTranslation) { project.isEditingText = $0 }
         .stropheOnChange(of: isShowingPinyinConversion) { project.isEditingText = $0 }
         .stropheOnChange(of: isShowingAutoLineWrap) { project.isEditingText = $0 }
+        .stropheOnChange(of: isShowingKaraokeBatchRecognition) { project.isEditingText = $0 }
         .stropheOnChange(of: store.activeGroupID) { _ in
             project.autoUpdateCurrentIndex()
         }
@@ -264,6 +272,20 @@ struct ScriptListView: View {
                                 Label("change_display_time", systemImage: "clock")
                             }
                             .disabled(isLocked)
+
+                            Toggle(
+                                isOn: karaokeBlockActionBinding(for: item)
+                            ) {
+                                Label(
+                                    "karaoke",
+                                    systemImage: "music.note.list"
+                                )
+                            }
+                            .disabled(
+                                !project.canSetKaraokeFromBlockAction(
+                                    itemID: item.id
+                                )
+                            )
 
                             Menu {
                                 ForEach(store.sortedGroups) { grp in
@@ -553,6 +575,22 @@ struct ScriptListView: View {
               let newEnd = parseEditableTime(editingEndText) else { return }
         project.updateSubtitleTime(id: item.id, newStartTime: newStart, newEndTime: newEnd)
         editingTimeItem = nil
+    }
+
+    private func karaokeBlockActionBinding(
+        for item: SubtitleItem
+    ) -> Binding<Bool> {
+        Binding(
+            get: {
+                project.isKaraokeEnabledFromBlockAction(itemID: item.id)
+            },
+            set: { isEnabled in
+                project.setKaraokeFromBlockAction(
+                    itemID: item.id,
+                    isEnabled: isEnabled
+                )
+            }
+        )
     }
 
     private func formatEditableTime(_ seconds: TimeInterval) -> String {

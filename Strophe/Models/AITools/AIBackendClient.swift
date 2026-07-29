@@ -64,12 +64,24 @@ struct AICloudGenerateSubtitlesRequest: Sendable {
     let endpointURL: URL
     let language: String
     let model: AICloudASRModel
+    let enableKaraoke: Bool
 }
 
 struct AICloudTranscriptionResult: Sendable {
     let language: String?
     let model: String?
     let segments: [AIResultSegment]
+}
+
+struct AICloudAlignmentCue: Codable, Sendable {
+    let id: UUID
+    let text: String
+    let startTime: Double
+    let endTime: Double
+}
+
+struct AICloudAlignmentResult: Sendable {
+    let wordsByCueID: [UUID: [SubtitleWordTiming]]
 }
 
 struct AICloudConnectionCheck: Sendable {
@@ -155,6 +167,10 @@ actor AIBackendClient {
 
     nonisolated static func cloudTranscribeURL(baseURL: URL) -> URL {
         cloudEndpointURL(baseURL: baseURL, path: "transcribe")
+    }
+
+    nonisolated static func cloudAlignURL(baseURL: URL) -> URL {
+        cloudEndpointURL(baseURL: baseURL, path: "align")
     }
     #if STROPHE_LOCAL_AI
     nonisolated static let isLocalAIIncludedInBuild = true

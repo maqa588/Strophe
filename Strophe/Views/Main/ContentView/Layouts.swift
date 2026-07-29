@@ -137,6 +137,11 @@ extension ContentView {
                                         Label("batch_translate_subtitles", systemImage: "text.bubble")
                                     }
                                     Button {
+                                        NotificationCenter.default.post(name: .stropheOpenKaraokeBatchRecognition, object: nil)
+                                    } label: {
+                                        Label("karaoke_batch_recognition", systemImage: "music.note.list")
+                                    }
+                                    Button {
                                         NotificationCenter.default.post(name: .stropheConvertSelectedToPinyin, object: nil)
                                     } label: {
                                         Label("chinese_to_pinyin", systemImage: "character.phonetic")

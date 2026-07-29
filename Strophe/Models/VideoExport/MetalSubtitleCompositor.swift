@@ -91,8 +91,9 @@ nonisolated final class MetalSubtitleCompositor: @unchecked Sendable {
         }
 
         for item in scene.items {
-            guard let subtitle = subtitleImage(
+            guard var overlay = subtitleCIImage(
                 for: item.cue,
+                presentationTime: scene.presentationTime,
                 canvasSize: renderSize
             ) else {
                 continue
@@ -102,16 +103,12 @@ nonisolated final class MetalSubtitleCompositor: @unchecked Sendable {
                 x: item.origin.x,
                 y: renderSize.height - item.origin.y - item.size.height
             )
-            var overlay = CIImage(
-                cgImage: subtitle,
-                options: [.colorSpace: CGColorSpace(name: CGColorSpace.sRGB) as Any]
-            )
-                .transformed(
-                    by: CGAffineTransform(
-                        translationX: coreImageOrigin.x.rounded(.down),
-                        y: coreImageOrigin.y.rounded(.down)
-                    )
+            overlay = overlay.transformed(
+                by: CGAffineTransform(
+                    translationX: coreImageOrigin.x.rounded(.down),
+                    y: coreImageOrigin.y.rounded(.down)
                 )
+            )
             let opacity = item.cue.opacity(at: scene.presentationTime)
             if opacity < 1 {
                 overlay = overlay.applyingFilter(
@@ -149,7 +146,13 @@ nonisolated final class MetalSubtitleCompositor: @unchecked Sendable {
             canvasSize: renderSize,
             collisionMode: collisionMode
         ) { [self] cue in
-            subtitleBitmap(for: cue, canvasSize: renderSize)?.metrics
+            if cue.karaoke != nil {
+                return KaraokeFrameRenderer.shared.metrics(
+                    cue: cue,
+                    canvasSize: renderSize
+                )
+            }
+            return subtitleBitmap(for: cue, canvasSize: renderSize)?.metrics
         }
     }
 
@@ -248,6 +251,29 @@ nonisolated final class MetalSubtitleCompositor: @unchecked Sendable {
         subtitleBitmap(for: cue, canvasSize: canvasSize)?.image
     }
 
+    private func subtitleCIImage(
+        for cue: ResolvedSubtitleCue,
+        presentationTime: Double,
+        canvasSize: CGSize
+    ) -> CIImage? {
+        if cue.karaoke != nil {
+            return KaraokeFrameRenderer.shared.makeCIImage(
+                cue: cue,
+                presentationTime: presentationTime,
+                canvasSize: canvasSize
+            )
+        }
+        guard let image = subtitleImage(for: cue, canvasSize: canvasSize) else {
+            return nil
+        }
+        return CIImage(
+            cgImage: image,
+            options: [
+                .colorSpace: CGColorSpace(name: CGColorSpace.sRGB) as Any
+            ]
+        )
+    }
+
     private func subtitleBitmap(
         for cue: ResolvedSubtitleCue,
         canvasSize: CGSize
@@ -290,6 +316,24 @@ nonisolated enum SubtitleBitmapRenderer {
     struct RenderedBitmap {
         var image: CGImage
         var metrics: SubtitleBitmapMetrics
+    }
+
+    struct KaraokeUnitLayer {
+        var unit: KaraokeTimingUnit
+        /// A tightly cropped, fill-only image in untransformed cue space.
+        var image: CGImage
+        /// Bottom-left origin in the padded, untransformed cue canvas.
+        var origin: CGPoint
+        var isRightToLeft: Bool
+    }
+
+    struct KaraokeAsset {
+        var baseImage: CGImage
+        var baseOrigin: CGPoint
+        var sourceSize: CGSize
+        var metrics: SubtitleBitmapMetrics
+        var sourceToOutputTransform: CGAffineTransform
+        var unitLayers: [KaraokeUnitLayer]
     }
 
     static func makeImage(cue: ResolvedSubtitleCue, canvasSize: CGSize) -> CGImage? {
@@ -344,19 +388,124 @@ nonisolated enum SubtitleBitmapRenderer {
             return nil
         }
 
+        guard let baseImage = makeBaseImage(layout: layout, style: style) else {
+            return nil
+        }
+        return transformedBitmap(
+            baseImage,
+            scaleX: style.scaleX,
+            scaleY: style.scaleY,
+            rotationDegrees: style.rotationDegrees,
+            anchor: anchor
+        )
+    }
+
+    static func makeKaraokeAsset(
+        cue: ResolvedSubtitleCue,
+        canvasSize: CGSize
+    ) -> KaraokeAsset? {
+        guard let program = cue.karaoke, program.isEnabled else { return nil }
+        let duration = max(0, cue.endTime - cue.startTime)
+        let renderProgram = program.repairingInvalidTiming(
+            cueDuration: duration
+        )
+        let units = renderProgram.validUnits(
+            for: cue.text,
+            cueDuration: duration
+        )
+        guard !units.isEmpty else { return nil }
+
+        var inactiveStyle = cue.style
+        if let inactive = ResolvedRGBAColor(
+            hex: renderProgram.template.inactiveColorHex
+        ) {
+            inactiveStyle.textColor = inactive
+        }
+        guard let layout = makeLayout(
+            text: cue.text,
+            style: inactiveStyle,
+            anchor: cue.resolvedAnchor,
+            canvasSize: canvasSize
+        ), let baseImage = makeBaseImage(
+            layout: layout,
+            style: inactiveStyle
+        ) else {
+            return nil
+        }
+
+        let activeColor = ResolvedRGBAColor(
+            hex: renderProgram.template.activeColorHex
+        ) ?? cue.style.textColor
+        let rawLayers = units.compactMap {
+            makeKaraokeUnitLayer(
+                unit: $0,
+                text: cue.text,
+                layout: layout,
+                activeColor: activeColor,
+                effectPadding: 0
+            )
+        }
+        guard !rawLayers.isEmpty else { return nil }
+
+        // Pop scales a complete timing unit, so its maximum excursion depends
+        // on the actual shaped word width—not merely the font size. Glow is
+        // applied after Pop and therefore its blur support must be added.
+        let maxUnitWidth = rawLayers.map {
+            Double($0.image.width)
+        }.max() ?? 0
+        let maxUnitHeight = rawLayers.map {
+            Double($0.image.height)
+        }.max() ?? 0
+        let effectPadding = CGFloat(
+            renderProgram.template.maximumOutset(
+                maxUnitWidth: maxUnitWidth,
+                maxUnitHeight: maxUnitHeight
+            )
+        )
+        let layers = rawLayers.map { layer in
+            var padded = layer
+            padded.origin.x += effectPadding
+            padded.origin.y += effectPadding
+            return padded
+        }
+        let sourceSize = CGSize(
+            width: layout.baseSize.width + effectPadding * 2,
+            height: layout.baseSize.height + effectPadding * 2
+        )
+        let textAnchor = sourceAnchor(
+            for: cue.resolvedAnchor,
+            sourceSize: layout.baseSize
+        )
+        let geometry = transformedGeometry(
+            sourceSize: sourceSize,
+            scaleX: CGFloat(max(0.05, min(10, cue.style.scaleX))),
+            scaleY: CGFloat(max(0.05, min(10, cue.style.scaleY))),
+            radians: CGFloat(cue.style.rotationDegrees * .pi / 180),
+            anchor: cue.resolvedAnchor,
+            explicitSourceAnchor: CGPoint(
+                x: textAnchor.x + effectPadding,
+                y: textAnchor.y + effectPadding
+            )
+        )
+
+        return KaraokeAsset(
+            baseImage: baseImage,
+            baseOrigin: CGPoint(x: effectPadding, y: effectPadding),
+            sourceSize: sourceSize,
+            metrics: geometry.metrics,
+            sourceToOutputTransform: geometry.affineTransform,
+            unitLayers: layers
+        )
+    }
+
+    private static func makeBaseImage(
+        layout: BitmapLayout,
+        style: ResolvedSubtitleStyle
+    ) -> CGImage? {
         let width = Int(layout.baseSize.width)
         let height = Int(layout.baseSize.height)
-        guard width > 0, height > 0 else { return nil }
-
-        guard let context = CGContext(
-            data: nil,
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else {
+        guard width > 0, height > 0,
+              let context = makeBitmapContext(width: width, height: height) else {
             return nil
         }
 
@@ -376,15 +525,11 @@ nonisolated enum SubtitleBitmapRenderer {
             context.fillPath()
         }
 
-        let textRect = CGRect(
-            x: layout.horizontalPadding,
-            y: layout.verticalPadding,
-            width: layout.suggestedTextSize.width,
-            height: layout.suggestedTextSize.height
-        )
-
+        let textRect = layout.textRect
         if layout.outline > 0 {
-            let outlineAttributed = NSMutableAttributedString(attributedString: layout.attributed)
+            let outlineAttributed = NSMutableAttributedString(
+                attributedString: layout.attributed
+            )
             outlineAttributed.addAttribute(
                 .foregroundColor,
                 value: style.outlineColor.cgColor,
@@ -398,6 +543,19 @@ nonisolated enum SubtitleBitmapRenderer {
             )
         }
 
+        if style.dropShadowOffset > 0 && style.dropShadowColor.alpha > 0 {
+            let radians = style.dropShadowAngle * .pi / 180.0
+            let dx = style.dropShadowOffset * layout.canvasScale * cos(radians)
+            let dy = -style.dropShadowOffset * layout.canvasScale * sin(radians)
+            context.setShadow(
+                offset: CGSize(width: dx, height: dy),
+                blur: 1.5,
+                color: style.dropShadowColor.cgColor
+            )
+            draw(layout.attributed, in: textRect, context: context)
+            context.setShadow(offset: .zero, blur: 0, color: nil)
+        }
+
         context.setShadow(
             offset: CGSize(width: 0, height: -max(1, layout.shadow * 0.35)),
             blur: layout.shadow,
@@ -405,15 +563,7 @@ nonisolated enum SubtitleBitmapRenderer {
         )
         draw(layout.attributed, in: textRect, context: context)
         context.setShadow(offset: .zero, blur: 0, color: nil)
-
-        guard let baseImage = context.makeImage() else { return nil }
-        return transformedBitmap(
-            baseImage,
-            scaleX: style.scaleX,
-            scaleY: style.scaleY,
-            rotationDegrees: style.rotationDegrees,
-            anchor: anchor
-        )
+        return context.makeImage()
     }
 
     private struct BitmapLayout {
@@ -426,6 +576,224 @@ nonisolated enum SubtitleBitmapRenderer {
         var shadow: CGFloat
         var canvasScale: CGFloat
         var metrics: SubtitleBitmapMetrics
+
+        var textRect: CGRect {
+            CGRect(
+                x: horizontalPadding,
+                y: verticalPadding,
+                width: suggestedTextSize.width,
+                height: suggestedTextSize.height
+            )
+        }
+    }
+
+    private static func makeKaraokeUnitLayer(
+        unit: KaraokeTimingUnit,
+        text: String,
+        layout: BitmapLayout,
+        activeColor: ResolvedRGBAColor,
+        effectPadding: CGFloat
+    ) -> KaraokeUnitLayer? {
+        guard let utf16Range = utf16Range(
+            characterStart: unit.characterStart,
+            characterLength: unit.characterLength,
+            in: text
+        ) else {
+            return nil
+        }
+        let geometry = karaokeGeometry(
+            for: utf16Range,
+            attributed: layout.attributed,
+            textRect: layout.textRect
+        )
+        guard !geometry.rects.isEmpty else { return nil }
+
+        let rawBounds = geometry.rects.reduce(CGRect.null) {
+            $0.union($1)
+        }
+        let bounds = rawBounds
+            .insetBy(dx: -2, dy: -2)
+            .intersection(CGRect(origin: .zero, size: layout.baseSize))
+            .integral
+        let width = Int(bounds.width)
+        let height = Int(bounds.height)
+        guard width > 0, height > 0,
+              let context = makeBitmapContext(width: width, height: height) else {
+            return nil
+        }
+
+        let highlighted = NSMutableAttributedString(
+            attributedString: layout.attributed
+        )
+        highlighted.addAttribute(
+            .foregroundColor,
+            value: CGColor(
+                red: 0,
+                green: 0,
+                blue: 0,
+                alpha: 0
+            ),
+            range: NSRange(location: 0, length: highlighted.length)
+        )
+        highlighted.addAttribute(
+            .foregroundColor,
+            value: activeColor.cgColor,
+            range: utf16Range
+        )
+
+        context.clear(CGRect(x: 0, y: 0, width: width, height: height))
+        context.translateBy(x: -bounds.minX, y: -bounds.minY)
+        draw(highlighted, in: layout.textRect, context: context)
+        guard let image = context.makeImage() else { return nil }
+        return KaraokeUnitLayer(
+            unit: unit,
+            image: image,
+            origin: CGPoint(
+                x: bounds.minX + effectPadding,
+                y: bounds.minY + effectPadding
+            ),
+            isRightToLeft: geometry.isRightToLeft
+        )
+    }
+
+    private struct KaraokeGeometry {
+        var rects: [CGRect]
+        var isRightToLeft: Bool
+    }
+
+    private static func karaokeGeometry(
+        for targetRange: NSRange,
+        attributed: NSAttributedString,
+        textRect: CGRect
+    ) -> KaraokeGeometry {
+        let path = CGMutablePath()
+        path.addRect(textRect)
+        let framesetter = CTFramesetterCreateWithAttributedString(attributed)
+        let frame = CTFramesetterCreateFrame(
+            framesetter,
+            CFRange(location: 0, length: attributed.length),
+            path,
+            nil
+        )
+        let lines = CTFrameGetLines(frame) as? [CTLine] ?? []
+        var origins = Array(repeating: CGPoint.zero, count: lines.count)
+        if !origins.isEmpty {
+            CTFrameGetLineOrigins(
+                frame,
+                CFRange(location: 0, length: lines.count),
+                &origins
+            )
+        }
+
+        let targetStart = targetRange.location
+        let targetEnd = targetRange.location + targetRange.length
+        var rects: [CGRect] = []
+        var rtlGlyphCount = 0
+        var glyphCount = 0
+
+        for (index, line) in lines.enumerated() {
+            let lineRange = CTLineGetStringRange(line)
+            let lineStart = lineRange.location
+            let lineEnd = lineRange.location + lineRange.length
+            let intersectionStart = max(targetStart, lineStart)
+            let intersectionEnd = min(targetEnd, lineEnd)
+            guard intersectionEnd > intersectionStart else { continue }
+
+            var secondaryStart: CGFloat = 0
+            var secondaryEnd: CGFloat = 0
+            let primaryStart = CTLineGetOffsetForStringIndex(
+                line,
+                intersectionStart,
+                &secondaryStart
+            )
+            let primaryEnd = CTLineGetOffsetForStringIndex(
+                line,
+                intersectionEnd,
+                &secondaryEnd
+            )
+            let offsets = [
+                primaryStart,
+                secondaryStart,
+                primaryEnd,
+                secondaryEnd
+            ]
+            let minX = offsets.min() ?? primaryStart
+            let maxX = offsets.max() ?? primaryEnd
+            var ascent: CGFloat = 0
+            var descent: CGFloat = 0
+            var leading: CGFloat = 0
+            _ = CTLineGetTypographicBounds(
+                line,
+                &ascent,
+                &descent,
+                &leading
+            )
+            rects.append(
+                CGRect(
+                    x: origins[index].x + minX,
+                    y: origins[index].y - descent,
+                    width: max(1, maxX - minX),
+                    height: max(1, ascent + descent + leading)
+                )
+            )
+
+            let runs = CTLineGetGlyphRuns(line) as? [CTRun] ?? []
+            for run in runs {
+                let range = CTRunGetStringRange(run)
+                let runStart = range.location
+                let runEnd = range.location + range.length
+                guard min(intersectionEnd, runEnd) > max(intersectionStart, runStart) else {
+                    continue
+                }
+                let count = CTRunGetGlyphCount(run)
+                glyphCount += count
+                if CTRunGetStatus(run).contains(.rightToLeft) {
+                    rtlGlyphCount += count
+                }
+            }
+        }
+        return KaraokeGeometry(
+            rects: rects,
+            isRightToLeft: rtlGlyphCount > glyphCount / 2
+        )
+    }
+
+    private static func utf16Range(
+        characterStart: Int,
+        characterLength: Int,
+        in text: String
+    ) -> NSRange? {
+        let characters = Array(text)
+        guard characterStart >= 0,
+              characterLength > 0,
+              characterStart + characterLength <= characters.count else {
+            return nil
+        }
+        let prefix = String(characters.prefix(characterStart))
+        let selection = String(
+            characters[
+                characterStart..<(characterStart + characterLength)
+            ]
+        )
+        return NSRange(
+            location: prefix.utf16.count,
+            length: selection.utf16.count
+        )
+    }
+
+    private static func makeBitmapContext(
+        width: Int,
+        height: Int
+    ) -> CGContext? {
+        CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )
     }
 
     private static func makeLayout(
@@ -470,7 +838,8 @@ nonisolated enum SubtitleBitmapRenderer {
         )
 
         let outline = max(0, style.outlineWidth * scale)
-        let shadow = max(0, style.shadowRadius * scale)
+        let dropShadow = style.dropShadowColor.alpha > 0 ? max(0, style.dropShadowOffset * scale) : 0
+        let shadow = max(0, max(style.shadowRadius * scale, dropShadow))
         let horizontalPadding = style.backgroundColor == nil ? outline + shadow : max(22 * scale, outline + shadow)
         let verticalPadding = style.backgroundColor == nil ? outline + shadow : max(12 * scale, outline + shadow)
         let width = Int(ceil(suggested.width + horizontalPadding * 2))
@@ -559,6 +928,7 @@ nonisolated enum SubtitleBitmapRenderer {
         var metrics: SubtitleBitmapMetrics
         var anchorSource: CGPoint
         var anchorDestination: CGPoint
+        var affineTransform: CGAffineTransform
     }
 
     private static func transformedMetrics(
@@ -582,9 +952,10 @@ nonisolated enum SubtitleBitmapRenderer {
         scaleX: CGFloat,
         scaleY: CGFloat,
         radians: CGFloat,
-        anchor: SubtitleStyle.Alignment
+        anchor: SubtitleStyle.Alignment,
+        explicitSourceAnchor: CGPoint? = nil
     ) -> TransformedGeometry {
-        let anchorSource = sourceAnchor(
+        let anchorSource = explicitSourceAnchor ?? sourceAnchor(
             for: anchor,
             sourceSize: sourceSize
         )
@@ -623,7 +994,19 @@ nonisolated enum SubtitleBitmapRenderer {
                 anchorOffset: anchorOffset
             ),
             anchorSource: anchorSource,
-            anchorDestination: anchorDestination
+            anchorDestination: anchorDestination,
+            affineTransform: CGAffineTransform(
+                a: scaleX * cosine,
+                b: scaleX * sine,
+                c: -scaleY * sine,
+                d: scaleY * cosine,
+                tx: anchorDestination.x
+                    - anchorSource.x * scaleX * cosine
+                    + anchorSource.y * scaleY * sine,
+                ty: anchorDestination.y
+                    - anchorSource.x * scaleX * sine
+                    - anchorSource.y * scaleY * cosine
+            )
         )
     }
 

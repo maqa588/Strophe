@@ -94,6 +94,7 @@ struct EditingModeControlsLegacy: View {
     @Binding var showCreationTip: Bool
     @Binding var showSplitTip: Bool
     @Binding var showMergeTip: Bool
+    @Binding var showKaraokeTip: Bool
     
     @Binding var softSubtitlesHoverTask: Task<Void, Never>?
     @Binding var hardSubtitlesHoverTask: Task<Void, Never>?
@@ -101,6 +102,7 @@ struct EditingModeControlsLegacy: View {
     @Binding var creationHoverTask: Task<Void, Never>?
     @Binding var splitHoverTask: Task<Void, Never>?
     @Binding var mergeHoverTask: Task<Void, Never>?
+    @Binding var karaokeHoverTask: Task<Void, Never>?
     
     var onSplit: () -> Void
     var onMerge: () -> Void
@@ -264,6 +266,28 @@ struct EditingModeControlsLegacy: View {
                 Image(systemName: "list.and.film")
                     .font(.body.weight(.medium))
             }
+
+            legacyButton(
+                action: { project.toggleKaraokeEditorForSelection() },
+                isActive: project.isKaraokeEditorActiveForSelection,
+                icon: "music.note.list",
+                tipBinding: $showKaraokeTip,
+                hoverTask: $karaokeHoverTask,
+                tooltipIcon: "music.note.list",
+                tooltipTitle: String(localized: "karaoke"),
+                tooltipMessage: String(
+                    localized: "karaoke_toolbar_description"
+                ),
+                shortcut: "k",
+                modifiers: [.option],
+                shortcutLabel: "⌥K"
+            ) {
+                Image(systemName: "music.note.list")
+                    .font(.body.weight(.medium))
+            }
+            .disabled(!project.canToggleKaraokeEditor)
+            .accessibilityLabel(String(localized: "karaoke"))
+            .accessibilityIdentifier("karaokeModeButton")
 
             legacyButton(
                 action: { project.editingMode = .selection },

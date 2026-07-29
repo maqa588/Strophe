@@ -19,11 +19,11 @@ enum SubtitleGroupRole: String, CaseIterable, Identifiable, Codable, Equatable {
 
     var title: String {
         switch self {
-        case .normal: return "普通"
-        case .secondaryLanguage: return "第二语言"
-        case .translatedDraft: return "翻译副本"
-        case .effect: return "特效"
-        case .metadata: return "备注"
+        case .normal: return NSLocalizedString("group_role_normal", comment: "")
+        case .secondaryLanguage: return NSLocalizedString("group_role_secondary_language", comment: "")
+        case .translatedDraft: return NSLocalizedString("group_role_translated_draft", comment: "")
+        case .effect: return NSLocalizedString("group_role_effect", comment: "")
+        case .metadata: return NSLocalizedString("group_role_metadata", comment: "")
         }
     }
 }
@@ -65,6 +65,10 @@ struct SubgroupStyle: Identifiable, Equatable {
     var shadowRadius: Double = 5
     var backgroundColor: Color = .black
     var backgroundAlpha: Double = 0
+    var dropShadowColor: Color = .black
+    var dropShadowOffset: Double = 0
+    var dropShadowAlpha: Double = 1.0
+    var dropShadowAngle: Double = 45
     var isGlowing: Bool = false
     var alignment: SubtitleStyle.Alignment = .bottomCenter
     var marginLeftPercent: Double = 5
@@ -108,6 +112,10 @@ struct StoredSubgroupStyle: Codable, Sendable, Equatable {
     var shadowRadius: Double
     var backgroundColorHex: String
     var backgroundAlpha: Double
+    var dropShadowColorHex: String?
+    var dropShadowOffset: Double?
+    var dropShadowAlpha: Double?
+    var dropShadowAngle: Double?
     var isGlowing: Bool
     var alignment: SubtitleStyle.Alignment?
     var marginLeftPercent: Double?
@@ -168,40 +176,31 @@ final class StyleAndGroupStore: ObservableObject {
         static let `default` = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
         static let l2 = UUID(uuidString: "00000000-0000-4000-8000-000000000002")!
         static let box = UUID(uuidString: "00000000-0000-4000-8000-000000000003")!
-        static let pingfang1080 = UUID(uuidString: "00000000-0000-4000-8000-000000000004")!
-        static let pingfang4K = UUID(uuidString: "00000000-0000-4000-8000-000000000005")!
-        static let oneFX = UUID(uuidString: "00000000-0000-4000-8000-000000000006")!
-        static let barFX = UUID(uuidString: "00000000-0000-4000-8000-000000000007")!
+        static let styleFX = UUID(uuidString: "00000000-0000-4000-8000-000000000006")!
+        static let oneFX = styleFX
     }
 
     enum DefaultGroupID {
         static let group1 = UUID(uuidString: "00000000-0000-4000-9000-000000000001")!
         static let group2 = UUID(uuidString: "00000000-0000-4000-9000-000000000002")!
         static let group3 = UUID(uuidString: "00000000-0000-4000-9000-000000000003")!
-        static let group4 = UUID(uuidString: "00000000-0000-4000-9000-000000000004")!
-        static let group5 = UUID(uuidString: "00000000-0000-4000-9000-000000000005")!
         static let groupA = UUID(uuidString: "00000000-0000-4000-9000-000000000006")!
         static let groupB = UUID(uuidString: "00000000-0000-4000-9000-000000000007")!
     }
     
     @Published var styles: [SubgroupStyle] = [
-        SubgroupStyle(id: DefaultStyleID.default, name: "Default", description: "58 pt,平方-简", color: .white, fontSize: 58, isGlowing: false),
-        SubgroupStyle(id: DefaultStyleID.l2, name: "Default-L2", description: "默认二级样式", color: .white, fontSize: 46, isGlowing: false),
-        SubgroupStyle(id: DefaultStyleID.box, name: "Default-Box", description: "黑底白字样式", color: .white, fontSize: 58, outlineWidth: 0, backgroundAlpha: 0.68, isGlowing: false),
-        SubgroupStyle(id: DefaultStyleID.pingfang1080, name: "Pingfang-1920x1080", description: "1080P 平方样式", color: .white, fontSize: 58, isGlowing: false),
-        SubgroupStyle(id: DefaultStyleID.pingfang4K, name: "Pingfang-4K", description: "4K 平方样式", color: .white, fontSize: 96, outlineWidth: 7, shadowRadius: 9, isGlowing: false),
-        SubgroupStyle(id: DefaultStyleID.oneFX, name: "OneFX", description: "动态特效一", color: Color(red: 0.0, green: 0.8, blue: 0.9), fontSize: 58, isGlowing: true),
-        SubgroupStyle(id: DefaultStyleID.barFX, name: "BarFX", description: "动态特效二", color: Color(red: 0.5, green: 0.85, blue: 0.0), fontSize: 58, isGlowing: true)
+        SubgroupStyle(id: DefaultStyleID.default, name: "Default", description: "style_desc_default", color: .white, fontName: nil, fontSize: 58, isGlowing: false),
+        SubgroupStyle(id: DefaultStyleID.l2, name: "Default-L2", description: "style_desc_l2", color: .white, fontName: nil, fontSize: 46, isGlowing: false),
+        SubgroupStyle(id: DefaultStyleID.box, name: "Default-Box", description: "style_desc_box", color: .white, fontName: nil, fontSize: 58, outlineWidth: 0, backgroundAlpha: 0.68, isGlowing: false),
+        SubgroupStyle(id: DefaultStyleID.styleFX, name: "StyleFX", description: "style_desc_fx", color: Color(red: 0.0, green: 0.8, blue: 0.9), fontName: nil, fontSize: 58, isGlowing: true)
     ]
     
     @Published var groups: [SubGroupItem] = [
-        SubGroupItem(id: DefaultGroupID.group1, name: "组1", subName: "主字幕", role: .normal, color: Color(red: 1.0, green: 0.65, blue: 0.0), isActive: true, style: "Default", isOverlayEnabled: true, sortOrder: 0),
-        SubGroupItem(id: DefaultGroupID.group2, name: "组2", subName: "普通字幕", role: .normal, color: Color(red: 0.5, green: 0.85, blue: 0.0), isActive: false, style: "Default", isOverlayEnabled: true, sortOrder: 1),
-        SubGroupItem(id: DefaultGroupID.group3, name: "组3", subName: "普通字幕", role: .normal, color: Color(red: 0.0, green: 0.8, blue: 0.9), isActive: false, style: "Default", isOverlayEnabled: true, sortOrder: 2),
-        SubGroupItem(id: DefaultGroupID.group4, name: "组4", subName: "普通字幕", role: .normal, color: Color(red: 0.0, green: 0.5, blue: 1.0), isActive: false, style: "Default", isOverlayEnabled: true, sortOrder: 3),
-        SubGroupItem(id: DefaultGroupID.group5, name: "组5", subName: "普通字幕", role: .normal, color: Color(red: 0.6, green: 0.3, blue: 0.9), isActive: false, style: "Default", isOverlayEnabled: true, sortOrder: 4),
-        SubGroupItem(id: DefaultGroupID.groupA, name: "专用组A (6)", subName: "第二语言", role: .secondaryLanguage, color: Color(red: 1.0, green: 0.1, blue: 0.6), isActive: false, style: "Default-L2", isOverlayEnabled: true, sortOrder: 5),
-        SubGroupItem(id: DefaultGroupID.groupB, name: "专用组B (7)", subName: "翻译副本", role: .translatedDraft, color: Color(red: 1.0, green: 0.3, blue: 0.1), isActive: false, style: "Default-L2", isOverlayEnabled: true, exportPolicy: .excludeByDefault, sortOrder: 6)
+        SubGroupItem(id: DefaultGroupID.group1, name: "Group 1", subName: "group_subname_main", role: .normal, color: Color(red: 1.0, green: 0.65, blue: 0.0), isActive: true, style: "Default", isOverlayEnabled: true, sortOrder: 0),
+        SubGroupItem(id: DefaultGroupID.group2, name: "Group 2", subName: "group_subname_normal", role: .normal, color: Color(red: 0.5, green: 0.85, blue: 0.0), isActive: false, style: "Default", isOverlayEnabled: true, sortOrder: 1),
+        SubGroupItem(id: DefaultGroupID.group3, name: "Group 3", subName: "group_subname_normal", role: .normal, color: Color(red: 0.0, green: 0.8, blue: 0.9), isActive: false, style: "Default", isOverlayEnabled: true, sortOrder: 2),
+        SubGroupItem(id: DefaultGroupID.groupA, name: "Group A", subName: "group_subname_secondary", role: .secondaryLanguage, color: Color(red: 1.0, green: 0.1, blue: 0.6), isActive: false, style: "Default-L2", isOverlayEnabled: true, sortOrder: 3),
+        SubGroupItem(id: DefaultGroupID.groupB, name: "Group B", subName: "group_subname_draft", role: .translatedDraft, color: Color(red: 1.0, green: 0.3, blue: 0.1), isActive: false, style: "Default-L2", isOverlayEnabled: true, exportPolicy: .excludeByDefault, sortOrder: 4)
     ]
 
     var sortedGroups: [SubGroupItem] {
@@ -390,6 +389,10 @@ final class StyleAndGroupStore: ObservableObject {
                 shadowRadius: style.shadowRadius,
                 backgroundColorHex: style.backgroundColor.resolvedRGBA.hexString,
                 backgroundAlpha: style.backgroundAlpha,
+                dropShadowColorHex: style.dropShadowColor.resolvedRGBA.hexString,
+                dropShadowOffset: style.dropShadowOffset,
+                dropShadowAlpha: style.dropShadowAlpha,
+                dropShadowAngle: style.dropShadowAngle,
                 isGlowing: style.isGlowing,
                 alignment: style.alignment,
                 marginLeftPercent: style.marginLeftPercent,
@@ -444,6 +447,10 @@ final class StyleAndGroupStore: ObservableObject {
                     shadowRadius: stored.shadowRadius,
                     backgroundColor: ResolvedRGBAColor(hex: stored.backgroundColorHex)?.color ?? .black,
                     backgroundAlpha: stored.backgroundAlpha,
+                    dropShadowColor: ResolvedRGBAColor(hex: stored.dropShadowColorHex)?.color ?? .black,
+                    dropShadowOffset: stored.dropShadowOffset ?? 0,
+                    dropShadowAlpha: stored.dropShadowAlpha ?? 1.0,
+                    dropShadowAngle: stored.dropShadowAngle ?? 45,
                     isGlowing: stored.isGlowing,
                     alignment: stored.alignment ?? .bottomCenter,
                     marginLeftPercent: stored.marginLeftPercent ?? 5,

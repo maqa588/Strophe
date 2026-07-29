@@ -277,6 +277,46 @@ extension TimelineToolbarView {
                         } else { showHardSubtitlesTip = false }
                     }
 
+                    // ── 卡拉 OK 编辑按钮 ──
+                    Button(action: { project.toggleKaraokeEditorForSelection() }) {
+                        Image(systemName: "music.note.list")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(isKaraokeEditorActive ? Color.stropheAccent : .primary)
+                            .frame(width: 32, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcutIf(!isEditingText, "k", modifiers: [.option])
+                    .glassEffect(.regular.interactive())
+                    .disabled(!canEditKaraoke)
+                    .accessibilityLabel(String(localized: "karaoke"))
+                    .accessibilityIdentifier("karaokeModeButton")
+                    .popover(isPresented: $showKaraokeTip, arrowEdge: .top) {
+                        RichTooltipView(
+                            icon: "music.note.list",
+                            title: String(localized: "karaoke"),
+                            message: String(
+                                localized: "karaoke_toolbar_description"
+                            ),
+                            shortcut: "⌥K"
+                        )
+                        .accessibilityIdentifier("karaokeModeTooltip")
+                    }
+                    .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
+                        #if os(iOS)
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        #endif
+                        showKaraokeTip = true
+                    })
+                    .onHover { hovering in
+                        karaokeHoverTask?.cancel()
+                        if hovering {
+                            karaokeHoverTask = Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 500_000_000)
+                                if !Task.isCancelled { showKaraokeTip = true }
+                            }
+                        } else { showKaraokeTip = false }
+                    }
+
                     Button(action: { project.editingMode = .selection }) {
                         Image(systemName: "cursorarrow")
                             .font(.body.weight(.medium))
@@ -347,12 +387,14 @@ extension TimelineToolbarView {
                 showCreationTip: $showCreationTip,
                 showSplitTip: $showSplitTip,
                 showMergeTip: $showMergeTip,
+                showKaraokeTip: $showKaraokeTip,
                 softSubtitlesHoverTask: $softSubtitlesHoverTask,
                 hardSubtitlesHoverTask: $hardSubtitlesHoverTask,
                 selectionHoverTask: $selectionHoverTask,
                 creationHoverTask: $creationHoverTask,
                 splitHoverTask: $splitHoverTask,
                 mergeHoverTask: $mergeHoverTask,
+                karaokeHoverTask: $karaokeHoverTask,
                 onSplit: { handleSplitAction() },
                 onMerge: { handleMergeAction() }
             )

@@ -28,7 +28,9 @@ extension SubtitleProject {
                     maximumLength: maximumLength,
                     mode: languageMode
                 )
-                updated[index].text = lines.joined(separator: "\n")
+                updated[index].replaceTextPreservingKaraoke(
+                    lines.joined(separator: "\n")
+                )
             }
             items = updated
         case .splitSubtitleBlocks:
@@ -44,7 +46,10 @@ extension SubtitleProject {
                 )
                 guard lines.count > 1 else { continue }
                 let totalWeight = max(1, lines.reduce(0) { $0 + max(1, $1.count) })
+                let joinedText = lines.joined()
+                let joinedProgram = item.karaoke?.remapped(to: joinedText)
                 var consumedWeight = 0
+                var consumedCharacters = 0
                 var splitItems: [SubtitleItem] = []
                 for (lineIndex, line) in lines.enumerated() {
                     var split = item
@@ -62,7 +67,18 @@ extension SubtitleProject {
                         split.endTime = lineIndex == lines.count - 1
                             ? end
                             : start + duration * Double(consumedWeight) / Double(totalWeight)
+                        let lineCharacterCount = Array(line).count
+                        split.karaoke = joinedProgram?.extracting(
+                            characterRange: consumedCharacters..<(consumedCharacters + lineCharacterCount),
+                            cueStartOffset: (split.startTime ?? start) - start,
+                            cueDuration: max(
+                                0.000_001,
+                                (split.endTime ?? end) - (split.startTime ?? start)
+                            ),
+                            text: line
+                        )
                     }
+                    consumedCharacters += Array(line).count
                     splitItems.append(split)
                     newSelection.insert(split.id)
                 }

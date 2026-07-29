@@ -100,7 +100,7 @@ extension AutoCaptionView {
                 let usesNativeTimestamps = LocalModelManager.usesNativeTimestamps(
                     selectedModel
                 )
-                let needsAligner = (enableAlignment || enableDiarization)
+                let needsAligner = (enableAlignment || enableDiarization || generateKaraoke)
                     && !usesNativeTimestamps
                 let isAlignerDownloaded = modelManager.downloadedAlignerModels.contains(selectedAlignerModel)
                 if needsAligner && !isAlignerDownloaded {
@@ -386,7 +386,7 @@ extension AutoCaptionView {
                     language: selectedLanguage,
                     enableDiarization: enableDiarization,
                     prefixSpeakerName: prefixSpeakerName,
-                    enableAlignment: enableAlignment && !usesNativeTimestamps,
+                    enableAlignment: (enableAlignment || generateKaraoke) && !usesNativeTimestamps,
                     vocalPreprocessing: vocalPreprocessing,
                     referenceText: referenceLyrics,
                     useVAD: useVAD
@@ -423,7 +423,10 @@ extension AutoCaptionView {
                     }
                 )
 
-                let generatedSubtitles = subtitleItems(from: results)
+                let generatedSubtitles = subtitleItems(
+                    from: results,
+                    karaokeEnabled: generateKaraoke
+                )
                 guard !generatedSubtitles.isEmpty else {
                     throw NSError(
                         domain: "AutoCaptionView",
@@ -496,7 +499,8 @@ extension AutoCaptionView {
                     mediaURL: mediaURL,
                     endpointURL: AIBackendClient.cloudTranscribeURL(baseURL: baseURL),
                     language: cloudLanguage,
-                    model: selectedCloudModel
+                    model: selectedCloudModel,
+                    enableKaraoke: generateKaraoke
                 )
 
                 let result = try await AIBackendClient.shared.generateCloudSubtitles(
@@ -519,7 +523,10 @@ extension AutoCaptionView {
                     }
                 )
 
-                let generatedSubtitles = subtitleItems(from: result.segments)
+                let generatedSubtitles = subtitleItems(
+                    from: result.segments,
+                    karaokeEnabled: generateKaraoke
+                )
                 guard !generatedSubtitles.isEmpty else {
                     throw NSError(
                         domain: "AutoCaptionView",

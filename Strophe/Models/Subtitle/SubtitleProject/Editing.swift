@@ -9,7 +9,13 @@ import Foundation
 import Combine
 
 extension SubtitleProject {
-    typealias SubtitleTimingSnapshot = [UUID: (startTime: TimeInterval?, endTime: TimeInterval?)]
+    struct SubtitleTimingState {
+        var startTime: TimeInterval?
+        var endTime: TimeInterval?
+        var karaoke: KaraokeProgram?
+    }
+
+    typealias SubtitleTimingSnapshot = [UUID: SubtitleTimingState]
 
     var canUndo: Bool { undoManager.canUndo }
     var canRedo: Bool { undoManager.canRedo }
@@ -46,7 +52,11 @@ extension SubtitleProject {
         var snapshot: SubtitleTimingSnapshot = [:]
         snapshot.reserveCapacity(ids.count)
         for item in items where ids.contains(item.id) {
-            snapshot[item.id] = (item.startTime, item.endTime)
+            snapshot[item.id] = SubtitleTimingState(
+                startTime: item.startTime,
+                endTime: item.endTime,
+                karaoke: item.karaoke
+            )
         }
         return snapshot
     }
@@ -64,6 +74,7 @@ extension SubtitleProject {
             guard let index = indicesByID[id] else { continue }
             updatedItems[index].startTime = timing.startTime
             updatedItems[index].endTime = timing.endTime
+            updatedItems[index].karaoke = timing.karaoke
         }
 
         updatedItems.sort(by: stableSubtitleSort)
@@ -162,7 +173,7 @@ extension SubtitleProject {
         let oldSelectedIDs = selectedIDs
         mutateItems { updated in
             for index in updated.indices where belongsToGroup(updated[index], groupID: groupID) && !isLockedForEditing(updated[index]) {
-                updated[index].text = ""
+                updated[index].replaceTextPreservingKaraoke("")
             }
         }
         registerUndo(label: String(localized: "clear_group_text"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
@@ -245,6 +256,12 @@ extension SubtitleProject {
         self.items = result.document.blocks.enumerated().map { index, block in
             let assFields = block.interchangeMetadata?.ass?.fields
             let importedStyleName = block.interchangeMetadata?.ass?.styleName
+            let karaoke: KaraokeProgram?
+            if let styledText = block.interchangeMetadata?.ass?.styledText {
+                karaoke = ASSKaraokeTimingParser.program(from: styledText)
+            } else {
+                karaoke = nil
+            }
             return SubtitleItem(
                 id: block.id,
                 text: block.text,
@@ -256,6 +273,7 @@ extension SubtitleProject {
                 styleID: importedStyleName.flatMap {
                     importedStyleIDs[$0] ?? StyleAndGroupStore.shared.style(named: $0)?.id
                 },
+                karaoke: karaoke,
                 interchangeMetadata: block.interchangeMetadata
             )
         }
@@ -360,6 +378,14 @@ extension SubtitleProject {
             let minDuration = videoFrameRate > 0 ? (1.0 / videoFrameRate) : 0.1
             let snappedEnd = snapToFrame(max(newStartTime + minDuration, newEndTime))
             var updated = items
+            let oldStart = updated[index].startTime ?? snappedStart
+            let oldEnd = updated[index].endTime ?? snappedEnd
+            updated[index].retimeKaraokeForCueChange(
+                oldStart: oldStart,
+                oldEnd: oldEnd,
+                newStart: snappedStart,
+                newEnd: snappedEnd
+            )
             updated[index].startTime = snappedStart
             updated[index].endTime = snappedEnd
             updated.sort(by: stableSubtitleSort)
@@ -389,7 +415,17 @@ extension SubtitleProject {
                 let newStart = snapToFrame(max(0, start + delta))
                 let minDuration = videoFrameRate > 0 ? (1.0 / videoFrameRate) : 0.1
                 let newEnd = snapToFrame(max(newStart + minDuration, end + delta))
-                oldTimings[updatedItems[index].id] = (start, end)
+                oldTimings[updatedItems[index].id] = SubtitleTimingState(
+                    startTime: start,
+                    endTime: end,
+                    karaoke: updatedItems[index].karaoke
+                )
+                updatedItems[index].retimeKaraokeForCueChange(
+                    oldStart: start,
+                    oldEnd: end,
+                    newStart: newStart,
+                    newEnd: newEnd
+                )
                 updatedItems[index].startTime = newStart
                 updatedItems[index].endTime = newEnd
             }
@@ -417,6 +453,12 @@ extension SubtitleProject {
             let newStart = snapToFrame(max(0, start + delta))
             let minDuration = videoFrameRate > 0 ? (1.0 / videoFrameRate) : 0.1
             let newEnd = snapToFrame(max(newStart + minDuration, end + delta))
+            updated[index].retimeKaraokeForCueChange(
+                oldStart: start,
+                oldEnd: end,
+                newStart: newStart,
+                newEnd: newEnd
+            )
             updated[index].startTime = newStart
             updated[index].endTime = newEnd
             updated[index].groupID = groupID
@@ -445,7 +487,7 @@ extension SubtitleProject {
             guard !isLockedForEditing(items[index]) else { return }
             let oldItems = items
             let oldSelectedIDs = selectedIDs
-            items[index].text = text
+            items[index].replaceTextPreservingKaraoke(text)
             registerUndo(label: String(localized: "edit_text"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         }
         notifyChange()
@@ -469,6 +511,7 @@ extension SubtitleProject {
 
     func autoUpdateCurrentIndex() {
         let activeGroupID = StyleAndGroupStore.shared.activeGroupID
+        syncKaraokeEditorToPlayhead(activeGroupID: activeGroupID)
 
         if activeSlapSubtitleID == nil,
            currentIndexCacheGroupID == activeGroupID,
@@ -568,5 +611,91 @@ extension SubtitleProject {
         currentIndexCacheGroupID = activeGroupID
         currentIndexCacheLowerBound = validityLowerBound
         currentIndexCacheUpperBound = validityUpperBound
+    }
+
+    /// Keeps the Karaoke inspector attached to playback rather than to a stale
+    /// click selection. This runs before the current-index fast path so crossing
+    /// a cue boundary, seeking, frame stepping and timeline scrubbing all share
+    /// the same behaviour.
+    private func syncKaraokeEditorToPlayhead(activeGroupID: UUID?) {
+        guard activeSlapSubtitleID == nil else { return }
+
+        if let editingID = karaokeEditingItemID,
+           let editingItem = timelineIndex.item(id: editingID),
+           editingItem.activeKaraoke != nil,
+           let start = editingItem.startTime,
+           let end = editingItem.endTime,
+           currentTime >= start,
+           currentTime < end,
+           (
+               activeGroupID == nil
+                   || belongsToGroup(editingItem, groupID: activeGroupID!)
+           ) {
+            let desiredSelection: Set<UUID> = [editingID]
+            if selectedIDs != desiredSelection {
+                selectedIDs = desiredSelection
+                isSubtitleMultiSelecting = false
+            }
+            return
+        }
+
+        let activeItem = timelineIndex
+            .visibleItems(in: currentTime...currentTime)
+            .filter { item in
+                guard item.activeKaraoke != nil,
+                      let start = item.startTime,
+                      let end = item.endTime,
+                      currentTime >= start,
+                      currentTime < end else {
+                    return false
+                }
+                if let activeGroupID {
+                    return belongsToGroup(item, groupID: activeGroupID)
+                }
+                return true
+            }
+            .sorted(by: stableSubtitleSort)
+            .first
+
+        if let activeItem {
+            if karaokeEditorDismissedItemID == activeItem.id {
+                return
+            }
+            karaokeEditorDismissedItemID = nil
+            let desiredSelection: Set<UUID> = [activeItem.id]
+            if selectedIDs != desiredSelection {
+                selectedIDs = desiredSelection
+                isSubtitleMultiSelecting = false
+            } else if karaokeEditingItemID != activeItem.id {
+                karaokeEditingItemID = activeItem.id
+            }
+        } else {
+            let hasVisibleSubtitle = timelineIndex
+                .visibleItems(in: currentTime...currentTime)
+                .contains { item in
+                    guard let start = item.startTime,
+                          let end = item.endTime,
+                          currentTime >= start,
+                          currentTime < end else {
+                        return false
+                    }
+                    if let activeGroupID {
+                        return belongsToGroup(item, groupID: activeGroupID)
+                    }
+                    return true
+                }
+
+            if hasVisibleSubtitle {
+                karaokeEditingItemID = nil
+                karaokeEditorDismissedItemID = nil
+            } else if let editingID = karaokeEditingItemID {
+                // Empty timeline gaps retain the last Karaoke inspector. Only
+                // discard it if its source cue no longer exists or was disabled.
+                let retainedItem = timelineIndex.item(id: editingID)
+                if retainedItem?.activeKaraoke == nil {
+                    karaokeEditingItemID = nil
+                }
+            }
+        }
     }
 }

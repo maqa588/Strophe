@@ -123,7 +123,7 @@ extension AutoCaptionView {
                 default: return step(1, localized("process_denoise"))
                 }
             }()
-            if isParakeetJASelected || !enableAlignment {
+            if isParakeetJASelected || (!enableAlignment && !generateKaraoke) {
                 return [
                     preprocessingTitle,
                     modelStep(2),
@@ -149,7 +149,10 @@ extension AutoCaptionView {
     
     // Execution methods are in Process+Execution.swift
 
-    func subtitleItems(from results: [AIResultSegment]) -> [SubtitleItem] {
+    func subtitleItems(
+        from results: [AIResultSegment],
+        karaokeEnabled: Bool = false
+    ) -> [SubtitleItem] {
         results.enumerated().compactMap { index, seg -> SubtitleItem? in
             let cleaned = cleanSubtitleText(seg.text)
 
@@ -165,11 +168,26 @@ extension AutoCaptionView {
                 return nil
             }
 
+            let alignedKaraoke = KaraokeProgram.fromAlignedWords(
+                seg.words,
+                cueText: cleaned,
+                cueStartTime: seg.startTime,
+                cueEndTime: seg.endTime,
+                isEnabled: karaokeEnabled
+            )
+            let karaoke = alignedKaraoke
+                ?? (karaokeEnabled
+                    ? KaraokeProgram.evenlyTimed(
+                        text: cleaned,
+                        duration: max(0, seg.endTime - seg.startTime)
+                    )
+                    : nil)
             return SubtitleItem(
                 text: cleaned,
                 startTime: seg.startTime,
                 endTime: seg.endTime,
-                originalIndex: index
+                originalIndex: index,
+                karaoke: karaoke
             )
         }
     }

@@ -16,18 +16,18 @@ import UIKit
 #endif
 
 public enum FontFilterCategory: String, CaseIterable, Identifiable, Codable {
-    case all = "全部"
-    case favorite = "收藏"
-    case recent = "最近"
-    case sc = "simplified_chinese"
-    case tc = "繁中"
-    case ja = "日文"
-    case ko = "韩文"
-    case emoji = "Emoji"
-    case nerd = "Nerd Font"
+    case all = "all"
+    case favorite = "favorite"
+    case recent = "recent"
+    case sc = "sc"
+    case tc = "tc"
+    case ja = "ja"
+    case ko = "ko"
+    case emoji = "emoji"
+    case nerd = "nerd"
     case monospace = "monospace"
-    case serif = "衬线"
-    case sans = "无衬线"
+    case serif = "serif"
+    case sans = "sans"
 
     public var id: String { rawValue }
     
@@ -45,6 +45,35 @@ public enum FontFilterCategory: String, CaseIterable, Identifiable, Codable {
         case .monospace: return "chevron.left.forwardslash.chevron.right"
         case .serif: return "serif"
         case .sans: return "character"
+        }
+    }
+
+    public var localizedName: String {
+        switch self {
+        case .all:
+            return NSLocalizedString("font_category_all", comment: "")
+        case .favorite:
+            return NSLocalizedString("font_category_favorite", comment: "")
+        case .recent:
+            return NSLocalizedString("font_category_recent", comment: "")
+        case .sc:
+            return NSLocalizedString("simplified_chinese", comment: "")
+        case .tc:
+            return NSLocalizedString("traditional_chinese", comment: "")
+        case .ja:
+            return NSLocalizedString("japanese", comment: "")
+        case .ko:
+            return NSLocalizedString("korean", comment: "")
+        case .emoji:
+            return NSLocalizedString("font_category_emoji", comment: "")
+        case .nerd:
+            return NSLocalizedString("tab_nerd", comment: "")
+        case .monospace:
+            return NSLocalizedString("monospace", comment: "")
+        case .serif:
+            return NSLocalizedString("font_category_serif", comment: "")
+        case .sans:
+            return NSLocalizedString("font_category_sans", comment: "")
         }
     }
 }

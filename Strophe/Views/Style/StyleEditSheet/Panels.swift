@@ -129,6 +129,9 @@ extension StyleEditSheet {
             shadowColor: shadowColor.resolvedRGBA,
             shadowRadius: shadowRadius,
             backgroundColor: backgroundAlpha > 0 ? backgroundColor.resolvedRGBA.withAlpha(backgroundAlpha) : nil,
+            dropShadowColor: dropShadowAlpha > 0 ? dropShadowColor.resolvedRGBA.withAlpha(dropShadowAlpha) : .black.withAlpha(0),
+            dropShadowOffset: dropShadowOffset,
+            dropShadowAngle: dropShadowAngle,
             isBold: isBold,
             isItalic: isItalic,
             isUnderline: isUnderline,
@@ -410,6 +413,40 @@ extension StyleEditSheet {
                 valueLabel: "\(Int((backgroundAlpha * 100).rounded()))%",
                 help: "style_background_help"
             )
+
+            Divider()
+                .padding(.vertical, 2)
+
+            compactColorSlider(
+                title: "style_drop_shadow_size",
+                color: $dropShadowColor,
+                value: $dropShadowOffset,
+                range: 0...50,
+                step: 0.5,
+                valueLabel: String(format: "%.1f", dropShadowOffset),
+                help: "style_drop_shadow_help",
+                labelWidth: 64
+            )
+
+            compactValueSlider(
+                title: "style_drop_shadow_alpha",
+                value: $dropShadowAlpha,
+                range: 0...1,
+                step: 0.02,
+                valueLabel: "\(Int((dropShadowAlpha * 100).rounded()))%",
+                help: "style_drop_shadow_help",
+                labelWidth: 64
+            )
+
+            compactValueSlider(
+                title: "style_drop_shadow_angle",
+                value: $dropShadowAngle,
+                range: 0...360,
+                step: 1,
+                valueLabel: "\(Int(dropShadowAngle.rounded()))°",
+                help: "style_drop_shadow_help",
+                labelWidth: 64
+            )
         }
     }
 
@@ -454,13 +491,14 @@ extension StyleEditSheet {
         range: ClosedRange<Double>,
         step: Double,
         valueLabel: String,
-        help: LocalizedStringKey
+        help: LocalizedStringKey,
+        labelWidth: CGFloat = 64
     ) -> some View {
         HStack(spacing: 12) {
             Text(title)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-                .frame(width: 48, alignment: .leading)
+                .frame(width: labelWidth, alignment: .leading)
 
             ColorPicker("", selection: color, supportsOpacity: true)
                 .labelsHidden()
@@ -480,13 +518,14 @@ extension StyleEditSheet {
         range: ClosedRange<Double>,
         step: Double,
         valueLabel: String,
-        help: LocalizedStringKey
+        help: LocalizedStringKey,
+        labelWidth: CGFloat = 64
     ) -> some View {
         HStack(spacing: 12) {
             Text(title)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-                .frame(width: 72, alignment: .leading)
+                .frame(width: labelWidth, alignment: .leading)
 
             Slider(value: value, in: range, step: step)
             Text(valueLabel)

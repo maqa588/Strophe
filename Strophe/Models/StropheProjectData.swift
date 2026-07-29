@@ -52,6 +52,12 @@ struct SubtitleStyle: Codable, Sendable, Identifiable, Equatable {
     var backgroundColorHex: String?
     var backgroundAlpha: Double? // 0.0 to 1.0
     
+    // Drop shadow
+    var dropShadowColorHex: String?
+    var dropShadowOffset: Double?
+    var dropShadowAlpha: Double?
+    var dropShadowAngle: Double?
+    
     enum Alignment: String, CaseIterable, Codable, Sendable, Identifiable, Equatable {
         case topLeft, topCenter, topRight
         case middleLeft, middleCenter, middleRight

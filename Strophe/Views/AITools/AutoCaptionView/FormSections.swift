@@ -369,6 +369,15 @@ extension AutoCaptionView {
             Text("tip_recommend_specific_language_explanation")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
+
+            Divider()
+
+            Toggle("generate_karaoke_subtitles", isOn: $generateKaraoke)
+                .tint(Color.stropheAccent)
+
+            Label("generate_karaoke_subtitles_explanation", systemImage: "music.note.list")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)

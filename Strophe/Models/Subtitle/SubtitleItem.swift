@@ -60,6 +60,8 @@ struct SubtitleItem: Identifiable, Equatable, Codable, Sendable {
     var bilingualPairID: UUID?
     var isHidden: Bool
     var isLocked: Bool
+    /// Optional per-grapheme/word timing and declarative karaoke appearance.
+    var karaoke: KaraokeProgram?
     /// Lossless source-format information (ASS tags/style fields, VTT settings,
     /// original cue identifiers, and similar data).
     var interchangeMetadata: SubtitleCueInterchangeMetadata?
@@ -81,6 +83,7 @@ struct SubtitleItem: Identifiable, Equatable, Codable, Sendable {
         bilingualPairID: UUID? = nil,
         isHidden: Bool = false,
         isLocked: Bool = false,
+        karaoke: KaraokeProgram? = nil,
         interchangeMetadata: SubtitleCueInterchangeMetadata? = nil
     ) {
         self.id = id
@@ -99,6 +102,7 @@ struct SubtitleItem: Identifiable, Equatable, Codable, Sendable {
         self.bilingualPairID = bilingualPairID
         self.isHidden = isHidden
         self.isLocked = isLocked
+        self.karaoke = karaoke
         self.interchangeMetadata = interchangeMetadata
     }
     
@@ -107,7 +111,14 @@ struct SubtitleItem: Identifiable, Equatable, Codable, Sendable {
     }
 
     var hasIndependentPresentation: Bool {
-        styleID != nil || styleOverrides != nil || positionOverride != nil
+        styleID != nil
+            || styleOverrides != nil
+            || positionOverride != nil
+            || activeKaraoke != nil
+    }
+
+    var activeKaraoke: KaraokeProgram? {
+        karaoke?.isEnabled == true ? karaoke : nil
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -127,6 +138,7 @@ struct SubtitleItem: Identifiable, Equatable, Codable, Sendable {
         case bilingualPairID
         case isHidden
         case isLocked
+        case karaoke
         case interchangeMetadata
     }
 
@@ -148,6 +160,7 @@ struct SubtitleItem: Identifiable, Equatable, Codable, Sendable {
         bilingualPairID = try container.decodeIfPresent(UUID.self, forKey: .bilingualPairID)
         isHidden = try container.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
         isLocked = try container.decodeIfPresent(Bool.self, forKey: .isLocked) ?? false
+        karaoke = try container.decodeIfPresent(KaraokeProgram.self, forKey: .karaoke)
         interchangeMetadata = try container.decodeIfPresent(
             SubtitleCueInterchangeMetadata.self,
             forKey: .interchangeMetadata
@@ -172,6 +185,7 @@ struct SubtitleItem: Identifiable, Equatable, Codable, Sendable {
         try container.encodeIfPresent(bilingualPairID, forKey: .bilingualPairID)
         try container.encode(isHidden, forKey: .isHidden)
         try container.encode(isLocked, forKey: .isLocked)
+        try container.encodeIfPresent(karaoke, forKey: .karaoke)
         try container.encodeIfPresent(interchangeMetadata, forKey: .interchangeMetadata)
     }
 }

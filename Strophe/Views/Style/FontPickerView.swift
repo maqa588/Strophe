@@ -49,7 +49,7 @@ public struct FontPickerView: View {
                     .font(.headline)
                     .foregroundStyle(Color.stropheText)
                 Spacer()
-                Text("fonts_count_available \(filteredFonts.count)")
+                Text(String(format: NSLocalizedString("fonts_count_available_format %lld", comment: ""), filteredFonts.count))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -128,7 +128,7 @@ public struct FontPickerView: View {
                         HStack(spacing: 4) {
                             Image(systemName: category.iconName)
                                 .font(.caption2)
-                            Text(category.rawValue)
+                            Text(category.localizedName)
                                 .font(.caption)
                                 .fontWeight(isSelected ? .semibold : .regular)
                         }
@@ -264,7 +264,7 @@ struct FontRow: View {
                             tagBadge("tab_nerd", color: .indigo)
                         }
                         if font.categories.contains(.emoji) && font.id.contains("Emoji") {
-                            tagBadge("Emoji", color: .orange)
+                            tagBadge("font_category_emoji", color: .orange)
                         }
                         if font.categories.contains(.monospace) {
                             tagBadge("monospace", color: .blue)
@@ -307,8 +307,8 @@ struct FontRow: View {
         .onHover(perform: onHover)
     }
     
-    private func tagBadge(_ text: String, color: Color = .gray) -> some View {
-        Text(text)
+    private func tagBadge(_ key: String, color: Color = .gray) -> some View {
+        Text(NSLocalizedString(key, comment: ""))
             .font(.system(size: 9, weight: .medium))
             .padding(.horizontal, 5)
             .padding(.vertical, 2)

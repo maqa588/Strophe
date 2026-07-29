@@ -43,7 +43,9 @@ class SubtitleProject: ObservableObject {
     @Published var showSoftSubtitles: Bool = false {
         didSet {
             if showSoftSubtitles && showHardSubtitles {
-                showHardSubtitles = false
+                Task { @MainActor [weak self] in
+                    self?.showHardSubtitles = false
+                }
             }
             notifyChange()
         }
@@ -51,7 +53,9 @@ class SubtitleProject: ObservableObject {
     @Published var showHardSubtitles: Bool = false {
         didSet {
             if showHardSubtitles && showSoftSubtitles {
-                showSoftSubtitles = false
+                Task { @MainActor [weak self] in
+                    self?.showSoftSubtitles = false
+                }
             }
         }
     }
@@ -59,7 +63,40 @@ class SubtitleProject: ObservableObject {
     var subtitleBoundarySeekTask: Task<Void, Never>? = nil
     var subtitleBoundarySeekGeneration: UInt = 0
     @Published var editingMode: TimelineEditingMode = .selection
-    @Published var selectedIDs: Set<UUID> = []
+    /// Transient UI state. Karaoke data belongs to `SubtitleItem`, while this
+    /// identifier only records which selected cue currently owns the editor.
+    @Published var karaokeEditingItemID: UUID? = nil
+    @Published var karaokeEditorDismissedItemID: UUID? = nil
+    @Published var selectedIDs: Set<UUID> = [] {
+        didSet {
+            let targetID: UUID?
+            if selectedIDs.count == 1, let selectedID = selectedIDs.first {
+                if oldValue != selectedIDs {
+                    karaokeEditorDismissedItemID = nil
+                }
+                // Enabled Karaoke cues reopen their editor whenever selected.
+                // Disabled/ordinary cues keep the panel closed until the toolbar
+                // button explicitly enables Karaoke.
+                if karaokeEditorDismissedItemID == selectedID {
+                    targetID = nil
+                } else if items.first(where: { $0.id == selectedID })?.activeKaraoke != nil {
+                    targetID = selectedID
+                } else if karaokeEditingItemID != selectedID {
+                    targetID = nil
+                } else {
+                    targetID = karaokeEditingItemID
+                }
+            } else {
+                targetID = nil
+            }
+
+            if karaokeEditingItemID != targetID {
+                Task { @MainActor [weak self] in
+                    self?.karaokeEditingItemID = targetID
+                }
+            }
+        }
+    }
     @Published var isSubtitleMultiSelecting: Bool = false
     @Published var isEditingText: Bool = false
     @Published var subtitleClipboard: [SubtitleItem] = []
@@ -255,11 +292,18 @@ class SubtitleProject: ObservableObject {
     func resnapAllItems() {
         var updated = items
         for index in updated.indices {
-            if let start = updated[index].startTime {
-                updated[index].startTime = snapToFrame(start)
-            }
-            if let end = updated[index].endTime {
-                updated[index].endTime = snapToFrame(end)
+            if let start = updated[index].startTime,
+               let end = updated[index].endTime {
+                let snappedStart = snapToFrame(start)
+                let snappedEnd = snapToFrame(end)
+                updated[index].retimeKaraokeForCueChange(
+                    oldStart: start,
+                    oldEnd: end,
+                    newStart: snappedStart,
+                    newEnd: snappedEnd
+                )
+                updated[index].startTime = snappedStart
+                updated[index].endTime = snappedEnd
             }
         }
         updated.sort(by: stableSubtitleSort)

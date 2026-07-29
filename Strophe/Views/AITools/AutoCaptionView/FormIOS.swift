@@ -318,6 +318,13 @@ extension AutoCaptionView {
                 Text("full_sentence")
                     .foregroundStyle(.secondary)
             }
+
+            Toggle("generate_karaoke_subtitles", isOn: $generateKaraoke)
+                .tint(Color.stropheAccent)
+
+            Text("generate_karaoke_subtitles_explanation")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         } header: {
             Text("cloud_recognition")
         }

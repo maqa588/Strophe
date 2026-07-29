@@ -57,7 +57,7 @@ extension SubtitleProject {
                     options: options
                 )
                 if replaced != updated[index].text {
-                    updated[index].text = replaced
+                    updated[index].replaceTextPreservingKaraoke(replaced)
                     replacementCount += 1
                 }
             }
@@ -138,6 +138,7 @@ extension SubtitleProject {
                         max(0, resolvedAnchor + (end - resolvedAnchor) * factor)
                     )
                 }
+                updated[index].scaleKaraokeOffsets(by: factor)
             }
             updated.sort(by: stableSubtitleSort)
         }
@@ -245,8 +246,19 @@ extension SubtitleProject {
         mutateItems { updated in
             for index in updated.indices {
                 guard let timing = timings[updated[index].id] else { continue }
-                updated[index].startTime = snapToFrame(max(0, timing.0))
-                updated[index].endTime = snapToFrame(max(timing.0 + frameDuration, timing.1))
+                let newStart = snapToFrame(max(0, timing.0))
+                let newEnd = snapToFrame(max(timing.0 + frameDuration, timing.1))
+                if let oldStart = updated[index].startTime,
+                   let oldEnd = updated[index].endTime {
+                    updated[index].retimeKaraokeForCueChange(
+                        oldStart: oldStart,
+                        oldEnd: oldEnd,
+                        newStart: newStart,
+                        newEnd: newEnd
+                    )
+                }
+                updated[index].startTime = newStart
+                updated[index].endTime = newEnd
             }
             updated.sort(by: stableSubtitleSort)
         }

@@ -56,6 +56,21 @@ extension SubtitleBlocksLayer {
                         }
                         .buttonStyle(.plain)
                         .disabled(locked)
+
+                        Toggle(
+                            isOn: karaokeBlockActionBinding(for: item)
+                        ) {
+                            mobileActionLabel(
+                                "karaoke",
+                                systemImage: "music.note.list"
+                            )
+                        }
+                        .tint(Color.stropheAccent)
+                        .disabled(
+                            !project.canSetKaraokeFromBlockAction(
+                                itemID: item.id
+                            )
+                        )
                     }
 
                     Section(String(localized: "move_to_group")) {
@@ -182,6 +197,16 @@ extension SubtitleBlocksLayer {
         }
         .disabled(locked)
 
+        Toggle(isOn: karaokeBlockActionBinding(for: item)) {
+            Label(
+                String(localized: "karaoke"),
+                systemImage: "music.note.list"
+            )
+        }
+        .disabled(
+            !project.canSetKaraokeFromBlockAction(itemID: item.id)
+        )
+
         Menu {
             ForEach(renderModel.sortedGroups) { group in
                 Button {
@@ -278,6 +303,22 @@ extension SubtitleBlocksLayer {
               let start = parseEditableTime(editingStartText),
               let end = parseEditableTime(editingEndText) else { return }
         project.updateSubtitleTime(id: editingItemID, newStartTime: start, newEndTime: end)
+    }
+
+    func karaokeBlockActionBinding(
+        for item: SubtitleItem
+    ) -> Binding<Bool> {
+        Binding(
+            get: {
+                project.isKaraokeEnabledFromBlockAction(itemID: item.id)
+            },
+            set: { isEnabled in
+                project.setKaraokeFromBlockAction(
+                    itemID: item.id,
+                    isEnabled: isEnabled
+                )
+            }
+        )
     }
 
     func formatEditableTime(_ seconds: TimeInterval) -> String {

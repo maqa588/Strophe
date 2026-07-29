@@ -44,10 +44,18 @@ extension SubtitleProject {
         
         let snappedSplit = snapToFrame(splitTime)
         var updated = items
+        let splitKaraoke = updated[index].karaoke?.split(
+            atCharacterOffset: Array(leftText).count,
+            timeOffset: snappedSplit - startTime,
+            cueDuration: endTime - startTime,
+            leftText: leftText,
+            rightText: rightText
+        )
         
         // 修改原 item 为左半部分
         updated[index].text = leftText
         updated[index].endTime = snappedSplit
+        updated[index].karaoke = splitKaraoke?.left
         
         let rightItem = SubtitleItem(
             id: UUID(),
@@ -65,7 +73,9 @@ extension SubtitleProject {
             languageCode: updated[index].languageCode,
             bilingualPairID: updated[index].bilingualPairID,
             isHidden: updated[index].isHidden,
-            isLocked: updated[index].isLocked
+            isLocked: updated[index].isLocked,
+            karaoke: splitKaraoke?.right,
+            interchangeMetadata: updated[index].interchangeMetadata
         )
         let leftID = updated[index].id
         updated.insert(rightItem, at: index + 1)
@@ -127,6 +137,12 @@ extension SubtitleProject {
             .joined(separator: "")
             .replacingOccurrences(of: "\n", with: "")
             .replacingOccurrences(of: "\r", with: "")
+        let mergedKaraoke = Self.mergedKaraokeProgram(
+            from: selectedItems,
+            mergedText: mergedText,
+            mergedStartTime: mergedStartTime,
+            mergedEndTime: mergedEndTime
+        )
         
         // 保留第一个 item，删除其余
         let firstID = selectedItems[0].id
@@ -136,6 +152,7 @@ extension SubtitleProject {
             items[firstIndex].text = mergedText
             items[firstIndex].startTime = mergedStartTime
             items[firstIndex].endTime = mergedEndTime
+            items[firstIndex].karaoke = mergedKaraoke
         }
         
         items.removeAll { restIDs.contains($0.id) }

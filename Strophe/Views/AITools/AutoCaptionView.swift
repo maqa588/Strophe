@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-enum CaptionGenerationMode: Sendable {
+enum CaptionGenerationMode: Sendable, Hashable {
     case local
     case cloud
 }
@@ -37,6 +37,7 @@ struct AutoCaptionView: View {
     @State var vocalPreprocessing: String = "none"
     @State var referenceLyrics: String = ""
     @State var useVAD: Bool = true
+    @State var generateKaraoke: Bool = false
     @State var selectedCloudModel: AICloudASRModel = .qwen3ASR17B
     @AppStorage(AIBackendClient.cloudBaseURLDefaultsKey)
     var cloudBaseURLString: String = AIBackendClient.defaultCloudBaseURL.absoluteString
@@ -149,7 +150,7 @@ struct AutoCaptionView: View {
     }
 
     var areRequiredLocalModelsDownloaded: Bool {
-        let needsAligner = (enableAlignment || enableDiarization)
+        let needsAligner = (enableAlignment || enableDiarization || generateKaraoke)
             && !LocalModelManager.usesNativeTimestamps(selectedModel)
         return modelManager.downloadedWhisperModels.contains(selectedModel)
             && (!needsAligner

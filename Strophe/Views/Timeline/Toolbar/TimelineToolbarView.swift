@@ -45,6 +45,7 @@ struct TimelineToolbarView: View {
     @State var showCreationTip = false
     @State var showSplitTip = false
     @State var showMergeTip = false
+    @State var showKaraokeTip = false
     
     // 用于 macOS 鼠标延时悬浮（0.5秒）的取消型 Task 实例
     @State var softSubtitlesHoverTask: Task<Void, Never>? = nil
@@ -53,6 +54,10 @@ struct TimelineToolbarView: View {
     @State var creationHoverTask: Task<Void, Never>? = nil
     @State var splitHoverTask: Task<Void, Never>? = nil
     @State var mergeHoverTask: Task<Void, Never>? = nil
+    @State var karaokeHoverTask: Task<Void, Never>? = nil
+    @State var canEditKaraoke = false
+    @State var isKaraokeEditorActive = false
+    @State var selectedSubtitleCount = 0
     
     // 切分/合并操作状态
     @State var splitRequest: SplitRequest? = nil
@@ -193,6 +198,15 @@ struct TimelineToolbarView: View {
         }
         if isEditingText != project.isEditingText {
             isEditingText = project.isEditingText
+        }
+        if canEditKaraoke != project.canToggleKaraokeEditor {
+            canEditKaraoke = project.canToggleKaraokeEditor
+        }
+        if isKaraokeEditorActive != project.isKaraokeEditorActiveForSelection {
+            isKaraokeEditorActive = project.isKaraokeEditorActiveForSelection
+        }
+        if selectedSubtitleCount != project.selectedIDs.count {
+            selectedSubtitleCount = project.selectedIDs.count
         }
     }
 }

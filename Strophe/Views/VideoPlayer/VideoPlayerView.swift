@@ -30,6 +30,19 @@ struct VideoPlayerView: View {
                 mediaResolvingState
             } else if let mediaError = project.mediaLoadError {
                 mediaErrorState(mediaError)
+            } else if ProcessInfo.processInfo.arguments.contains(
+                "-ui-testing-karaoke-demo"
+            ) {
+                ZStack {
+                    Color.black
+                    HardSubtitleOverlayView(project: project)
+                }
+                .aspectRatio(16 / 9, contentMode: .fit)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(
+                    stropheLocalizedString("karaoke")
+                )
+                .accessibilityIdentifier("karaokePreviewCanvas")
             } else if project.videoURL != nil {
                 ZStack {
                     Color.black

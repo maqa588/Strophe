@@ -60,6 +60,9 @@ struct WaveformTimelineView: View {
             TimelineToolbarView(project: project)
                 .fixedSize(horizontal: false, vertical: true)
 
+            // MARK: - Karaoke Unit Editor
+            KaraokeEditorPanel(project: project)
+
             // MARK: - Timeline Core
             if let data = project.waveformData {
                 let safeDataDuration = data.duration.isFinite ? max(0, data.duration) : 0
@@ -206,7 +209,12 @@ struct WaveformTimelineView: View {
             let duration = rawDuration.isFinite ? max(1, rawDuration) : 1
             centerPlayheadIfNeeded(viewWidth: Double(availableWidth), duration: duration)
         }
-        .frame(height: isCompact ? 236 : 200)
+        .frame(
+            height: (isCompact ? 236 : 200)
+                + KaraokeEditorPanel.preferredHeight(
+                    for: project.karaokeEditorItem
+                )
+        )
         .padding(.bottom, bottomScrollerClearance)
         .frame(maxWidth: .infinity)
         .background(Color.stropheSecondaryBackground)

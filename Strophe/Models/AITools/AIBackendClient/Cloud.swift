@@ -119,13 +119,15 @@ extension AIBackendClient {
             audioURL: preparedAudio16kURL,
             language: request.language,
             model: request.model.rawValue,
+            enableKaraoke: request.enableKaraoke,
             boundary: boundary
         )
         var urlRequest = URLRequest(
             url: try Self.cloudEndpointWithStreamParam(
                 request.endpointURL,
                 language: request.language,
-                model: request.model.rawValue
+                model: request.model.rawValue,
+                enableKaraoke: request.enableKaraoke
             )
         )
         urlRequest.httpMethod = "POST"
@@ -334,7 +336,8 @@ extension AIBackendClient {
     static func cloudEndpointWithStreamParam(
         _ endpointURL: URL,
         language: String,
-        model: String
+        model: String,
+        enableKaraoke: Bool = false
     ) throws -> URL {
         guard var components = URLComponents(url: endpointURL, resolvingAgainstBaseURL: false) else {
             throw NSError(
@@ -360,6 +363,10 @@ extension AIBackendClient {
         }
         if !queryItems.contains(where: { $0.name == "model" }) {
             queryItems.append(URLQueryItem(name: "model", value: model))
+        }
+        if enableKaraoke {
+            queryItems.append(URLQueryItem(name: "word_timestamps", value: "true"))
+            queryItems.append(URLQueryItem(name: "forced_alignment", value: "true"))
         }
         components.queryItems = queryItems
 
@@ -590,6 +597,7 @@ extension AIBackendClient {
         audioURL: URL,
         language: String,
         model: String,
+        enableKaraoke: Bool = false,
         boundary: String
     ) throws -> Data {
         var body = Data()
@@ -609,6 +617,16 @@ extension AIBackendClient {
         append("--\(boundary)\r\n")
         append("Content-Disposition: form-data; name=\"model\"\r\n\r\n")
         append("\(model)\r\n")
+
+        if enableKaraoke {
+            append("--\(boundary)\r\n")
+            append("Content-Disposition: form-data; name=\"word_timestamps\"\r\n\r\n")
+            append("true\r\n")
+
+            append("--\(boundary)\r\n")
+            append("Content-Disposition: form-data; name=\"forced_alignment\"\r\n\r\n")
+            append("true\r\n")
+        }
 
         append("--\(boundary)\r\n")
         append("Content-Disposition: form-data; name=\"file\"; filename=\"\(audioURL.lastPathComponent)\"\r\n")
@@ -682,9 +700,22 @@ extension AIBackendClient {
             )
         }
 
+        let words = wordTimings(from: payload.timestampsWord)
         var segments = timestampSegments(from: payload.timestampsSentence)
-        if segments.isEmpty {
-            segments = timestampSegments(from: payload.timestampsWord)
+        if !segments.isEmpty, !words.isEmpty {
+            segments = segments.map { segment in
+                let segmentWords = words.filter {
+                    $0.endTime > segment.startTime && $0.startTime < segment.endTime
+                }
+                return AIResultSegment(
+                    text: segment.text,
+                    startTime: segment.startTime,
+                    endTime: segment.endTime,
+                    words: segmentWords
+                )
+            }
+        } else if segments.isEmpty, !words.isEmpty {
+            segments = SubtitleSegmentation.makeSegments(words: words)
         }
         if segments.isEmpty, let srt = payload.srt {
             segments = parseCloudSRTSegments(srt)
@@ -753,6 +784,21 @@ extension AIBackendClient {
             }
             return first.startTime < second.startTime
         }
+    }
+
+    static func wordTimings(from timestamps: [CloudTimestamp]?) -> [SubtitleWordTiming] {
+        guard let timestamps else { return [] }
+        return timestamps.compactMap { item in
+            let text = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard item.start.isFinite, item.end.isFinite,
+                  item.end > item.start, !text.isEmpty else { return nil }
+            return SubtitleWordTiming(
+                text: text,
+                startTime: item.start,
+                endTime: item.end
+            )
+        }
+        .sorted { $0.startTime == $1.startTime ? $0.endTime < $1.endTime : $0.startTime < $1.startTime }
     }
 
     static func normalizedCloudProgress(_ progress: Double) -> Double {

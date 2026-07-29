@@ -7,11 +7,23 @@
 
 import SwiftUI
 
+private enum ActiveGroupSheet: Identifiable {
+    case add
+    case edit(UUID)
+    
+    var id: String {
+        switch self {
+        case .add: return "add"
+        case .edit(let id): return "edit-\(id.uuidString)"
+        }
+    }
+}
+
 struct SubGroupPlaceholderView: View {
     @ObservedObject var project: SubtitleProject
     @ObservedObject var store = StyleAndGroupStore.shared
 
-    @State private var showingAddSheet = false
+    @State private var activeSheet: ActiveGroupSheet? = nil
 
     var body: some View {
         List {
@@ -28,6 +40,11 @@ struct SubGroupPlaceholderView: View {
                             project.selectAllCues(in: group.id)
                         } label: {
                             Label("select_all_subtitles_in_this", systemImage: "checklist")
+                        }
+                        Button {
+                            activeSheet = .edit(group.id)
+                        } label: {
+                            Label("edit_group", systemImage: "pencil")
                         }
                         Divider()
                         Menu {
@@ -84,15 +101,29 @@ struct SubGroupPlaceholderView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    showingAddSheet = true
+                    activeSheet = .add
                 } label: {
                     Image(systemName: "plus")
                 }
                 .help("new_group")
             }
         }
-        .sheet(isPresented: $showingAddSheet) {
-            SubGroupCreateSheet(isPresented: $showingAddSheet)
+        .sheet(item: $activeSheet) { sheetType in
+            switch sheetType {
+            case .add:
+                SubGroupCreateSheet(isPresented: Binding(
+                    get: { activeSheet != nil },
+                    set: { if !$0 { activeSheet = nil } }
+                ))
+            case .edit(let groupID):
+                SubGroupCreateSheet(
+                    isPresented: Binding(
+                        get: { activeSheet != nil },
+                        set: { if !$0 { activeSheet = nil } }
+                    ),
+                    groupID: groupID
+                )
+            }
         }
     }
 
@@ -144,7 +175,8 @@ struct SubGroupPlaceholderView: View {
             HStack(spacing: 0) {
                 // Subname + cue count
                 HStack(spacing: 5) {
-                    Text(group.subName.isEmpty ? group.role.title : group.subName)
+                    let rawSub = group.subName.isEmpty ? group.role.title : group.subName
+                    Text(NSLocalizedString(rawSub, comment: ""))
                     Text("dot_separator")
                     Text("\(project.cueCount(in: group.id))")
                 }
