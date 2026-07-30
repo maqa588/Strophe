@@ -50,7 +50,7 @@ class SubtitleProject: ObservableObject {
             notifyChange()
         }
     }
-    @Published var showHardSubtitles: Bool = false {
+    @Published var showHardSubtitles: Bool = true {
         didSet {
             if showHardSubtitles && showSoftSubtitles {
                 Task { @MainActor [weak self] in
@@ -67,6 +67,7 @@ class SubtitleProject: ObservableObject {
     /// identifier only records which selected cue currently owns the editor.
     @Published var karaokeEditingItemID: UUID? = nil
     @Published var karaokeEditorDismissedItemID: UUID? = nil
+    @Published var isKaraokeEditorManuallyClosed: Bool = false
     @Published var selectedIDs: Set<UUID> = [] {
         didSet {
             let targetID: UUID?
@@ -74,10 +75,8 @@ class SubtitleProject: ObservableObject {
                 if oldValue != selectedIDs {
                     karaokeEditorDismissedItemID = nil
                 }
-                // Enabled Karaoke cues reopen their editor whenever selected.
-                // Disabled/ordinary cues keep the panel closed until the toolbar
-                // button explicitly enables Karaoke.
-                if karaokeEditorDismissedItemID == selectedID {
+                // Enabled Karaoke cues reopen their editor whenever selected unless manually closed.
+                if isKaraokeEditorManuallyClosed || karaokeEditorDismissedItemID == selectedID {
                     targetID = nil
                 } else if items.first(where: { $0.id == selectedID })?.activeKaraoke != nil {
                     targetID = selectedID

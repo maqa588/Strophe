@@ -268,17 +268,24 @@ struct SubtitleBlocksLayer: View {
         .stropheOnChange(of: renderModel.activeGroupID) { activeGroupID in
             guard let activeGroupID else {
                 if !project.selectedIDs.isEmpty { project.selectedIDs.removeAll() }
+                contextItemID = nil
                 return
             }
-            let activeSelection = Set(project.selectedIDs.filter { id in
-                renderModel.item(id: id).map {
-                    renderModel.group(for: $0)?.id == activeGroupID
-                } == true
-            })
-            if activeSelection != project.selectedIDs {
-                project.selectedIDs = activeSelection
+            if !project.isSubtitleMultiSelecting {
+                let activeSelection = Set(project.selectedIDs.filter { id in
+                    renderModel.item(id: id).map {
+                        renderModel.group(for: $0)?.id == activeGroupID
+                    } == true
+                })
+                if activeSelection != project.selectedIDs {
+                    project.selectedIDs = activeSelection
+                }
             }
-            contextItemID = nil
+            if let currentContextID = contextItemID,
+               let contextItem = renderModel.item(id: currentContextID),
+               renderModel.group(for: contextItem)?.id != activeGroupID {
+                contextItemID = nil
+            }
             hoveredItemID = nil
         }
         .stropheOnChange(of: trackVerticalScale) { _ in clampTrackViewport() }

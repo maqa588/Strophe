@@ -5,6 +5,7 @@ struct ProjectRecoveryView: View {
 
     @State private var snapshots: [ProjectBackupSnapshot] = []
     @State private var pendingSnapshot: ProjectBackupSnapshot?
+    @State private var isShowingClearConfirmation = false
     @State private var isRestoring = false
     @State private var errorMessage: String?
 
@@ -51,7 +52,17 @@ struct ProjectRecoveryView: View {
         }
         .inlineNavigationTitle(String(localized: "project_recovery"))
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button(role: .destructive) {
+                    isShowingClearConfirmation = true
+                } label: {
+                    Label(
+                        String(localized: "project_recovery_clear_all"),
+                        systemImage: "trash"
+                    )
+                }
+                .disabled(snapshots.isEmpty || isRestoring)
+
                 Button {
                     refresh()
                 } label: {
@@ -65,6 +76,18 @@ struct ProjectRecoveryView: View {
         }
         .task {
             refresh()
+        }
+        .confirmationDialog(
+            String(localized: "project_recovery_clear_confirm_title"),
+            isPresented: $isShowingClearConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(String(localized: "project_recovery_clear_all"), role: .destructive) {
+                clearAllSnapshots()
+            }
+            Button(String(localized: "cancel"), role: .cancel) {}
+        } message: {
+            Text(String(localized: "project_recovery_clear_confirm_message"))
         }
         .confirmationDialog(
             String(localized: "project_recovery_confirm_title"),
@@ -143,6 +166,11 @@ struct ProjectRecoveryView: View {
 
     private func refresh() {
         snapshots = ProjectBackupStore.snapshots()
+    }
+
+    private func clearAllSnapshots() {
+        ProjectBackupStore.clearAll()
+        refresh()
     }
 
     private func restore(_ snapshot: ProjectBackupSnapshot) {

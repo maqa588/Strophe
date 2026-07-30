@@ -93,6 +93,12 @@ struct StropheNavBarCommands: Commands {
             .keyboardShortcut("s", modifiers: [.command, .shift])
             .disabled(!canSaveProject)
         }
+
+        CommandGroup(replacing: .importExport) {
+            Menu(String(localized: "export")) {
+                StropheExportMenuItems(project: project)
+            }
+        }
         
         CommandGroup(replacing: .appInfo) {
             Button("\(String(localized: "menu_about")) \(AppIdentity.displayName)") {
@@ -346,6 +352,7 @@ struct StropheMainToolbar: ToolbarContent {
     var onExportSoftSubtitles: (SubtitleFormat) -> Void
     var onExportEmbeddedSubtitles: () -> Void
     var onExportHardSubtitles: () -> Void
+    var onExportAlphaVideo: () -> Void
     var onExportDelivery: (SubtitleDeliveryFormat) -> Void
     var onSaveProject: () -> Void
     var onSaveProjectAs: () -> Void
@@ -418,7 +425,15 @@ struct StropheMainToolbar: ToolbarContent {
             .help(String(localized: "save_current_project_file"))
 
             Menu {
-                exportMenuItems
+                StropheExportMenuItems(
+                    project: project,
+                    onExportSoftSubtitles: onExportSoftSubtitles,
+                    onExportEmbeddedSubtitles: onExportEmbeddedSubtitles,
+                    onExportHardSubtitles: onExportHardSubtitles,
+                    onExportAlphaVideo: onExportAlphaVideo,
+                    onExportDelivery: onExportDelivery,
+                    onSaveProjectAs: onSaveProjectAs
+                )
             } label: {
                 Label("export", systemImage: "square.and.arrow.up")
             }
@@ -427,85 +442,19 @@ struct StropheMainToolbar: ToolbarContent {
         #endif
     }
 
-    @ViewBuilder
-    private var exportMenuItems: some View {
-        Menu {
-            Button {
-                onExportSoftSubtitles(.srt)
-            } label: {
-                Label("format_srt", systemImage: "doc.text")
-            }
-            Button {
-                onExportSoftSubtitles(.ass)
-            } label: {
-                Label("format_ass", systemImage: "doc.richtext")
-            }
-            Button {
-                onExportSoftSubtitles(.lrc)
-            } label: {
-                Label("format_lrc", systemImage: "music.note.list")
-            }
-            Button {
-                onExportSoftSubtitles(.vtt)
-            } label: {
-                Label("format_vtt", systemImage: "text.bubble")
-            }
-        } label: {
-            Label("format_soft_subtitles", systemImage: "captions.bubble")
-        }
-
-        Divider()
-
-        Menu {
-            Button {
-                onExportDelivery(.csv)
-            } label: {
-                Label("format_csv", systemImage: "doc.text")
-            }
-            Button {
-                onExportDelivery(.excel)
-            } label: {
-                Label("format_excel", systemImage: "tablecells.fill")
-            }
-            Button {
-                onExportDelivery(.fcpxml)
-            } label: {
-                Label("format_fcpxml", systemImage: "film.stack")
-            }
-        } label: {
-            Label("delivery_data_and_nle", systemImage: "tablecells")
-        }
-
-        Divider()
-
-        Button {
-            onSaveProjectAs()
-        } label: {
-            Label("strophe_project_strophe", systemImage: "folder")
-        }
-
-        Divider()
-
-        Button {
-            onExportEmbeddedSubtitles()
-        } label: {
-            Label("embedded_soft_subtitle_video_ellipsis", systemImage: "video")
-        }
-        .disabled(project.videoURL == nil || project.items.isEmpty)
-
-        Button {
-            onExportHardSubtitles()
-        } label: {
-            Label("hard_subtitled_video_ellipsis", systemImage: "film")
-        }
-        .disabled(project.videoURL == nil || project.items.isEmpty)
-    }
-
     #if os(iOS)
     @ViewBuilder
     private var iosOverflowMenuItems: some View {
         Menu {
-            exportMenuItems
+            StropheExportMenuItems(
+                project: project,
+                onExportSoftSubtitles: onExportSoftSubtitles,
+                onExportEmbeddedSubtitles: onExportEmbeddedSubtitles,
+                onExportHardSubtitles: onExportHardSubtitles,
+                onExportAlphaVideo: onExportAlphaVideo,
+                onExportDelivery: onExportDelivery,
+                onSaveProjectAs: onSaveProjectAs
+            )
         } label: {
             Label("export", systemImage: "square.and.arrow.up")
         }
@@ -701,6 +650,275 @@ struct StropheMainToolbar: ToolbarContent {
             NotificationCenter.default.post(name: .stropheOpenProject, object: nil)
         } label: {
             Label("open_strophe_project_ellipsis", systemImage: "folder")
+        }
+    }
+}
+
+// MARK: - Reusable Export Menu Items
+struct StropheExportMenuItems: View {
+    @ObservedObject var project: SubtitleProject
+    var onExportSoftSubtitles: ((SubtitleFormat) -> Void)? = nil
+    var onExportEmbeddedSubtitles: (() -> Void)? = nil
+    var onExportHardSubtitles: (() -> Void)? = nil
+    var onExportAlphaVideo: (() -> Void)? = nil
+    var onExportDelivery: ((SubtitleDeliveryFormat) -> Void)? = nil
+    var onSaveProjectAs: (() -> Void)? = nil
+
+    private var canExportRenderedVideo: Bool {
+        project.videoURL != nil && !project.items.isEmpty
+    }
+
+    private func handleExportSoftSubtitles(_ format: SubtitleFormat) {
+        if let onExportSoftSubtitles = onExportSoftSubtitles {
+            onExportSoftSubtitles(format)
+        } else {
+            NotificationCenter.default.post(name: .stropheExportSoftSubtitles, object: format)
+        }
+    }
+
+    private func handleExportEmbeddedSubtitles() {
+        if let onExportEmbeddedSubtitles = onExportEmbeddedSubtitles {
+            onExportEmbeddedSubtitles()
+        } else {
+            NotificationCenter.default.post(name: .stropheExportEmbeddedSubtitles, object: nil)
+        }
+    }
+
+    private func handleExportHardSubtitles() {
+        if let onExportHardSubtitles = onExportHardSubtitles {
+            onExportHardSubtitles()
+        } else {
+            NotificationCenter.default.post(name: .stropheExportHardSubtitles, object: nil)
+        }
+    }
+
+    private func handleExportAlphaVideo() {
+        if let onExportAlphaVideo = onExportAlphaVideo {
+            onExportAlphaVideo()
+        } else {
+            NotificationCenter.default.post(name: .stropheExportAlphaVideo, object: nil)
+        }
+    }
+
+    private func handleExportDelivery(_ format: SubtitleDeliveryFormat) {
+        if let onExportDelivery = onExportDelivery {
+            onExportDelivery(format)
+        } else {
+            NotificationCenter.default.post(name: .stropheExportDelivery, object: format)
+        }
+    }
+
+    private func handleSaveProjectAs() {
+        if let onSaveProjectAs = onSaveProjectAs {
+            onSaveProjectAs()
+        } else {
+            NotificationCenter.default.post(name: .stropheSaveProjectAs, object: nil)
+        }
+    }
+
+    var body: some View {
+        Button {
+            handleExportEmbeddedSubtitles()
+        } label: {
+            Label("embedded_soft_subtitle_video_ellipsis", systemImage: "video")
+        }
+        .disabled(project.videoURL == nil || project.items.isEmpty)
+
+        Button {
+            handleExportHardSubtitles()
+        } label: {
+            Label("hard_subtitled_video_ellipsis", systemImage: "film")
+        }
+        .disabled(project.videoURL == nil || project.items.isEmpty)
+
+        Divider()
+
+        Menu {
+            Button {
+                handleExportDelivery(.fcpxml)
+            } label: {
+                Label("export_editable_subtitles_fcpxml", systemImage: "captions.bubble")
+            }
+
+            Button {
+                handleExportAlphaVideo()
+            } label: {
+                Label("export_full_effect_prores_alpha", systemImage: "sparkles.rectangle.stack")
+            }
+            .disabled(!canExportRenderedVideo)
+        } label: {
+            Label("export_final_cut_pro", systemImage: "film.stack")
+        }
+
+        Menu {
+            Button {
+                handleExportDelivery(.fcpxml)
+            } label: {
+                Label("export_editable_subtitles_fcpxml", systemImage: "captions.bubble")
+            }
+
+            Button {
+                handleExportSoftSubtitles(.srt)
+            } label: {
+                Label("export_plain_subtitles_srt", systemImage: "doc.text")
+            }
+
+            Button {
+                handleExportAlphaVideo()
+            } label: {
+                Label("export_full_effect_alpha", systemImage: "sparkles.rectangle.stack")
+            }
+            .disabled(!canExportRenderedVideo)
+        } label: {
+            Label("export_davinci_resolve", systemImage: "camera.filters")
+        }
+
+        Menu {
+            Button {
+                handleExportDelivery(.ttml)
+            } label: {
+                Label("export_editable_subtitles_ttml", systemImage: "captions.bubble")
+            }
+
+            Button {
+                handleExportSoftSubtitles(.srt)
+            } label: {
+                Label("export_compatible_subtitles_srt", systemImage: "doc.text")
+            }
+
+            Button {
+                handleExportDelivery(.premiereXMLPNG)
+            } label: {
+                Label("export_graphics_timeline_xml_png", systemImage: "photo.on.rectangle.angled")
+            }
+
+            Button {
+                handleExportAlphaVideo()
+            } label: {
+                Label("export_full_effect_alpha", systemImage: "sparkles.rectangle.stack")
+            }
+            .disabled(!canExportRenderedVideo)
+        } label: {
+            Label("export_adobe_premiere", systemImage: "play.rectangle")
+        }
+
+        Menu {
+            Button {
+                handleExportDelivery(.afterEffectsPNGSequence)
+            } label: {
+                Label("export_png_sequence", systemImage: "photo.stack")
+            }
+
+            Button {
+                handleExportAlphaVideo()
+            } label: {
+                Label("export_full_effect_prores_alpha", systemImage: "sparkles.rectangle.stack")
+            }
+            .disabled(!canExportRenderedVideo)
+        } label: {
+            Label("export_after_effects", systemImage: "wand.and.stars")
+        }
+
+        Menu {
+            Button {
+                handleExportDelivery(.avidDS)
+            } label: {
+                Label("export_avid_ds_caption", systemImage: "captions.bubble")
+            }
+
+            Button {
+                handleExportAlphaVideo()
+            } label: {
+                Label("export_alpha_video", systemImage: "sparkles.rectangle.stack")
+            }
+            .disabled(!canExportRenderedVideo)
+        } label: {
+            Label("export_avid_media_composer", systemImage: "film")
+        }
+
+        Menu {
+            Section {
+                Button {
+                    handleExportDelivery(.ttml)
+                } label: {
+                    Label("export_ttml_timed_text", systemImage: "network")
+                }
+                Button {
+                    handleExportDelivery(.imsc1)
+                } label: {
+                    Label("export_imsc1_delivery", systemImage: "dot.radiowaves.left.and.right")
+                }
+            }
+
+            Section {
+                Button {
+                    handleExportDelivery(.scc)
+                } label: {
+                    Label("export_scc_cea608", systemImage: "tv")
+                }
+                Button {
+                    handleExportDelivery(.mcc)
+                } label: {
+                    Label("export_mcc_broadcast", systemImage: "tv.badge.wifi")
+                }
+                Button {
+                    handleExportDelivery(.ebuSTL)
+                } label: {
+                    Label("export_ebu_stl_latin", systemImage: "antenna.radiowaves.left.and.right")
+                }
+            }
+        } label: {
+            Label("export_broadcast_ott", systemImage: "dot.radiowaves.left.and.right")
+        }
+
+        Divider()
+
+        Menu {
+            Button {
+                handleExportSoftSubtitles(.srt)
+            } label: {
+                Label("format_srt", systemImage: "doc.text")
+            }
+            Button {
+                handleExportSoftSubtitles(.ass)
+            } label: {
+                Label("format_ass", systemImage: "doc.richtext")
+            }
+            Button {
+                handleExportSoftSubtitles(.lrc)
+            } label: {
+                Label("format_lrc", systemImage: "music.note.list")
+            }
+            Button {
+                handleExportSoftSubtitles(.vtt)
+            } label: {
+                Label("format_vtt", systemImage: "text.bubble")
+            }
+        } label: {
+            Label("export_other_subtitle_formats", systemImage: "doc.text")
+        }
+
+        Menu {
+            Button {
+                handleExportDelivery(.csv)
+            } label: {
+                Label("format_csv", systemImage: "doc.text")
+            }
+            Button {
+                handleExportDelivery(.excel)
+            } label: {
+                Label("format_excel", systemImage: "tablecells.fill")
+            }
+        } label: {
+            Label("export_data_reports", systemImage: "tablecells")
+        }
+
+        Divider()
+
+        Button {
+            handleSaveProjectAs()
+        } label: {
+            Label("strophe_project_strophe", systemImage: "folder")
         }
     }
 }

@@ -681,7 +681,7 @@
 
 "trademarks_label" = "商標";
 "disclaimer_label" = "免責事項";
-"trademark_disclaimer" = "商標免責事項\n\n本ソフトウェア内で言及されているすべての第三者の製品名、ロゴ、ブランド、および商標（OpenAI、Anthropic、Google、Google AI Studio、xAI、Grok、DeepSeek、NVIDIA、NVIDIA NIM、Ollama、Meta、Llama、Moonshot AI、Kimi、MiniMax、ByteDance、火山引擎、PLaMo、百度、百度千帆、Modal、Tencent、Tencent Cloud、OpenRouter、Sakana AI、Cloudflare、智譜 AI、GLM、Alibaba、通義千問、FFmpeg、dav1dなどを含みますがこれらに限定されません）は、それぞれの所有者の財産です。\n\n本ソフトウェアにおけるこれらの名称の使用は、互換性、技術的相互運用性、およびサポートされるサービスの識別のみを目的としています。これらの商標所有者による提携、スポンサーシップ、パートナーシップ、推奨、または承認を意味するものではありません。Stropheは独立して開発されたアプリケーションであり、すべてのサードパーティ連携は互換性および実用性の目的のみで提供されています。\n\nさらに、本ソフトウェアで言及されている Apple、ProRes、Apple ProRes、macOS、iOS、iPadOS、VideoToolbox、AVFoundation、およびその他の Apple 関連の製品名、ロゴ、またはフォーマット名は、米国およびその他の国における Apple Inc. の商標または登録商標です。Stropheは独立したソフトウェアアプリケーションであり、Apple Inc. との関係、提携、接続、パートナーシップ、スポンサーシップ、または推奨関係はありません。Apple の技術およびメディアフォーマットへの言及は、これらの映像・音声フレームワークおよびフォーマットとの技術的互換性を指定することのみを目的としています。";
+"trademark_disclaimer" = "商標免責事項\n\n本ソフトウェア内で言及されているすべての第三者の製品名、ロゴ、ブランド、および商標（OpenAI、Anthropic、Google、Google AI Studio、xAI、Grok、DeepSeek、NVIDIA、NVIDIA NIM、Ollama、Meta、Llama、Moonshot AI、Kimi、MiniMax、ByteDance、火山引擎、PLaMo、百度、百度千帆、Modal、Tencent、Tencent Cloud、OpenRouter、Sakana AI、Cloudflare、智譜 AI、GLM、Alibaba、通義千問、Adobe、Adobe Premiere Pro、Adobe After Effects、Avid、Avid Media Composer、Blackmagic Design、DaVinci Resolve、FFmpeg、dav1dなどを含みますがこれらに限定されません）は、それぞれの所有者の財産です。\n\n本ソフトウェアにおけるこれらの名称の使用は、互換性、技術的相互運用性、およびサポートされるサービスの識別のみを目的としています。これらの商標所有者による提携、スポンサーシップ、パートナーシップ、推奨、または承認を意味するものではありません。Stropheは独立して開発されたアプリケーションであり、すべてのサードパーティ連携は互換性および実用性の目的のみで提供されています。\n\nさらに、本ソフトウェアで言及されている Apple、Final Cut Pro、ProRes、Apple ProRes、macOS、iOS、iPadOS、VideoToolbox、AVFoundation、およびその他の Apple 関連の製品名、ロゴ、またはフォーマット名は、米国およびその他の国における Apple Inc. の商標または登録商標です。Stropheは独立したソフトウェアアプリケーションであり、Apple Inc. との関係、提携、接続、パートナーシップ、スポンサーシップ、または推奨関係はありません。Apple の技術およびメディアフォーマットへの言及は、これらの映像・音声フレームワークおよびフォーマットとの技術的互換性を指定することのみを目的としています。";
 
 "eula_label" = "エンドユーザー使用許諾契約";
 "cloud_agreement_label" = "クラウド利用規約";
@@ -927,8 +927,11 @@ Spencer Maqaは、本規約を随時変更する権利を留保します。重�
 "project_recovery_restoring" = "プロジェクトを復元中…";
 "project_recovery_confirm_title" = "このスナップショットを復元しますか？";
 "project_recovery_confirm_message" = "現在の編集状態は置き換えられます。復元したプロジェクトは「別名で保存」するまで保存されません。";
-"project_recovery_failed" = "復元に失敗しました";
-"project_recovery_recovered_name" = "復元済みプロジェクト";
+"project_recovery_failed" = "復元失敗";
+"project_recovery_recovered_name" = "復元されたプロジェクト";
+"project_recovery_clear_all" = "すべて一括消去";
+"project_recovery_clear_confirm_title" = "すべてのスナップショットを消去しますか？";
+"project_recovery_clear_confirm_message" = "保存されたすべてのプロジェクトスナップショットが永久に削除されます。この操作は取り消せません。";
 
 "media_access_missing" = "リンクされたメディアファイルが見つかりません。";
 "media_access_permission_denied" = "リンクされたメディアファイルを読み取る権限がありません。";
@@ -1040,3 +1043,35 @@ Spencer Maqaは、本規約を随時変更する権利を留保します。重�
 "karaoke_diagnostic_overlapping_text" = "タイミング単位の文字範囲が重複しています。";
 "karaoke_diagnostic_overlapping_time" = "タイミング単位の時間が重複しています。";
 "karaoke_diagnostic_uncovered_text" = "一部の表示テキストにカラオケタイミングがありません。";
+
+/* プロフェッショナル納品 */
+"professional_delivery_export" = "プロフェッショナル書き出し";
+"professional_export_no_timed_subtitles" = "書き出せる有効なタイミング字幕がありません。";
+"professional_export_render_failed_format" = "字幕グラフィックをレンダリングできませんでした：%@";
+"professional_export_png_failed" = "字幕グラフィックを PNG にエンコードできませんでした。";
+"professional_export_create_failed_format" = "クローズドキャプション出力を作成できませんでした：%@";
+"professional_export_header_failed_format" = "クローズドキャプションのヘッダーを書き込めませんでした：%@";
+"professional_export_write_failed_format" = "クローズドキャプションのデータを書き込めませんでした：%@";
+"export_final_cut_pro" = "Final Cut Pro";
+"export_editable_subtitles_fcpxml" = "編集可能な字幕（FCPXML）";
+"export_full_effect_prores_alpha" = "完全なエフェクト（ProRes 4444 Alpha）";
+"export_davinci_resolve" = "DaVinci Resolve";
+"export_plain_subtitles_srt" = "標準字幕（SRT）";
+"export_full_effect_alpha" = "完全なエフェクト（Alpha ビデオ）";
+"export_adobe_premiere" = "Adobe Premiere Pro";
+"export_editable_subtitles_ttml" = "編集可能な字幕（TTML）";
+"export_compatible_subtitles_srt" = "互換字幕（SRT）";
+"export_graphics_timeline_xml_png" = "グラフィックタイムライン（XML＋PNG）";
+"export_after_effects" = "After Effects";
+"export_png_sequence" = "PNG シーケンス";
+"export_avid_media_composer" = "Avid Media Composer";
+"export_avid_ds_caption" = "編集可能な字幕（Avid DS）";
+"export_alpha_video" = "Alpha ビデオ";
+"export_broadcast_ott" = "放送 / OTT";
+"export_ttml_timed_text" = "時限テキスト納品（TTML）";
+"export_imsc1_delivery" = "OTT 納品（IMSC 1）";
+"export_scc_cea608" = "北米放送（SCC / CEA-608）";
+"export_mcc_broadcast" = "放送アンシラリーデータ（MCC）";
+"export_ebu_stl_latin" = "欧州放送・ラテン文字（EBU STL）";
+"export_other_subtitle_formats" = "その他の字幕形式";
+"export_data_reports" = "データとレポート";

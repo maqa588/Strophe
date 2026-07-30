@@ -283,8 +283,30 @@ extension SubtitleProject {
     }
 
     func subtitleDocument(for format: SubtitleFormat) -> SubtitleDocument {
-        let blocks = items.compactMap { item -> SubtitleBlock? in
-            guard let start = item.startTime, let end = item.endTime else { return nil }
+        let store = StyleAndGroupStore.shared
+        let eligibleItems = items.filter { item in
+            guard !item.isHidden,
+                  let start = item.startTime,
+                  let end = item.endTime,
+                  start.isFinite,
+                  end.isFinite,
+                  end > start else {
+                return false
+            }
+            guard let group = store.group(id: item.groupID) else {
+                return true
+            }
+            switch group.exportPolicy {
+            case .includeInAllExports, .textOnly:
+                return true
+            case .burnedInOnly, .excludeByDefault, .referenceOnly:
+                return false
+            }
+        }
+        let blocks = eligibleItems.compactMap { item -> SubtitleBlock? in
+            guard let start = item.startTime, let end = item.endTime else {
+                return nil
+            }
             return SubtitleBlock(
                 id: item.id,
                 startTime: start,
@@ -299,7 +321,23 @@ extension SubtitleProject {
         let source = subtitleSourceDocuments.first {
             $0.format == format && referencedDocumentIDs.contains($0.id)
         }
-        return SubtitleDocument(format: format, blocks: blocks, source: source)
+        var document = SubtitleDocument(
+            format: format,
+            blocks: blocks,
+            source: source
+        )
+        document.karaokeExportStates = Dictionary(
+            uniqueKeysWithValues: eligibleItems.compactMap { item in
+                guard item.startTime != nil, item.endTime != nil else {
+                    return nil
+                }
+                if let program = item.activeKaraoke {
+                    return (item.id, .enabled(program))
+                }
+                return (item.id, .disabled)
+            }
+        )
+        return document
     }
 
     private func importASSStylesIfNeeded(from source: SubtitleSourceDocument) -> [String: UUID] {
@@ -620,6 +658,25 @@ extension SubtitleProject {
     private func syncKaraokeEditorToPlayhead(activeGroupID: UUID?) {
         guard activeSlapSubtitleID == nil else { return }
 
+        if isKaraokeEditorManuallyClosed {
+            if karaokeEditingItemID != nil {
+                karaokeEditingItemID = nil
+            }
+            return
+        }
+
+        // Playback ticks arrive at the video's frame rate. Once the ordinary
+        // cue containing the playhead has already established the current-index
+        // cache, there is no Karaoke state to synchronize until that cue ends.
+        // Avoid doing timeline queries on every tick in that common case.
+        if karaokeEditingItemID == nil,
+           karaokeEditorDismissedItemID == nil,
+           currentIndexCacheGroupID == activeGroupID,
+           currentTime >= currentIndexCacheLowerBound,
+           currentTime < currentIndexCacheUpperBound {
+            return
+        }
+
         if let editingID = karaokeEditingItemID,
            let editingItem = timelineIndex.item(id: editingID),
            editingItem.activeKaraoke != nil,
@@ -639,8 +696,8 @@ extension SubtitleProject {
             return
         }
 
-        let activeItem = timelineIndex
-            .visibleItems(in: currentTime...currentTime)
+        let visibleItems = timelineIndex.visibleItems(in: currentTime...currentTime)
+        let activeItem = visibleItems
             .filter { item in
                 guard item.activeKaraoke != nil,
                       let start = item.startTime,
@@ -661,7 +718,9 @@ extension SubtitleProject {
             if karaokeEditorDismissedItemID == activeItem.id {
                 return
             }
-            karaokeEditorDismissedItemID = nil
+            if karaokeEditorDismissedItemID != nil {
+                karaokeEditorDismissedItemID = nil
+            }
             let desiredSelection: Set<UUID> = [activeItem.id]
             if selectedIDs != desiredSelection {
                 selectedIDs = desiredSelection
@@ -670,24 +729,29 @@ extension SubtitleProject {
                 karaokeEditingItemID = activeItem.id
             }
         } else {
-            let hasVisibleSubtitle = timelineIndex
-                .visibleItems(in: currentTime...currentTime)
-                .contains { item in
-                    guard let start = item.startTime,
-                          let end = item.endTime,
-                          currentTime >= start,
-                          currentTime < end else {
-                        return false
-                    }
-                    if let activeGroupID {
-                        return belongsToGroup(item, groupID: activeGroupID)
-                    }
-                    return true
+            let hasVisibleSubtitle = visibleItems.contains { item in
+                guard let start = item.startTime,
+                      let end = item.endTime,
+                      currentTime >= start,
+                      currentTime < end else {
+                    return false
                 }
+                if let activeGroupID {
+                    return belongsToGroup(item, groupID: activeGroupID)
+                }
+                return true
+            }
 
             if hasVisibleSubtitle {
-                karaokeEditingItemID = nil
-                karaokeEditorDismissedItemID = nil
+                // @Published emits even when assigning nil to nil. These guards
+                // are important: without them every playback tick invalidates
+                // the entire editor view hierarchy for an ordinary subtitle.
+                if karaokeEditingItemID != nil {
+                    karaokeEditingItemID = nil
+                }
+                if karaokeEditorDismissedItemID != nil {
+                    karaokeEditorDismissedItemID = nil
+                }
             } else if let editingID = karaokeEditingItemID {
                 // Empty timeline gaps retain the last Karaoke inspector. Only
                 // discard it if its source cue no longer exists or was disabled.

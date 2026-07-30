@@ -30,13 +30,15 @@ struct TimelineToolbarView: View {
     // Local state variables for layout and rendering, keeping body evaluations isolated
     @State var targetSpeed: Double = 1.0
     @State var showSoftSubtitles: Bool = false
-    @State var showHardSubtitles: Bool = false
+    @State var showHardSubtitles: Bool = true
     @State var editingMode: TimelineEditingMode = .selection
     @State var videoURL: URL? = nil
     @State var isAudioOnly: Bool = false
     @State var videoFrameRate: Double = 30.0
     @State var waveformData: WaveformData? = nil
     @State var playbackRate: Double = 0.0
+    @State var isScrubbing: Bool = false
+    @State var isSeeking: Bool = false
     @State var isEditingText: Bool = false
     
     @State var showSoftSubtitlesTip = false
@@ -195,6 +197,12 @@ struct TimelineToolbarView: View {
         }
         if playbackRate != project.playbackRate {
             playbackRate = project.playbackRate
+        }
+        if isScrubbing != project.isScrubbing {
+            isScrubbing = project.isScrubbing
+        }
+        if isSeeking != project.isSeeking {
+            isSeeking = project.isSeeking
         }
         if isEditingText != project.isEditingText {
             isEditingText = project.isEditingText

@@ -23,7 +23,10 @@ struct MainContentView: View {
     @State private var isShowingDeliveryExport = false
     @State private var deliveryFormat: SubtitleDeliveryFormat = .csv
     @State private var deliveryData = Data()
+    @State private var deliveryErrorMessage: String?
     @State private var hardSubtitleSettings = HardSubtitleVideoExportSettings()
+    @State private var hardSubtitleSettingsBeforeAlphaPreset:
+        HardSubtitleVideoExportSettings?
     @StateObject private var hardSubtitleExport = HardSubtitleExportCoordinator()
     @StateObject private var embeddedSubtitleExport = EmbeddedSubtitleExportCoordinator()
     @State private var isShowingDiscardProjectAlert = false
@@ -121,12 +124,10 @@ struct MainContentView: View {
                     #endif
                 },
                 onExportHardSubtitles: {
-                    hardSubtitleSettings.rangeStartSeconds = project.inPoint
-                    hardSubtitleSettings.rangeEndSeconds = project.outPoint
-                    if !hasValidProjectExportRange {
-                        hardSubtitleSettings.usesProjectRange = false
-                    }
-                    isShowingHardSubtitleExportSettings = true
+                    prepareHardSubtitleExport()
+                },
+                onExportAlphaVideo: {
+                    prepareAlphaVideoExport()
                 },
                 onExportDelivery: { format in
                     exportDelivery(format)
@@ -156,6 +157,29 @@ struct MainContentView: View {
         #endif
         .onReceive(NotificationCenter.default.publisher(for: .stropheImportMedia)) { _ in
             requestImportMedia()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheExportSoftSubtitles)) { notification in
+            if let format = notification.object as? SubtitleFormat {
+                exportSubtitles(format: format)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheExportEmbeddedSubtitles)) { _ in
+            #if os(macOS)
+            showEmbeddedSubtitleSavePanel()
+            #else
+            isShowingEmbeddedSubtitleExport = true
+            #endif
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheExportHardSubtitles)) { _ in
+            prepareHardSubtitleExport()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheExportAlphaVideo)) { _ in
+            prepareAlphaVideoExport()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stropheExportDelivery)) { notification in
+            if let format = notification.object as? SubtitleDeliveryFormat {
+                exportDelivery(format)
+            }
         }
         .fileExporter(
             isPresented: $isShowingExport,
@@ -236,6 +260,22 @@ struct MainContentView: View {
             Text(message)
         }
         .alert(
+            String(localized: "professional_delivery_export"),
+            isPresented: Binding(
+                get: { deliveryErrorMessage != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        deliveryErrorMessage = nil
+                    }
+                }
+            ),
+            presenting: deliveryErrorMessage
+        ) { _ in
+            Button(String(localized: "ok"), role: .cancel) {}
+        } message: { message in
+            Text(message)
+        }
+        .alert(
             String(localized: "discard_original_project_confirm"),
             isPresented: $isShowingDiscardProjectAlert
         ) {
@@ -264,7 +304,10 @@ struct MainContentView: View {
         } else {
             baseName = "hard-subtitles"
         }
-        return "\(baseName)-hard-subtitles.\(hardSubtitleSettings.codec.fileExtension)"
+        let qualifier = hardSubtitleSettings.rendersTransparentBackground
+            ? "alpha"
+            : "hard-subtitles"
+        return "\(baseName)-\(qualifier).\(hardSubtitleSettings.codec.fileExtension)"
     }
 
     private var embeddedSubtitleDefaultFilename: String {
@@ -353,14 +396,52 @@ struct MainContentView: View {
     }
 
     private func exportDelivery(_ format: SubtitleDeliveryFormat) {
-        deliveryFormat = format
-        deliveryData = SubtitleDeliveryExporter.export(project: project, format: format)
-        isShowingDeliveryExport = true
+        do {
+            deliveryFormat = format
+            deliveryData = try SubtitleDeliveryExporter.export(
+                project: project,
+                format: format
+            )
+            isShowingDeliveryExport = true
+        } catch {
+            deliveryErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func prepareAlphaVideoExport() {
+        if hardSubtitleSettingsBeforeAlphaPreset == nil {
+            hardSubtitleSettingsBeforeAlphaPreset = hardSubtitleSettings
+        }
+        hardSubtitleSettings.codec = .proRes4444
+        hardSubtitleSettings.exportsTransparentBackground = true
+        hardSubtitleSettings.exportsHDR = false
+        hardSubtitleSettings.includedAudioTrackOrdinals = []
+        hardSubtitleSettings.rangeStartSeconds = project.inPoint
+        hardSubtitleSettings.rangeEndSeconds = project.outPoint
+        if !hasValidProjectExportRange {
+            hardSubtitleSettings.usesProjectRange = false
+        }
+        isShowingHardSubtitleExportSettings = true
+    }
+
+    private func prepareHardSubtitleExport() {
+        if let previousSettings = hardSubtitleSettingsBeforeAlphaPreset {
+            hardSubtitleSettings = previousSettings
+            hardSubtitleSettingsBeforeAlphaPreset = nil
+        } else {
+            hardSubtitleSettings.exportsTransparentBackground = false
+        }
+        hardSubtitleSettings.rangeStartSeconds = project.inPoint
+        hardSubtitleSettings.rangeEndSeconds = project.outPoint
+        if !hasValidProjectExportRange {
+            hardSubtitleSettings.usesProjectRange = false
+        }
+        isShowingHardSubtitleExportSettings = true
     }
 
     private var deliveryBaseName: String {
         let name = project.documentDisplayName.isEmpty ? "subtitles" : project.documentDisplayName
-        return "\(name)-subtitles"
+        return "\(name)-\(deliveryFormat.filenameQualifier)"
     }
 
     private func exportHardSubtitleVideo(to url: URL) {

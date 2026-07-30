@@ -225,4 +225,9 @@ extension Notification.Name {
     static let stropheScrubTimeChanged = Notification.Name("com.strophe.scrubTimeChanged")
     static let stropheShowWelcome = Notification.Name("com.strophe.showWelcome")
     static let stropheShowSuccessToast = Notification.Name("com.strophe.showSuccessToast")
+    static let stropheExportSoftSubtitles = Notification.Name("com.strophe.exportSoftSubtitles")
+    static let stropheExportEmbeddedSubtitles = Notification.Name("com.strophe.exportEmbeddedSubtitles")
+    static let stropheExportHardSubtitles = Notification.Name("com.strophe.exportHardSubtitles")
+    static let stropheExportAlphaVideo = Notification.Name("com.strophe.exportAlphaVideo")
+    static let stropheExportDelivery = Notification.Name("com.strophe.exportDelivery")
 }

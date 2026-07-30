@@ -13,6 +13,13 @@ public struct SubtitleDocument: Equatable, Sendable {
     public var format: SubtitleFormat
     public var blocks: [SubtitleBlock]
     public var source: SubtitleSourceDocument?
+    /// Export-only presentation state supplied by `SubtitleProject`.
+    ///
+    /// Parsed documents leave this dictionary empty so lossless format
+    /// round-tripping can preserve source markup verbatim. Project exports
+    /// populate every cue, making the editor's current Karaoke switch and
+    /// timing authoritative over any stale source-format tags.
+    var karaokeExportStates: [UUID: SubtitleKaraokeExportState]
 
     public init(
         format: SubtitleFormat,
@@ -22,7 +29,13 @@ public struct SubtitleDocument: Equatable, Sendable {
         self.format = format
         self.blocks = blocks
         self.source = source
+        karaokeExportStates = [:]
     }
+}
+
+enum SubtitleKaraokeExportState: Equatable, Sendable {
+    case disabled
+    case enabled(KaraokeProgram)
 }
 
 public struct SubtitleParseDiagnostic: Equatable, Sendable {

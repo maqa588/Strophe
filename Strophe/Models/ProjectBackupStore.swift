@@ -18,13 +18,24 @@ nonisolated struct ProjectBackupSnapshot: Identifiable, Codable, Equatable, Send
 /// document, so replacing or corrupting a `.strophe` file does not erase its
 /// recovery history.
 nonisolated enum ProjectBackupStore {
-    static let maximumSnapshotsPerProject = 30
+    static let maximumSnapshotsPerProject = 50
 
     static var rootDirectory: URL? {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
             .first?
             .appendingPathComponent("Strophe", isDirectory: true)
             .appendingPathComponent("ProjectBackups", isDirectory: true)
+    }
+
+    static func clearAll(rootDirectoryOverride: URL? = nil) {
+        guard let storageRoot = rootDirectoryOverride ?? rootDirectory else {
+            return
+        }
+        do {
+            try FileManager.default.removeItem(at: storageRoot)
+        } catch {
+            print("⚠️ Clear all snapshots failed: \(error.localizedDescription)")
+        }
     }
 
     static func archive(

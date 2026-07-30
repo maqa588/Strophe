@@ -681,7 +681,7 @@
 
 "trademarks_label" = "العلامات التجارية";
 "disclaimer_label" = "إخلاء المسؤولية";
-"trademark_disclaimer" = "إخلاء مسؤولية العلامات التجارية\n\nجميع أسماء المنتجات والشعارات والعلامات التجارية التابعة لجهات خارجية والمشار إليها في هذا البرنامج - بما في ذلك على سبيل المثال لا الحصر OpenAI و Anthropic و Google و Google AI Studio و xAI و Grok و DeepSeek و NVIDIA و NVIDIA NIM و Ollama و Meta و Llama و Moonshot AI و Kimi و MiniMax و ByteDance و Volcengine و PLaMo و Baidu و Baidu Qianfan و Modal و Tencent و Tencent Cloud و OpenRouter و Sakana AI و Cloudflare و Zhipu AI و GLM و Alibaba و Tongyi Qwen و FFmpeg و dav1d وغيرها - هي ملك لأصحابها المعنيين.\n\nاستخدام هذه الأسماء في هذا البرنامج هو فقط لغرض التوافق والتشغيل البيني التقني وتحديد الخدمات المدعومة. لا يعني ذلك أي انتساب أو رعاية أو شراكة أو تأييد أو موافقة من قبل أصحاب هذه العلامات التجارية. Strophe هو تطبيق تم تطويره بشكل مستقل، ويتم تقديم جميع عمليات تكامل الجهات الخارجية فقط لأغراض التوافق والفائدة.\n\nعلاوة على ذلك، فإن Apple و ProRes و Apple ProRes و macOS و iOS و iPadOS و VideoToolbox و AVFoundation وأي أسماء منتجات أو شعارات أو أسماء تنسيقات أخرى متعلقة بشركة Apple والمشار إليها في هذا البرنامج هي علامات تجارية أو علامات تجارية مسجلة لشركة Apple Inc. في الولايات المتحدة ودول أخرى. Strophe هو تطبيق مستقل وليس له أي علاقة أو انتساب أو اتصال أو شراكة أو رعاية أو تأييد مع شركة Apple Inc. الإشارات إلى تقنيات Apple وتنسيقات الوسائط هي فقط لتحديد التوافق التقني مع أطر ونسق الصوت والفيديو هذه.";
+"trademark_disclaimer" = "إخلاء مسؤولية العلامات التجارية\n\nجميع أسماء المنتجات والشعارات والعلامات التجارية التابعة لجهات خارجية والمشار إليها في هذا البرنامج - بما في ذلك على سبيل المثال لا الحصر OpenAI و Anthropic و Google و Google AI Studio و xAI و Grok و DeepSeek و NVIDIA و NVIDIA NIM و Ollama و Meta و Llama و Moonshot AI و Kimi و MiniMax و ByteDance و Volcengine و PLaMo و Baidu و Baidu Qianfan و Modal و Tencent و Tencent Cloud و OpenRouter و Sakana AI و Cloudflare و Zhipu AI و GLM و Alibaba و Tongyi Qwen و Adobe و Adobe Premiere Pro و Adobe After Effects و Avid و Avid Media Composer و Blackmagic Design و DaVinci Resolve و FFmpeg و dav1d وغيرها - هي ملك لأصحابها المعنيين.\n\nاستخدام هذه الأسماء في هذا البرنامج هو فقط لغرض التوافق والتشغيل البيني التقني وتحديد الخدمات المدعومة. لا يعني ذلك أي انتساب أو رعاية أو شراكة أو تأييد أو موافقة من قبل أصحاب هذه العلامات التجارية. Strophe هو تطبيق تم تطويره بشكل مستقل، ويتم تقديم جميع عمليات تكامل الجهات الخارجية فقط لأغراض التوافق والفائدة.\n\nعلاوة على ذلك، فإن Apple و Final Cut Pro و ProRes و Apple ProRes و macOS و iOS و iPadOS و VideoToolbox و AVFoundation وأي أسماء منتجات أو شعارات أو أسماء تنسيقات أخرى متعلقة بشركة Apple والمشار إليها في هذا البرنامج هي علامات تجارية أو علامات تجارية مسجلة لشركة Apple Inc. في الولايات المتحدة ودول أخرى. Strophe هو تطبيق مستقل وليس له أي علاقة أو انتساب أو اتصال أو شراكة أو رعاية أو تأييد مع شركة Apple Inc. الإشارات إلى تقنيات Apple وتنسيقات الوسائط هي فقط لتحديد التوافق التقني مع أطر ونسق الصوت والفيديو هذه.";
 
 "eula_label" = "اتفاقية ترخيص المستخدم النهائي";
 "cloud_agreement_label" = "اتفاقية استخدام السحابة";
@@ -929,6 +929,9 @@
 "project_recovery_confirm_message" = "سيتم استبدال حالة التحرير الحالية. سيبقى المشروع المسترد غير محفوظ حتى تستخدم «حفظ باسم».";
 "project_recovery_failed" = "فشل الاسترداد";
 "project_recovery_recovered_name" = "مشروع مسترد";
+"project_recovery_clear_all" = "مسح الكل";
+"project_recovery_clear_confirm_title" = "مسح جميع اللقطات؟";
+"project_recovery_clear_confirm_message" = "سيؤدي هذا الإجراء إلى حذف جميع لقطات المشروع المحفوظة نهائيًا ولا يمكن التراجع عنه.";
 
 "media_access_missing" = "تعذر العثور على ملف الوسائط المرتبط.";
 "media_access_permission_denied" = "لا يملك Strophe إذنًا لقراءة ملف الوسائط المرتبط.";
@@ -1040,3 +1043,35 @@
 "karaoke_diagnostic_overlapping_text" = "وحدات التوقيت تغطي أحرفًا متداخلة.";
 "karaoke_diagnostic_overlapping_time" = "وحدات التوقيت متداخلة زمنيًا.";
 "karaoke_diagnostic_uncovered_text" = "بعض النص الظاهر بلا توقيت كاريوكي.";
+
+/* التسليم الاحترافي */
+"professional_delivery_export" = "تصدير احترافي";
+"professional_export_no_timed_subtitles" = "لا توجد ترجمات موقّتة صالحة للتصدير.";
+"professional_export_render_failed_format" = "تعذّر عرض رسم الترجمة: %@";
+"professional_export_png_failed" = "تعذّر ترميز رسم الترجمة بصيغة PNG.";
+"professional_export_create_failed_format" = "تعذّر إنشاء ملف الشرح المغلق: %@";
+"professional_export_header_failed_format" = "تعذّرت كتابة رأس ملف الشرح المغلق: %@";
+"professional_export_write_failed_format" = "تعذّرت كتابة بيانات الشرح المغلق: %@";
+"export_final_cut_pro" = "Final Cut Pro";
+"export_editable_subtitles_fcpxml" = "ترجمة قابلة للتحرير (FCPXML)";
+"export_full_effect_prores_alpha" = "التأثيرات الكاملة (ProRes 4444 Alpha)";
+"export_davinci_resolve" = "DaVinci Resolve";
+"export_plain_subtitles_srt" = "ترجمة عادية (SRT)";
+"export_full_effect_alpha" = "التأثيرات الكاملة (فيديو Alpha)";
+"export_adobe_premiere" = "Adobe Premiere Pro";
+"export_editable_subtitles_ttml" = "ترجمة قابلة للتحرير (TTML)";
+"export_compatible_subtitles_srt" = "ترجمة متوافقة (SRT)";
+"export_graphics_timeline_xml_png" = "مخطط رسومي (XML + PNG)";
+"export_after_effects" = "After Effects";
+"export_png_sequence" = "تسلسل PNG";
+"export_avid_media_composer" = "Avid Media Composer";
+"export_avid_ds_caption" = "شرح قابل للتحرير (Avid DS)";
+"export_alpha_video" = "فيديو Alpha";
+"export_broadcast_ott" = "البث / OTT";
+"export_ttml_timed_text" = "نص موقّت للتسليم (TTML)";
+"export_imsc1_delivery" = "تسليم OTT ‏(IMSC 1)";
+"export_scc_cea608" = "البث في أمريكا الشمالية (SCC / CEA-608)";
+"export_mcc_broadcast" = "بيانات البث المساعدة (MCC)";
+"export_ebu_stl_latin" = "البث الأوروبي، نص لاتيني (EBU STL)";
+"export_other_subtitle_formats" = "تنسيقات ترجمة أخرى";
+"export_data_reports" = "البيانات والتقارير";

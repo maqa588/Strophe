@@ -241,7 +241,7 @@ final class ProjectMigrationAndEditingTests: XCTestCase {
         let projectID = try XCTUnwrap(projectData.metadata.projectID)
         let encoded = try JSONEncoder().encode(projectData)
 
-        for index in 0..<35 {
+        for index in 0..<55 {
             ProjectBackupStore.archive(
                 encoded,
                 projectID: projectID,

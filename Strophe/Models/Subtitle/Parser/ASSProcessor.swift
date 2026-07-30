@@ -183,8 +183,11 @@ struct ASSProcessor: SubtitleProcessor {
             var values = cue?.fields ?? [:]
             values["start"] = SubtitleTimeFormatter.format(seconds: block.startTime, format: .ass)
             values["end"] = SubtitleTimeFormatter.format(seconds: block.endTime, format: .ass)
-            values["text"] = cue?.styledText.encoded(editableText: block.text)
-                ?? block.text.replacingOccurrences(of: "\n", with: "\\N")
+            values["text"] = encodedText(
+                for: block,
+                styledText: cue?.styledText,
+                karaokeState: document.karaokeExportStates[block.id]
+            )
 
             let serializedFields = eventFormat.map { fieldName -> String in
                 let key = fieldName.lowercased()
@@ -194,6 +197,198 @@ struct ASSProcessor: SubtitleProcessor {
             output += "\(cue?.eventType ?? "Dialogue"): \(serializedFields.joined(separator: ","))\n"
         }
         return output
+    }
+
+    private func encodedText(
+        for block: SubtitleBlock,
+        styledText: PreservedStyledText?,
+        karaokeState: SubtitleKaraokeExportState?
+    ) -> String {
+        // A parser-to-writer round trip has no project presentation state and
+        // must remain lossless, including any source Karaoke tags.
+        guard let karaokeState else {
+            return styledText?.encoded(editableText: block.text)
+                ?? encodePlainText(block.text)
+        }
+
+        let preservedTokens = (styledText?.tokens ?? []).compactMap {
+            sanitizedASSOverrideToken($0)
+        }
+        switch karaokeState {
+        case .disabled:
+            return encode(
+                text: block.text,
+                preservedTokens: preservedTokens
+            )
+        case .enabled(let program):
+            let cueDuration = max(0, block.endTime - block.startTime)
+            guard let exportProgram = program.reconciled(
+                to: block.text,
+                cueDuration: cueDuration
+            ) else {
+                return encode(
+                    text: block.text,
+                    preservedTokens: preservedTokens
+                )
+            }
+            return encode(
+                text: block.text,
+                preservedTokens: preservedTokens,
+                karaokeProgram: exportProgram
+            )
+        }
+    }
+
+    private func encode(
+        text: String,
+        preservedTokens: [PreservedInlineToken],
+        karaokeProgram: KaraokeProgram? = nil
+    ) -> String {
+        let characters = Array(text)
+        let groupedTokens = Dictionary(grouping: preservedTokens) {
+            min(max(0, $0.characterOffset), characters.count)
+        }
+        let karaokeTags = karaokeProgram.map {
+            karaokeTagsByCharacterOffset(program: $0)
+        } ?? [:]
+        let templateTag = karaokeProgram.map {
+            assTemplateOverride($0.template)
+        }
+
+        var result = ""
+        for offset in 0...characters.count {
+            if let tokens = groupedTokens[offset] {
+                for token in tokens {
+                    result += token.rawValue
+                }
+            }
+            if offset == 0, let templateTag {
+                result += templateTag
+            }
+            if let tags = karaokeTags[offset] {
+                result += tags.joined()
+            }
+            guard offset < characters.count else { continue }
+            result += encodePlainCharacter(characters[offset])
+        }
+        return result
+    }
+
+    private func karaokeTagsByCharacterOffset(
+        program: KaraokeProgram
+    ) -> [Int: [String]] {
+        let tagName = program.template.revealMode == .sweep ? "kf" : "k"
+        let ordered = program.units.sorted {
+            $0.characterStart == $1.characterStart
+                ? $0.startOffset < $1.startOffset
+                : $0.characterStart < $1.characterStart
+        }
+        var cursorCentiseconds = 0
+        var tags: [Int: [String]] = [:]
+
+        for unit in ordered {
+            let start = max(
+                cursorCentiseconds,
+                Int((max(0, unit.startOffset) * 100).rounded())
+            )
+            let rawEnd = Int((max(0, unit.endOffset) * 100).rounded())
+            let end = max(start + 1, rawEnd)
+            let gap = start - cursorCentiseconds
+            if gap > 0 {
+                // Consecutive Karaoke tags advance libass/Aegisub's Karaoke
+                // clock without introducing a visible spacer glyph.
+                tags[unit.characterStart, default: []].append("{\\k\(gap)}")
+            }
+            tags[unit.characterStart, default: []].append(
+                "{\\\(tagName)\(end - start)}"
+            )
+            cursorCentiseconds = end
+        }
+        return tags
+    }
+
+    private func sanitizedASSOverrideToken(
+        _ token: PreservedInlineToken
+    ) -> PreservedInlineToken? {
+        let raw = token.rawValue
+        guard raw.hasPrefix("{"), raw.hasSuffix("}") else {
+            return token
+        }
+        let content = String(raw.dropFirst().dropLast())
+        guard let regex = try? NSRegularExpression(
+            pattern: #"\\k(?:f|o)?\d+"#,
+            options: [.caseInsensitive]
+        ) else {
+            return token
+        }
+        let range = NSRange(content.startIndex..<content.endIndex, in: content)
+        let stripped = regex.stringByReplacingMatches(
+            in: content,
+            range: range,
+            withTemplate: ""
+        )
+        guard !stripped.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            return nil
+        }
+        return PreservedInlineToken(
+            characterOffset: token.characterOffset,
+            rawValue: "{\(stripped)}"
+        )
+    }
+
+    private func assTemplateOverride(
+        _ template: KaraokeTemplateConfiguration
+    ) -> String {
+        let active = assColorComponents(template.activeColorHex)
+        let inactive = assColorComponents(template.inactiveColorHex)
+        return """
+        {\\1c&H\(active.bgr)&\\2c&H\(inactive.bgr)&\
+        \\1a&H\(active.alpha)&\\2a&H\(inactive.alpha)&}
+        """
+    }
+
+    private func assColorComponents(
+        _ hex: String
+    ) -> (bgr: String, alpha: String) {
+        let raw = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        guard (raw.count == 6 || raw.count == 8),
+              let value = UInt64(raw, radix: 16) else {
+            return ("FFFFFF", "00")
+        }
+        let red: UInt64
+        let green: UInt64
+        let blue: UInt64
+        let opacity: UInt64
+        if raw.count == 8 {
+            red = (value >> 24) & 0xff
+            green = (value >> 16) & 0xff
+            blue = (value >> 8) & 0xff
+            opacity = value & 0xff
+        } else {
+            red = (value >> 16) & 0xff
+            green = (value >> 8) & 0xff
+            blue = value & 0xff
+            opacity = 0xff
+        }
+        return (
+            String(format: "%02X%02X%02X", blue, green, red),
+            String(format: "%02X", 0xff - opacity)
+        )
+    }
+
+    private func encodePlainText(_ text: String) -> String {
+        text.map(encodePlainCharacter).joined()
+    }
+
+    private func encodePlainCharacter(_ character: Character) -> String {
+        if character == "\n" {
+            return "\\N"
+        }
+        if character == "\u{00A0}" {
+            return "\\h"
+        }
+        return String(character)
     }
 
     private func parseStyleMetadata(

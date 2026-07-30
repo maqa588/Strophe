@@ -52,7 +52,12 @@ extension TimelineToolbarView {
                         .timelineInfoBadge(isCompact: isVeryCompact)
                 }
 
-                TimelineView(.animation) { timeline in
+                TimelineView(
+                    .animation(
+                        minimumInterval: playbackClockRefreshInterval,
+                        paused: playbackRate == 0 && !isScrubbing && !isSeeking
+                    )
+                ) { timeline in
                     Text(formatPreciseTime(displayTimelineTime(at: timeline.date)))
                         .timelineInfoBadge(
                             foreground: Color.secondary,
@@ -75,6 +80,11 @@ extension TimelineToolbarView {
         let duration = project.activeEngine?.duration ?? waveformData?.duration ?? rawTime
         let maxTime = duration.isFinite && duration > 0 ? duration : max(rawTime, 0)
         return rawTime.clampedFinite(to: 0...maxTime)
+    }
+
+    var playbackClockRefreshInterval: TimeInterval {
+        let sourceFPS = videoFrameRate.isFinite ? videoFrameRate : 30
+        return 1.0 / min(30.0, max(15.0, sourceFPS))
     }
 
     func formatPreciseTime(_ time: Double) -> String {

@@ -1,4 +1,5 @@
 import XCTest
+import Combine
 @testable import Strophe
 
 final class KaraokeDataTests: XCTestCase {
@@ -687,6 +688,37 @@ final class KaraokeDataTests: XCTestCase {
         project.currentTime = 4.5
         await Task.yield()
         XCTAssertNil(project.karaokeEditorItem)
+    }
+
+    @MainActor
+    func testPlaybackTicksInsideOrdinaryCueDoNotPublishUnchangedKaraokeState() {
+        let ordinary = SubtitleItem(
+            text: "普通字幕",
+            startTime: 1,
+            endTime: 3
+        )
+        let project = SubtitleProject()
+        project.items = [ordinary]
+
+        // Establish the current cue and its cache before observing subsequent
+        // frame-rate playback updates.
+        project.currentTime = 1.1
+
+        var publicationCount = 0
+        let cancellable = project.objectWillChange.sink {
+            publicationCount += 1
+        }
+
+        project.currentTime = 1.2
+        project.currentTime = 1.5
+        project.currentTime = 2.8
+
+        XCTAssertEqual(
+            publicationCount,
+            0,
+            "A playback tick must not invalidate the editor when Karaoke state is unchanged."
+        )
+        withExtendedLifetime(cancellable) {}
     }
 
     @MainActor

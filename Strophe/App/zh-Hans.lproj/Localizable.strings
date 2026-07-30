@@ -681,7 +681,7 @@
 
 "trademarks_label" = "商标";
 "disclaimer_label" = "免责声明";
-"trademark_disclaimer" = "商标免责声明\n\n本软件中提及的所有第三方产品名称、徽标、品牌和商标——包括但不限于 OpenAI、Anthropic、Google、Google AI Studio、xAI、Grok、DeepSeek、NVIDIA、NVIDIA NIM、Ollama、Meta、Llama、Moonshot AI、Kimi、MiniMax、字节跳动、火山引擎、PLaMo、百度、百度千帆、Modal、腾讯、腾讯云、OpenRouter、Sakana AI、Cloudflare、智谱 AI、GLM、阿里巴巴、通义千问、FFmpeg、dav1d 等——均为其各自所有者的财产。\n\n在本软件中使用这些名称仅用于兼容性、技术互操作性及标识所支持的服务。这并不意味着上述商标所有者与本软件存在任何关联、赞助、合作、背书或批准关系。Strophe 是一款独立开发的应用程序，所有第三方集成仅为兼容性和实用性目的而提供。\n\n此外，本软件中提及的 Apple、ProRes、Apple ProRes、macOS、iOS、iPadOS、VideoToolbox、AVFoundation 以及任何其他与 Apple 相关的产品名称、徽标或格式名称均为 Apple Inc. 在美国和其他国家的商标或注册商标。Strophe 是一款独立的软件应用程序，与 Apple Inc. 没有任何关系、关联、连接、合作、赞助或背书。对 Apple 技术和媒体格式的提及仅用于说明与这些音视频框架和格式的技术兼容性。";
+"trademark_disclaimer" = "商标免责声明\n\n本软件中提及的所有第三方产品名称、徽标、品牌和商标——包括但不限于 OpenAI、Anthropic、Google、Google AI Studio、xAI、Grok、DeepSeek、NVIDIA、NVIDIA NIM、Ollama、Meta、Llama、Moonshot AI、Kimi、MiniMax、字节跳动、火山引擎、PLaMo、百度、百度千帆、Modal、腾讯、腾讯云、OpenRouter、Sakana AI、Cloudflare、智谱 AI、GLM、阿里巴巴、通义千问、Adobe、Adobe Premiere Pro、Adobe After Effects、Avid、Avid Media Composer、Blackmagic Design、DaVinci Resolve、FFmpeg、dav1d 等——均为其各自所有者的财产。\n\n在本软件中使用这些名称仅用于兼容性、技术互操作性及标识所支持的服务。这并不意味着上述商标所有者与本软件存在任何关联、赞助、合作、背书或批准关系。Strophe 是一款独立开发的应用程序，所有第三方集成仅为兼容性和实用性目的而提供。\n\n此外，本软件中提及的 Apple、Final Cut Pro、ProRes、Apple ProRes、macOS、iOS、iPadOS、VideoToolbox、AVFoundation 以及任何其他与 Apple 相关的产品名称、徽标或格式名称均为 Apple Inc. 在美国和其他国家的商标或注册商标。Strophe 是一款独立的软件应用程序，与 Apple Inc. 没有任何关系、关联、连接、合作、赞助或背书。对 Apple 技术和媒体格式的提及仅用于说明与这些音视频框架和格式的技术兼容性。";
 
 "eula_label" = "最终用户许可协议";
 "cloud_agreement_label" = "云端使用协议";
@@ -929,6 +929,9 @@ Spencer Maqa 保留不时修改本协议的权利。重大变更将通过应用�
 "project_recovery_confirm_message" = "当前编辑状态将被替换；恢复的工程在执行“另存为”前不会写入磁盘。";
 "project_recovery_failed" = "恢复失败";
 "project_recovery_recovered_name" = "已恢复的工程";
+"project_recovery_clear_all" = "一键清除";
+"project_recovery_clear_confirm_title" = "清除所有快照？";
+"project_recovery_clear_confirm_message" = "此操作将永久删除所有保存的工程快照，且无法撤销。";
 
 "media_access_missing" = "找不到关联的媒体文件。";
 "media_access_permission_denied" = "Strophe 没有读取关联媒体文件的权限。";
@@ -1040,3 +1043,35 @@ Spencer Maqa 保留不时修改本协议的权利。重大变更将通过应用�
 "karaoke_diagnostic_overlapping_text" = "时间单元覆盖了重叠的文字。";
 "karaoke_diagnostic_overlapping_time" = "时间单元在时间上发生重叠。";
 "karaoke_diagnostic_uncovered_text" = "部分可见文字没有卡拉 OK 时间。";
+
+/* 专业交付 */
+"professional_delivery_export" = "专业交付";
+"professional_export_no_timed_subtitles" = "没有可导出的有效时间字幕。";
+"professional_export_render_failed_format" = "无法渲染字幕图形：%@";
+"professional_export_png_failed" = "无法将字幕图形编码为 PNG。";
+"professional_export_create_failed_format" = "无法创建闭路字幕文件：%@";
+"professional_export_header_failed_format" = "无法写入闭路字幕文件头：%@";
+"professional_export_write_failed_format" = "无法写入闭路字幕数据：%@";
+"export_final_cut_pro" = "Final Cut Pro";
+"export_editable_subtitles_fcpxml" = "可编辑字幕（FCPXML）";
+"export_full_effect_prores_alpha" = "完整效果（ProRes 4444 Alpha）";
+"export_davinci_resolve" = "DaVinci Resolve";
+"export_plain_subtitles_srt" = "普通字幕（SRT）";
+"export_full_effect_alpha" = "完整效果（Alpha 视频）";
+"export_adobe_premiere" = "Adobe Premiere Pro";
+"export_editable_subtitles_ttml" = "可编辑字幕（TTML）";
+"export_compatible_subtitles_srt" = "兼容字幕（SRT）";
+"export_graphics_timeline_xml_png" = "图形时间线（XML＋PNG）";
+"export_after_effects" = "After Effects";
+"export_png_sequence" = "PNG 序列";
+"export_avid_media_composer" = "Avid Media Composer";
+"export_avid_ds_caption" = "可编辑字幕（Avid DS）";
+"export_alpha_video" = "Alpha 视频";
+"export_broadcast_ott" = "广播 / OTT";
+"export_ttml_timed_text" = "通用时序文本（TTML）";
+"export_imsc1_delivery" = "OTT 交付（IMSC 1）";
+"export_scc_cea608" = "北美广播（SCC / CEA-608）";
+"export_mcc_broadcast" = "广播辅助数据（MCC）";
+"export_ebu_stl_latin" = "欧洲广播·拉丁文字（EBU STL）";
+"export_other_subtitle_formats" = "其他字幕格式";
+"export_data_reports" = "数据与报表";

@@ -348,32 +348,39 @@ extension SubtitleBlocksLayer {
     }
 
     func handleDoubleTap(at location: CGPoint) {
-        var hit = hitTest(at: location)
-        if hit == nil, let hitItem = anyBlockHitTest(at: location) {
-            if let groupID = renderModel.group(for: hitItem)?.id {
-                StyleAndGroupStore.shared.setActiveGroup(groupID)
-                hit = hitTest(at: location)
+        let targetItem = hitTest(at: location)?.item ?? anyBlockHitTest(at: location)
+        guard let item = targetItem, !isLocked(item) else { return }
+        contextItemID = item.id
+        if let groupID = renderModel.group(for: item)?.id, groupID != renderModel.activeGroupID {
+            StyleAndGroupStore.shared.setActiveGroup(groupID)
+        }
+        if !project.selectedIDs.contains(item.id) {
+            if project.isSubtitleMultiSelecting {
+                project.selectedIDs.insert(item.id)
+            } else {
+                project.selectedIDs = [item.id]
             }
         }
-        guard let item = hit?.item, !isLocked(item) else { return }
-        contextItemID = item.id
         beginEditingText(item)
     }
 
     #if os(iOS)
     func handleMobileDoubleTap(at location: CGPoint) {
-        var hit = hitTest(at: location)
-        if hit == nil, let hitItem = anyBlockHitTest(at: location) {
-            if let groupID = renderModel.group(for: hitItem)?.id {
-                StyleAndGroupStore.shared.setActiveGroup(groupID)
-                hit = hitTest(at: location)
+        let targetItem = hitTest(at: location)?.item ?? anyBlockHitTest(at: location)
+        guard let item = targetItem else { return }
+        contextItemID = item.id
+        if let groupID = renderModel.group(for: item)?.id, groupID != renderModel.activeGroupID {
+            StyleAndGroupStore.shared.setActiveGroup(groupID)
+        }
+        if !project.selectedIDs.contains(item.id) {
+            if project.isSubtitleMultiSelecting {
+                project.selectedIDs.insert(item.id)
+            } else {
+                project.selectedIDs = [item.id]
             }
         }
-        guard let item = hit?.item else { return }
-        contextItemID = item.id
-        if !project.selectedIDs.contains(item.id) {
-            project.selectedIDs = [item.id]
-            project.isSubtitleMultiSelecting = false
+        if item.activeKaraoke != nil {
+            project.isKaraokeEditorManuallyClosed = false
         }
         isShowingMobileBlockActions = true
     }

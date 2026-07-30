@@ -682,7 +682,7 @@
 
 "trademarks_label" = "Trademarks";
 "disclaimer_label" = "Disclaimer";
-"trademark_disclaimer" = "Trademark Disclaimer\n\nAll third-party product names, logos, brands, and trademarks referenced within this software—including but not limited to OpenAI, Anthropic, Google, Google AI Studio, xAI, Grok, DeepSeek, NVIDIA, NVIDIA NIM, Ollama, Meta, Llama, Moonshot AI, Kimi, MiniMax, ByteDance, Volcengine, PLaMo, Baidu, Baidu Qianfan, Modal, Tencent, Tencent Cloud, OpenRouter, Sakana AI, Cloudflare, Zhipu AI, GLM, Alibaba, Tongyi Qwen, FFmpeg, dav1d, and others—are the property of their respective owners.\n\nTheir use in this software is solely for the purpose of compatibility, technical interoperability, and identifying supported services. It does not imply any affiliation, sponsorship, partnership, endorsement, or approval by these trademark holders. Strophe is an independently developed application, and all third-party integrations are provided strictly for compatibility and utility purposes.\n\nFurthermore, Apple, ProRes, Apple ProRes, macOS, iOS, iPadOS, VideoToolbox, AVFoundation, and any other Apple-related product names, logos, or format names referenced in this software are trademarks or registered trademarks of Apple Inc. in the United States and other countries. Strophe is an independent software application and has no relationship, affiliation, connection, partnership, sponsorship, or endorsement with Apple Inc. References to Apple technologies and media formats are strictly for specifying technical compatibility with these audio/video frameworks and formats.";
+"trademark_disclaimer" = "Trademark Disclaimer\n\nAll third-party product names, logos, brands, and trademarks referenced within this software—including but not limited to OpenAI, Anthropic, Google, Google AI Studio, xAI, Grok, DeepSeek, NVIDIA, NVIDIA NIM, Ollama, Meta, Llama, Moonshot AI, Kimi, MiniMax, ByteDance, Volcengine, PLaMo, Baidu, Baidu Qianfan, Modal, Tencent, Tencent Cloud, OpenRouter, Sakana AI, Cloudflare, Zhipu AI, GLM, Alibaba, Tongyi Qwen, Adobe, Adobe Premiere Pro, Adobe After Effects, Avid, Avid Media Composer, Blackmagic Design, DaVinci Resolve, FFmpeg, dav1d, and others—are the property of their respective owners.\n\nTheir use in this software is solely for the purpose of compatibility, technical interoperability, and identifying supported services. It does not imply any affiliation, sponsorship, partnership, endorsement, or approval by these trademark holders. Strophe is an independently developed application, and all third-party integrations are provided strictly for compatibility and utility purposes.\n\nFurthermore, Apple, Final Cut Pro, ProRes, Apple ProRes, macOS, iOS, iPadOS, VideoToolbox, AVFoundation, and any other Apple-related product names, logos, or format names referenced in this software are trademarks or registered trademarks of Apple Inc. in the United States and other countries. Strophe is an independent software application and has no relationship, affiliation, connection, partnership, sponsorship, or endorsement with Apple Inc. References to Apple technologies and media formats are strictly for specifying technical compatibility with these audio/video frameworks and formats.";
 
 "eula_label" = "End User License Agreement";
 "cloud_agreement_label" = "Cloud Usage Agreement";
@@ -931,6 +931,9 @@ Spencer Maqa reserves the right to modify this Agreement from time to time. Mate
 "project_recovery_confirm_message" = "The current editor state will be replaced. The recovered project will remain unsaved until you use Save As.";
 "project_recovery_failed" = "Recovery Failed";
 "project_recovery_recovered_name" = "Recovered Project";
+"project_recovery_clear_all" = "Clear All";
+"project_recovery_clear_confirm_title" = "Clear All Snapshots?";
+"project_recovery_clear_confirm_message" = "This will permanently delete all saved project snapshots. This action cannot be undone.";
 
 "media_access_missing" = "The linked media file could not be found.";
 "media_access_permission_denied" = "Strophe does not have permission to read the linked media file.";
@@ -1042,3 +1045,35 @@ Spencer Maqa reserves the right to modify this Agreement from time to time. Mate
 "karaoke_diagnostic_overlapping_text" = "Timing units cover overlapping characters.";
 "karaoke_diagnostic_overlapping_time" = "Timing units overlap in time.";
 "karaoke_diagnostic_uncovered_text" = "Some visible text has no karaoke timing.";
+
+/* Professional delivery */
+"professional_delivery_export" = "Professional Export";
+"professional_export_no_timed_subtitles" = "There are no valid timed subtitles to export.";
+"professional_export_render_failed_format" = "Could not render the subtitle graphic: %@";
+"professional_export_png_failed" = "Could not encode the subtitle graphic as PNG.";
+"professional_export_create_failed_format" = "Could not create the closed-caption output: %@";
+"professional_export_header_failed_format" = "Could not write the closed-caption header: %@";
+"professional_export_write_failed_format" = "Could not write the closed-caption data: %@";
+"export_final_cut_pro" = "Final Cut Pro";
+"export_editable_subtitles_fcpxml" = "Editable Subtitles (FCPXML)";
+"export_full_effect_prores_alpha" = "Full Effects (ProRes 4444 Alpha)";
+"export_davinci_resolve" = "DaVinci Resolve";
+"export_plain_subtitles_srt" = "Standard Subtitles (SRT)";
+"export_full_effect_alpha" = "Full Effects (Alpha Video)";
+"export_adobe_premiere" = "Adobe Premiere Pro";
+"export_editable_subtitles_ttml" = "Editable Subtitles (TTML)";
+"export_compatible_subtitles_srt" = "Compatible Subtitles (SRT)";
+"export_graphics_timeline_xml_png" = "Graphics Timeline (XML + PNG)";
+"export_after_effects" = "After Effects";
+"export_png_sequence" = "PNG Sequence";
+"export_avid_media_composer" = "Avid Media Composer";
+"export_avid_ds_caption" = "Editable Captions (Avid DS)";
+"export_alpha_video" = "Alpha Video";
+"export_broadcast_ott" = "Broadcast / OTT";
+"export_ttml_timed_text" = "Timed Text Delivery (TTML)";
+"export_imsc1_delivery" = "OTT Delivery (IMSC 1)";
+"export_scc_cea608" = "North American Broadcast (SCC / CEA-608)";
+"export_mcc_broadcast" = "Broadcast Ancillary Data (MCC)";
+"export_ebu_stl_latin" = "European Broadcast, Latin Script (EBU STL)";
+"export_other_subtitle_formats" = "Other Subtitle Formats";
+"export_data_reports" = "Data and Reports";

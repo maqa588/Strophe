@@ -234,8 +234,16 @@ struct WaveformTimelineContainer: View {
                 .frame(width: 0, height: 0)
                 .allowsHitTesting(false)
             
-            // ── 播放头：完全锁频在 100Hz 运动，丝毫不抖 ──
-            TimelineView(.animation) { timeline in
+            // Match the playhead UI to the useful media cadence. On ProMotion
+            // iPads an unconstrained animation schedule runs at 120 Hz even for
+            // a 24/30 fps video, spending CPU on positions that cannot represent
+            // a new source frame.
+            TimelineView(
+                .animation(
+                    minimumInterval: playbackRefreshInterval,
+                    paused: isPlaybackTimelinePaused
+                )
+            ) { timeline in
                 let smoothTime = playbackTime(at: timeline.date, duration: safeDuration)
                 let visibleDuration = Double(safeViewWidth) / safePixelsPerSecond
                 let smoothScrollPageStartTime = calculatePageStart(
@@ -296,6 +304,20 @@ struct WaveformTimelineContainer: View {
         return rawTime.isFinite
             ? rawTime.clamped(to: 0.0...duration)
             : project.currentTime.clampedFinite(to: 0.0...duration)
+    }
+
+    private var playbackRefreshInterval: TimeInterval {
+        let sourceFPS = project.videoFrameRate.isFinite
+            ? project.videoFrameRate
+            : 30
+        return 1.0 / min(30.0, max(15.0, sourceFPS))
+    }
+
+    private var isPlaybackTimelinePaused: Bool {
+        project.playbackRate == 0
+            && !project.isScrubbing
+            && !project.isSeeking
+            && !project.isUserSeekingTimeline
     }
     
     private func calculatePageStart(smoothTime: Double, visibleDuration: Double, duration: Double) -> Double {

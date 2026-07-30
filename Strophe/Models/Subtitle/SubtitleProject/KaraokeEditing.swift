@@ -107,14 +107,17 @@ extension SubtitleProject {
         guard canToggleKaraokeEditor,
               let id = selectedKaraokeItem?.id else {
             karaokeEditingItemID = nil
+            isKaraokeEditorManuallyClosed = true
             return
         }
-        if karaokeEditingItemID == id {
+        if karaokeEditingItemID == id || !isKaraokeEditorManuallyClosed && karaokeEditingItemID != nil {
             karaokeEditingItemID = nil
             karaokeEditorDismissedItemID = id
+            isKaraokeEditorManuallyClosed = true
             return
         }
         karaokeEditorDismissedItemID = nil
+        isKaraokeEditorManuallyClosed = false
         karaokeEditingItemID = id
     }
 

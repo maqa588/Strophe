@@ -94,7 +94,9 @@ struct KaraokeEditorPanel: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
-                .frame(width: 136)
+                .font(.subheadline.weight(.medium))
+                .controlSize(.small)
+                .frame(width: 100)
                 .accessibilityIdentifier("karaokePresetPicker")
 
                 Divider()
@@ -111,7 +113,8 @@ struct KaraokeEditorPanel: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 142)
+                .controlSize(.small)
+                .frame(width: 110)
                 .accessibilityIdentifier("karaokeRevealPicker")
 
                 Divider()
@@ -673,7 +676,7 @@ struct KaraokeEditorPanel: View {
         let frameFloor = max(0.001, 1 / max(project.videoFrameRate, 1))
         let lower = program.units[index].startOffset + frameFloor
         let upper = program.units[index + 1].endOffset - frameFloor
-        return upper > lower ? lower...upper : lower...(lower + 0.001)
+        return upper > (lower + 0.001) ? lower...upper : lower...(lower + 0.005)
     }
 
     private func phase(
@@ -784,6 +787,9 @@ private struct KaraokeBoundaryHandle: View {
                     }
             )
             .accessibilityRepresentation {
+                let rangeSpan = max(0.001, range.upperBound - range.lowerBound)
+                let safeRange = range.upperBound > range.lowerBound ? range : range.lowerBound...(range.lowerBound + 0.005)
+                let safeStep = (step.isFinite && step > 0 && step <= rangeSpan / 2) ? step : max(0.0001, rangeSpan / 10)
                 Slider(
                     value: Binding(
                         get: { value },
@@ -793,8 +799,8 @@ private struct KaraokeBoundaryHandle: View {
                             onEnded(bounded)
                         }
                     ),
-                    in: range,
-                    step: step
+                    in: safeRange,
+                    step: safeStep
                 )
                 .accessibilityLabel(label)
                 .accessibilityIdentifier(identifier)

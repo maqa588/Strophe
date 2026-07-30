@@ -245,6 +245,18 @@ struct ScriptListView: View {
                                 project.selectedIDs.insert(item.id)
                             }
                         }
+                        .simultaneousGesture(
+                            TapGesture(count: 2).onEnded {
+                                if let group {
+                                    StyleAndGroupStore.shared.setActiveGroup(group.id)
+                                }
+                                if !isLocked {
+                                    editingItem = item
+                                    editingText = project.items.first(where: { $0.id == item.id })?.text ?? item.text
+                                    isEditingText = true
+                                }
+                            }
+                        )
                         .contextMenu {
                             Button(action: {
                                 project.isSubtitleMultiSelecting = true

@@ -681,7 +681,7 @@
 
 "trademarks_label" = "상표";
 "disclaimer_label" = "면책 조항";
-"trademark_disclaimer" = "상표 면책 조항\n\n본 소프트웨어 내에서 언급된 모든 제3자 제품명, 로고, 브랜드 및 상표(OpenAI, Anthropic, Google, Google AI Studio, xAI, Grok, DeepSeek, NVIDIA, NVIDIA NIM, Ollama, Meta, Llama, Moonshot AI, Kimi, MiniMax, ByteDance, Volcengine, PLaMo, Baidu, Baidu Qianfan, Modal, Tencent, Tencent Cloud, OpenRouter, Sakana AI, Cloudflare, Zhipu AI, GLM, Alibaba, Tongyi Qwen, FFmpeg, dav1d 등을 포함하되 이에 국한되지 않음)는 해당 소유자의 자산입니다.\n\n본 소프트웨어에서 이러한 명칭의 사용은 오직 호환성, 기술적 상호 운용성 및 지원 서비스 식별을 위한 것입니다. 이는 해당 상표 소유자에 의한 제휴, 후원, 파트너십, 보증 또는 승인을 의미하지 않습니다. Strophe는 독립적으로 개발된 애플리케이션이며, 모든 제3자 연동은 오직 호환성 및 편의 목적으로만 제공됩니다.\n\n또한, 본 소프트웨어에서 언급된 Apple, ProRes, Apple ProRes, macOS, iOS, iPadOS, VideoToolbox, AVFoundation 및 기타 모든 Apple 관련 제품명, 로고 또는 포맷 이름은 미국 및 기타 국가에서 Apple Inc.의 상표 또는 등록상표입니다. Strophe는 독립적인 소프트웨어 애플리케이션이며 Apple Inc.와 아무런 관계, 제휴, 연결, 파트너십, 후원 또는 보증 관계가 없습니다. Apple 기술 및 미디어 포맷에 대한 언급은 오직 이러한 오디오/비디오 프레임워크 및 포맷과의 기술적 호환성을 명시하기 위한 목적입니다.";
+"trademark_disclaimer" = "상표 면책 조항\n\n본 소프트웨어 내에서 언급된 모든 제3자 제품명, 로고, 브랜드 및 상표(OpenAI, Anthropic, Google, Google AI Studio, xAI, Grok, DeepSeek, NVIDIA, NVIDIA NIM, Ollama, Meta, Llama, Moonshot AI, Kimi, MiniMax, ByteDance, Volcengine, PLaMo, Baidu, Baidu Qianfan, Modal, Tencent, Tencent Cloud, OpenRouter, Sakana AI, Cloudflare, Zhipu AI, GLM, Alibaba, Tongyi Qwen, Adobe, Adobe Premiere Pro, Adobe After Effects, Avid, Avid Media Composer, Blackmagic Design, DaVinci Resolve, FFmpeg, dav1d 등을 포함하되 이에 국한되지 않음)는 해당 소유자의 자산입니다.\n\n본 소프트웨어에서 이러한 명칭의 사용은 오직 호환성, 기술적 상호 운용성 및 지원 서비스 식별을 위한 것입니다. 이는 해당 상표 소유자에 의한 제휴, 후원, 파트너십, 보증 또는 승인을 의미하지 않습니다. Strophe는 독립적으로 개발된 애플리케이션이며, 모든 제3자 연동은 오직 호환성 및 편의 목적으로만 제공됩니다.\n\n또한, 본 소프트웨어에서 언급된 Apple, Final Cut Pro, ProRes, Apple ProRes, macOS, iOS, iPadOS, VideoToolbox, AVFoundation 및 기타 모든 Apple 관련 제품명, 로고 또는 포맷 이름은 미국 및 기타 국가에서 Apple Inc.의 상표 또는 등록상표입니다. Strophe는 독립적인 소프트웨어 애플리케이션이며 Apple Inc.와 아무런 관계, 제휴, 연결, 파트너십, 후원 또는 보증 관계가 없습니다. Apple 기술 및 미디어 포맷에 대한 언급은 오직 이러한 오디오/비디오 프레임워크 및 포맷과의 기술적 호환성을 명시하기 위한 목적입니다.";
 
 "eula_label" = "최종 사용자 라이선스 계약";
 "cloud_agreement_label" = "클라우드 사용 계약";
@@ -929,6 +929,9 @@ Spencer Maqa는 본 계약을 수시로 수정할 권리를 보유합니다. 중
 "project_recovery_confirm_message" = "현재 편집 상태가 교체됩니다. 복구된 프로젝트는 ‘다른 이름으로 저장’을 사용하기 전까지 저장되지 않습니다.";
 "project_recovery_failed" = "복구 실패";
 "project_recovery_recovered_name" = "복구된 프로젝트";
+"project_recovery_clear_all" = "모두 지우기";
+"project_recovery_clear_confirm_title" = "모든 스냅샷을 지우시겠습니까?";
+"project_recovery_clear_confirm_message" = "저장된 모든 프로젝트 스냅샷이 영구적으로 삭제되며 이 작업은 취소할 수 없습니다.";
 
 "media_access_missing" = "연결된 미디어 파일을 찾을 수 없습니다.";
 "media_access_permission_denied" = "연결된 미디어 파일을 읽을 권한이 없습니다.";
@@ -1040,3 +1043,35 @@ Spencer Maqa는 본 계약을 수시로 수정할 권리를 보유합니다. 중
 "karaoke_diagnostic_overlapping_text" = "타이밍 단위의 글자 범위가 겹칩니다.";
 "karaoke_diagnostic_overlapping_time" = "타이밍 단위의 시간이 겹칩니다.";
 "karaoke_diagnostic_uncovered_text" = "일부 표시 텍스트에 노래방 자막 타이밍이 없습니다.";
+
+/* 전문 납품 */
+"professional_delivery_export" = "전문가용 내보내기";
+"professional_export_no_timed_subtitles" = "내보낼 수 있는 유효한 타이밍 자막이 없습니다.";
+"professional_export_render_failed_format" = "자막 그래픽을 렌더링할 수 없습니다: %@";
+"professional_export_png_failed" = "자막 그래픽을 PNG로 인코딩할 수 없습니다.";
+"professional_export_create_failed_format" = "폐쇄 자막 출력을 만들 수 없습니다: %@";
+"professional_export_header_failed_format" = "폐쇄 자막 헤더를 쓸 수 없습니다: %@";
+"professional_export_write_failed_format" = "폐쇄 자막 데이터를 쓸 수 없습니다: %@";
+"export_final_cut_pro" = "Final Cut Pro";
+"export_editable_subtitles_fcpxml" = "편집 가능한 자막(FCPXML)";
+"export_full_effect_prores_alpha" = "전체 효과(ProRes 4444 Alpha)";
+"export_davinci_resolve" = "DaVinci Resolve";
+"export_plain_subtitles_srt" = "일반 자막(SRT)";
+"export_full_effect_alpha" = "전체 효과(Alpha 비디오)";
+"export_adobe_premiere" = "Adobe Premiere Pro";
+"export_editable_subtitles_ttml" = "편집 가능한 자막(TTML)";
+"export_compatible_subtitles_srt" = "호환 자막(SRT)";
+"export_graphics_timeline_xml_png" = "그래픽 타임라인(XML＋PNG)";
+"export_after_effects" = "After Effects";
+"export_png_sequence" = "PNG 시퀀스";
+"export_avid_media_composer" = "Avid Media Composer";
+"export_avid_ds_caption" = "편집 가능한 자막(Avid DS)";
+"export_alpha_video" = "Alpha 비디오";
+"export_broadcast_ott" = "방송 / OTT";
+"export_ttml_timed_text" = "타임드 텍스트 납품(TTML)";
+"export_imsc1_delivery" = "OTT 납품(IMSC 1)";
+"export_scc_cea608" = "북미 방송(SCC / CEA-608)";
+"export_mcc_broadcast" = "방송 보조 데이터(MCC)";
+"export_ebu_stl_latin" = "유럽 방송·라틴 문자(EBU STL)";
+"export_other_subtitle_formats" = "기타 자막 형식";
+"export_data_reports" = "데이터 및 보고서";
