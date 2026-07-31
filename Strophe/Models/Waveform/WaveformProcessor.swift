@@ -17,7 +17,7 @@ import Libswresample
 @MainActor
 class WaveformProcessor {
     static let shared = WaveformProcessor()
-    
+
     nonisolated static let zoomLevels: [Int] = [220, 880, 4410]
 
     nonisolated struct LevelPatch: Sendable {
@@ -25,15 +25,15 @@ class WaveformProcessor {
         let startIndex: Int
         let bins: [WaveformBin]
     }
-    
+
     private init() {
-        av_log_set_level(8) // Set global FFmpeg log level to AV_LOG_FATAL to silence decoding warning/error spam
+        av_log_set_level(8)
     }
-    
+
     func process(url: URL, completion: @escaping @MainActor (WaveformData) -> Void) {
         let data = WaveformData()
         data.isProcessing = true
-        
+
         Task.detached(priority: .userInitiated) {
             if let metadata = await self.probeMetadata(url: url) {
                 await MainActor.run {
@@ -49,7 +49,7 @@ class WaveformProcessor {
             }
         }
     }
-    
+
     private nonisolated func probeMetadata(url: URL) async -> (duration: Double, sampleRate: Double)? {
         let resolvedURL = url.resolvingSymlinksInPath()
         let isScoped = resolvedURL.startAccessingSecurityScopedResource()
@@ -58,33 +58,33 @@ class WaveformProcessor {
                 resolvedURL.stopAccessingSecurityScopedResource()
             }
         }
-        
+
         let isCompatible = await MainActor.run {
-            return FormatDetector.shared.cachedResult(for: url)?.isAVFoundationCompatible 
+            return FormatDetector.shared.cachedResult(for: url)?.isAVFoundationCompatible
                 ?? ["mp4", "m4a", "mov", "mp3", "wav", "caf", "aif", "aiff"].contains(url.pathExtension.lowercased())
         }
-        
+
         if isCompatible {
             let asset = AVURLAsset(url: resolvedURL)
             if let durationSecs = try? await asset.load(.duration).seconds, durationSecs > 0 {
                 return (durationSecs, 44100.0)
             }
         }
-        
-        // Fast path: use FFmpeg format context to instantly read headers (duration is in metadata)
+
+        // Read duration from container metadata without decoding audio.
         var formatCtx: UnsafeMutablePointer<AVFormatContext>? = nil
         let openResult = avformat_open_input(&formatCtx, resolvedURL.path, nil, nil)
         guard openResult == 0, let ctx = formatCtx else { return nil }
         defer { avformat_close_input(&formatCtx) }
-        
+
         guard avformat_find_stream_info(ctx, nil) >= 0 else { return nil }
-        
+
         let audioIndex = av_find_best_stream(ctx, AVMEDIA_TYPE_AUDIO, -1, -1, nil, 0)
         guard audioIndex >= 0 else { return nil }
-        
+
         let streamIndex = Int(audioIndex)
         let stream = ctx.pointee.streams[streamIndex]!
-        
+
         let durationSeconds: Double
         if ctx.pointee.duration != Int64(bitPattern: 0x8000000000000000) && ctx.pointee.duration > 0 {
             durationSeconds = Double(ctx.pointee.duration) / Double(AV_TIME_BASE)
@@ -94,26 +94,26 @@ class WaveformProcessor {
         } else {
             durationSeconds = 0
         }
-        
-        let sampleRate = 44100.0 // Unified sampleRate to 44100.0 for consistent math
+
+        let sampleRate = 44100.0
         return (durationSeconds, sampleRate)
     }
-    
+
     nonisolated func decodeChunk(url: URL, startTime: Double, duration: Double) async -> [Float]? {
         let isCompatible = await MainActor.run {
-            return FormatDetector.shared.cachedResult(for: url)?.isAVFoundationCompatible 
+            return FormatDetector.shared.cachedResult(for: url)?.isAVFoundationCompatible
                 ?? ["mp4", "m4a", "mov", "mp3", "wav", "caf", "aif", "aiff"].contains(url.pathExtension.lowercased())
         }
-        
+
         if isCompatible {
             if let samples = await decodeChunkViaAVFoundation(url: url, startTime: startTime, duration: duration) {
                 return samples
             }
         }
-        
+
         return decodeChunkViaFFmpeg(url: url, startTime: startTime, duration: duration)
     }
-    
+
     // MARK: - Continuous AVFoundation Decoding
     nonisolated func decodeEntireFileViaAVFoundation(
         url: URL,
@@ -126,61 +126,64 @@ class WaveformProcessor {
                 resolvedURL.stopAccessingSecurityScopedResource()
             }
         }
-        
+
         let asset = AVURLAsset(url: resolvedURL)
         guard let tracks = try? await asset.loadTracks(withMediaType: .audio),
-              let track = tracks.first else { return false }
-              
+            let track = tracks.first
+        else { return false }
+
         guard let reader = try? AVAssetReader(asset: asset) else { return false }
-        
+
         let outRate = 44100.0
         let outputSettings: [String: Any] = [
             AVFormatIDKey: kAudioFormatLinearPCM,
-            AVSampleRateKey: outRate, // Resample natively to unified 44100Hz
+            AVSampleRateKey: outRate,
             AVLinearPCMBitDepthKey: 32,
             AVLinearPCMIsFloatKey: true,
             AVLinearPCMIsBigEndianKey: false,
-            AVLinearPCMIsNonInterleaved: false
+            AVLinearPCMIsNonInterleaved: false,
         ]
-        
+
         let output = AVAssetReaderTrackOutput(track: track, outputSettings: outputSettings)
         reader.add(output)
-        
+
         guard reader.startReading() else { return false }
-        
+
         var accumulatedSamples: [Float] = []
-        let chunkSizeSamples = 2646000 // 60 seconds of audio at 44100Hz
+        let chunkSizeSamples = 2646000  // 60 seconds of audio at 44100Hz
         accumulatedSamples.reserveCapacity(chunkSizeSamples)
-        
+
         var currentChunkIndex = 0
-        
+
         while reader.status == .reading {
             if Task.isCancelled {
                 reader.cancelReading()
                 return false
             }
-            
+
             guard let sampleBuffer = output.copyNextSampleBuffer() else { continue }
             guard let blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else { continue }
-            
+
             let formatDesc = CMSampleBufferGetFormatDescription(sampleBuffer)
             let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(formatDesc!)
             let channels = Int(asbd?.pointee.mChannelsPerFrame ?? 1)
-            
+
             var length = 0
             var totalLength = 0
             var dataPointer: UnsafeMutablePointer<Int8>? = nil
-            
-            let status = CMBlockBufferGetDataPointer(blockBuffer, atOffset: 0, lengthAtOffsetOut: &length, totalLengthOut: &totalLength, dataPointerOut: &dataPointer)
+
+            let status = CMBlockBufferGetDataPointer(
+                blockBuffer, atOffset: 0, lengthAtOffsetOut: &length, totalLengthOut: &totalLength,
+                dataPointerOut: &dataPointer)
             guard status == noErr, let rawPointer = dataPointer, totalLength > 0 else { continue }
-            
+
             let sampleCount = totalLength / (4 * channels)
             guard sampleCount > 0 else { continue }
-            
+
             let floatPtr = UnsafePointer<Float>(OpaquePointer(rawPointer))
             let startIdx = accumulatedSamples.count
             accumulatedSamples.append(contentsOf: repeatElement(0.0, count: sampleCount))
-            
+
             accumulatedSamples.withUnsafeMutableBufferPointer { buffer in
                 let destPtr = buffer.baseAddress!.advanced(by: startIdx)
                 if channels == 2 {
@@ -199,35 +202,36 @@ class WaveformProcessor {
                     }
                 }
             }
-            
+
             // Publish chunks in 60-second batches progressively
             while accumulatedSamples.count >= chunkSizeSamples {
                 if Task.isCancelled {
                     reader.cancelReading()
                     return false
                 }
-                
+
                 let chunk = Array(accumulatedSamples[0..<chunkSizeSamples])
                 accumulatedSamples.removeFirst(chunkSizeSamples)
-                
+
                 let chunkStart = Double(currentChunkIndex) * 60.0
                 onProgress(chunk, chunkStart, 60.0)
                 currentChunkIndex += 1
             }
         }
-        
+
         // Publish remaining samples at the end
         if !accumulatedSamples.isEmpty && !Task.isCancelled {
             let chunkDur = Double(accumulatedSamples.count) / outRate
             let chunkStart = Double(currentChunkIndex) * 60.0
             onProgress(accumulatedSamples, chunkStart, chunkDur)
         }
-        
+
         return reader.status == .completed
     }
-    
+
     // MARK: - Segmented AVFoundation Decoding
-    private nonisolated func decodeChunkViaAVFoundation(url: URL, startTime: Double, duration: Double) async -> [Float]? {
+    private nonisolated func decodeChunkViaAVFoundation(url: URL, startTime: Double, duration: Double) async -> [Float]?
+    {
         let resolvedURL = url.resolvingSymlinksInPath()
         let isScoped = resolvedURL.startAccessingSecurityScopedResource()
         defer {
@@ -235,36 +239,36 @@ class WaveformProcessor {
                 resolvedURL.stopAccessingSecurityScopedResource()
             }
         }
-        
+
         let asset = AVURLAsset(url: resolvedURL)
         guard let tracks = try? await asset.loadTracks(withMediaType: .audio),
-              let track = tracks.first else { return nil }
-              
+            let track = tracks.first
+        else { return nil }
+
         guard let reader = try? AVAssetReader(asset: asset) else { return nil }
-        
+
         let outRate = 44100.0
         let outputSettings: [String: Any] = [
             AVFormatIDKey: kAudioFormatLinearPCM,
-            AVSampleRateKey: outRate, // Ensure AVAssetReader performs high-quality resampling to a unified 44100Hz!
+            AVSampleRateKey: outRate,
             AVLinearPCMBitDepthKey: 32,
             AVLinearPCMIsFloatKey: true,
             AVLinearPCMIsBigEndianKey: false,
-            AVLinearPCMIsNonInterleaved: false
+            AVLinearPCMIsNonInterleaved: false,
         ]
-        
+
         let output = AVAssetReaderTrackOutput(track: track, outputSettings: outputSettings)
         reader.add(output)
-        
-        // Target the specific time range inside the reader
+
         let rangeStart = CMTime(seconds: startTime, preferredTimescale: 600)
         let rangeDuration = CMTime(seconds: duration, preferredTimescale: 600)
         reader.timeRange = CMTimeRange(start: rangeStart, duration: rangeDuration)
-        
+
         guard reader.startReading() else { return nil }
-        
+
         var chunkSamples: [Float] = []
         chunkSamples.reserveCapacity(Int(duration * outRate) + 4096)
-        
+
         while reader.status == .reading {
             if Task.isCancelled {
                 reader.cancelReading()
@@ -272,25 +276,27 @@ class WaveformProcessor {
             }
             guard let sampleBuffer = output.copyNextSampleBuffer() else { continue }
             guard let blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else { continue }
-            
+
             let formatDesc = CMSampleBufferGetFormatDescription(sampleBuffer)
             let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(formatDesc!)
             let channels = Int(asbd?.pointee.mChannelsPerFrame ?? 1)
-            
+
             var length = 0
             var totalLength = 0
             var dataPointer: UnsafeMutablePointer<Int8>? = nil
-            
-            let status = CMBlockBufferGetDataPointer(blockBuffer, atOffset: 0, lengthAtOffsetOut: &length, totalLengthOut: &totalLength, dataPointerOut: &dataPointer)
+
+            let status = CMBlockBufferGetDataPointer(
+                blockBuffer, atOffset: 0, lengthAtOffsetOut: &length, totalLengthOut: &totalLength,
+                dataPointerOut: &dataPointer)
             guard status == noErr, let rawPointer = dataPointer, totalLength > 0 else { continue }
-            
+
             let sampleCount = totalLength / (4 * channels)
             guard sampleCount > 0 else { continue }
-            
+
             let floatPtr = UnsafePointer<Float>(OpaquePointer(rawPointer))
             let startIdx = chunkSamples.count
             chunkSamples.append(contentsOf: repeatElement(0.0, count: sampleCount))
-            
+
             chunkSamples.withUnsafeMutableBufferPointer { buffer in
                 let destPtr = buffer.baseAddress!.advanced(by: startIdx)
                 if channels == 2 {
@@ -310,10 +316,10 @@ class WaveformProcessor {
                 }
             }
         }
-        
+
         return reader.status == .completed ? chunkSamples : nil
     }
-    
+
     // MARK: - Segmented FFmpeg Decoding
     private nonisolated func decodeChunkViaFFmpeg(url: URL, startTime: Double, duration: Double) -> [Float]? {
         let resolvedURL = url.resolvingSymlinksInPath()
@@ -323,59 +329,58 @@ class WaveformProcessor {
                 resolvedURL.stopAccessingSecurityScopedResource()
             }
         }
-        
+
         var formatCtx: UnsafeMutablePointer<AVFormatContext>? = nil
         let openResult = avformat_open_input(&formatCtx, resolvedURL.path, nil, nil)
         guard openResult == 0, let ctx = formatCtx else { return nil }
         defer { avformat_close_input(&formatCtx) }
-        
+
         guard avformat_find_stream_info(ctx, nil) >= 0 else { return nil }
-        
+
         let audioIndex = av_find_best_stream(ctx, AVMEDIA_TYPE_AUDIO, -1, -1, nil, 0)
         guard audioIndex >= 0 else { return nil }
-        
+
         let streamIndex = Int(audioIndex)
         let stream = ctx.pointee.streams[streamIndex]!
         let codecpar = stream.pointee.codecpar!
-        
+
         guard let decoder = avcodec_find_decoder(codecpar.pointee.codec_id) else { return nil }
-        
+
         let codecCtx = avcodec_alloc_context3(decoder)
         defer {
             var cc: UnsafeMutablePointer<AVCodecContext>? = codecCtx
             avcodec_free_context(&cc)
         }
-        
+
         avcodec_parameters_to_context(codecCtx, codecpar)
         guard avcodec_open2(codecCtx, decoder, nil) >= 0, let cc = codecCtx else { return nil }
-        
+
         let outRate: Int32 = 44100
-        
-        // Fast seek to the start time of the chunk
+
         let tb = stream.pointee.time_base
         let targetPts = Int64(startTime * Double(tb.den) / Double(tb.num))
         av_seek_frame(ctx, Int32(streamIndex), targetPts, AVSEEK_FLAG_BACKWARD)
         avcodec_flush_buffers(cc)
-        
+
         // Ask libswresample for mono directly. This avoids producing twice as
         // much output only to average L/R in a Swift loop afterwards.
         let swr = swr_alloc()
         guard let swr = swr else { return nil }
         defer { var s: OpaquePointer? = swr; swr_free(&s) }
-        
+
         let rawSwr = UnsafeMutableRawPointer(swr)
         var outLayout = AVChannelLayout()
         av_channel_layout_default(&outLayout, 1)
-        
+
         av_opt_set_chlayout(rawSwr, "in_chlayout", &cc.pointee.ch_layout, 0)
         av_opt_set_int(rawSwr, "in_sample_rate", Int64(cc.pointee.sample_rate), 0)
         av_opt_set_sample_fmt(rawSwr, "in_sample_fmt", cc.pointee.sample_fmt, 0)
         av_opt_set_chlayout(rawSwr, "out_chlayout", &outLayout, 0)
         av_opt_set_int(rawSwr, "out_sample_rate", Int64(outRate), 0)
         av_opt_set_sample_fmt(rawSwr, "out_sample_fmt", AV_SAMPLE_FMT_FLT, 0)
-        
+
         guard swr_init(swr) >= 0 else { return nil }
-        
+
         let frame = av_frame_alloc()
         let packet = av_packet_alloc()
         guard let frame = frame, let packet = packet else { return nil }
@@ -385,14 +390,14 @@ class WaveformProcessor {
             var p: UnsafeMutablePointer<AVPacket>? = packet
             av_packet_free(&p)
         }
-        
+
         var chunkSamples: [Float] = []
         let estimatedSamplesCount = Int(Double(outRate) * duration)
         chunkSamples.reserveCapacity(estimatedSamplesCount + 44100)
-        
+
         var currentPtsSeconds: Double = startTime
         let endTime = startTime + duration
-        
+
         var outData: UnsafeMutablePointer<UInt8>? = nil
         var outLineSize: Int32 = 0
         var outCapacity = 0
@@ -405,12 +410,12 @@ class WaveformProcessor {
                 av_packet_unref(packet)
                 return nil
             }
-            
+
             if packet.pointee.stream_index != Int32(streamIndex) {
                 av_packet_unref(packet)
                 continue
             }
-            
+
             if packet.pointee.pts != Int64(bitPattern: 0x8000000000000000) {
                 currentPtsSeconds = Double(packet.pointee.pts) * Double(tb.num) / Double(tb.den)
                 if currentPtsSeconds > endTime {
@@ -418,33 +423,35 @@ class WaveformProcessor {
                     break
                 }
             }
-            
+
             if avcodec_send_packet(cc, packet) < 0 {
                 av_packet_unref(packet)
                 continue
             }
             av_packet_unref(packet)
-            
+
             while avcodec_receive_frame(cc, frame) >= 0 {
                 if Task.isCancelled {
                     av_frame_unref(frame)
                     return nil
                 }
                 let maxOutSamples = max(1, Int(swr_get_out_samples(swr, frame.pointee.nb_samples)))
-                
+
                 if maxOutSamples > outCapacity {
                     if outData != nil { av_freep(&outData) }
-                    guard av_samples_alloc(
-                        &outData,
-                        &outLineSize,
-                        1,
-                        Int32(maxOutSamples),
-                        AV_SAMPLE_FMT_FLT,
-                        0
-                    ) >= 0 else { return nil }
+                    guard
+                        av_samples_alloc(
+                            &outData,
+                            &outLineSize,
+                            1,
+                            Int32(maxOutSamples),
+                            AV_SAMPLE_FMT_FLT,
+                            0
+                        ) >= 0
+                    else { return nil }
                     outCapacity = maxOutSamples
                 }
-                
+
                 let converted: Int32
                 if let rawOut = outData {
                     var mutableOut: UnsafeMutablePointer<UInt8>? = rawOut
@@ -457,16 +464,18 @@ class WaveformProcessor {
                 } else {
                     converted = 0
                 }
-                
+
                 if converted > 0, let rawOut = outData {
                     let sampleCount = Int(converted)
-                    let floatBuf = UnsafeBufferPointer(start: rawOut.withMemoryRebound(to: Float.self, capacity: sampleCount) { $0 }, count: sampleCount)
-                    
+                    let floatBuf = UnsafeBufferPointer(
+                        start: rawOut.withMemoryRebound(to: Float.self, capacity: sampleCount) { $0 },
+                        count: sampleCount)
+
                     var framePtsSeconds = currentPtsSeconds
                     if frame.pointee.pts != Int64(bitPattern: 0x8000000000000000) {
                         framePtsSeconds = Double(frame.pointee.pts) * Double(tb.num) / Double(tb.den)
                     }
-                    
+
                     if framePtsSeconds >= startTime {
                         chunkSamples.append(contentsOf: floatBuf)
                     }
@@ -474,48 +483,48 @@ class WaveformProcessor {
                 av_frame_unref(frame)
             }
         }
-        
+
         return chunkSamples
     }
-    
+
     nonisolated static internal func computeBins(samples: [Float], expectedBinCount: Int) -> [WaveformBin] {
         guard expectedBinCount > 0 && !samples.isEmpty else { return [] }
         var bins: [WaveformBin] = []
         bins.reserveCapacity(expectedBinCount)
-        
+
         let samplesPerBin = Double(samples.count) / Double(expectedBinCount)
-        
+
         samples.withUnsafeBufferPointer { buffer in
             guard let baseAddress = buffer.baseAddress else { return }
-            
+
             for i in 0..<expectedBinCount {
                 let start = Int(Double(i) * samplesPerBin)
                 let nextStart = Int(Double(i + 1) * samplesPerBin)
                 let count = max(1, nextStart - start)
-                
+
                 let safeStart = min(samples.count - 1, max(0, start))
                 let safeCount = min(samples.count - safeStart, count)
-                
+
                 guard safeCount > 0 else {
                     bins.append(WaveformBin(peakPositive: 0, peakNegative: 0, rms: 0))
                     continue
                 }
-                
+
                 let ptr = baseAddress.advanced(by: safeStart)
-                
+
                 var peakPos: Float = 0
                 vDSP_maxv(ptr, 1, &peakPos, vDSP_Length(safeCount))
-                
+
                 var peakNeg: Float = 0
                 vDSP_minv(ptr, 1, &peakNeg, vDSP_Length(safeCount))
-                
+
                 var rms: Float = 0
                 vDSP_rmsqv(ptr, 1, &rms, vDSP_Length(safeCount))
-                
+
                 bins.append(WaveformBin(peakPositive: max(0, peakPos), peakNegative: min(0, peakNeg), rms: rms))
             }
         }
-        
+
         return bins
     }
 
@@ -538,11 +547,12 @@ class WaveformProcessor {
             let endBinIndex = min(mainBinCount, endSample / zoom)
             let expectedBinCount = endBinIndex - startBinIndex
             guard expectedBinCount > 0 else { continue }
-            patches.append(LevelPatch(
-                zoom: zoom,
-                startIndex: startBinIndex,
-                bins: computeBins(samples: samples, expectedBinCount: expectedBinCount)
-            ))
+            patches.append(
+                LevelPatch(
+                    zoom: zoom,
+                    startIndex: startBinIndex,
+                    bins: computeBins(samples: samples, expectedBinCount: expectedBinCount)
+                ))
         }
         return patches
     }

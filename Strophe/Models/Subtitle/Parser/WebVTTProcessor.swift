@@ -15,7 +15,8 @@ struct WebVTTProcessor: SubtitleProcessor {
         var preservedBlocks: [String] = []
         var diagnostics: [SubtitleParseDiagnostic] = []
         let documentID = UUID()
-        let normalizedText = text
+        let normalizedText =
+            text
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
             .replacingOccurrences(of: "\u{FEFF}", with: "")
@@ -115,29 +116,6 @@ struct WebVTTProcessor: SubtitleProcessor {
         return chunks.joined(separator: "\n\n") + "\n"
     }
 
-    // 解析 WebVTT 时间戳: [hh:]mm:ss.ttt 或 mm:ss.ttt -> 绝对秒数
-    private func parseWebVTTTimestamp(_ string: String) -> TimeInterval {
-        let parts = string.split(separator: ":").map { String($0) }
-        if parts.count == 3 {
-            // hh:mm:ss.ttt
-            let hours = Double(parts[0]) ?? 0
-            let minutes = Double(parts[1]) ?? 0
-            let secondsStr = parts[2].replacingOccurrences(of: ",", with: ".")
-            let seconds = Double(secondsStr) ?? 0
-            return (hours * 3600) + (minutes * 60) + seconds
-        } else if parts.count == 2 {
-            // mm:ss.ttt
-            let minutes = Double(parts[0]) ?? 0
-            let secondsStr = parts[1].replacingOccurrences(of: ",", with: ".")
-            let seconds = Double(secondsStr) ?? 0
-            return (minutes * 60) + seconds
-        } else {
-            // 兜底降级处理
-            let secondsStr = string.replacingOccurrences(of: ",", with: ".")
-            return Double(secondsStr) ?? 0
-        }
-    }
-
     private func parseTimingLine(_ line: String) -> (start: TimeInterval, end: TimeInterval, settings: String)? {
         guard let arrow = line.range(of: "-->") else { return nil }
         let startToken = line[..<arrow.lowerBound].trimmingCharacters(in: .whitespaces)
@@ -146,8 +124,8 @@ struct WebVTTProcessor: SubtitleProcessor {
         guard isValidTimestamp(startToken), isValidTimestamp(endToken) else { return nil }
         let settingsStart = rightSide.index(rightSide.startIndex, offsetBy: endToken.count)
         return (
-            parseWebVTTTimestamp(startToken),
-            parseWebVTTTimestamp(endToken),
+            SubtitleTimeFormatter.parseTimestamp(startToken),
+            SubtitleTimeFormatter.parseTimestamp(endToken),
             rightSide[settingsStart...].trimmingCharacters(in: .whitespaces)
         )
     }

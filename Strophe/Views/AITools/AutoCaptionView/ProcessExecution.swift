@@ -22,7 +22,6 @@ extension AutoCaptionView {
             do {
                 try AIBackendClient.ensureLocalAIAvailable()
 
-                // 0. 模型依赖预下载阶段
                 let isWhisperDownloaded = modelManager.downloadedWhisperModels.contains(selectedModel)
                 if !isWhisperDownloaded {
                     statusMessage = localizedAIFormat(
@@ -59,7 +58,8 @@ extension AutoCaptionView {
                     }
                 }
 
-                let useCoreMLASRAcceleration = enableCoreMLASRAcceleration && LocalModelManager.supportsCoreMLASRAcceleration(selectedModel)
+                let useCoreMLASRAcceleration =
+                    enableCoreMLASRAcceleration && LocalModelManager.supportsCoreMLASRAcceleration(selectedModel)
                 let coreMLASRModelName = LocalModelManager.coreMLASRAccelerationModelName
                 if useCoreMLASRAcceleration && !modelManager.downloadedWhisperModels.contains(coreMLASRModelName) {
                     statusMessage = localizedAIFormat(
@@ -100,7 +100,8 @@ extension AutoCaptionView {
                 let usesNativeTimestamps = LocalModelManager.usesNativeTimestamps(
                     selectedModel
                 )
-                let needsAligner = (enableAlignment || enableDiarization || generateKaraoke)
+                let needsAligner =
+                    (enableAlignment || enableDiarization || generateKaraoke)
                     && !usesNativeTimestamps
                 let isAlignerDownloaded = modelManager.downloadedAlignerModels.contains(selectedAlignerModel)
                 if needsAligner && !isAlignerDownloaded {
@@ -144,7 +145,8 @@ extension AutoCaptionView {
                     let isVADDownloaded = modelManager.downloadedVADModels.contains(vadModelName)
                     if !isVADDownloaded {
                         let displayName = (vadModelName == "firered-vad-coreml") ? "FireRed VAD" : "VAD"
-                        let approxSize = LocalModelManager.vadPresets
+                        let approxSize =
+                            LocalModelManager.vadPresets
                             .first(where: { $0.name == vadModelName })?
                             .localizedSize ?? ""
                         statusMessage = localizedAIFormat(
@@ -222,7 +224,6 @@ extension AutoCaptionView {
                     }
                 }
 
-                // 0.2 智能降噪模型预下载阶段
                 if vocalPreprocessing == "denoise" {
                     let isDenoiseDownloaded = modelManager.downloadedOtherModels.contains("deepfilternet3-coreml")
                     if !isDenoiseDownloaded {
@@ -261,7 +262,6 @@ extension AutoCaptionView {
                     }
                 }
 
-                // 0.3 伴奏人声分离模型预下载阶段
                 if vocalPreprocessing == "separate" {
                     let isSpleeterDownloaded = modelManager.downloadedOtherModels.contains("spleeter2-coreml")
                     if !isSpleeterDownloaded {
@@ -300,14 +300,15 @@ extension AutoCaptionView {
                     }
                 }
 
-                // 1. 提取并采样音频数据
                 let whisperBaseDir = modelManager.getBaseDirectory(for: .whisper)
-                // 使用外置模型根目录下的 Hub-style 路径 (base/org/repo)。
+                // External models retain their Hub-style `base/org/repo` path.
                 let selectedASRModelURL: URL
                 if let hubDir = modelManager.getModelDirectory(for: selectedModel, type: .whisper) {
                     selectedASRModelURL = hubDir
                 } else {
-                    let folderName = LocalModelManager.whisperPresets.first(where: { $0.name == selectedModel })?.folderName ?? selectedModel
+                    let folderName =
+                        LocalModelManager.whisperPresets.first(where: { $0.name == selectedModel })?.folderName
+                        ?? selectedModel
                     selectedASRModelURL = whisperBaseDir.appendingPathComponent(folderName)
                 }
                 let whisperModelURL: URL
@@ -330,7 +331,9 @@ extension AutoCaptionView {
                 if let hubDir = modelManager.getModelDirectory(for: selectedAlignerModel, type: .aligner) {
                     alignerModelURL = hubDir
                 } else {
-                    let folderName = LocalModelManager.alignerPresets.first(where: { $0.name == selectedAlignerModel })?.folderName ?? selectedAlignerModel
+                    let folderName =
+                        LocalModelManager.alignerPresets.first(where: { $0.name == selectedAlignerModel })?.folderName
+                        ?? selectedAlignerModel
                     alignerModelURL = alignerBaseDir.appendingPathComponent(folderName)
                 }
 
@@ -399,7 +402,7 @@ extension AutoCaptionView {
                             self.currentStep = step
                             self.statusMessage = message
 
-                            // 映射每一步的分段进度至总进度环
+                            // Map each pipeline stage into one monotonic overall fraction.
                             let overallProgress: Double
                             if self.enableDiarization {
                                 switch step {
@@ -439,9 +442,10 @@ extension AutoCaptionView {
                     )
                 }
 
-                // 3. 部署到 Timeline 并注册撤销
                 await MainActor.run {
-                    replaceProjectSubtitles(with: generatedSubtitles, actionName: String(localized: "local_ai_speech_recognition_alignment"))
+                    replaceProjectSubtitles(
+                        with: generatedSubtitles, actionName: String(localized: "local_ai_speech_recognition_alignment")
+                    )
                     finishSuccessfulGeneration(
                         message: localizedAIFormat(
                             "status_local_generation_complete_format",
@@ -492,7 +496,8 @@ extension AutoCaptionView {
                 }
                 cloudConnectionTestState = .succeeded(connectionCheck.message)
 
-                let cloudLanguage = selectedCloudModel == .parakeetJA
+                let cloudLanguage =
+                    selectedCloudModel == .parakeetJA
                     ? "ja"
                     : selectedLanguage
                 let request = AICloudGenerateSubtitlesRequest(
@@ -556,7 +561,9 @@ extension AutoCaptionView {
                             )
                         )
                     }
-                    replaceProjectSubtitles(with: generatedSubtitles, actionName: String(localized: "cloud_ai_speech_recognition_alignment"))
+                    replaceProjectSubtitles(
+                        with: generatedSubtitles, actionName: String(localized: "cloud_ai_speech_recognition_alignment")
+                    )
                 }
 
                 try? await Task.sleep(nanoseconds: 1_200_000_000)

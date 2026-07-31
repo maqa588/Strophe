@@ -209,29 +209,29 @@ struct KaraokeSubtitleBitmapView: View {
 extension Color {
     nonisolated var resolvedRGBA: ResolvedRGBAColor {
         #if canImport(AppKit)
-        let platformColor = NSColor(self)
-        let converted = platformColor.usingColorSpace(.deviceRGB) ?? platformColor
-        return ResolvedRGBAColor(
-            red: Double(converted.redComponent),
-            green: Double(converted.greenComponent),
-            blue: Double(converted.blueComponent),
-            alpha: Double(converted.alphaComponent)
-        )
+            let platformColor = NSColor(self)
+            let converted = platformColor.usingColorSpace(.deviceRGB) ?? platformColor
+            return ResolvedRGBAColor(
+                red: Double(converted.redComponent),
+                green: Double(converted.greenComponent),
+                blue: Double(converted.blueComponent),
+                alpha: Double(converted.alphaComponent)
+            )
         #elseif canImport(UIKit)
-        let platformColor = UIColor(self)
-        var red: CGFloat = 1
-        var green: CGFloat = 1
-        var blue: CGFloat = 1
-        var alpha: CGFloat = 1
-        platformColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
-        return ResolvedRGBAColor(
-            red: Double(red),
-            green: Double(green),
-            blue: Double(blue),
-            alpha: Double(alpha)
-        )
+            let platformColor = UIColor(self)
+            var red: CGFloat = 1
+            var green: CGFloat = 1
+            var blue: CGFloat = 1
+            var alpha: CGFloat = 1
+            platformColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+            return ResolvedRGBAColor(
+                red: Double(red),
+                green: Double(green),
+                blue: Double(blue),
+                alpha: Double(alpha)
+            )
         #else
-        return .white
+            return .white
         #endif
     }
 }
@@ -245,7 +245,8 @@ nonisolated extension ResolvedRGBAColor {
         }
 
         guard raw.count == 6 || raw.count == 8,
-              let value = UInt64(raw, radix: 16) else {
+            let value = UInt64(raw, radix: 16)
+        else {
             return nil
         }
 
@@ -268,15 +269,18 @@ extension SubtitleProject {
     func resolvedSubtitleCues(store: StyleAndGroupStore = .shared) -> [ResolvedSubtitleCue] {
         items.compactMap { item in
             guard let start = item.startTime,
-                  let end = item.endTime,
-                  end >= start,
-                  !item.isHidden,
-                  !item.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                let end = item.endTime,
+                end >= start,
+                !item.isHidden,
+                !item.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else {
                 return nil
             }
 
             let group = resolvedGroup(for: item, store: store)
-            if let group, !group.isOverlayEnabled || group.exportPolicy == .referenceOnly || group.exportPolicy == .textOnly {
+            if let group,
+                !group.isOverlayEnabled || group.exportPolicy == .referenceOnly || group.exportPolicy == .textOnly
+            {
                 return nil
             }
 
@@ -298,18 +302,21 @@ extension SubtitleProject {
 
     func resolvedSubtitleCue(at time: Double, store: StyleAndGroupStore = .shared) -> ResolvedSubtitleCue? {
         if let activeID = activeSlapSubtitleID,
-           let item = items.first(where: { $0.id == activeID }),
-           let cue = resolvedCue(for: item, store: store) {
+            let item = items.first(where: { $0.id == activeID }),
+            let cue = resolvedCue(for: item, store: store)
+        {
             return cue
         }
 
         guard time.isFinite else { return nil }
-        return items.lazy.compactMap { item -> ResolvedSubtitleCue? in
+        return previewAwareVisibleItems(at: time).compactMap {
+            item -> ResolvedSubtitleCue? in
             guard let start = item.startTime,
-                  let end = item.endTime,
-                  !item.isHidden,
-                  time >= start,
-                  time <= end else {
+                let end = item.endTime,
+                !item.isHidden,
+                time >= start,
+                time <= end
+            else {
                 return nil
             }
             return self.resolvedCue(for: item, store: store)
@@ -324,12 +331,13 @@ extension SubtitleProject {
 
     func resolvedSubtitleCues(at time: Double, store: StyleAndGroupStore = .shared) -> [ResolvedSubtitleCue] {
         guard time.isFinite else { return [] }
-        return timelineIndex.visibleItems(in: time...time).compactMap {
+        return previewAwareVisibleItems(at: time).compactMap {
             item -> ResolvedSubtitleCue? in
             guard let start = item.startTime,
-                  let end = item.endTime,
-                  time >= start,
-                  time <= end else {
+                let end = item.endTime,
+                time >= start,
+                time <= end
+            else {
                 return nil
             }
             return self.resolvedCue(for: item, store: store)
@@ -342,6 +350,24 @@ extension SubtitleProject {
         }
     }
 
+    /// The timeline index deliberately contains committed document data only.
+    /// Substitute the one transient Karaoke trim item at presentation time so
+    /// the video overlay follows the same live geometry as the editor.
+    private func previewAwareVisibleItems(at time: Double) -> [SubtitleItem] {
+        var visibleItems = timelineIndex.visibleItems(in: time...time)
+        guard let preview = karaokeTimingPreviewItem,
+            let start = preview.startTime,
+            let end = preview.endTime
+        else {
+            return visibleItems
+        }
+        visibleItems.removeAll { $0.id == preview.id }
+        if time >= start, time <= end {
+            visibleItems.append(preview)
+        }
+        return visibleItems
+    }
+
     func resolvedSubtitleFrameScene(
         at time: Double,
         canvasSize: CGSize,
@@ -350,9 +376,10 @@ extension SubtitleProject {
         let forcedIDs = activeSlapSubtitleID.map { Set([$0]) } ?? []
         var cues = resolvedSubtitleCues(at: time, store: store)
         if let activeSlapSubtitleID,
-           !cues.contains(where: { $0.id == activeSlapSubtitleID }),
-           let item = timelineIndex.item(id: activeSlapSubtitleID),
-           let cue = resolvedCue(for: item, store: store) {
+            !cues.contains(where: { $0.id == activeSlapSubtitleID }),
+            let item = timelineIndex.item(id: activeSlapSubtitleID),
+            let cue = resolvedCue(for: item, store: store)
+        {
             cues.append(cue)
         }
         return SubtitleFrameSceneResolver.resolve(
@@ -377,15 +404,17 @@ extension SubtitleProject {
 
     private func resolvedCue(for item: SubtitleItem, store: StyleAndGroupStore) -> ResolvedSubtitleCue? {
         guard let start = item.startTime,
-              let end = item.endTime,
-              end >= start,
-              !item.isHidden,
-              !item.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            let end = item.endTime,
+            end >= start,
+            !item.isHidden,
+            !item.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
             return nil
         }
 
         let group = resolvedGroup(for: item, store: store)
-        if let group, !group.isOverlayEnabled || group.exportPolicy == .referenceOnly || group.exportPolicy == .textOnly {
+        if let group, !group.isOverlayEnabled || group.exportPolicy == .referenceOnly || group.exportPolicy == .textOnly
+        {
             return nil
         }
 
@@ -409,11 +438,13 @@ extension SubtitleProject {
         store: StyleAndGroupStore
     ) -> ResolvedSubtitlePosition? {
         guard let override = item.positionOverride,
-              override.x != nil || override.y != nil || override.alignmentRaw != nil else {
+            override.x != nil || override.y != nil || override.alignmentRaw != nil
+        else {
             return nil
         }
 
-        let anchor = override.alignmentRaw
+        let anchor =
+            override.alignmentRaw
             .flatMap(SubtitleStyle.Alignment.init(rawValue:))
             ?? resolvedAnchorFallback(for: item, store: store)
         return ResolvedSubtitlePosition(
@@ -446,19 +477,23 @@ extension SubtitleProject {
         store: StyleAndGroupStore
     ) -> ResolvedSubtitleStyle {
         let styleName = group?.style
-        let subgroupStyle = item.styleID.flatMap { id in
-            store.styles.first(where: { $0.id == id })
-        } ?? styleName.flatMap { name in
-            store.styles.first(where: { $0.name == name })
-        } ?? store.styles.first
+        let subgroupStyle =
+            item.styleID.flatMap { id in
+                store.styles.first(where: { $0.id == id })
+            } ?? styleName.flatMap { name in
+                store.styles.first(where: { $0.name == name })
+            } ?? store.styles.first
 
         var resolved = ResolvedSubtitleStyle.fallback
         resolved.name = subgroupStyle?.name ?? styleName ?? resolved.name
         resolved.fontName = subgroupStyle?.fontName
-        resolved.textColor = ResolvedRGBAColor(hex: item.styleOverrides?.textColorHex)
+        resolved.textColor =
+            ResolvedRGBAColor(hex: item.styleOverrides?.textColorHex)
             ?? subgroupStyle?.color.resolvedRGBA
             ?? resolved.textColor
-        resolved.fontSize = item.styleOverrides?.fontSize ?? subgroupStyle?.fontSize ?? inferredFontSize(from: subgroupStyle) ?? resolved.fontSize
+        resolved.fontSize =
+            item.styleOverrides?.fontSize ?? subgroupStyle?.fontSize ?? inferredFontSize(from: subgroupStyle)
+            ?? resolved.fontSize
         resolved.isBold = item.styleOverrides?.isBold ?? subgroupStyle?.isBold ?? resolved.isBold
         resolved.isItalic = item.styleOverrides?.isItalic ?? subgroupStyle?.isItalic ?? resolved.isItalic
         resolved.isUnderline = subgroupStyle?.isUnderline ?? resolved.isUnderline
@@ -477,10 +512,12 @@ extension SubtitleProject {
         resolved.characterSpacing = subgroupStyle?.characterSpacing ?? resolved.characterSpacing
         resolved.rotationDegrees = subgroupStyle?.rotationDegrees ?? resolved.rotationDegrees
         if let subgroupStyle, subgroupStyle.backgroundAlpha > 0 {
-            resolved.backgroundColor = subgroupStyle.backgroundColor.resolvedRGBA.withAlpha(subgroupStyle.backgroundAlpha)
+            resolved.backgroundColor = subgroupStyle.backgroundColor.resolvedRGBA.withAlpha(
+                subgroupStyle.backgroundAlpha)
         }
         if let subgroupStyle, subgroupStyle.dropShadowAlpha > 0 {
-            resolved.dropShadowColor = subgroupStyle.dropShadowColor.resolvedRGBA.withAlpha(subgroupStyle.dropShadowAlpha)
+            resolved.dropShadowColor = subgroupStyle.dropShadowColor.resolvedRGBA.withAlpha(
+                subgroupStyle.dropShadowAlpha)
             resolved.dropShadowOffset = subgroupStyle.dropShadowOffset
             resolved.dropShadowAngle = subgroupStyle.dropShadowAngle
         }

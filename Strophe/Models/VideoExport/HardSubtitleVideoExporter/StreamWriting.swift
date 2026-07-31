@@ -26,11 +26,22 @@ extension HardSubtitleVideoExporter {
         sourceDisplaySize: CGSize?,
         timelineStartSeconds: Double,
         durationSeconds: Double,
+        allowsDirectFramePassThrough: Bool,
+        directPassThroughPixelFormat: OSType,
+        maxInFlightFrames: Int,
         progress: @MainActor @Sendable @escaping (Double) -> Void
     ) async throws {
         let group = MediaWriteGroup(count: 1 + audioPipes.count)
         let videoQueue = DispatchQueue(label: "com.strophe.export.video-writer", qos: .userInitiated)
-        let audioQueue = DispatchQueue(label: "com.strophe.export.audio-writer", qos: .userInitiated, attributes: .concurrent)
+        // AVAssetWriter's pull callback must run on a serial queue. Give each
+        // track its own queue so a single decoder/output is never re-entered,
+        // while separate audio tracks can still progress in parallel.
+        let audioQueues = audioPipes.indices.map { index in
+            DispatchQueue(
+                label: "com.strophe.export.audio-writer.\(index)",
+                qos: .userInitiated
+            )
+        }
         let cueCursor = SubtitleSceneCursor(index: cueIndex)
 
         let context = AVFoundationWriteContext(
@@ -49,11 +60,14 @@ extension HardSubtitleVideoExporter {
             sourceDisplaySize: sourceDisplaySize,
             timelineStartSeconds: timelineStartSeconds,
             durationSeconds: durationSeconds,
+            allowsDirectFramePassThrough: allowsDirectFramePassThrough,
+            directPassThroughPixelFormat: directPassThroughPixelFormat,
+            maxInFlightFrames: maxInFlightFrames,
             progress: progress,
             group: group
         )
 
-        context.start(videoQueue: videoQueue, audioQueue: audioQueue)
+        context.start(videoQueue: videoQueue, audioQueues: audioQueues)
 
         let cancelContext = MediaWriteCancelContext(reader: reader, writer: writer, group: group)
         try await withTaskCancellationHandler {
@@ -78,24 +92,25 @@ extension HardSubtitleVideoExporter {
         frameDuration: CMTime,
         sourceRange: Range<Double>?,
         durationSeconds: Double,
+        allowsDirectFramePassThrough: Bool,
+        directPassThroughPixelFormat: OSType,
+        maxInFlightFrames: Int,
         progress: @MainActor @Sendable @escaping (Double) -> Void
     ) async throws -> CMTime {
         let group = MediaWriteGroup(count: 1 + audioPipes.count)
         let videoQueue = DispatchQueue(label: "com.strophe.export.ffmpeg-video-writer", qos: .userInitiated)
-        let audioQueue = DispatchQueue(
-            label: "com.strophe.export.ffmpeg-audio-writer",
-            qos: .userInitiated,
-            attributes: .concurrent
-        )
         let cueCursor = SubtitleSceneCursor(index: cueIndex)
         let videoState = FFmpegVideoWriteState()
-        let audioWriteContexts = audioPipes.map { pipe in
+        let audioWriteContexts = audioPipes.enumerated().map { index, pipe in
             FFmpegAudioWriteContext(
                 audioReader: pipe.reader,
                 audioInput: pipe.input,
                 writer: writer,
                 group: group,
-                queue: audioQueue
+                queue: DispatchQueue(
+                    label: "com.strophe.export.ffmpeg-audio-writer.\(index)",
+                    qos: .userInitiated
+                )
             )
         }
 
@@ -113,6 +128,9 @@ extension HardSubtitleVideoExporter {
             frameDuration: frameDuration,
             sourceRange: sourceRange,
             durationSeconds: durationSeconds,
+            allowsDirectFramePassThrough: allowsDirectFramePassThrough,
+            directPassThroughPixelFormat: directPassThroughPixelFormat,
+            maxInFlightFrames: maxInFlightFrames,
             progress: progress,
             group: group,
             videoState: videoState,
@@ -171,7 +189,8 @@ extension HardSubtitleVideoExporter {
                 pipes[index].pendingSample = nil
                 guard pipes[index].input.append(sample) else {
                     writer.cancelWriting()
-                    throw HardSubtitleVideoExportError.audioMuxFailed(writer.error?.localizedDescription ?? "Unknown error")
+                    throw HardSubtitleVideoExportError.audioMuxFailed(
+                        writer.error?.localizedDescription ?? "Unknown error")
                 }
             }
         }
@@ -277,15 +296,21 @@ extension HardSubtitleVideoExporter {
             let waited = now - started
             if now - lastLog > 5.0 {
                 lastLog = now
-                print("🎞️ FFmpeg hard-sub export: waiting for video writer readiness at \(String(format: "%.2f", seconds))s (\(String(format: "%.1f", waited))s)")
+                print(
+                    "🎞️ FFmpeg hard-sub export: waiting for video writer readiness at \(String(format: "%.2f", seconds))s (\(String(format: "%.1f", waited))s)"
+                )
             }
             if waited > timeout {
                 if isTailFrame {
-                    print("🎞️ FFmpeg hard-sub export: video writer stayed not-ready at tail for \(String(format: "%.1f", waited))s; ending video track at source duration \(String(format: "%.2f", durationSeconds))s")
+                    print(
+                        "🎞️ FFmpeg hard-sub export: video writer stayed not-ready at tail for \(String(format: "%.1f", waited))s; ending video track at source duration \(String(format: "%.2f", durationSeconds))s"
+                    )
                     return false
                 }
                 writer.cancelWriting()
-                throw HardSubtitleVideoExportError.writerFailed("VideoToolbox writer stayed not-ready for \(String(format: "%.1f", waited))s at \(String(format: "%.2f", seconds))s.")
+                throw HardSubtitleVideoExportError.writerFailed(
+                    "VideoToolbox writer stayed not-ready for \(String(format: "%.1f", waited))s at \(String(format: "%.2f", seconds))s."
+                )
             }
 
             try await Task.sleep(nanoseconds: 2_000_000)

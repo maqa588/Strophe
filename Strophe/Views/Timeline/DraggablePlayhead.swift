@@ -16,18 +16,18 @@ struct DraggablePlayhead: View {
     let duration: Double
     let project: SubtitleProject
 
-    // 磁力吸附与防抖状态
+    // Hysteresis keeps the playhead from flickering at a snap boundary.
     @State private var isSnapped = false
     @State private var snappedTime: Double? = nil
 
     private func triggerHapticFeedback() {
         #if os(macOS)
-        DispatchQueue.main.async {
-            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
-        }
+            DispatchQueue.main.async {
+                NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+            }
         #elseif os(iOS)
-        let generator = UIImpactFeedbackGenerator(style: .light)
-        generator.impactOccurred()
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.impactOccurred()
         #endif
     }
 
@@ -45,7 +45,7 @@ struct DraggablePlayhead: View {
                 .offset(y: -12)
         }
         .frame(width: 2.0)
-        .offset(x: -1.0) // 居中补偿：向左平移半个线宽以精准对齐时间点
+        .offset(x: -1.0)  // Center the two-point line on the exact timeline position.
         // Make the hit area wide enough to grab easily
         .contentShape(Rectangle().inset(by: -12))
         .gesture(
@@ -57,18 +57,18 @@ struct DraggablePlayhead: View {
                         isScrubbing = true
                         dragStartTime = currentTime
                     }
-                    
+
                     let delta = Double(value.translation.width) / pixelsPerSecond
                     let rawProposedTime = (dragStartTime + delta).clamped(to: 0...duration)
-                    
+
                     // TimelineIndex performs a binary search instead of rebuilding
                     // and scanning an edge array on every pointer event.
                     let closestSnap = project.timelineIndex.nearestSnapPoint(to: rawProposedTime)
                     let minDistance = closestSnap.map { abs($0 - rawProposedTime) } ?? .infinity
-                    
-                    // 10 像素磁吸，20 像素挣脱防抖阈值
+
+                    // Acquire within 10 points and release beyond 20 points.
                     let activeThreshold = isSnapped ? (20.0 / pixelsPerSecond) : (10.0 / pixelsPerSecond)
-                    
+
                     var finalTime = rawProposedTime
                     if minDistance <= activeThreshold, let snap = closestSnap {
                         if !isSnapped {
@@ -81,7 +81,7 @@ struct DraggablePlayhead: View {
                         isSnapped = false
                         snappedTime = nil
                     }
-                    
+
                     currentTime = finalTime
                 }
                 .onEnded { _ in
@@ -94,6 +94,6 @@ struct DraggablePlayhead: View {
                     project.referenceDate = .now
                 }
         )
-        .cursor() // 显示左右拉伸光标
+        .cursor()
     }
 }

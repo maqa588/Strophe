@@ -4,12 +4,12 @@
 
 import SwiftUI
 #if os(macOS)
-import AppKit
+    import AppKit
 #elseif canImport(UIKit)
-import UIKit
+    import UIKit
 #endif
 #if os(iOS)
-import GameController
+    import GameController
 #endif
 
 extension SubtitleBlocksLayer {
@@ -32,18 +32,19 @@ extension SubtitleBlocksLayer {
         }
 
         #if os(iOS)
-        if dragAxisIntent == .undecided {
-            let horizontal = abs(value.translation.width)
-            let vertical = abs(value.translation.height)
-            guard max(horizontal, vertical) >= 6 else { return }
-            dragAxisIntent = horizontal >= vertical ? .horizontal : .vertical
-        }
-        guard dragAxisIntent == .horizontal else {
-            dragMode = .ignored
-            activeDragDelta = 0
-            activeDragVerticalDelta = 0
-            return
-        }
+            if dragAxisIntent == .undecided {
+                let horizontal = abs(value.translation.width)
+                let vertical = abs(value.translation.height)
+                guard max(horizontal, vertical) >= 6 else { return }
+                dragAxisIntent = horizontal >= vertical ? .horizontal : .vertical
+            }
+            guard dragAxisIntent == .horizontal else {
+                dragMode = .ignored
+                activeDragDelta = 0
+                activeDragVerticalDelta = 0
+                project.scheduleClearKaraokeTimingPreview()
+                return
+            }
         #endif
 
         switch dragMode {
@@ -52,23 +53,25 @@ extension SubtitleBlocksLayer {
             activeDragDelta = snappedDelta(
                 proposals: [
                     DragSnapProposal(anchor: .start, initialTime: initialStart, proposedTime: initialStart + delta),
-                    DragSnapProposal(anchor: .end, initialTime: initialEnd, proposedTime: initialEnd + delta)
+                    DragSnapProposal(anchor: .end, initialTime: initialEnd, proposedTime: initialEnd + delta),
                 ],
                 rawDelta: delta,
                 ignoring: movingItemIDs
             )
             #if os(macOS)
-            updateVerticalTrackDrag(translation: value.translation.height)
+                updateVerticalTrackDrag(translation: value.translation.height)
             #endif
 
         case .leftEdge(let itemID, let initialStart, _):
             let delta = Double(value.translation.width) / pixelsPerSecond
             activeDragDelta = snappedDelta(
-                proposals: [DragSnapProposal(
-                    anchor: .start,
-                    initialTime: initialStart,
-                    proposedTime: initialStart + delta
-                )],
+                proposals: [
+                    DragSnapProposal(
+                        anchor: .start,
+                        initialTime: initialStart,
+                        proposedTime: initialStart + delta
+                    )
+                ],
                 rawDelta: delta,
                 ignoring: [itemID]
             )
@@ -76,11 +79,13 @@ extension SubtitleBlocksLayer {
         case .rightEdge(let itemID, _, let initialEnd):
             let delta = Double(value.translation.width) / pixelsPerSecond
             activeDragDelta = snappedDelta(
-                proposals: [DragSnapProposal(
-                    anchor: .end,
-                    initialTime: initialEnd,
-                    proposedTime: initialEnd + delta
-                )],
+                proposals: [
+                    DragSnapProposal(
+                        anchor: .end,
+                        initialTime: initialEnd,
+                        proposedTime: initialEnd + delta
+                    )
+                ],
                 rawDelta: delta,
                 ignoring: [itemID]
             )
@@ -95,9 +100,11 @@ extension SubtitleBlocksLayer {
         case .ignored, .none:
             break
         }
+        refreshKaraokeTimingPreview()
     }
 
     func beginDrag(at location: CGPoint) {
+        project.scheduleClearKaraokeTimingPreview()
         if let hit = hitTest(at: location) {
             let item = hit.item
             guard isTimelineEditable(item) else {
@@ -123,13 +130,15 @@ extension SubtitleBlocksLayer {
             dragTargetGroupID = dragSnapGroupID
 
             if let edge = dragEdge {
-                dragMode = edge == .left
+                dragMode =
+                    edge == .left
                     ? .leftEdge(itemID: item.id, initialStart: start, initialEnd: end)
                     : .rightEdge(itemID: item.id, initialStart: start, initialEnd: end)
             } else {
-                movingItemIDs = Set(project.items.lazy.filter {
-                    project.selectedIDs.contains($0.id) && isTimelineEditable($0)
-                }.map(\.id))
+                movingItemIDs = Set(
+                    project.items.lazy.filter {
+                        project.selectedIDs.contains($0.id) && isTimelineEditable($0)
+                    }.map(\.id))
                 let movingItems = project.items.filter { movingItemIDs.contains($0.id) }
                 let selectionStart = movingItems.compactMap(\.startTime).min() ?? start
                 let selectionEnd = movingItems.compactMap(\.endTime).max() ?? end
@@ -139,13 +148,14 @@ extension SubtitleBlocksLayer {
                     initialEnd: selectionEnd
                 )
                 #if os(macOS)
-                triggerLiftHapticFeedback()
+                    triggerLiftHapticFeedback()
                 #endif
             }
             return
         } else if let hitItem = anyBlockHitTest(at: location) {
             if let groupID = renderModel.group(for: hitItem)?.id,
-               groupID != renderModel.activeGroupID {
+                groupID != renderModel.activeGroupID
+            {
                 StyleAndGroupStore.shared.setActiveGroup(groupID)
                 beginDrag(at: location)
             } else {
@@ -155,13 +165,13 @@ extension SubtitleBlocksLayer {
         }
 
         #if os(macOS)
-        guard isPointInsideTimeline(location) else {
-            dragMode = .ignored
-            return
-        }
-        beginMarquee(at: location)
+            guard isPointInsideTimeline(location) else {
+                dragMode = .ignored
+                return
+            }
+            beginMarquee(at: location)
         #else
-        dragMode = .ignored
+            dragMode = .ignored
         #endif
     }
 
@@ -202,6 +212,7 @@ extension SubtitleBlocksLayer {
 
     func resetDragState() {
         stopMarqueeAutoScroll()
+        project.scheduleClearKaraokeTimingPreview()
         dragMode = .none
         activeDragItemID = nil
         activeDragEdge = nil
@@ -219,14 +230,35 @@ extension SubtitleBlocksLayer {
         marqueeCurrent = nil
     }
 
+    func refreshKaraokeTimingPreview() {
+        switch dragMode {
+        case .leftEdge(let itemID, let initialStart, let initialEnd):
+            project.scheduleKaraokeCueTimingPreview(
+                id: itemID,
+                newStartTime: initialStart + activeDragDelta,
+                newEndTime: initialEnd
+            )
+        case .rightEdge(let itemID, let initialStart, let initialEnd):
+            project.scheduleKaraokeCueTimingPreview(
+                id: itemID,
+                newStartTime: initialStart,
+                newEndTime: initialEnd + activeDragDelta
+            )
+        case .move, .marquee, .ignored, .none:
+            project.scheduleClearKaraokeTimingPreview()
+        }
+    }
+
     func updateVerticalTrackDrag(translation: CGFloat) {
         activeDragVerticalDelta = abs(translation) < 6 ? 0 : translation
         guard let activeDragItemID,
-              let item = renderModel.item(id: activeDragItemID) else {
+            let item = renderModel.item(id: activeDragItemID)
+        else {
             dragTargetGroupID = nil
             return
         }
-        let centerY = blockY(for: item)
+        let centerY =
+            blockY(for: item)
             + SubtitleTimelineTrackMetrics.scaledBlockHeight(trackVerticalScale) * 0.5
             + activeDragVerticalDelta
         let newTargetGroupID = trackGroup(at: centerY)?.id
@@ -270,8 +302,9 @@ extension SubtitleBlocksLayer {
         let releaseThreshold = 14.0 / pixelsPerSecond
 
         if let locked = dragSnapLock,
-           let proposal = proposals.first(where: { $0.anchor == locked.anchor }),
-           abs(proposal.proposedTime - locked.targetTime) <= releaseThreshold {
+            let proposal = proposals.first(where: { $0.anchor == locked.anchor }),
+            abs(proposal.proposedTime - locked.targetTime) <= releaseThreshold
+        {
             return locked.targetTime - proposal.initialTime
         }
 
@@ -365,36 +398,36 @@ extension SubtitleBlocksLayer {
     }
 
     #if os(iOS)
-    func handleMobileDoubleTap(at location: CGPoint) {
-        let targetItem = hitTest(at: location)?.item ?? anyBlockHitTest(at: location)
-        guard let item = targetItem else { return }
-        contextItemID = item.id
-        if let groupID = renderModel.group(for: item)?.id, groupID != renderModel.activeGroupID {
-            StyleAndGroupStore.shared.setActiveGroup(groupID)
-        }
-        if !project.selectedIDs.contains(item.id) {
-            if project.isSubtitleMultiSelecting {
-                project.selectedIDs.insert(item.id)
-            } else {
-                project.selectedIDs = [item.id]
+        func handleMobileDoubleTap(at location: CGPoint) {
+            let targetItem = hitTest(at: location)?.item ?? anyBlockHitTest(at: location)
+            guard let item = targetItem else { return }
+            contextItemID = item.id
+            if let groupID = renderModel.group(for: item)?.id, groupID != renderModel.activeGroupID {
+                StyleAndGroupStore.shared.setActiveGroup(groupID)
             }
+            if !project.selectedIDs.contains(item.id) {
+                if project.isSubtitleMultiSelecting {
+                    project.selectedIDs.insert(item.id)
+                } else {
+                    project.selectedIDs = [item.id]
+                }
+            }
+            if item.activeKaraoke != nil {
+                project.isKaraokeEditorManuallyClosed = false
+            }
+            isShowingMobileBlockActions = true
         }
-        if item.activeKaraoke != nil {
-            project.isKaraokeEditorManuallyClosed = false
-        }
-        isShowingMobileBlockActions = true
-    }
     #endif
 
     var commandKeyIsPressed: Bool {
         #if os(macOS)
-        NSEvent.modifierFlags.contains(.command)
+            NSEvent.modifierFlags.contains(.command)
         #elseif os(iOS)
-        guard let keyboard = GCKeyboard.coalesced?.keyboardInput else { return false }
-        return keyboard.button(forKeyCode: .leftGUI)?.isPressed == true
-            || keyboard.button(forKeyCode: .rightGUI)?.isPressed == true
+            guard let keyboard = GCKeyboard.coalesced?.keyboardInput else { return false }
+            return keyboard.button(forKeyCode: .leftGUI)?.isPressed == true
+                || keyboard.button(forKeyCode: .rightGUI)?.isPressed == true
         #else
-        false
+            false
         #endif
     }
 

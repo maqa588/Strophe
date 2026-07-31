@@ -128,20 +128,46 @@ extension SubtitleProject {
         mutateItems { updated in
             for index in updated.indices where ids.contains(updated[index].id) {
                 guard !isLockedForEditing(updated[index]) else { continue }
-                if let start = updated[index].startTime {
-                    updated[index].startTime = snapToFrame(
-                        max(0, resolvedAnchor + (start - resolvedAnchor) * factor)
-                    )
+                guard let oldStart = updated[index].startTime else { continue }
+                let transformedStart = max(
+                    0,
+                    resolvedAnchor + (oldStart - resolvedAnchor) * factor
+                )
+                let newStart = snapToFrame(transformedStart)
+                updated[index].startTime = newStart
+
+                guard let oldEnd = updated[index].endTime else {
+                    updated[index].karaoke = updated[index].karaoke?
+                        .scalingOffsets(by: factor)
+                    continue
                 }
-                if let end = updated[index].endTime {
-                    updated[index].endTime = snapToFrame(
-                        max(0, resolvedAnchor + (end - resolvedAnchor) * factor)
-                    )
+                let transformedEnd = max(
+                    transformedStart,
+                    resolvedAnchor + (oldEnd - resolvedAnchor) * factor
+                )
+                let newEnd = snapToFrame(
+                    max(newStart + frameDuration, transformedEnd)
+                )
+                let finalEnd = max(
+                    newStart + frameDuration,
+                    newEnd
+                )
+                updated[index].endTime = finalEnd
+
+                if let program = updated[index].karaoke {
+                    updated[index].karaoke =
+                        program
+                        .scalingOffsets(by: factor)
+                        .shiftingOffsets(by: transformedStart - newStart)
+                        .reconciled(
+                            to: updated[index].text,
+                            cueDuration: finalEnd - newStart
+                        )
                 }
-                updated[index].scaleKaraokeOffsets(by: factor)
             }
             updated.sort(by: stableSubtitleSort)
         }
+        clearKaraokeTimingPreview()
         registerUndo(
             label: String(localized: "batch_stretch"),
             oldItems: oldItems,
@@ -152,7 +178,8 @@ extension SubtitleProject {
     }
 
     func normalizeSubtitleGaps(ids: Set<UUID>, gap: TimeInterval) {
-        let ordered = items
+        let ordered =
+            items
             .filter {
                 ids.contains($0.id)
                     && !isLockedForEditing($0)
@@ -188,7 +215,8 @@ extension SubtitleProject {
         minimumGap: TimeInterval,
         mode: SubtitleOverlapRepairMode
     ) {
-        let ordered = items
+        let ordered =
+            items
             .filter {
                 ids.contains($0.id)
                     && !isLockedForEditing($0)
@@ -211,8 +239,9 @@ extension SubtitleProject {
             let earlier = ordered[index - 1]
             let later = ordered[index]
             guard var earlierTiming = timings[earlier.id],
-                  var laterTiming = timings[later.id],
-                  laterTiming.0 < earlierTiming.1 + minimumGap else {
+                var laterTiming = timings[later.id],
+                laterTiming.0 < earlierTiming.1 + minimumGap
+            else {
                 continue
             }
             switch mode {
@@ -249,7 +278,8 @@ extension SubtitleProject {
                 let newStart = snapToFrame(max(0, timing.0))
                 let newEnd = snapToFrame(max(timing.0 + frameDuration, timing.1))
                 if let oldStart = updated[index].startTime,
-                   let oldEnd = updated[index].endTime {
+                    let oldEnd = updated[index].endTime
+                {
                     updated[index].retimeKaraokeForCueChange(
                         oldStart: oldStart,
                         oldEnd: oldEnd,

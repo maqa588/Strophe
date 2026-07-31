@@ -8,17 +8,17 @@
 import SwiftUI
 
 #if os(macOS)
-import AppKit
+    import AppKit
 #endif
 
-/// 字幕切分交互视图：显示分词游标，让用户选择文本切分点
+/// Lets the user choose a character boundary for splitting a subtitle cue.
 struct SubtitleSplitView: View {
     let item: SubtitleItem
     let splitTime: TimeInterval
     let project: SubtitleProject
     let onDismiss: () -> Void
 
-    /// 游标在文本中的位置（0 = 最左，text.count = 最右）
+    /// Boundary index in `characters`, from zero through `characters.count`.
     @State private var cursorPosition: Int
 
     private var characters: [Character] {
@@ -39,7 +39,7 @@ struct SubtitleSplitView: View {
         self.project = project
         self.onDismiss = onDismiss
 
-        // 初始游标位置：按时间比例估算
+        // Estimate the initial text boundary from the playhead's cue position.
         let startTime = item.startTime ?? 0
         let endTime = item.endTime ?? 1
         let duration = max(0.001, endTime - startTime)
@@ -58,79 +58,79 @@ struct SubtitleSplitView: View {
 
     var body: some View {
         #if os(macOS)
-        macOSContent
+            macOSContent
         #else
-        iOSContent
+            iOSContent
         #endif
     }
 
     #if os(macOS)
-    private var macOSContent: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text("split_subtitles")
-                    .font(.title3)
-                    .fontWeight(.bold)
-                    .foregroundStyle(Color.stropheText)
-
-                Spacer()
-
-                Button(action: onDismiss) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
+        private var macOSContent: some View {
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Text("split_subtitles")
                         .font(.title3)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.stropheText)
+
+                    Spacer()
+
+                    Button(action: onDismiss) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                            .font(.title3)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 20)
-            .padding(.bottom, 12)
+                .padding(.horizontal, 24)
+                .padding(.top, 20)
+                .padding(.bottom, 12)
 
-            Divider()
-                .background(Color.stropheBorder)
+                Divider()
+                    .background(Color.stropheBorder)
 
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 16) {
-                    cursorSplitCard
-                    splitResultPreviewCard
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 16) {
+                        cursorSplitCard
+                        splitResultPreviewCard
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 16)
+                }
+
+                Divider()
+                    .background(Color.stropheBorder)
+
+                // Bottom Actions
+                HStack {
+                    Spacer()
+
+                    Button(String(localized: "cancel")) {
+                        onDismiss()
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(Color.stropheText)
+
+                    Button(String(localized: "confirm_split")) {
+                        project.splitSubtitle(
+                            id: item.id,
+                            at: splitTime,
+                            leftText: leftText,
+                            rightText: rightText
+                        )
+                        onDismiss()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color.stropheAccent)
+                    .disabled(leftText.isEmpty || rightText.isEmpty)
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 16)
             }
-
-            Divider()
-                .background(Color.stropheBorder)
-
-            // Bottom Actions
-            HStack {
-                Spacer()
-
-                Button(String(localized: "cancel")) {
-                    onDismiss()
-                }
-                .buttonStyle(.bordered)
-                .tint(Color.stropheText)
-
-                Button(String(localized: "confirm_split")) {
-                    project.splitSubtitle(
-                        id: item.id,
-                        at: splitTime,
-                        leftText: leftText,
-                        rightText: rightText
-                    )
-                    onDismiss()
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(Color.stropheAccent)
-                .disabled(leftText.isEmpty || rightText.isEmpty)
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
+            .frame(width: 500, height: 480)
+            .background(VisualEffectView(material: .sheet, blendingMode: .behindWindow))
         }
-        .frame(width: 500, height: 480)
-        .background(VisualEffectView(material: .sheet, blendingMode: .behindWindow))
-    }
     #endif
 
     private var iOSContent: some View {
@@ -145,7 +145,7 @@ struct SubtitleSplitView: View {
             }
             .navigationTitle(String(localized: "split_subtitles"))
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
+                .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -177,11 +177,9 @@ struct SubtitleSplitView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            // 文本分词显示
             splitTextView
                 .padding(.horizontal, 8)
 
-            // 左右箭头微调
             HStack(spacing: 20) {
                 Button(action: {
                     if cursorPosition > 1 { cursorPosition -= 1 }
@@ -202,7 +200,8 @@ struct SubtitleSplitView: View {
                 }) {
                     Image(systemName: "chevron.right.circle.fill")
                         .font(.title2)
-                        .foregroundStyle(cursorPosition < characters.count - 1 ? Color.stropheAccent : Color.secondary.opacity(0.3))
+                        .foregroundStyle(
+                            cursorPosition < characters.count - 1 ? Color.stropheAccent : Color.secondary.opacity(0.3))
                 }
                 .buttonStyle(.plain)
                 .disabled(cursorPosition >= characters.count - 1)
@@ -220,7 +219,6 @@ struct SubtitleSplitView: View {
     private var splitResultPreviewCard: some View {
         VStack(spacing: 12) {
             HStack(alignment: .top, spacing: 0) {
-                // 左半
                 VStack(spacing: 4) {
                     HStack(spacing: 4) {
                         Circle()
@@ -248,7 +246,6 @@ struct SubtitleSplitView: View {
                     .frame(width: 1, height: 56)
                     .padding(.top, 4)
 
-                // 右半
                 VStack(spacing: 4) {
                     HStack(spacing: 4) {
                         Circle()
@@ -281,16 +278,15 @@ struct SubtitleSplitView: View {
         )
     }
 
-    // MARK: - 分词文本视图
+    // MARK: - Split text
 
-    /// 每个字符独立渲染，字符间隔可点击定位游标
+    /// Renders characters separately so every boundary remains selectable.
     @ViewBuilder
     private var splitTextView: some View {
         let charArray = characters
 
         WrappingHStack(alignment: .center, spacing: 0) {
             ForEach(Array(charArray.enumerated()), id: \.offset) { index, char in
-                // 字符间游标点击区（在字符之前）
                 if index > 0 {
                     Rectangle()
                         .fill(index == cursorPosition ? Color.stropheAccent : Color.clear)
@@ -302,7 +298,6 @@ struct SubtitleSplitView: View {
                         }
                 }
 
-                // 字符显示
                 Text(String(char))
                     .font(.system(size: 20, weight: .medium, design: .rounded))
                     .foregroundStyle(index < cursorPosition ? Color.stropheBlue : Color.orange)
@@ -331,84 +326,84 @@ struct SubtitleSplitView: View {
 }
 
 #if os(macOS)
-private struct SubtitleSplitKeyMonitor: NSViewRepresentable {
-    let moveLeft: () -> Void
-    let moveRight: () -> Void
+    private struct SubtitleSplitKeyMonitor: NSViewRepresentable {
+        let moveLeft: () -> Void
+        let moveRight: () -> Void
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(moveLeft: moveLeft, moveRight: moveRight)
-    }
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        context.coordinator.trackingView = view
-        context.coordinator.registerMonitor()
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        context.coordinator.trackingView = nsView
-        context.coordinator.moveLeft = moveLeft
-        context.coordinator.moveRight = moveRight
-    }
-
-    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
-        coordinator.unregisterMonitor()
-    }
-
-    final class Coordinator {
-        weak var trackingView: NSView?
-        var moveLeft: () -> Void
-        var moveRight: () -> Void
-        private var monitor: Any?
-
-        init(moveLeft: @escaping () -> Void, moveRight: @escaping () -> Void) {
-            self.moveLeft = moveLeft
-            self.moveRight = moveRight
+        func makeCoordinator() -> Coordinator {
+            Coordinator(moveLeft: moveLeft, moveRight: moveRight)
         }
 
-        func registerMonitor() {
-            guard monitor == nil else { return }
-            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-                guard let self,
-                      let window = trackingView?.window,
-                      event.window === window,
-                      !Self.isEditingText(in: window)
-                else {
-                    return event
-                }
+        func makeNSView(context: Context) -> NSView {
+            let view = NSView()
+            context.coordinator.trackingView = view
+            context.coordinator.registerMonitor()
+            return view
+        }
 
-                switch event.keyCode {
-                case 123:
-                    moveLeft()
-                    return nil
-                case 124:
-                    moveRight()
-                    return nil
-                default:
-                    return event
+        func updateNSView(_ nsView: NSView, context: Context) {
+            context.coordinator.trackingView = nsView
+            context.coordinator.moveLeft = moveLeft
+            context.coordinator.moveRight = moveRight
+        }
+
+        static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+            coordinator.unregisterMonitor()
+        }
+
+        final class Coordinator {
+            weak var trackingView: NSView?
+            var moveLeft: () -> Void
+            var moveRight: () -> Void
+            private var monitor: Any?
+
+            init(moveLeft: @escaping () -> Void, moveRight: @escaping () -> Void) {
+                self.moveLeft = moveLeft
+                self.moveRight = moveRight
+            }
+
+            func registerMonitor() {
+                guard monitor == nil else { return }
+                monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                    guard let self,
+                        let window = trackingView?.window,
+                        event.window === window,
+                        !Self.isEditingText(in: window)
+                    else {
+                        return event
+                    }
+
+                    switch event.keyCode {
+                    case 123:
+                        moveLeft()
+                        return nil
+                    case 124:
+                        moveRight()
+                        return nil
+                    default:
+                        return event
+                    }
                 }
             }
-        }
 
-        func unregisterMonitor() {
-            if let monitor {
-                NSEvent.removeMonitor(monitor)
-                self.monitor = nil
+            func unregisterMonitor() {
+                if let monitor {
+                    NSEvent.removeMonitor(monitor)
+                    self.monitor = nil
+                }
+            }
+
+            private static func isEditingText(in window: NSWindow) -> Bool {
+                guard let responder = window.firstResponder else { return false }
+                return responder is NSTextView || responder is NSTextField
             }
         }
-
-        private static func isEditingText(in window: NSWindow) -> Bool {
-            guard let responder = window.firstResponder else { return false }
-            return responder is NSTextView || responder is NSTextField
-        }
     }
-}
 #endif
 
 // MARK: - WrappingHStack
 
-/// 自适应换行的水平布局，用于字符级别的分词展示
+/// A wrapping horizontal layout used for character-level selection.
 struct WrappingHStack: Layout {
     var alignment: VerticalAlignment
     var spacing: CGFloat

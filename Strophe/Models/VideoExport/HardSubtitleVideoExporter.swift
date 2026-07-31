@@ -4,7 +4,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 import VideoToolbox
 
-
 nonisolated enum HardSubtitleVideoExporter {
     @MainActor
     static func export(
@@ -82,7 +81,9 @@ nonisolated enum HardSubtitleVideoExporter {
             try Task.checkCancellation()
             var fallbackSettings = settings
             fallbackSettings.usesBGRACompatibilityPixelBuffers = true
-            print("🎞️ NV12 hard-subtitle export failed; retrying from the beginning with BGRA: \(error.localizedDescription)")
+            print(
+                "🎞️ NV12 hard-subtitle export failed; retrying from the beginning with BGRA: \(error.localizedDescription)"
+            )
             await MainActor.run {
                 progress(0)
             }
@@ -134,10 +135,11 @@ nonisolated enum HardSubtitleVideoExporter {
         settings: HardSubtitleVideoExportSettings
     ) -> Bool {
         guard !settings.codec.isProRes,
-              !settings.exportsHDR,
-              !settings.usesBGRACompatibilityPixelBuffers,
-              !Task.isCancelled,
-              !(error is CancellationError) else {
+            !settings.exportsHDR,
+            !settings.usesBGRACompatibilityPixelBuffers,
+            !Task.isCancelled,
+            !(error is CancellationError)
+        else {
             return false
         }
 
@@ -150,21 +152,21 @@ nonisolated enum HardSubtitleVideoExporter {
         }
         switch exportError {
         case .cannotCreateReader,
-             .cannotCreateWriter,
-             .cannotStartReading(_),
-             .cannotStartWriting(_),
-             .writerFailed(_),
-             .readerFailed(_):
+            .cannotCreateWriter,
+            .cannotStartReading(_),
+            .cannotStartWriting(_),
+            .writerFailed(_),
+            .readerFailed(_):
             return true
         case .missingMedia,
-             .missingVideoTrack,
-             .unsupportedInput(_),
-             .cancelled,
-             .audioMuxFailed(_),
-             .ffmpegDecodeFailed(_),
-             .hdrRequiresCompatibleCodec,
-             .hdrSourceRequired,
-             .invalidExportRange:
+            .missingVideoTrack,
+            .unsupportedInput(_),
+            .cancelled,
+            .audioMuxFailed(_),
+            .ffmpegDecodeFailed(_),
+            .hdrRequiresCompatibleCodec,
+            .hdrSourceRequired,
+            .invalidExportRange:
             return false
         }
     }
@@ -194,7 +196,8 @@ nonisolated enum HardSubtitleVideoExporter {
             return colorProfile.pixelFormat
         }
         guard !settings.usesBGRACompatibilityPixelBuffers,
-              !settings.codec.isProRes else {
+            !settings.codec.isProRes
+        else {
             return kCVPixelFormatType_32BGRA
         }
         return kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
@@ -216,7 +219,7 @@ nonisolated enum HardSubtitleVideoExporter {
         var attributes: [String: Any] = [
             kCVPixelBufferPixelFormatTypeKey as String: pixelFormat,
             kCVPixelBufferMetalCompatibilityKey as String: true,
-            kCVPixelBufferIOSurfacePropertiesKey as String: [:]
+            kCVPixelBufferIOSurfacePropertiesKey as String: [:],
         ]
 
         if let width {
@@ -234,6 +237,72 @@ nonisolated enum HardSubtitleVideoExporter {
         return attributes
     }
 
+    /// Requests hardware decode when the OS exposes that control and gives any
+    /// software fallback the full CPU pool. Unsupported decoder properties are
+    /// advisory and are ignored by VideoToolbox without changing image quality.
+    static func videoReaderOutputSettings(
+        pixelFormat: OSType,
+        colorProfile: VideoColorProfile,
+        processorCount: Int = ProcessInfo.processInfo.activeProcessorCount
+    ) -> [String: Any] {
+        var settings = pixelBufferAttributes(
+            pixelFormat: pixelFormat,
+            width: nil,
+            height: nil
+        )
+        settings[AVVideoColorPropertiesKey] = colorProfile.avVideoColorProperties
+        settings[AVVideoAllowWideColorKey] = colorProfile.isHDR
+
+        if #available(macOS 13.0, iOS 17.0, *) {
+            settings[AVVideoDecompressionPropertiesKey] = [
+                kVTVideoDecoderSpecification_EnableHardwareAcceleratedVideoDecoder as String: true,
+                kVTDecompressionPropertyKey_ThreadCount as String:
+                    max(1, min(processorCount, 16)),
+            ]
+        }
+        return settings
+    }
+
+    /// Keeps enough decoded/rendered frames in flight to overlap CPU decode,
+    /// Metal/Core Image composition and VideoToolbox encode. The memory limit
+    /// is deliberately conservative because each slot retains both source and
+    /// destination IOSurfaces until the GPU fence completes.
+    static func renderPipelineDepth(
+        settings: HardSubtitleVideoExportSettings,
+        renderSize: CGSize,
+        pixelFormat: OSType,
+        processorCount: Int = ProcessInfo.processInfo.activeProcessorCount,
+        physicalMemory: UInt64 = ProcessInfo.processInfo.physicalMemory
+    ) -> Int {
+        let codecLimit = settings.codec.isProRes ? 4 : 6
+        let cpuLimit = max(2, min(codecLimit, (max(processorCount, 1) + 1) / 2))
+
+        let retainedBytesPerPixel: Double
+        switch pixelFormat {
+        case kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
+            kCVPixelFormatType_420YpCbCr8BiPlanarFullRange:
+            retainedBytesPerPixel = 3  // source + destination, 1.5 bytes each
+        case kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange,
+            kCVPixelFormatType_420YpCbCr10BiPlanarFullRange:
+            retainedBytesPerPixel = 6
+        default:
+            retainedBytesPerPixel = 8  // two four-byte IOSurfaces
+        }
+
+        let pixels = max(1, Double(renderSize.width) * Double(renderSize.height))
+        // Reserve headroom for Core Image intermediates and allocator alignment.
+        let bytesPerSlot = max(
+            1,
+            UInt64((pixels * retainedBytesPerPixel * 1.25).rounded(.up))
+        )
+        let memoryBudget = min(
+            UInt64(384 * 1_024 * 1_024),
+            max(UInt64(96 * 1_024 * 1_024), physicalMemory / 32)
+        )
+        let memoryLimit = max(1, Int(memoryBudget / bytesPerSlot))
+        return max(1, min(cpuLimit, memoryLimit))
+    }
+
     struct RenderGeometry {
         var renderSize: CGSize
         var sourceDisplaySize: CGSize?
@@ -246,7 +315,8 @@ nonisolated enum HardSubtitleVideoExporter {
         usesDisplayAspect: Bool
     ) -> RenderGeometry {
         if usesDisplayAspect,
-           let displaySize = displaySize(from: formatDescriptions, fallback: naturalSize) {
+            let displaySize = displaySize(from: formatDescriptions, fallback: naturalSize)
+        {
             let transformed = transformedSize(displaySize, preferredTransform: preferredTransform)
             return RenderGeometry(
                 renderSize: evenSize(transformed),
@@ -267,9 +337,10 @@ nonisolated enum HardSubtitleVideoExporter {
     ) -> RenderGeometry {
         let storageSize = evenSize(naturalSize)
         guard usesDisplayAspect,
-              sampleAspectRatio.width > 0,
-              sampleAspectRatio.height > 0,
-              abs(sampleAspectRatio.width - sampleAspectRatio.height) > 0.0001 else {
+            sampleAspectRatio.width > 0,
+            sampleAspectRatio.height > 0,
+            abs(sampleAspectRatio.width - sampleAspectRatio.height) > 0.0001
+        else {
             return RenderGeometry(renderSize: storageSize, sourceDisplaySize: nil)
         }
 
@@ -314,17 +385,20 @@ nonisolated enum HardSubtitleVideoExporter {
         let displayWidth = storageWidth * pixelAspect
         let displaySize = CGSize(width: displayWidth, height: storageHeight)
 
-        let differsFromNatural = abs(displaySize.width - naturalSize.width) > 0.5
+        let differsFromNatural =
+            abs(displaySize.width - naturalSize.width) > 0.5
             || abs(displaySize.height - naturalSize.height) > 0.5
         let differsFromSquarePixels = abs(pixelAspect - 1) > 0.001
         return differsFromNatural || differsFromSquarePixels ? displaySize : nil
     }
 
     static func pixelAspectRatio(from description: CMFormatDescription) -> CGFloat {
-        guard let extensionValue = CMFormatDescriptionGetExtension(
-            description,
-            extensionKey: kCMFormatDescriptionExtension_PixelAspectRatio
-        ) else {
+        guard
+            let extensionValue = CMFormatDescriptionGetExtension(
+                description,
+                extensionKey: kCMFormatDescriptionExtension_PixelAspectRatio
+            )
+        else {
             return 1
         }
 
@@ -352,10 +426,11 @@ nonisolated enum HardSubtitleVideoExporter {
         }
         guard FileManager.default.fileExists(atPath: writer.outputURL.path) else {
             let parent = writer.outputURL.deletingLastPathComponent()
-            let entries = (try? FileManager.default.contentsOfDirectory(
-                at: parent,
-                includingPropertiesForKeys: nil
-            ))?.map(\.lastPathComponent) ?? []
+            let entries =
+                (try? FileManager.default.contentsOfDirectory(
+                    at: parent,
+                    includingPropertiesForKeys: nil
+                ))?.map(\.lastPathComponent) ?? []
             print(
                 "🎞️ Writer completed without a visible output file. "
                     + "URL=\(writer.outputURL.path), parentExists="
@@ -368,18 +443,4 @@ nonisolated enum HardSubtitleVideoExporter {
         }
     }
 
-    static func temporaryExportURL(fileExtension: String) -> URL {
-        let directory = TempCleanupHelper.exportSessionDirectoryURL
-        return directory.appendingPathComponent(UUID().uuidString).appendingPathExtension(fileExtension)
-    }
-
-    static func replaceExport(at destinationURL: URL, with temporaryURL: URL) throws {
-        try? FileManager.default.removeItem(at: destinationURL)
-        do {
-            try FileManager.default.moveItem(at: temporaryURL, to: destinationURL)
-        } catch {
-            try FileManager.default.copyItem(at: temporaryURL, to: destinationURL)
-            try? FileManager.default.removeItem(at: temporaryURL)
-        }
-    }
 }

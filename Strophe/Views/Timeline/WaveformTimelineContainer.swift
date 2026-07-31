@@ -16,42 +16,41 @@ struct WaveformTimelineContainer: View {
     let visibleStartTime: Double
     let rulerHeight: CGFloat
     let waveHeight: CGFloat
-    
+
     @Binding var pixelsPerSecond: Double
     @Binding var renderedPPS: Double
     @Binding var scrollPageStartTime: Double
     @Binding var isDraggingPlayhead: Bool
     @Binding var isUserInteracting: Bool
-    
+
     @Binding var drawSubtitleStartLocation: CGFloat?
     @Binding var drawSubtitleCurrentLocation: CGFloat?
     @Binding var dragStartTime: Double
     @Binding var trackVerticalScale: CGFloat
     @Binding var trackVerticalOffset: CGFloat
-    
+
     @State private var isStartSnapped = false
     @State private var isEndSnapped = false
     @State private var creationTargetGroupID: UUID?
-    
+
     private func triggerHapticFeedback() {
         #if os(macOS)
-        DispatchQueue.main.async {
-            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
-        }
+            DispatchQueue.main.async {
+                NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+            }
         #elseif os(iOS)
-        let generator = UIImpactFeedbackGenerator(style: .light)
-        generator.impactOccurred()
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.impactOccurred()
         #endif
     }
-    
-    
+
     private var currentTimeBinding: Binding<Double> {
         Binding(
             get: { project.currentTime },
             set: { project.currentTime = $0 }
         )
     }
-    
+
     private func snapCoordinate(_ x: CGFloat, threshold: CGFloat = 12.0) -> (val: CGFloat, snapped: Bool) {
         let safePixelsPerSecond = pixelsPerSecond.isFinite ? max(0.001, pixelsPerSecond) : 50.0
         let time = Double(x) / safePixelsPerSecond
@@ -63,7 +62,7 @@ struct WaveformTimelineContainer: View {
         }
         return (x, false)
     }
-    
+
     var body: some View {
         let safeDuration = data.duration.isFinite ? max(0.0, data.duration) : 0.0
         let safePixelsPerSecond = pixelsPerSecond.isFinite ? max(0.001, pixelsPerSecond) : 50.0
@@ -72,7 +71,7 @@ struct WaveformTimelineContainer: View {
         let safeTotalWidth = totalWidth.isFinite ? max(1.0, totalWidth) : 1.0
         let safeWorkspaceDuration = workspaceDuration.isFinite ? max(safeDuration, workspaceDuration) : safeDuration
         return ZStack(alignment: .topLeading) {
-            // ── 静态与波形图层 ──────────────────────────────
+            // Static timeline and waveform layers.
             VStack(spacing: 0) {
                 TimeGridView(
                     pixelsPerSecond: safePixelsPerSecond,
@@ -82,46 +81,46 @@ struct WaveformTimelineContainer: View {
                     inPoint: project.inPoint,
                     outPoint: project.outPoint
                 )
-                    .frame(width: safeTotalWidth, height: rulerHeight)
-                    .contentShape(Rectangle())
-                    .highPriorityGesture(
-                        DragGesture(minimumDistance: 0, coordinateSpace: .local)
-                            .onChanged { value in
-                                guard project.editingMode == .selection else { return }
-                                
-                                isUserInteracting = true
-                                if !project.isScrubbing {
-                                    project.isScrubbing = true
-                                    project.isUserSeekingTimeline = false
-                                }
-                                
-                                let clickedTime = Double(value.location.x) / safePixelsPerSecond
-                                let snappedTime = project.snapToFrame(clickedTime.clamped(to: 0...safeDuration))
-                                
-                                project.currentTime = snappedTime
-                            }
-                            .onEnded { _ in
-                                guard project.editingMode == .selection else { return }
-                                project.isScrubbing = false
+                .frame(width: safeTotalWidth, height: rulerHeight)
+                .contentShape(Rectangle())
+                .highPriorityGesture(
+                    DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                        .onChanged { value in
+                            guard project.editingMode == .selection else { return }
+
+                            isUserInteracting = true
+                            if !project.isScrubbing {
+                                project.isScrubbing = true
                                 project.isUserSeekingTimeline = false
-                                project.referenceTime = project.currentTime
-                                project.referenceDate = .now
-                                
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                    isUserInteracting = false
-                                }
                             }
-                    )
-                    .highPriorityGesture(
-                        SpatialTapGesture(count: 1)
-                            .onEnded { value in
-                                guard project.editingMode == .selection else { return }
-                                let clickedTime = Double(value.location.x) / safePixelsPerSecond
-                                let snappedTime = project.snapToFrame(clickedTime.clamped(to: 0...safeDuration))
-                                project.seek(to: snappedTime)
+
+                            let clickedTime = Double(value.location.x) / safePixelsPerSecond
+                            let snappedTime = project.snapToFrame(clickedTime.clamped(to: 0...safeDuration))
+
+                            project.currentTime = snappedTime
+                        }
+                        .onEnded { _ in
+                            guard project.editingMode == .selection else { return }
+                            project.isScrubbing = false
+                            project.isUserSeekingTimeline = false
+                            project.referenceTime = project.currentTime
+                            project.referenceDate = .now
+
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                isUserInteracting = false
                             }
-                    )
-                
+                        }
+                )
+                .highPriorityGesture(
+                    SpatialTapGesture(count: 1)
+                        .onEnded { value in
+                            guard project.editingMode == .selection else { return }
+                            let clickedTime = Double(value.location.x) / safePixelsPerSecond
+                            let snappedTime = project.snapToFrame(clickedTime.clamped(to: 0...safeDuration))
+                            project.seek(to: snappedTime)
+                        }
+                )
+
                 ZStack(alignment: .topLeading) {
                     let renderedWidth = CGFloat(safeDuration * safeRenderedPPS)
                     let scaleX = safePixelsPerSecond / safeRenderedPPS
@@ -130,7 +129,7 @@ struct WaveformTimelineContainer: View {
                         .scaleEffect(x: scaleX, y: 1, anchor: .leading)
                         .clipped()
                         .frame(width: safeTotalWidth, height: waveHeight, alignment: .topLeading)
-                    
+
                     SubtitleBlocksLayer(
                         project: project,
                         pixelsPerSecond: safePixelsPerSecond,
@@ -142,14 +141,15 @@ struct WaveformTimelineContainer: View {
                         trackVerticalOffset: $trackVerticalOffset
                     )
                     .frame(width: safeTotalWidth, height: waveHeight)
-                    
+
                     if project.editingMode == .creation,
-                       let startX = drawSubtitleStartLocation,
-                       let currentX = drawSubtitleCurrentLocation {
+                        let startX = drawSubtitleStartLocation,
+                        let currentX = drawSubtitleCurrentLocation
+                    {
                         let minX = min(startX, currentX)
                         let maxX = max(startX, currentX)
                         let width = max(2, maxX - minX)
-                        
+
                         Rectangle()
                             .fill(Color.stropheBlue.opacity(0.3))
                             .overlay(Rectangle().stroke(Color.stropheBlue, lineWidth: 1))
@@ -178,7 +178,7 @@ struct WaveformTimelineContainer: View {
                                         triggerHapticFeedback()
                                     }
                                     isStartSnapped = snapStart.snapped
-                                    
+
                                     let snapEnd = snapCoordinate(value.location.x)
                                     drawSubtitleCurrentLocation = snapEnd.val
                                     if snapEnd.snapped && !isEndSnapped {
@@ -192,10 +192,12 @@ struct WaveformTimelineContainer: View {
                                         let minX = min(startX, endX)
                                         let maxX = max(startX, endX)
                                         let duration = (maxX - minX) / safePixelsPerSecond
-                                        
+
                                         if duration > 0.1 {
-                                            let startTime = (minX / safePixelsPerSecond).clamped(to: 0...safeWorkspaceDuration)
-                                            let endTime = (maxX / safePixelsPerSecond).clamped(to: 0...safeWorkspaceDuration)
+                                            let startTime = (minX / safePixelsPerSecond).clamped(
+                                                to: 0...safeWorkspaceDuration)
+                                            let endTime = (maxX / safePixelsPerSecond).clamped(
+                                                to: 0...safeWorkspaceDuration)
                                             project.createSubtitleBlock(
                                                 startTime: startTime,
                                                 endTime: endTime,
@@ -213,7 +215,8 @@ struct WaveformTimelineContainer: View {
                         .simultaneousGesture(
                             SpatialTapGesture(count: 2)
                                 .onEnded { value in
-                                    let startTime = (value.location.x / safePixelsPerSecond).clamped(to: 0...safeWorkspaceDuration)
+                                    let startTime = (value.location.x / safePixelsPerSecond).clamped(
+                                        to: 0...safeWorkspaceDuration)
                                     let endTime = min(safeWorkspaceDuration, startTime + 2.0)
                                     let targetGroupID = trackGroup(at: value.location.y)?.id
                                     if let targetGroupID {
@@ -233,7 +236,7 @@ struct WaveformTimelineContainer: View {
             ScrollViewTracker(scrollPageStartTime: scrollPageStartTime, pixelsPerSecond: safePixelsPerSecond)
                 .frame(width: 0, height: 0)
                 .allowsHitTesting(false)
-            
+
             // Match the playhead UI to the useful media cadence. On ProMotion
             // iPads an unconstrained animation schedule runs at 120 Hz even for
             // a 24/30 fps video, spending CPU on positions that cannot represent
@@ -298,7 +301,8 @@ struct WaveformTimelineContainer: View {
     }
 
     private func playbackTime(at date: Date, duration: Double) -> Double {
-        let rawTime = project.isScrubbing
+        let rawTime =
+            project.isScrubbing
             ? project.currentTime
             : (project.referenceTime + date.timeIntervalSince(project.referenceDate) * project.playbackRate)
         return rawTime.isFinite
@@ -307,7 +311,8 @@ struct WaveformTimelineContainer: View {
     }
 
     private var playbackRefreshInterval: TimeInterval {
-        let sourceFPS = project.videoFrameRate.isFinite
+        let sourceFPS =
+            project.videoFrameRate.isFinite
             ? project.videoFrameRate
             : 30
         return 1.0 / min(30.0, max(15.0, sourceFPS))
@@ -319,17 +324,17 @@ struct WaveformTimelineContainer: View {
             && !project.isSeeking
             && !project.isUserSeekingTimeline
     }
-    
+
     private func calculatePageStart(smoothTime: Double, visibleDuration: Double, duration: Double) -> Double {
         if isDraggingPlayhead || isUserInteracting {
             return scrollPageStartTime.isFinite ? scrollPageStartTime : 0
         }
-        
+
         guard smoothTime.isFinite, visibleDuration.isFinite, duration.isFinite else { return 0 }
-        
+
         let currentStart = visibleStartTime.isFinite ? visibleStartTime : 0
         let currentEnd = currentStart + visibleDuration
-        
+
         // If playhead is inside the current visible page, don't trigger auto-scroll
         if smoothTime >= currentStart && smoothTime <= currentEnd {
             return scrollPageStartTime.isFinite ? scrollPageStartTime : 0

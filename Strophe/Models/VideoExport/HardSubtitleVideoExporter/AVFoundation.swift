@@ -21,6 +21,12 @@ extension HardSubtitleVideoExporter {
             if didAccessOutput { destinationURL.stopAccessingSecurityScopedResource() }
         }
 
+        var didFinishOutput = false
+        defer {
+            if !didFinishOutput {
+                try? FileManager.default.removeItem(at: destinationURL)
+            }
+        }
         try? FileManager.default.removeItem(at: destinationURL)
 
         let asset = AVURLAsset(url: inputURL)
@@ -75,13 +81,10 @@ extension HardSubtitleVideoExporter {
             for: settings,
             colorProfile: outputColorProfile
         )
-        var readerVideoSettings = pixelBufferAttributes(
+        let readerVideoSettings = videoReaderOutputSettings(
             pixelFormat: exportPixelFormat,
-            width: nil,
-            height: nil
+            colorProfile: outputColorProfile
         )
-        readerVideoSettings[AVVideoColorPropertiesKey] = outputColorProfile.avVideoColorProperties
-        readerVideoSettings[AVVideoAllowWideColorKey] = outputColorProfile.isHDR
         let videoOutput = AVAssetReaderTrackOutput(
             track: videoTrack,
             outputSettings: readerVideoSettings
@@ -194,6 +197,18 @@ extension HardSubtitleVideoExporter {
             sourceDisplaySize: geometry.sourceDisplaySize,
             timelineStartSeconds: timelineStartSeconds,
             durationSeconds: durationSeconds,
+            allowsDirectFramePassThrough:
+                !settings.rendersTransparentBackground
+                && sourceColorProfile == outputColorProfile
+                && preferredTransform.isIdentity
+                && geometry.sourceDisplaySize == nil
+                && evenSize(naturalSize) == renderSize,
+            directPassThroughPixelFormat: exportPixelFormat,
+            maxInFlightFrames: renderPipelineDepth(
+                settings: settings,
+                renderSize: renderSize,
+                pixelFormat: exportPixelFormat
+            ),
             progress: progress
         )
 
@@ -203,6 +218,7 @@ extension HardSubtitleVideoExporter {
         }
 
         try await finish(writer: writer)
+        didFinishOutput = true
 
         await MainActor.run {
             progress(1)

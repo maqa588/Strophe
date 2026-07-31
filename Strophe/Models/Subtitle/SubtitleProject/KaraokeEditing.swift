@@ -37,17 +37,14 @@ extension SubtitleItem {
         let endDelta = newEnd - oldEnd
         var updated = karaoke
         if abs(startDelta - endDelta) > 0.000_001,
-           abs(startDelta) > 0.000_001 {
+            abs(startDelta) > 0.000_001
+        {
             updated = karaoke.shiftingOffsets(by: oldStart - newStart)
         }
         self.karaoke = updated.reconciled(
             to: text,
             cueDuration: max(0.000_001, newEnd - newStart)
         )
-    }
-
-    mutating func scaleKaraokeOffsets(by factor: Double) {
-        karaoke = karaoke?.scalingOffsets(by: factor)
     }
 }
 
@@ -57,14 +54,17 @@ extension SubtitleProject {
         guard !programs.isEmpty else { return }
         let oldItems = items
         let oldSelectedIDs = selectedIDs
+        var updated = items
         var changed = false
-        for index in items.indices {
-            guard let program = programs[items[index].id],
-                  !isLockedForEditing(items[index]) else { continue }
-            items[index].karaoke = program
+        for index in updated.indices {
+            guard let program = programs[updated[index].id],
+                !isLockedForEditing(updated[index])
+            else { continue }
+            updated[index].karaoke = program
             changed = true
         }
         guard changed else { return }
+        items = updated
         registerUndo(
             label: stropheLocalizedString("karaoke_batch_recognition"),
             oldItems: oldItems,
@@ -82,13 +82,111 @@ extension SubtitleProject {
 
     var karaokeEditorItem: SubtitleItem? {
         guard let id = karaokeEditingItemID,
-              selectedIDs.count == 1,
-              selectedIDs.contains(id),
-              let item = items.first(where: { $0.id == id }),
-              item.activeKaraoke != nil else {
+            selectedIDs.count == 1,
+            selectedIDs.contains(id),
+            let storedItem = items.first(where: { $0.id == id })
+        else {
             return nil
         }
+        let item =
+            karaokeTimingPreviewItem.flatMap {
+                $0.id == id ? $0 : nil
+            } ?? storedItem
+        guard item.activeKaraoke != nil else { return nil }
         return item
+    }
+
+    /// Publishes a temporary cue generated from the committed item on every
+    /// trim update. Recomputing from the committed source avoids cumulative
+    /// timing drift as a gesture emits many intermediate values.
+    func previewKaraokeCueTiming(
+        id: UUID,
+        newStartTime: TimeInterval,
+        newEndTime: TimeInterval
+    ) {
+        karaokeTimingPreviewGeneration &+= 1
+        applyKaraokeCueTimingPreview(
+            id: id,
+            newStartTime: newStartTime,
+            newEndTime: newEndTime
+        )
+    }
+
+    /// UIKit gesture callbacks can arrive while SwiftUI is reconciling the
+    /// representable hierarchy. Deferring and coalescing these transient
+    /// publications keeps them outside the active view-update transaction.
+    func scheduleKaraokeCueTimingPreview(
+        id: UUID,
+        newStartTime: TimeInterval,
+        newEndTime: TimeInterval
+    ) {
+        karaokeTimingPreviewGeneration &+= 1
+        let generation = karaokeTimingPreviewGeneration
+        Task { @MainActor [weak self] in
+            guard let self,
+                self.karaokeTimingPreviewGeneration == generation
+            else {
+                return
+            }
+            self.applyKaraokeCueTimingPreview(
+                id: id,
+                newStartTime: newStartTime,
+                newEndTime: newEndTime
+            )
+        }
+    }
+
+    private func applyKaraokeCueTimingPreview(
+        id: UUID,
+        newStartTime: TimeInterval,
+        newEndTime: TimeInterval
+    ) {
+        guard var preview = items.first(where: { $0.id == id }),
+            !isLockedForEditing(preview),
+            preview.activeKaraoke != nil,
+            let oldStart = preview.startTime,
+            let oldEnd = preview.endTime
+        else {
+            publishKaraokeTimingPreview(nil)
+            return
+        }
+        let timing = snappedSubtitleTiming(
+            startTime: newStartTime,
+            endTime: newEndTime
+        )
+        preview.retimeKaraokeForCueChange(
+            oldStart: oldStart,
+            oldEnd: oldEnd,
+            newStart: timing.start,
+            newEnd: timing.end
+        )
+        preview.startTime = timing.start
+        preview.endTime = timing.end
+        guard karaokeTimingPreviewItem != preview else { return }
+        karaokeTimingPreviewItem = preview
+    }
+
+    func clearKaraokeTimingPreview() {
+        karaokeTimingPreviewGeneration &+= 1
+        publishKaraokeTimingPreview(nil)
+    }
+
+    func scheduleClearKaraokeTimingPreview() {
+        karaokeTimingPreviewGeneration &+= 1
+        let generation = karaokeTimingPreviewGeneration
+        Task { @MainActor [weak self] in
+            guard let self,
+                self.karaokeTimingPreviewGeneration == generation
+            else {
+                return
+            }
+            self.publishKaraokeTimingPreview(nil)
+        }
+    }
+
+    private func publishKaraokeTimingPreview(_ preview: SubtitleItem?) {
+        guard karaokeTimingPreviewItem != preview else { return }
+        karaokeTimingPreviewItem = preview
     }
 
     var canToggleKaraokeEditor: Bool {
@@ -105,7 +203,8 @@ extension SubtitleProject {
     /// disabling Karaoke presentation belongs to each subtitle block's actions.
     func toggleKaraokeEditorForSelection() {
         guard canToggleKaraokeEditor,
-              let id = selectedKaraokeItem?.id else {
+            let id = selectedKaraokeItem?.id
+        else {
             karaokeEditingItemID = nil
             isKaraokeEditorManuallyClosed = true
             return
@@ -146,9 +245,10 @@ extension SubtitleProject {
                 && !$0.text.isEmpty
                 && !isLockedForEditing($0)
         }
-        return !eligible.isEmpty && eligible.allSatisfy {
-            $0.activeKaraoke != nil
-        }
+        return !eligible.isEmpty
+            && eligible.allSatisfy {
+                $0.activeKaraoke != nil
+            }
     }
 
     func setKaraokeFromBlockAction(
@@ -178,12 +278,13 @@ extension SubtitleProject {
                     updated[index].karaoke = retained
                     changedCount += 1
                 } else if let start = updated[index].startTime,
-                          let end = updated[index].endTime,
-                          let program = KaraokeProgram.evenlyTimed(
-                            text: updated[index].text,
-                            duration: max(0, end - start),
-                            template: .classicSweep
-                          ) {
+                    let end = updated[index].endTime,
+                    let program = KaraokeProgram.evenlyTimed(
+                        text: updated[index].text,
+                        duration: max(0, end - start),
+                        template: .classicSweep
+                    )
+                {
                     updated[index].karaoke = program
                     changedCount += 1
                 }
@@ -196,8 +297,9 @@ extension SubtitleProject {
         guard changedCount > 0 else { return }
         items = updated
         if !isEnabled,
-           let editingID = karaokeEditingItemID,
-           targetIDs.contains(editingID) {
+            let editingID = karaokeEditingItemID,
+            targetIDs.contains(editingID)
+        {
             karaokeEditingItemID = nil
             karaokeEditorDismissedItemID = nil
         }
@@ -216,9 +318,10 @@ extension SubtitleProject {
         preset: KaraokeTemplatePreset = .classicSweep
     ) {
         guard let index = items.firstIndex(where: { $0.id == id }),
-              !isLockedForEditing(items[index]),
-              let start = items[index].startTime,
-              let end = items[index].endTime else {
+            !isLockedForEditing(items[index]),
+            let start = items[index].startTime,
+            let end = items[index].endTime
+        else {
             return
         }
         let program: KaraokeProgram
@@ -227,11 +330,13 @@ extension SubtitleProject {
             retained.isEnabled = true
             program = retained
         } else {
-            guard let generated = KaraokeProgram.evenlyTimed(
-                text: items[index].text,
-                duration: max(0, end - start),
-                template: .preset(preset)
-            ) else {
+            guard
+                let generated = KaraokeProgram.evenlyTimed(
+                    text: items[index].text,
+                    duration: max(0, end - start),
+                    template: .preset(preset)
+                )
+            else {
                 return
             }
             program = generated
@@ -249,8 +354,9 @@ extension SubtitleProject {
 
     func disableKaraoke(id: UUID) {
         guard let index = items.firstIndex(where: { $0.id == id }),
-              !isLockedForEditing(items[index]),
-              items[index].karaoke?.isEnabled == true else {
+            !isLockedForEditing(items[index]),
+            items[index].karaoke?.isEnabled == true
+        else {
             return
         }
         let oldItems = items
@@ -269,9 +375,10 @@ extension SubtitleProject {
         configuration: KaraokeTemplateConfiguration
     ) {
         guard let index = items.firstIndex(where: { $0.id == id }),
-              !isLockedForEditing(items[index]),
-              items[index].karaoke != nil,
-              items[index].karaoke?.template != configuration else {
+            !isLockedForEditing(items[index]),
+            items[index].karaoke != nil,
+            items[index].karaoke?.template != configuration
+        else {
             return
         }
         let oldItems = items
@@ -293,9 +400,10 @@ extension SubtitleProject {
         configuration: KaraokeTemplateConfiguration
     ) {
         guard let index = items.firstIndex(where: { $0.id == id }),
-              !isLockedForEditing(items[index]),
-              items[index].karaoke != nil,
-              items[index].karaoke?.template != configuration else {
+            !isLockedForEditing(items[index]),
+            items[index].karaoke != nil,
+            items[index].karaoke?.template != configuration
+        else {
             return
         }
         items[index].karaoke?.template = configuration
@@ -307,9 +415,10 @@ extension SubtitleProject {
         finalConfiguration: KaraokeTemplateConfiguration
     ) {
         guard let index = items.firstIndex(where: { $0.id == id }),
-              !isLockedForEditing(items[index]),
-              items[index].karaoke != nil,
-              originalConfiguration != finalConfiguration else {
+            !isLockedForEditing(items[index]),
+            items[index].karaoke != nil,
+            originalConfiguration != finalConfiguration
+        else {
             return
         }
 
@@ -330,12 +439,13 @@ extension SubtitleProject {
         to proposedOffset: Double
     ) {
         guard let itemIndex = items.firstIndex(where: { $0.id == itemID }),
-              !isLockedForEditing(items[itemIndex]),
-              var program = items[itemIndex].karaoke,
-              let unitIndex = program.units.firstIndex(
+            !isLockedForEditing(items[itemIndex]),
+            var program = items[itemIndex].karaoke,
+            let unitIndex = program.units.firstIndex(
                 where: { $0.id == precedingUnitID }
-              ),
-              unitIndex + 1 < program.units.count else {
+            ),
+            unitIndex + 1 < program.units.count
+        else {
             return
         }
 
@@ -344,8 +454,10 @@ extension SubtitleProject {
         let upper = program.units[unitIndex + 1].endOffset - frameFloor
         guard upper > lower else { return }
         let boundary = min(max(proposedOffset, lower), upper)
-        guard abs(program.units[unitIndex].endOffset - boundary) > 0.000_001
-                || abs(program.units[unitIndex + 1].startOffset - boundary) > 0.000_001 else {
+        guard
+            abs(program.units[unitIndex].endOffset - boundary) > 0.000_001
+                || abs(program.units[unitIndex + 1].startOffset - boundary) > 0.000_001
+        else {
             return
         }
 
@@ -369,12 +481,13 @@ extension SubtitleProject {
         endOffset: Double
     ) {
         guard let itemIndex = items.firstIndex(where: { $0.id == itemID }),
-              !isLockedForEditing(items[itemIndex]),
-              var program = items[itemIndex].karaoke,
-              let unitIndex = program.units.firstIndex(where: { $0.id == unitID }),
-              startOffset.isFinite,
-              endOffset.isFinite,
-              endOffset > startOffset else {
+            !isLockedForEditing(items[itemIndex]),
+            var program = items[itemIndex].karaoke,
+            let unitIndex = program.units.firstIndex(where: { $0.id == unitID }),
+            startOffset.isFinite,
+            endOffset.isFinite,
+            endOffset > startOffset
+        else {
             return
         }
         let oldItems = items
@@ -408,8 +521,9 @@ extension SubtitleProject {
                 .replacingOccurrences(of: "\r", with: "")
             defer { characterBase += Array(cleanedText).count }
             guard let itemStart = item.startTime,
-                  let itemEnd = item.endTime,
-                  itemEnd > itemStart else {
+                let itemEnd = item.endTime,
+                itemEnd > itemStart
+            else {
                 continue
             }
             let itemDuration = itemEnd - itemStart

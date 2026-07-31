@@ -37,11 +37,10 @@ extension VideoPlayerView {
         // Guard if we are currently prompting compatibility check for this exact URL
         if pendingCompatibilityURL == url { return }
 
-        // 🌟 Check if there is already an active engine for this video in the project context.
-        // This occurs when SwiftUI transitions between horizontal size classes (compact/regular)
-        // or layout orientations, which recreates the VideoPlayerView struct.
+        // Reuse the project engine when a size-class or orientation change recreates this view.
         if let existingEngine = project.activeEngine,
-           project.activeEngineURL == url {
+            project.activeEngineURL == url
+        {
             self.engine = existingEngine
             self.currentURL = url
             setupTimeObserver()
@@ -93,7 +92,6 @@ extension VideoPlayerView {
                     technicalMessage: "Neither AVFoundation nor FFmpeg could open this media file."
                 )
             } else {
-                // Not native AVFoundation compatible (MKV, WebM, RMVB, AVI, FLV etc.) or SMB remote share
                 if result.isRemoteNetworkVolume {
                     // Show remote network warning
                     self.isRemoteVolumeAlert = true
@@ -101,11 +99,12 @@ extension VideoPlayerView {
                     self.pendingCompatibilityURL = url
                     self.showingCompatibilityAlert = true
                 } else {
-                    // Local FFmpeg format - load directly!
-                    guard let ffmpegEngine = await project.acquirePlayerEngine(
-                        for: url,
-                        makeEngine: { FFmpegEngine() }
-                    ), project.videoURL == url else {
+                    guard
+                        let ffmpegEngine = await project.acquirePlayerEngine(
+                            for: url,
+                            makeEngine: { FFmpegEngine() }
+                        ), project.videoURL == url
+                    else {
                         project.reportMediaPlaybackFailure(
                             for: url,
                             state: .unsupported,
@@ -232,7 +231,7 @@ extension VideoPlayerView {
                             project.currentSubtitleText = subtitleText
                         }
                     }
-                    try? await Task.sleep(nanoseconds: 16_000_000) // ~60 FPS polling for ultra-responsive timing
+                    try? await Task.sleep(nanoseconds: 16_000_000)
                 }
             }
         }
@@ -258,11 +257,17 @@ extension VideoPlayerView {
                 }
 
                 let roundedFPS: Double
-                if isAudio { roundedFPS = 50.0 }
-                else if abs(fps - 23.976) < 0.01 { roundedFPS = 23.976 }
-                else if abs(fps - 29.97) < 0.01 { roundedFPS = 29.97 }
-                else if abs(fps - 59.94) < 0.01 { roundedFPS = 59.94 }
-                else { roundedFPS = Double(fps) }
+                if isAudio {
+                    roundedFPS = 50.0
+                } else if abs(fps - 23.976) < 0.01 {
+                    roundedFPS = 23.976
+                } else if abs(fps - 29.97) < 0.01 {
+                    roundedFPS = 29.97
+                } else if abs(fps - 59.94) < 0.01 {
+                    roundedFPS = 59.94
+                } else {
+                    roundedFPS = Double(fps)
+                }
 
                 await MainActor.run {
                     project.isAudioOnly = isAudio
@@ -270,7 +275,7 @@ extension VideoPlayerView {
                     if naturalSize != .zero {
                         project.videoSize = naturalSize
                         #if os(macOS)
-                        VideoProperties.shared.adjustWindowForVideoSize(naturalSize, isAudioOnly: isAudio)
+                            VideoProperties.shared.adjustWindowForVideoSize(naturalSize, isAudioOnly: isAudio)
                         #endif
                     }
                     project.resnapAllItems()
@@ -285,7 +290,7 @@ extension VideoPlayerView {
                     if size != .zero {
                         project.videoSize = size
                         #if os(macOS)
-                        VideoProperties.shared.adjustWindowForVideoSize(size, isAudioOnly: project.isAudioOnly)
+                            VideoProperties.shared.adjustWindowForVideoSize(size, isAudioOnly: project.isAudioOnly)
                         #endif
                     }
                     project.resnapAllItems()
@@ -329,13 +334,11 @@ extension VideoPlayerView {
                     pendingTime = nil
 
                     if let lastPreviewSeekTime, abs(lastPreviewSeekTime - currentPending) < 0.001 {
-                        // skip
                     } else {
                         lastPreviewSeekTime = currentPending
                         _ = await eng.seekVideoFrameOnly(to: currentPending)
                     }
 
-                    // Throttle delay: wait 30ms before processing the next item
                     try? await Task.sleep(nanoseconds: 30_000_000)
                 }
                 isProcessing = false

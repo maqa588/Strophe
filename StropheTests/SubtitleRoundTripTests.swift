@@ -3,6 +3,40 @@ import XCTest
 
 final class SubtitleRoundTripTests: XCTestCase {
     @MainActor
+    func testSharedTimestampParserSupportsEverySubtitleFormat() {
+        XCTAssertEqual(
+            SubtitleTimeFormatter.parseTimestamp("01:02:03,456"),
+            3_723.456,
+            accuracy: 0.000_001
+        )
+        XCTAssertEqual(
+            SubtitleTimeFormatter.parseTimestamp("1:02:03.45"),
+            3_723.45,
+            accuracy: 0.000_001
+        )
+        XCTAssertEqual(
+            SubtitleTimeFormatter.parseTimestamp("[12:34.5]", isLRC: true),
+            754.5,
+            accuracy: 0.000_001
+        )
+        XCTAssertEqual(
+            SubtitleTimeFormatter.parseTimestamp("02:03.125"),
+            123.125,
+            accuracy: 0.000_001
+        )
+    }
+
+    @MainActor
+    func testSharedTimestampParserRejectsPartiallyInvalidValues() {
+        XCTAssertEqual(SubtitleTimeFormatter.parseTimestamp("bad:01:02.000"), 0)
+        XCTAssertEqual(SubtitleTimeFormatter.parseTimestamp("01::02.000"), 0)
+        XCTAssertEqual(SubtitleTimeFormatter.parseTimestamp("nan"), 0)
+        XCTAssertEqual(SubtitleTimeFormatter.parseTimestamp("-00:01:00.000"), 0)
+        XCTAssertEqual(SubtitleTimeFormatter.parseTimestamp("00:60:00.000"), 0)
+        XCTAssertEqual(SubtitleTimeFormatter.parseTimestamp("00:00:60.000"), 0)
+    }
+
+    @MainActor
     func testASSRoundTripPreservesStylesUnknownFieldsAndInlineTags() throws {
         let fixture = try fixture(named: "golden", extension: "ass")
         let first = ASSProcessor().parseDocument(text: fixture, sourceFileName: "golden.ass")
@@ -107,11 +141,12 @@ final class SubtitleRoundTripTests: XCTestCase {
     }
 
     private func fixture(named name: String, extension pathExtension: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .appendingPathComponent("Fixtures", isDirectory: true)
-            .appendingPathComponent(name)
-            .appendingPathExtension(pathExtension)
+        let url = try XCTUnwrap(
+            Bundle(for: SubtitleRoundTripTests.self).url(
+                forResource: name,
+                withExtension: pathExtension
+            )
+        )
         return try String(contentsOf: url, encoding: .utf8)
     }
 }

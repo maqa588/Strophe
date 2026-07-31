@@ -4,12 +4,12 @@
 
 import SwiftUI
 #if os(macOS)
-import AppKit
+    import AppKit
 #elseif canImport(UIKit)
-import UIKit
+    import UIKit
 #endif
 #if os(iOS)
-import GameController
+    import GameController
 #endif
 
 struct SubtitleBlocksLayer: View {
@@ -187,8 +187,9 @@ struct SubtitleBlocksLayer: View {
             // Only the one actively growing slap block is clock-driven. The static
             // Metal surface above never subscribes to the animation timeline.
             if let activeSlapID,
-               let activeItem = renderModel.item(id: activeSlapID),
-               activeItem.startTime != nil {
+                let activeItem = renderModel.item(id: activeSlapID),
+                activeItem.startTime != nil
+            {
                 TimelineView(.animation) { timeline in
                     MetalSubtitleTimelineView(
                         renderData: metalRenderData(
@@ -259,9 +260,9 @@ struct SubtitleBlocksLayer: View {
             Text("can_enter_seconds_mmss_or")
         }
         #if os(iOS)
-        .sheet(isPresented: $isShowingMobileBlockActions) {
-            mobileBlockActionsSheet
-        }
+            .sheet(isPresented: $isShowingMobileBlockActions) {
+                mobileBlockActionsSheet
+            }
         #endif
         .stropheOnChange(of: isEditingText) { project.isEditingText = $0 }
         .stropheOnChange(of: isEditingTime) { project.isEditingText = $0 }
@@ -272,18 +273,20 @@ struct SubtitleBlocksLayer: View {
                 return
             }
             if !project.isSubtitleMultiSelecting {
-                let activeSelection = Set(project.selectedIDs.filter { id in
-                    renderModel.item(id: id).map {
-                        renderModel.group(for: $0)?.id == activeGroupID
-                    } == true
-                })
+                let activeSelection = Set(
+                    project.selectedIDs.filter { id in
+                        renderModel.item(id: id).map {
+                            renderModel.group(for: $0)?.id == activeGroupID
+                        } == true
+                    })
                 if activeSelection != project.selectedIDs {
                     project.selectedIDs = activeSelection
                 }
             }
             if let currentContextID = contextItemID,
-               let contextItem = renderModel.item(id: currentContextID),
-               renderModel.group(for: contextItem)?.id != activeGroupID {
+                let contextItem = renderModel.item(id: currentContextID),
+                renderModel.group(for: contextItem)?.id != activeGroupID
+            {
                 contextItemID = nil
             }
             hoveredItemID = nil
@@ -292,6 +295,7 @@ struct SubtitleBlocksLayer: View {
         .stropheOnChange(of: trackGroups.count) { _ in clampTrackViewport() }
         .onDisappear {
             stopMarqueeAutoScroll()
+            project.scheduleClearKaraokeTimingPreview()
             resetTimelineCursor()
         }
     }
@@ -304,14 +308,16 @@ struct SubtitleBlocksLayer: View {
     }
 
     var trimHandleItemIDs: Set<UUID> {
-        var ids = Set(renderModel.selectedIDs.filter { id in
-            renderModel.item(id: id).map(isTimelineEditable) == true
-        })
+        var ids = Set(
+            renderModel.selectedIDs.filter { id in
+                renderModel.item(id: id).map(isTimelineEditable) == true
+            })
         #if os(macOS)
-        if let hoveredItemID,
-           renderModel.item(id: hoveredItemID).map(isTimelineEditable) == true {
-            ids.insert(hoveredItemID)
-        }
+            if let hoveredItemID,
+                renderModel.item(id: hoveredItemID).map(isTimelineEditable) == true
+            {
+                ids.insert(hoveredItemID)
+            }
         #endif
         return ids
     }

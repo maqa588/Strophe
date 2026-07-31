@@ -5,7 +5,7 @@
 
 import SwiftUI
 #if os(macOS)
-import AppKit
+    import AppKit
 #endif
 
 struct KaraokeEditorPanel: View {
@@ -23,8 +23,9 @@ struct KaraokeEditorPanel: View {
 
     var body: some View {
         if let item = project.karaokeEditorItem,
-           let startTime = item.startTime,
-           let endTime = item.endTime {
+            let startTime = item.startTime,
+            let endTime = item.endTime
+        {
             VStack(alignment: .leading, spacing: 8) {
                 if let program = item.activeKaraoke {
                     templateControls(item: item, program: program)
@@ -252,26 +253,31 @@ struct KaraokeEditorPanel: View {
                     let timingSummary =
                         "\(selected.text)  \(timeLabel(selected.startOffset)) – \(timeLabel(selected.endOffset))"
                     Text(timingSummary)
-                    .font(.system(size: 9, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel(timingSummary)
-                    .accessibilityIdentifier("karaokeSelectedUnitTiming")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel(timingSummary)
+                        .accessibilityIdentifier("karaokeSelectedUnitTiming")
                 }
             }
 
             GeometryReader { proxy in
                 let width = max(1, proxy.size.width)
                 let units = displayedUnits(program: program)
-                let displaySpans = contiguousDisplaySpans(for: units)
+                let displaySpans = KaraokeTimelineLayout.displaySpans(
+                    for: units,
+                    cueDuration: cueDuration
+                )
                 let displayStart = displaySpans.first?.lowerBound ?? 0
                 let displayEnd = displaySpans.last?.upperBound ?? cueDuration
                 let displayDuration = max(0.001, displayEnd - displayStart)
-                let activeColor = ResolvedRGBAColor(
-                    hex: program.template.activeColorHex
-                )?.color ?? Color.stropheAccent
-                let inactiveColor = ResolvedRGBAColor(
-                    hex: program.template.inactiveColorHex
-                )?.color ?? Color.secondary
+                let activeColor =
+                    ResolvedRGBAColor(
+                        hex: program.template.activeColorHex
+                    )?.color ?? Color.stropheAccent
+                let inactiveColor =
+                    ResolvedRGBAColor(
+                        hex: program.template.inactiveColorHex
+                    )?.color ?? Color.secondary
                 let frameFloor = max(
                     0.001,
                     1 / max(project.videoFrameRate, 1)
@@ -293,155 +299,161 @@ struct KaraokeEditorPanel: View {
                     )
 
                     ZStack(alignment: .topLeading) {
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(Color.primary.opacity(0.045))
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(Color.primary.opacity(0.045))
 
-                    ForEach(Array(units.enumerated()), id: \.element.id) { index, unit in
-                        let span = displaySpans[index]
-                        let x = CGFloat(
-                            (span.lowerBound - displayStart) / displayDuration
-                        ) * width
-                        let rawWidth = CGFloat(
-                            (span.upperBound - span.lowerBound) / displayDuration
-                        ) * width
-                        let unitWidth = max(4, rawWidth - 1)
-                        let phase = phase(
-                            unit: unit,
-                            localPlayhead: localPlayhead
-                        )
+                        ForEach(Array(units.enumerated()), id: \.element.id) { index, unit in
+                            let span = displaySpans[index]
+                            let x =
+                                CGFloat(
+                                    (span.lowerBound - displayStart) / displayDuration
+                                ) * width
+                            let rawWidth =
+                                CGFloat(
+                                    (span.upperBound - span.lowerBound) / displayDuration
+                                ) * width
+                            let unitWidth = max(4, rawWidth - 1)
+                            let phase = phase(
+                                unit: unit,
+                                localPlayhead: localPlayhead
+                            )
 
-                        Button {
-                            selectedUnitID = unit.id
-                            project.seek(to: cueStartTime + unit.startOffset)
-                        } label: {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                    .fill(
-                                        unitFill(
-                                            phase: phase,
-                                            activeColor: activeColor,
-                                            inactiveColor: inactiveColor
+                            Button {
+                                selectedUnitID = unit.id
+                                project.seek(to: cueStartTime + unit.startOffset)
+                            } label: {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                        .fill(
+                                            unitFill(
+                                                phase: phase,
+                                                activeColor: activeColor,
+                                                inactiveColor: inactiveColor
+                                            )
                                         )
-                                    )
-                                Text(unit.text)
-                                    .font(.system(size: 10, weight: .medium))
-                                    .foregroundStyle(
-                                        phase == .upcoming
-                                            ? Color.primary.opacity(0.72)
-                                            : Color.white
-                                    )
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.6)
-                                    .padding(.horizontal, 3)
-                            }
-                            .frame(width: unitWidth, height: 32)
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                    .stroke(
-                                        selectedUnitID == unit.id
-                                            ? Color.white.opacity(0.9)
-                                            : Color.clear,
-                                        lineWidth: 2
-                                    )
-                            }
-                            .overlay(alignment: .topTrailing) {
-                                if selectedUnitID == unit.id {
-                                    Image(systemName: "play.fill")
-                                        .font(.system(size: 6, weight: .bold))
-                                        .foregroundStyle(Color.white)
-                                        .padding(3)
-                                        .background(
-                                            Color.black.opacity(0.35),
-                                            in: Circle()
+                                    Text(unit.text)
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundStyle(
+                                            phase == .upcoming
+                                                ? Color.primary.opacity(0.72)
+                                                : Color.white
                                         )
-                                        .padding(2)
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.6)
+                                        .padding(.horizontal, 3)
+                                }
+                                .frame(width: unitWidth, height: 32)
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                        .stroke(
+                                            selectedUnitID == unit.id
+                                                ? Color.white.opacity(0.9)
+                                                : Color.clear,
+                                            lineWidth: 2
+                                        )
+                                }
+                                .overlay(alignment: .topTrailing) {
+                                    if selectedUnitID == unit.id {
+                                        Image(systemName: "play.fill")
+                                            .font(.system(size: 6, weight: .bold))
+                                            .foregroundStyle(Color.white)
+                                            .padding(3)
+                                            .background(
+                                                Color.black.opacity(0.35),
+                                                in: Circle()
+                                            )
+                                            .padding(2)
+                                    }
                                 }
                             }
-                        }
-                        .buttonStyle(.plain)
-                        .position(
-                            x: min(width - unitWidth / 2, max(unitWidth / 2, x + unitWidth / 2)),
-                            y: 21
-                        )
-                        .accessibilityLabel(
-                            String(
-                                format: stropheLocalizedString("karaoke_unit_accessibility_format"),
-                                unit.text,
-                                unit.startOffset,
-                                unit.endOffset
+                            .buttonStyle(.plain)
+                            .position(
+                                x: min(width - unitWidth / 2, max(unitWidth / 2, x + unitWidth / 2)),
+                                y: 21
                             )
-                        )
-                        .accessibilityIdentifier("karaokeUnit-\(unit.id.uuidString)")
-                    }
-
-                    ForEach(
-                        Array(units.dropLast().enumerated()),
-                        id: \.element.id
-                    ) { index, unit in
-                        let boundaryX = CGFloat(
-                            (displaySpans[index].upperBound - displayStart)
-                                / displayDuration
-                        ) * width
-                        let boundaryRange = boundaryAccessibilityRange(
-                            program: program,
-                            unitID: unit.id
-                        )
-
-                        KaraokeBoundaryHandle(
-                            value: unit.endOffset,
-                            range: boundaryRange,
-                            timelineWidth: width,
-                            cueDuration: displayDuration,
-                            step: frameFloor,
-                            label: stropheLocalizedString(
-                                "karaoke_adjust_boundary"
-                            ),
-                            identifier: "karaokeBoundary-\(unit.id.uuidString)",
-                            onChanged: { proposed in
-                                boundaryDraft = BoundaryDraft(
-                                    itemID: item.id,
-                                    precedingUnitID: unit.id,
-                                    offset: proposed
+                            .accessibilityLabel(
+                                String(
+                                    format: stropheLocalizedString("karaoke_unit_accessibility_format"),
+                                    unit.text,
+                                    unit.startOffset,
+                                    unit.endOffset
                                 )
-                            },
-                            onEnded: { proposed in
-                                project.updateKaraokeBoundary(
-                                    itemID: item.id,
-                                    precedingUnitID: unit.id,
-                                    to: proposed
-                                )
-                                boundaryDraft = nil
-                            }
-                        )
+                            )
+                            .accessibilityIdentifier("karaokeUnit-\(unit.id.uuidString)")
+                        }
+
+                        ForEach(
+                            Array(units.dropLast().enumerated()),
+                            id: \.element.id
+                        ) { index, unit in
+                            let boundaryX =
+                                CGFloat(
+                                    (displaySpans[index].upperBound - displayStart)
+                                        / displayDuration
+                                ) * width
+                            let boundaryRange = boundaryAccessibilityRange(
+                                program: program,
+                                unitID: unit.id
+                            )
+
+                            KaraokeBoundaryHandle(
+                                value: unit.endOffset,
+                                range: boundaryRange,
+                                timelineWidth: width,
+                                cueDuration: displayDuration,
+                                step: frameFloor,
+                                label: stropheLocalizedString(
+                                    "karaoke_adjust_boundary"
+                                ),
+                                identifier: "karaokeBoundary-\(unit.id.uuidString)",
+                                onChanged: { proposed in
+                                    boundaryDraft = BoundaryDraft(
+                                        itemID: item.id,
+                                        precedingUnitID: unit.id,
+                                        offset: proposed
+                                    )
+                                },
+                                onEnded: { proposed in
+                                    project.updateKaraokeBoundary(
+                                        itemID: item.id,
+                                        precedingUnitID: unit.id,
+                                        to: proposed
+                                    )
+                                    boundaryDraft = nil
+                                }
+                            )
                             .frame(width: 18, height: 44)
                             .position(
                                 x: min(width - 2, max(2, boundaryX)),
                                 y: 21
                             )
                             .zIndex(10)
-                    }
+                        }
 
-                    if localPlayhead >= displayStart,
-                       localPlayhead <= displayEnd {
-                        let playheadX = CGFloat(
-                            (localPlayhead - displayStart) / displayDuration
-                        ) * width
-                        Rectangle()
-                            .fill(Color.white)
-                            .frame(width: 1.5, height: 42)
-                            .shadow(color: .black.opacity(0.6), radius: 1)
-                            .position(x: playheadX, y: 21)
-                            .allowsHitTesting(false)
+                        if localPlayhead >= displayStart,
+                            localPlayhead <= displayEnd
+                        {
+                            let playheadX =
+                                CGFloat(
+                                    (localPlayhead - displayStart) / displayDuration
+                                ) * width
+                            Rectangle()
+                                .fill(Color.white)
+                                .frame(width: 1.5, height: 42)
+                                .shadow(color: .black.opacity(0.6), radius: 1)
+                                .position(x: playheadX, y: 21)
+                                .allowsHitTesting(false)
+                        }
                     }
-                }
-                .task(id: playbackUnitID) {
-                    guard boundaryDraft == nil,
-                          let playbackUnitID,
-                          selectedUnitID != playbackUnitID else {
-                        return
+                    .task(id: playbackUnitID) {
+                        guard boundaryDraft == nil,
+                            let playbackUnitID,
+                            selectedUnitID != playbackUnitID
+                        else {
+                            return
+                        }
+                        selectedUnitID = playbackUnitID
                     }
-                    selectedUnitID = playbackUnitID
-                }
                 }
             }
             .frame(height: 44)
@@ -458,10 +470,12 @@ struct KaraokeEditorPanel: View {
             return project.currentTime.isFinite ? project.currentTime : 0
         }
         if let engineTime = project.activeEngine?.currentTime,
-           engineTime.isFinite {
+            engineTime.isFinite
+        {
             return engineTime
         }
-        let predicted = project.referenceTime
+        let predicted =
+            project.referenceTime
             + date.timeIntervalSince(project.referenceDate) * project.playbackRate
         if predicted.isFinite {
             return max(0, predicted)
@@ -544,8 +558,9 @@ struct KaraokeEditorPanel: View {
                 var configuration = currentTemplate(for: item.id) ?? program.template
                 configuration[keyPath: keyPath] = value
                 if keyPath == \KaraokeTemplateConfiguration.glowRadius,
-                   value > 0,
-                   configuration.glowIntensity <= 0 {
+                    value > 0,
+                    configuration.glowIntensity <= 0
+                {
                     configuration.glowIntensity = 0.9
                 }
                 project.previewKaraokeTemplate(
@@ -558,7 +573,8 @@ struct KaraokeEditorPanel: View {
 
     private func beginTemplateEdit(itemID: UUID) {
         guard templateEditSession == nil,
-              let configuration = currentTemplate(for: itemID) else {
+            let configuration = currentTemplate(for: itemID)
+        else {
             return
         }
         templateEditSession = TemplateEditSession(
@@ -580,7 +596,8 @@ struct KaraokeEditorPanel: View {
         delayedTemplateCommit?.cancel()
         delayedTemplateCommit = nil
         guard let session = templateEditSession,
-              let final = currentTemplate(for: session.itemID) else {
+            let final = currentTemplate(for: session.itemID)
+        else {
             templateEditSession = nil
             return
         }
@@ -602,10 +619,11 @@ struct KaraokeEditorPanel: View {
         program: KaraokeProgram
     ) -> [KaraokeTimingUnit] {
         guard let boundaryDraft,
-              let index = program.units.firstIndex(
+            let index = program.units.firstIndex(
                 where: { $0.id == boundaryDraft.precedingUnitID }
-              ),
-              index + 1 < program.units.count else {
+            ),
+            index + 1 < program.units.count
+        else {
             return program.units
         }
         var units = program.units
@@ -618,45 +636,15 @@ struct KaraokeEditorPanel: View {
         return units
     }
 
-    /// The editor is a word-boundary tool, not a miniature copy of the cue
-    /// timeline. Adjacent cells therefore share one visual boundary. Any
-    /// aligner silence between two words is divided at its midpoint instead of
-    /// becoming a large, uneditable blank area; the stored word times remain
-    /// unchanged until the user drags that boundary.
-    private func contiguousDisplaySpans(
-        for units: [KaraokeTimingUnit]
-    ) -> [ClosedRange<Double>] {
-        guard let first = units.first else { return [] }
-        guard units.count > 1 else {
-            let end = max(first.endOffset, first.startOffset + 0.001)
-            return [first.startOffset...end]
-        }
-
-        var boundaries = [first.startOffset]
-        boundaries.reserveCapacity(units.count + 1)
-        for index in 0..<(units.count - 1) {
-            let midpoint = (
-                units[index].endOffset + units[index + 1].startOffset
-            ) / 2
-            boundaries.append(max(boundaries.last! + 0.000_001, midpoint))
-        }
-        boundaries.append(
-            max(boundaries.last! + 0.000_001, units.last!.endOffset)
-        )
-
-        return units.indices.map {
-            boundaries[$0]...boundaries[$0 + 1]
-        }
-    }
-
     private func playbackSelectedUnitID(
         units: [KaraokeTimingUnit],
         localPlayhead: Double,
         cueDuration: Double
     ) -> UUID? {
         guard localPlayhead >= 0,
-              localPlayhead <= cueDuration,
-              let first = units.first else {
+            localPlayhead <= cueDuration,
+            let first = units.first
+        else {
             return nil
         }
         return units.last(where: { $0.startOffset <= localPlayhead })?.id
@@ -667,10 +655,12 @@ struct KaraokeEditorPanel: View {
         program: KaraokeProgram,
         unitID: UUID
     ) -> ClosedRange<Double> {
-        guard let index = program.units.firstIndex(
-            where: { $0.id == unitID }
-        ),
-        index + 1 < program.units.count else {
+        guard
+            let index = program.units.firstIndex(
+                where: { $0.id == unitID }
+            ),
+            index + 1 < program.units.count
+        else {
             return 0...1
         }
         let frameFloor = max(0.001, 1 / max(project.videoFrameRate, 1))
@@ -728,41 +718,53 @@ private struct KaraokeBoundaryHandle: View {
     var onEnded: (Double) -> Void
 
     #if !os(macOS)
-    @State private var dragStartValue: Double?
+        @State private var dragStartValue: Double?
     #endif
 
     var body: some View {
         #if os(macOS)
-        MacKaraokeBoundaryHandle(
-            value: value,
-            range: range,
-            timelineWidth: timelineWidth,
-            cueDuration: cueDuration,
-            step: step,
-            label: label,
-            identifier: identifier,
-            onChanged: onChanged,
-            onEnded: onEnded
-        )
+            MacKaraokeBoundaryHandle(
+                value: value,
+                range: range,
+                timelineWidth: timelineWidth,
+                cueDuration: cueDuration,
+                step: step,
+                label: label,
+                identifier: identifier,
+                onChanged: onChanged,
+                onEnded: onEnded
+            )
         #else
-        Capsule()
-            .fill(Color.white.opacity(0.92))
-            .frame(width: 3, height: 38)
-            .overlay {
-                Capsule()
-                    .stroke(Color.black.opacity(0.25), lineWidth: 0.5)
-            }
-            .frame(width: 18, height: 44)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { gesture in
-                        let initial = dragStartValue ?? value
-                        if dragStartValue == nil {
-                            dragStartValue = initial
+            Capsule()
+                .fill(Color.white.opacity(0.92))
+                .frame(width: 3, height: 38)
+                .overlay {
+                    Capsule()
+                        .stroke(Color.black.opacity(0.25), lineWidth: 0.5)
+                }
+                .frame(width: 18, height: 44)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { gesture in
+                            let initial = dragStartValue ?? value
+                            if dragStartValue == nil {
+                                dragStartValue = initial
+                            }
+                            onChanged(
+                                clamped(
+                                    initial
+                                        + Double(
+                                            gesture.translation.width
+                                                / max(1, timelineWidth)
+                                        )
+                                        * cueDuration
+                                )
+                            )
                         }
-                        onChanged(
-                            clamped(
+                        .onEnded { gesture in
+                            let initial = dragStartValue ?? value
+                            let final = clamped(
                                 initial
                                     + Double(
                                         gesture.translation.width
@@ -770,41 +772,31 @@ private struct KaraokeBoundaryHandle: View {
                                     )
                                     * cueDuration
                             )
-                        )
-                    }
-                    .onEnded { gesture in
-                        let initial = dragStartValue ?? value
-                        let final = clamped(
-                            initial
-                                + Double(
-                                    gesture.translation.width
-                                        / max(1, timelineWidth)
-                                )
-                                * cueDuration
-                        )
-                        dragStartValue = nil
-                        onEnded(final)
-                    }
-            )
-            .accessibilityRepresentation {
-                let rangeSpan = max(0.001, range.upperBound - range.lowerBound)
-                let safeRange = range.upperBound > range.lowerBound ? range : range.lowerBound...(range.lowerBound + 0.005)
-                let safeStep = (step.isFinite && step > 0 && step <= rangeSpan / 2) ? step : max(0.0001, rangeSpan / 10)
-                Slider(
-                    value: Binding(
-                        get: { value },
-                        set: { adjusted in
-                            let bounded = clamped(adjusted)
-                            onChanged(bounded)
-                            onEnded(bounded)
+                            dragStartValue = nil
+                            onEnded(final)
                         }
-                    ),
-                    in: safeRange,
-                    step: safeStep
                 )
-                .accessibilityLabel(label)
-                .accessibilityIdentifier(identifier)
-            }
+                .accessibilityRepresentation {
+                    let rangeSpan = max(0.001, range.upperBound - range.lowerBound)
+                    let safeRange =
+                        range.upperBound > range.lowerBound ? range : range.lowerBound...(range.lowerBound + 0.005)
+                    let safeStep =
+                        (step.isFinite && step > 0 && step <= rangeSpan / 2) ? step : max(0.0001, rangeSpan / 10)
+                    Slider(
+                        value: Binding(
+                            get: { value },
+                            set: { adjusted in
+                                let bounded = clamped(adjusted)
+                                onChanged(bounded)
+                                onEnded(bounded)
+                            }
+                        ),
+                        in: safeRange,
+                        step: safeStep
+                    )
+                    .accessibilityLabel(label)
+                    .accessibilityIdentifier(identifier)
+                }
         #endif
     }
 
@@ -814,208 +806,208 @@ private struct KaraokeBoundaryHandle: View {
 }
 
 #if os(macOS)
-private struct MacKaraokeBoundaryHandle: NSViewRepresentable {
-    var value: Double
-    var range: ClosedRange<Double>
-    var timelineWidth: CGFloat
-    var cueDuration: Double
-    var step: Double
-    var label: String
-    var identifier: String
-    var onChanged: (Double) -> Void
-    var onEnded: (Double) -> Void
+    private struct MacKaraokeBoundaryHandle: NSViewRepresentable {
+        var value: Double
+        var range: ClosedRange<Double>
+        var timelineWidth: CGFloat
+        var cueDuration: Double
+        var step: Double
+        var label: String
+        var identifier: String
+        var onChanged: (Double) -> Void
+        var onEnded: (Double) -> Void
 
-    func makeNSView(context: Context) -> KaraokeBoundaryHandleView {
-        KaraokeBoundaryHandleView()
-    }
-
-    func updateNSView(
-        _ nsView: KaraokeBoundaryHandleView,
-        context: Context
-    ) {
-        nsView.configure(
-            value: value,
-            range: range,
-            timelineWidth: timelineWidth,
-            cueDuration: cueDuration,
-            step: step,
-            label: label,
-            identifier: identifier,
-            onChanged: onChanged,
-            onEnded: onEnded
-        )
-    }
-}
-
-private final class KaraokeBoundaryHandleView: NSSlider {
-    private var currentValue = 0.0
-    private var allowedRange = 0.0...1.0
-    private var timelineWidth: CGFloat = 1
-    private var cueDuration = 1.0
-    private var adjustmentStep = 1 / 30.0
-    private var onChanged: (Double) -> Void = { _ in }
-    private var onEnded: (Double) -> Void = { _ in }
-    private var isTrackingPointer = false
-    private var pointerInitialX: CGFloat?
-    private var pointerInitialValue: Double?
-
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        cell = KaraokeBoundaryHandleCell()
-        sliderType = .linear
-        isVertical = false
-        isContinuous = true
-    }
-
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-        cell = KaraokeBoundaryHandleCell()
-        sliderType = .linear
-        isVertical = false
-        isContinuous = true
-    }
-
-    func configure(
-        value: Double,
-        range: ClosedRange<Double>,
-        timelineWidth: CGFloat,
-        cueDuration: Double,
-        step: Double,
-        label: String,
-        identifier: String,
-        onChanged: @escaping (Double) -> Void,
-        onEnded: @escaping (Double) -> Void
-    ) {
-        if !isTrackingPointer {
-            currentValue = value
-            doubleValue = value
+        func makeNSView(context: Context) -> KaraokeBoundaryHandleView {
+            KaraokeBoundaryHandleView()
         }
-        allowedRange = range
-        minValue = range.lowerBound
-        maxValue = range.upperBound
-        self.timelineWidth = max(1, timelineWidth)
-        self.cueDuration = max(0.001, cueDuration)
-        adjustmentStep = max(0.001, step)
-        altIncrementValue = adjustmentStep
-        self.onChanged = onChanged
-        self.onEnded = onEnded
 
-        setAccessibilityLabel(label)
-        setAccessibilityIdentifier(identifier)
-        needsDisplay = true
+        func updateNSView(
+            _ nsView: KaraokeBoundaryHandleView,
+            context: Context
+        ) {
+            nsView.configure(
+                value: value,
+                range: range,
+                timelineWidth: timelineWidth,
+                cueDuration: cueDuration,
+                step: step,
+                label: label,
+                identifier: identifier,
+                onChanged: onChanged,
+                onEnded: onEnded
+            )
+        }
     }
 
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
-        true
-    }
+    private final class KaraokeBoundaryHandleView: NSSlider {
+        private var currentValue = 0.0
+        private var allowedRange = 0.0...1.0
+        private var timelineWidth: CGFloat = 1
+        private var cueDuration = 1.0
+        private var adjustmentStep = 1 / 30.0
+        private var onChanged: (Double) -> Void = { _ in }
+        private var onEnded: (Double) -> Void = { _ in }
+        private var isTrackingPointer = false
+        private var pointerInitialX: CGFloat?
+        private var pointerInitialValue: Double?
 
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        return bounds.contains(point) ? self : nil
-    }
+        override init(frame frameRect: NSRect) {
+            super.init(frame: frameRect)
+            cell = KaraokeBoundaryHandleCell()
+            sliderType = .linear
+            isVertical = false
+            isContinuous = true
+        }
 
-    override func resetCursorRects() {
-        addCursorRect(bounds, cursor: .resizeLeftRight)
-    }
+        required init?(coder: NSCoder) {
+            super.init(coder: coder)
+            cell = KaraokeBoundaryHandleCell()
+            sliderType = .linear
+            isVertical = false
+            isContinuous = true
+        }
 
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
+        func configure(
+            value: Double,
+            range: ClosedRange<Double>,
+            timelineWidth: CGFloat,
+            cueDuration: Double,
+            step: Double,
+            label: String,
+            identifier: String,
+            onChanged: @escaping (Double) -> Void,
+            onEnded: @escaping (Double) -> Void
+        ) {
+            if !isTrackingPointer {
+                currentValue = value
+                doubleValue = value
+            }
+            allowedRange = range
+            minValue = range.lowerBound
+            maxValue = range.upperBound
+            self.timelineWidth = max(1, timelineWidth)
+            self.cueDuration = max(0.001, cueDuration)
+            adjustmentStep = max(0.001, step)
+            altIncrementValue = adjustmentStep
+            self.onChanged = onChanged
+            self.onEnded = onEnded
 
-        let handleRect = NSRect(
-            x: bounds.midX - 1.5,
-            y: bounds.midY - 19,
-            width: 3,
-            height: 38
-        )
-        let path = NSBezierPath(
-            roundedRect: handleRect,
-            xRadius: 1.5,
-            yRadius: 1.5
-        )
-        NSColor.white.withAlphaComponent(0.92).setFill()
-        path.fill()
-        NSColor.black.withAlphaComponent(0.25).setStroke()
-        path.lineWidth = 0.5
-        path.stroke()
-    }
+            setAccessibilityLabel(label)
+            setAccessibilityIdentifier(identifier)
+            needsDisplay = true
+        }
 
-    override func mouseDown(with event: NSEvent) {
-        guard let window else { return }
-        window.makeFirstResponder(self)
-        isTrackingPointer = true
-        pointerInitialX = event.locationInWindow.x
-        pointerInitialValue = currentValue
-    }
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+            true
+        }
 
-    override func mouseDragged(with event: NSEvent) {
-        let adjusted = pointerValue(for: event)
-        currentValue = adjusted
-        syncAccessibilityValue()
-        onChanged(adjusted)
-    }
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            return bounds.contains(point) ? self : nil
+        }
 
-    override func mouseUp(with event: NSEvent) {
-        let adjusted = pointerValue(for: event)
-        currentValue = adjusted
-        isTrackingPointer = false
-        pointerInitialX = nil
-        pointerInitialValue = nil
-        syncAccessibilityValue()
-        onEnded(adjusted)
-    }
+        override func resetCursorRects() {
+            addCursorRect(bounds, cursor: .resizeLeftRight)
+        }
 
-    override func keyDown(with event: NSEvent) {
-        switch event.keyCode {
-        case 123:
-            commit(currentValue - adjustmentStep)
-        case 124:
+        override func draw(_ dirtyRect: NSRect) {
+            super.draw(dirtyRect)
+
+            let handleRect = NSRect(
+                x: bounds.midX - 1.5,
+                y: bounds.midY - 19,
+                width: 3,
+                height: 38
+            )
+            let path = NSBezierPath(
+                roundedRect: handleRect,
+                xRadius: 1.5,
+                yRadius: 1.5
+            )
+            NSColor.white.withAlphaComponent(0.92).setFill()
+            path.fill()
+            NSColor.black.withAlphaComponent(0.25).setStroke()
+            path.lineWidth = 0.5
+            path.stroke()
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            guard let window else { return }
+            window.makeFirstResponder(self)
+            isTrackingPointer = true
+            pointerInitialX = event.locationInWindow.x
+            pointerInitialValue = currentValue
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            let adjusted = pointerValue(for: event)
+            currentValue = adjusted
+            syncAccessibilityValue()
+            onChanged(adjusted)
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            let adjusted = pointerValue(for: event)
+            currentValue = adjusted
+            isTrackingPointer = false
+            pointerInitialX = nil
+            pointerInitialValue = nil
+            syncAccessibilityValue()
+            onEnded(adjusted)
+        }
+
+        override func keyDown(with event: NSEvent) {
+            switch event.keyCode {
+            case 123:
+                commit(currentValue - adjustmentStep)
+            case 124:
+                commit(currentValue + adjustmentStep)
+            default:
+                super.keyDown(with: event)
+            }
+        }
+
+        override func accessibilityPerformIncrement() -> Bool {
             commit(currentValue + adjustmentStep)
-        default:
-            super.keyDown(with: event)
+            return true
+        }
+
+        override func accessibilityPerformDecrement() -> Bool {
+            commit(currentValue - adjustmentStep)
+            return true
+        }
+
+        private func commit(_ proposed: Double) {
+            let adjusted = clamped(proposed)
+            currentValue = adjusted
+            syncAccessibilityValue()
+            onChanged(adjusted)
+            onEnded(adjusted)
+        }
+
+        private func clamped(_ proposed: Double) -> Double {
+            min(max(proposed, allowedRange.lowerBound), allowedRange.upperBound)
+        }
+
+        private func pointerValue(for event: NSEvent) -> Double {
+            guard let pointerInitialX, let pointerInitialValue else {
+                return currentValue
+            }
+            let deltaX = event.locationInWindow.x - pointerInitialX
+            return clamped(
+                pointerInitialValue
+                    + Double(deltaX / timelineWidth) * cueDuration
+            )
+        }
+
+        private func syncAccessibilityValue() {
+            doubleValue = currentValue
+            NSAccessibility.post(element: self, notification: .valueChanged)
         }
     }
 
-    override func accessibilityPerformIncrement() -> Bool {
-        commit(currentValue + adjustmentStep)
-        return true
+    private final class KaraokeBoundaryHandleCell: NSSliderCell {
+        override func drawKnob(_ knobRect: NSRect) {}
+
+        override func drawBar(inside rect: NSRect, flipped: Bool) {}
     }
-
-    override func accessibilityPerformDecrement() -> Bool {
-        commit(currentValue - adjustmentStep)
-        return true
-    }
-
-    private func commit(_ proposed: Double) {
-        let adjusted = clamped(proposed)
-        currentValue = adjusted
-        syncAccessibilityValue()
-        onChanged(adjusted)
-        onEnded(adjusted)
-    }
-
-    private func clamped(_ proposed: Double) -> Double {
-        min(max(proposed, allowedRange.lowerBound), allowedRange.upperBound)
-    }
-
-    private func pointerValue(for event: NSEvent) -> Double {
-        guard let pointerInitialX, let pointerInitialValue else {
-            return currentValue
-        }
-        let deltaX = event.locationInWindow.x - pointerInitialX
-        return clamped(
-            pointerInitialValue
-                + Double(deltaX / timelineWidth) * cueDuration
-        )
-    }
-
-    private func syncAccessibilityValue() {
-        doubleValue = currentValue
-        NSAccessibility.post(element: self, notification: .valueChanged)
-    }
-}
-
-private final class KaraokeBoundaryHandleCell: NSSliderCell {
-    override func drawKnob(_ knobRect: NSRect) {}
-
-    override func drawBar(inside rect: NSRect, flipped: Bool) {}
-}
 #endif

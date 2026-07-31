@@ -10,18 +10,15 @@ extension ContentView {
 
     // MARK: - Wide Layout (iPad / macOS)
     //
-    // 左列：当前 tab 的侧边栏内容（ScriptListView or Settings）+ 底部自绘 TabBar
-    // 右列：始终显示 MainContentView（视频 + 波形）
-    // 不使用 NavigationSplitView：避免两个 sidebar toggle 按钮冲突
+    // The sidebar owns navigation and the custom tab bar; the detail column
+    // remains the editor unless a settings route is pushed over it.
 
     var wideLayout: some View {
         NavigationSplitView {
-            // ── 左列：侧边栏容器 ──
             StropheSidebarContainer(project: project, selectedTab: $selectedTab, settingsPath: $settingsPath)
                 .navigationSplitViewColumnWidth(300)
                 .ignoresSafeArea(.container, edges: [.top, .bottom])
         } detail: {
-            // ── 右列：始终为编辑器（设置详情通过 settingsPath 覆盖在它上面） ──
             NavigationStack(path: $settingsPath) {
                 MainContentView(
                     project: project,
@@ -29,9 +26,9 @@ extension ContentView {
                     onSaveProject: saveProject,
                     onSaveProjectAs: saveProjectAs
                 )
-                    .navigationDestination(for: SettingsRoute.self) { route in
-                        SettingsDetailView(route: route, project: project)
-                    }
+                .navigationDestination(for: SettingsRoute.self) { route in
+                    SettingsDetailView(route: route, project: project)
+                }
             }
         }
         .navigationSplitViewStyle(.balanced)
@@ -45,13 +42,11 @@ extension ContentView {
 
     // MARK: - Compact Layout (iPhone)
     //
-    // 编辑器 tab：全屏 MainContentView，TabBar 不显示，左上有返回按钮
-    // 其他 tab：当前 tab 内容 + 底部自绘 TabBar（文稿 | 编辑器 | 设置）
+    // The compact editor is full-screen; other destinations retain the tab bar.
 
     @ViewBuilder
     var compactLayout: some View {
         if selectedTab == .editor {
-            // 编辑器全屏，不显示 TabBar
             if embedsCompactEditorInNavigationStack {
                 NavigationStack {
                     MainContentView(
@@ -127,22 +122,26 @@ extension ContentView {
                                 Divider()
                                 Menu {
                                     Button {
-                                        NotificationCenter.default.post(name: .stropheStartSubtitleTranslation, object: nil)
+                                        NotificationCenter.default.post(
+                                            name: .stropheStartSubtitleTranslation, object: nil)
                                     } label: {
                                         Label("subtitle_translation_assistant", systemImage: "character.bubble")
                                     }
                                     Button {
-                                        NotificationCenter.default.post(name: .stropheStartBatchTranslation, object: nil)
+                                        NotificationCenter.default.post(
+                                            name: .stropheStartBatchTranslation, object: nil)
                                     } label: {
                                         Label("batch_translate_subtitles", systemImage: "text.bubble")
                                     }
                                     Button {
-                                        NotificationCenter.default.post(name: .stropheOpenKaraokeBatchRecognition, object: nil)
+                                        NotificationCenter.default.post(
+                                            name: .stropheOpenKaraokeBatchRecognition, object: nil)
                                     } label: {
                                         Label("karaoke_batch_recognition", systemImage: "music.note.list")
                                     }
                                     Button {
-                                        NotificationCenter.default.post(name: .stropheConvertSelectedToPinyin, object: nil)
+                                        NotificationCenter.default.post(
+                                            name: .stropheConvertSelectedToPinyin, object: nil)
                                     } label: {
                                         Label("chinese_to_pinyin", systemImage: "character.phonetic")
                                     }

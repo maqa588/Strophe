@@ -8,7 +8,11 @@ import Libswscale
 
 nonisolated let ffmpegExportNoPTS = Int64(bitPattern: 0x8000000000000000)
 
-nonisolated(unsafe) private let ffmpegExportGetFormatCallback: @convention(c) (UnsafeMutablePointer<AVCodecContext>?, UnsafePointer<AVPixelFormat>?) -> AVPixelFormat = { _, formats in
+nonisolated private func ffmpegExportGetFormatCallback(
+    _ codecContext: UnsafeMutablePointer<AVCodecContext>?,
+    _ formats: UnsafePointer<AVPixelFormat>?
+) -> AVPixelFormat {
+    _ = codecContext
     guard let formats else { return AV_PIX_FMT_NONE }
     var index = 0
     while formats[index] != AV_PIX_FMT_NONE {
@@ -36,12 +40,15 @@ nonisolated final class FFmpegVideoExportVideoReader {
     private var poolHeight = 0
     private var poolPixelFormat: OSType = 0
     private var reachedEOF = false
+    private var packetNeedsSending = false
+    private var sentDrainPacket = false
 
     private(set) var videoStreamIndex: Int32 = -1
     private(set) var storageSize: CGSize = .zero
     private(set) var sampleAspectRatio = CGSize(width: 1, height: 1)
     private(set) var frameRate: Double = 30
     private(set) var duration: Double = 0
+    private(set) var audioStreamCount: Int = 0
     private(set) var sourceColorProfile: VideoColorProfile = .sdr709
 
     init(url: URL) throws {
@@ -86,6 +93,7 @@ nonisolated final class FFmpegVideoExportVideoReader {
         }
 
         while true {
+            av_frame_unref(frame)
             let receiveStatus = avcodec_receive_frame(codecContext, frame)
             if receiveStatus >= 0 {
                 defer { av_frame_unref(frame) }
@@ -96,27 +104,98 @@ nonisolated final class FFmpegVideoExportVideoReader {
                 return FFmpegVideoExportFrame(pixelBuffer: pixelBuffer, pts: pts)
             }
 
+            if receiveStatus != -EAGAIN {
+                if reachedEOF {
+                    return nil
+                }
+                throw HardSubtitleVideoExportError.ffmpegDecodeFailed(
+                    "avcodec_receive_frame(video) failed: \(receiveStatus)"
+                )
+            }
+
+            if packetNeedsSending {
+                let sendStatus = avcodec_send_packet(codecContext, packet)
+                if sendStatus >= 0 {
+                    packetNeedsSending = false
+                    av_packet_unref(packet)
+                } else if sendStatus != -EAGAIN {
+                    packetNeedsSending = false
+                    av_packet_unref(packet)
+                    throw HardSubtitleVideoExportError.ffmpegDecodeFailed(
+                        "avcodec_send_packet(video) failed: \(sendStatus)"
+                    )
+                }
+                continue
+            }
+
             if reachedEOF {
+                if !sentDrainPacket {
+                    let drainStatus = avcodec_send_packet(codecContext, nil)
+                    if drainStatus >= 0 {
+                        sentDrainPacket = true
+                        continue
+                    }
+                    if drainStatus == -EAGAIN {
+                        continue
+                    }
+                }
                 return nil
             }
 
             av_packet_unref(packet)
-            let readStatus = av_read_frame(formatContext, packet)
-            if readStatus < 0 {
-                reachedEOF = true
-                avcodec_send_packet(codecContext, nil)
-                continue
-            }
-
-            guard packet.pointee.stream_index == videoStreamIndex else {
-                continue
-            }
-
-            let sendStatus = avcodec_send_packet(codecContext, packet)
-            if sendStatus < 0 && sendStatus != -EAGAIN {
-                throw HardSubtitleVideoExportError.ffmpegDecodeFailed("avcodec_send_packet(video) failed: \(sendStatus)")
+            while true {
+                let readStatus = av_read_frame(formatContext, packet)
+                if readStatus < 0 {
+                    reachedEOF = true
+                    break
+                }
+                guard packet.pointee.stream_index == videoStreamIndex else {
+                    av_packet_unref(packet)
+                    continue
+                }
+                packetNeedsSending = true
+                break
             }
         }
+    }
+
+    /// Seeks to the nearest preceding keyframe so ranged exports do not decode
+    /// the entire file from zero. Exact range trimming still happens in the
+    /// frame loop, preserving frame-accurate output.
+    @discardableResult
+    func seek(to seconds: Double) -> Bool {
+        guard seconds.isFinite,
+            seconds > 0,
+            let formatContext,
+            let codecContext,
+            let stream = formatContext.pointee.streams[Int(videoStreamIndex)],
+            stream.pointee.time_base.num > 0,
+            stream.pointee.time_base.den > 0
+        else {
+            return false
+        }
+        let timeBase = stream.pointee.time_base
+        let targetPTS = Int64(
+            seconds * Double(timeBase.den) / Double(timeBase.num)
+        )
+        guard
+            av_seek_frame(
+                formatContext,
+                videoStreamIndex,
+                targetPTS,
+                AVSEEK_FLAG_BACKWARD
+            ) >= 0
+        else {
+            return false
+        }
+
+        avcodec_flush_buffers(codecContext)
+        if let packet { av_packet_unref(packet) }
+        if let frame { av_frame_unref(frame) }
+        reachedEOF = false
+        packetNeedsSending = false
+        sentDrainPacket = false
+        return true
     }
 
     private func open(url: URL) throws {
@@ -131,23 +210,31 @@ nonisolated final class FFmpegVideoExportVideoReader {
         }
 
         for index in 0..<openedContext.pointee.nb_streams {
-            guard let stream = openedContext.pointee.streams[Int(index)] else { continue }
-            if stream.pointee.codecpar.pointee.codec_type == AVMEDIA_TYPE_VIDEO {
+            guard let stream = openedContext.pointee.streams[Int(index)],
+                let codecParameters = stream.pointee.codecpar
+            else { continue }
+            switch codecParameters.pointee.codec_type {
+            case AVMEDIA_TYPE_VIDEO where videoStreamIndex < 0:
                 videoStreamIndex = Int32(index)
+            case AVMEDIA_TYPE_AUDIO:
+                audioStreamCount += 1
+            default:
                 break
             }
         }
 
         guard videoStreamIndex >= 0,
-              let stream = openedContext.pointee.streams[Int(videoStreamIndex)] else {
+            let stream = openedContext.pointee.streams[Int(videoStreamIndex)],
+            let codecParameters = stream.pointee.codecpar
+        else {
             throw HardSubtitleVideoExportError.missingVideoTrack
         }
 
-        let codecParameters = stream.pointee.codecpar!
         sourceColorProfile = VideoColorProfile(
             ffmpegTransferRawValue: Int32(codecParameters.pointee.color_trc.rawValue)
         )
-        storageSize = CGSize(width: Double(codecParameters.pointee.width), height: Double(codecParameters.pointee.height))
+        storageSize = CGSize(
+            width: Double(codecParameters.pointee.width), height: Double(codecParameters.pointee.height))
         sampleAspectRatio = resolvedSampleAspectRatio(stream: stream, codecParameters: codecParameters)
         frameRate = resolvedFrameRate(stream: stream)
         duration = resolvedDuration(formatContext: openedContext, stream: stream)
@@ -162,7 +249,11 @@ nonisolated final class FFmpegVideoExportVideoReader {
         }
         codecContext = decoderContext
 
-        avcodec_parameters_to_context(decoderContext, codecParameters)
+        guard avcodec_parameters_to_context(decoderContext, codecParameters) >= 0 else {
+            throw HardSubtitleVideoExportError.ffmpegDecodeFailed(
+                "Unable to configure the video decoder."
+            )
+        }
         decoderContext.pointee.get_format = ffmpegExportGetFormatCallback
         av_opt_set(decoderContext, "threads", "0", 0)
         configureVideoToolboxIfAvailable(decoder: decoder, codecContext: decoderContext)
@@ -187,8 +278,9 @@ nonisolated final class FFmpegVideoExportVideoReader {
     private func resolvedVideoDecoder(codecID: AVCodecID) -> UnsafePointer<AVCodec>? {
         if codecID == AV_CODEC_ID_AV1 {
             if let nativeAV1 = avcodec_find_decoder_by_name("av1"),
-               decoderSupportsVideoToolbox(nativeAV1),
-               canCreateVideoToolboxDevice() {
+                decoderSupportsVideoToolbox(nativeAV1),
+                canCreateVideoToolboxDevice()
+            {
                 return nativeAV1
             }
             if let dav1d = avcodec_find_decoder_by_name("libdav1d") {
@@ -282,11 +374,13 @@ nonisolated final class FFmpegVideoExportVideoReader {
         _ frame: UnsafeMutablePointer<AVFrame>,
         formatContext: UnsafeMutablePointer<AVFormatContext>
     ) -> Double {
-        let timestamp = frame.pointee.best_effort_timestamp != ffmpegExportNoPTS
+        let timestamp =
+            frame.pointee.best_effort_timestamp != ffmpegExportNoPTS
             ? frame.pointee.best_effort_timestamp
             : frame.pointee.pts
         guard timestamp != ffmpegExportNoPTS,
-              let stream = formatContext.pointee.streams[Int(videoStreamIndex)] else {
+            let stream = formatContext.pointee.streams[Int(videoStreamIndex)]
+        else {
             return 0
         }
         let timeBase = stream.pointee.time_base
@@ -302,7 +396,8 @@ nonisolated final class FFmpegVideoExportVideoReader {
         let colorProfile = frameProfile.isHDR ? frameProfile : sourceColorProfile
 
         if frame.pointee.format == AV_PIX_FMT_VIDEOTOOLBOX.rawValue,
-           let rawPixelBuffer = frame.pointee.data.3 {
+            let rawPixelBuffer = frame.pointee.data.3
+        {
             let pixelBuffer = Unmanaged<CVPixelBuffer>.fromOpaque(rawPixelBuffer).takeUnretainedValue()
             colorProfile.attachColorMetadata(
                 to: pixelBuffer,
@@ -312,7 +407,9 @@ nonisolated final class FFmpegVideoExportVideoReader {
         }
 
         let destinationPixelFormat = colorProfile.pixelFormat
-        if pixelBufferPool == nil || poolWidth != width || poolHeight != height || poolPixelFormat != destinationPixelFormat {
+        if pixelBufferPool == nil || poolWidth != width || poolHeight != height
+            || poolPixelFormat != destinationPixelFormat
+        {
             poolWidth = width
             poolHeight = height
             poolPixelFormat = destinationPixelFormat
@@ -324,7 +421,7 @@ nonisolated final class FFmpegVideoExportVideoReader {
                 kCVPixelBufferHeightKey: height,
                 kCVPixelBufferPixelFormatTypeKey: destinationPixelFormat,
                 kCVPixelBufferMetalCompatibilityKey: true,
-                kCVPixelBufferIOSurfacePropertiesKey: [:]
+                kCVPixelBufferIOSurfacePropertiesKey: [:],
             ]
             CVPixelBufferPoolCreate(
                 kCFAllocatorDefault,
@@ -336,8 +433,9 @@ nonisolated final class FFmpegVideoExportVideoReader {
 
         var pixelBuffer: CVPixelBuffer?
         guard let pixelBufferPool,
-              CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pixelBufferPool, &pixelBuffer) == kCVReturnSuccess,
-              let pixelBuffer else {
+            CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pixelBufferPool, &pixelBuffer) == kCVReturnSuccess,
+            let pixelBuffer
+        else {
             return nil
         }
 
@@ -345,7 +443,8 @@ nonisolated final class FFmpegVideoExportVideoReader {
         defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, []) }
 
         guard let yPlane = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 0),
-              let uvPlane = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 1) else {
+            let uvPlane = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 1)
+        else {
             return nil
         }
 
@@ -368,13 +467,13 @@ nonisolated final class FFmpegVideoExportVideoReader {
             yPlane.assumingMemoryBound(to: UInt8.self),
             uvPlane.assumingMemoryBound(to: UInt8.self),
             nil,
-            nil
+            nil,
         ]
         var destinationLinesize: [Int32] = [
             Int32(CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 0)),
             Int32(CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 1)),
             0,
-            0
+            0,
         ]
 
         _ = frame.withMemoryRebound(to: AVFrame.self, capacity: 1) { framePointer in

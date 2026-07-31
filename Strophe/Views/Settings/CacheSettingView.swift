@@ -85,7 +85,7 @@ struct CacheSettingView: View {
         }
         .navigationTitle("clear_cache")
         #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.inline)
         #endif
         .alert("cleanup_completed", isPresented: $showSuccessAlert) {
             Button("ok", role: .cancel) {}
@@ -95,7 +95,7 @@ struct CacheSettingView: View {
     }
 
     private func refreshCacheSize() {
-        cacheSizeInBytes = TempCleanupHelper.getTempDirectorySize()
+        cacheSizeInBytes = TempCleanupHelper.tempDirectorySize()
     }
 
     private func clearCache() {
@@ -105,12 +105,12 @@ struct CacheSettingView: View {
         Task {
             let remainingBytes = await Task.detached(priority: .utility) {
                 TempCleanupHelper.cleanupTempDirectory()
-                return TempCleanupHelper.getTempDirectorySize()
+                return TempCleanupHelper.tempDirectorySize()
             }.value
 
             #if os(iOS)
-            let generator = UINotificationFeedbackGenerator()
-            generator.notificationOccurred(.success)
+                let generator = UINotificationFeedbackGenerator()
+                generator.notificationOccurred(.success)
             #endif
 
             cacheSizeInBytes = remainingBytes

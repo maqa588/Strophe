@@ -5,7 +5,7 @@
 
 import SwiftUI
 #if canImport(UIKit)
-import UIKit
+    import UIKit
 #endif
 
 struct StropheSidebarContainer: View {
@@ -16,34 +16,31 @@ struct StropheSidebarContainer: View {
     private var usesLiquidGlassNavigation: Bool {
         if #available(anyAppleOS 26.0, *) { true } else { false }
     }
-    
+
     var body: some View {
         #if os(macOS)
-        // 💻 macOS 平台：采用“边到边”的扁平化原生侧边栏设计，彻底消灭三层套娃边框与留白失衡
-        sidebarContent
-            // 💡 使用标准的 AppKit 侧边栏模糊底色，填满整个区域
-            .background(VisualEffectView(material: .sidebar, blendingMode: .behindWindow))
-            .hideSidebarSystemNavigationBar()
+            sidebarContent
+                .background(VisualEffectView(material: .sidebar, blendingMode: .behindWindow))
+                .hideSidebarSystemNavigationBar()
         #else
-        // 📱 iPadOS/iOS 平台：保留你非常满意的精致悬浮玻璃卡片布局
-        if #available(anyAppleOS 26.0, *) {
-            sidebarContent
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.leading, 12)
-                .padding(.trailing, 4)
-                .glassEffect(.regular, in: .rect(cornerRadius: 18, style: .continuous))
-                .hideSidebarSystemNavigationBar()
-        } else {
-            sidebarContent
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.leading, 12)
-                .padding(.trailing, 4)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .hideSidebarSystemNavigationBar()
-        }
+            if #available(anyAppleOS 26.0, *) {
+                sidebarContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.leading, 12)
+                    .padding(.trailing, 4)
+                    .glassEffect(.regular, in: .rect(cornerRadius: 18, style: .continuous))
+                    .hideSidebarSystemNavigationBar()
+            } else {
+                sidebarContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.leading, 12)
+                    .padding(.trailing, 4)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .hideSidebarSystemNavigationBar()
+            }
         #endif
     }
-    
+
     @ViewBuilder
     private var sidebarContent: some View {
         Group {
@@ -93,9 +90,9 @@ struct StropheSidebarContainer: View {
         }
         .frame(maxHeight: .infinity)
         #if os(macOS)
-        .padding(.top, 52)
+            .padding(.top, 52)
         #else
-        .padding(.top, UIDevice.current.userInterfaceIdiom == .pad ? 72 : 16)
+            .padding(.top, UIDevice.current.userInterfaceIdiom == .pad ? 72 : 16)
         #endif
     }
 }
@@ -106,15 +103,15 @@ extension View {
     @ViewBuilder
     fileprivate func hideSidebarSystemNavigationBar() -> some View {
         #if os(iOS)
-        // Clear system navigation title (our custom ZStack header is the only title).
-        // Keep .toolbarBackground(.hidden) so the bar's layout footprint remains
-        // stable and .toolbar items (plus button, sidebar toggle) render correctly.
-        self
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.hidden, for: .navigationBar)
+            // Clear system navigation title (our custom ZStack header is the only title).
+            // Keep .toolbarBackground(.hidden) so the bar's layout footprint remains
+            // stable and .toolbar items (plus button, sidebar toggle) render correctly.
+            self
+                .navigationTitle("")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbarBackground(.hidden, for: .navigationBar)
         #else
-        self.navigationTitle("")
+            self.navigationTitle("")
         #endif
     }
 }

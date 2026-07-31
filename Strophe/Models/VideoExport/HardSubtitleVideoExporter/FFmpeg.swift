@@ -21,9 +21,16 @@ extension HardSubtitleVideoExporter {
             if didAccessOutput { destinationURL.stopAccessingSecurityScopedResource() }
         }
 
-        let workingURL = temporaryExportURL(fileExtension: codec.fileExtension)
+        // NSSavePanel/fileExporter grants access to the selected file URL, not
+        // necessarily to arbitrary sibling files in its parent directory.
+        // Write directly to that authorized URL. This also avoids a second,
+        // potentially multi-gigabyte copy after ProRes encoding.
+        let workingURL = destinationURL
+        var didFinishOutput = false
         defer {
-            try? FileManager.default.removeItem(at: workingURL)
+            if !didFinishOutput {
+                try? FileManager.default.removeItem(at: workingURL)
+            }
         }
         try? FileManager.default.removeItem(at: workingURL)
 
@@ -34,11 +41,13 @@ extension HardSubtitleVideoExporter {
             sourceProfile: videoReader.sourceColorProfile
         )
 
-        let mediaSnapshot = try? await MediaInformationProbe.load(from: inputURL)
-        let detectedAudioTrackCount = mediaSnapshot?.audioStreamCount ?? 1
+        // The video reader already paid for avformat_find_stream_info. Reuse
+        // that result instead of opening and probing a second FFmpeg context.
+        let detectedAudioTrackCount = videoReader.audioStreamCount
         let requestedAudioTrackOrdinals: [Int]
         if let selected = settings.includedAudioTrackOrdinals {
-            requestedAudioTrackOrdinals = selected
+            requestedAudioTrackOrdinals =
+                selected
                 .filter { $0 >= 0 && $0 < detectedAudioTrackCount }
                 .sorted()
         } else {
@@ -76,6 +85,12 @@ extension HardSubtitleVideoExporter {
         for audioReader in audioReaders {
             audioReader.minimumSourceTime = timelineStartSeconds
             audioReader.maximumSourceTime = exportRange?.upperBound
+            if timelineStartSeconds > 0 {
+                _ = audioReader.seek(to: timelineStartSeconds)
+            }
+        }
+        if timelineStartSeconds > 0 {
+            _ = videoReader.seek(to: timelineStartSeconds)
         }
 
         let writer: AVAssetWriter
@@ -84,7 +99,7 @@ extension HardSubtitleVideoExporter {
         } catch {
             throw HardSubtitleVideoExportError.cannotCreateWriter
         }
-        print("🎞️ FFmpeg hard-sub export: writing temporary file at \(workingURL.path)")
+        print("🎞️ FFmpeg hard-sub export: writing authorized output at \(workingURL.path)")
 
         let writerInput = AVAssetWriterInput(
             mediaType: .video,
@@ -169,6 +184,17 @@ extension HardSubtitleVideoExporter {
             frameDuration: frameDuration,
             sourceRange: exportRange,
             durationSeconds: durationSeconds,
+            allowsDirectFramePassThrough:
+                !settings.rendersTransparentBackground
+                && videoReader.sourceColorProfile == outputColorProfile
+                && geometry.sourceDisplaySize == nil
+                && evenSize(videoReader.storageSize) == renderSize,
+            directPassThroughPixelFormat: exportPixelFormat,
+            maxInFlightFrames: renderPipelineDepth(
+                settings: settings,
+                renderSize: renderSize,
+                pixelFormat: exportPixelFormat
+            ),
             progress: progress
         )
         print("🎞️ FFmpeg hard-sub export: video input finished at \(lastVideoPresentationTime.seconds)")
@@ -185,12 +211,8 @@ extension HardSubtitleVideoExporter {
 
         print("🎞️ FFmpeg hard-sub export: finishing writer")
         try await finish(writer: writer)
-        print("🎞️ FFmpeg hard-sub export: writer finished, moving to \(destinationURL.path)")
-
-        await MainActor.run {
-            progress(0.995)
-        }
-        try replaceExport(at: destinationURL, with: workingURL)
+        didFinishOutput = true
+        print("🎞️ FFmpeg hard-sub export: writer finished at \(destinationURL.path)")
 
         await MainActor.run {
             progress(1)

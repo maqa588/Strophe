@@ -122,7 +122,7 @@ nonisolated enum HardSubtitleVideoCodec: String, CaseIterable, Identifiable, Sen
             return "mov"
         }
     }
-    
+
     var isProRes: Bool {
         switch self {
         case .proRes4444, .proRes422HQ, .proRes422, .proRes422LT, .proRes422Proxy:
@@ -147,51 +147,81 @@ nonisolated enum HardSubtitleVideoCodec: String, CaseIterable, Identifiable, Sen
         colorProfile: VideoColorProfile
     ) -> [String: Any] {
         #if os(macOS)
-        let encoderSpecificationKey = AVVideoEncoderSpecificationKey
-        let hardwareAccelerationKey = kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder as String
+            let encoderSpecificationKey = AVVideoEncoderSpecificationKey
+            let hardwareAccelerationKey = kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder as String
         #else
-        // The iOS SDK does not expose these AVFoundation dictionary constants.
-        let encoderSpecificationKey = "AVVideoEncoderSpecificationKey"
-        let hardwareAccelerationKey = "EnableHardwareAcceleratedVideoEncoder"
+            // The iOS SDK does not expose these AVFoundation dictionary constants.
+            let encoderSpecificationKey = "AVVideoEncoderSpecificationKey"
+            let hardwareAccelerationKey = "EnableHardwareAcceleratedVideoEncoder"
         #endif
 
         var settings: [String: Any] = [
             AVVideoCodecKey: avCodec,
             AVVideoWidthKey: width,
             AVVideoHeightKey: height,
-            AVVideoColorPropertiesKey: colorProfile.avVideoColorProperties
+            AVVideoColorPropertiesKey: colorProfile.avVideoColorProperties,
         ]
 
         if exportSettings.usesSoftwareEncoding {
             // false explicitly prevents VideoToolbox from selecting hardware.
             settings[encoderSpecificationKey] = [hardwareAccelerationKey: false]
-        } else if !isProRes {
+        } else {
             #if os(macOS)
-            // Preserve the existing hardware-preferred macOS path.
-            settings[encoderSpecificationKey] = [hardwareAccelerationKey: true]
+                // Prefer VideoToolbox hardware for H.264, HEVC and ProRes. This is
+                // deliberately not "require": older Macs and busy encoder pools
+                // can still fall back to software without failing the export.
+                settings[encoderSpecificationKey] = [hardwareAccelerationKey: true]
             #endif
         }
 
         if !isProRes {
-            let expectedFrameRate = Int(max(1, frameRate.rounded()))
+            let expectedFrameRate = max(1, frameRate)
             var compressionProperties: [String: Any] = [:]
+            let supportedProperties =
+                exportSettings.usesSoftwareEncoding
+                ? softwareCompressionPropertyKeys(
+                    width: width,
+                    height: height
+                )
+                : nil
+            func supports(_ key: CFString) -> Bool {
+                guard exportSettings.usesSoftwareEncoding else { return true }
+                if let supportedProperties {
+                    return supportedProperties.contains(key as String)
+                }
+                // Bitrate is the safe fallback when software capability
+                // discovery is unavailable.
+                return false
+            }
             switch exportSettings.rateControlMode {
             case .constantQuality:
-                if #available(macOS 27.0, iOS 27.0, *) {
-                    compressionProperties[kVTCompressionPropertyKey_ConstantQualityFactor as String] = exportSettings.resolvedConstantQualityFactor
+                if #available(macOS 27.0, iOS 27.0, *),
+                    supports(kVTCompressionPropertyKey_ConstantQualityFactor)
+                {
+                    compressionProperties[kVTCompressionPropertyKey_ConstantQualityFactor as String] =
+                        exportSettings.resolvedConstantQualityFactor
+                } else if supports(kVTCompressionPropertyKey_Quality) {
+                    // Software HEVC and older VideoToolbox encoders expose
+                    // fixed quality rather than adaptive CQF.
+                    compressionProperties[kVTCompressionPropertyKey_Quality as String] =
+                        exportSettings.resolvedConstantQualityFactor
                 } else {
-                    // Earlier VideoToolbox versions expose fixed quantizer
-                    // quality rather than the newer adaptive CQF control.
-                    compressionProperties[kVTCompressionPropertyKey_Quality as String] = exportSettings.resolvedConstantQualityFactor
+                    // Software H.264 on Apple Silicon exposes neither quality
+                    // property. Preserve a valid export using the configured
+                    // target bitrate rather than crashing in AVAssetWriterInput.
+                    compressionProperties[kVTCompressionPropertyKey_AverageBitRate as String] =
+                        exportSettings.resolvedTargetBitrate
                 }
             case .bitrate:
-                compressionProperties[kVTCompressionPropertyKey_AverageBitRate as String] = exportSettings.resolvedTargetBitrate
+                compressionProperties[kVTCompressionPropertyKey_AverageBitRate as String] =
+                    exportSettings.resolvedTargetBitrate
             }
             compressionProperties[AVVideoExpectedSourceFrameRateKey] = expectedFrameRate
             compressionProperties[AVVideoAllowFrameReorderingKey] = true
             compressionProperties[kVTCompressionPropertyKey_AllowTemporalCompression as String] = true
             compressionProperties[kVTCompressionPropertyKey_RealTime as String] = false
-            compressionProperties[AVVideoProfileLevelKey] = self == .h265
+            compressionProperties[AVVideoProfileLevelKey] =
+                self == .h265
                 ? ((colorProfile.isHDR
                     ? kVTProfileLevel_HEVC_Main10_AutoLevel
                     : kVTProfileLevel_HEVC_Main_AutoLevel) as String)
@@ -203,6 +233,66 @@ nonisolated enum HardSubtitleVideoCodec: String, CaseIterable, Identifiable, Sen
         }
 
         return settings
+    }
+
+    private func softwareCompressionPropertyKeys(
+        width: Int,
+        height: Int
+    ) -> Set<String>? {
+        let codecType: CMVideoCodecType
+        switch self {
+        case .h264:
+            codecType = kCMVideoCodecType_H264
+        case .h265:
+            codecType = kCMVideoCodecType_HEVC
+        case .proRes4444, .proRes422HQ, .proRes422, .proRes422LT,
+            .proRes422Proxy:
+            return nil
+        }
+
+        #if os(macOS)
+            let hardwareAccelerationKey =
+                kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder
+                as String
+        #else
+            // The typed VideoToolbox constant is only public from iOS 17.4, while
+            // the underlying encoder specification key works on older targets.
+            let hardwareAccelerationKey = "EnableHardwareAcceleratedVideoEncoder"
+        #endif
+        let specification =
+            [
+                hardwareAccelerationKey: false
+            ] as CFDictionary
+        var session: VTCompressionSession?
+        guard
+            VTCompressionSessionCreate(
+                allocator: nil,
+                width: Int32(width),
+                height: Int32(height),
+                codecType: codecType,
+                encoderSpecification: specification,
+                imageBufferAttributes: nil,
+                compressedDataAllocator: nil,
+                outputCallback: nil,
+                refcon: nil,
+                compressionSessionOut: &session
+            ) == noErr, let session
+        else {
+            return nil
+        }
+        defer { VTCompressionSessionInvalidate(session) }
+
+        var propertyDictionary: CFDictionary?
+        guard
+            VTSessionCopySupportedPropertyDictionary(
+                session,
+                supportedPropertyDictionaryOut: &propertyDictionary
+            ) == noErr,
+            let properties = propertyDictionary as? [String: Any]
+        else {
+            return nil
+        }
+        return Set(properties.keys)
     }
 }
 
@@ -261,9 +351,10 @@ nonisolated struct HardSubtitleVideoExportSettings: Sendable, Equatable {
     func resolvedTimeRange(maxDuration: Double) throws -> Range<Double>? {
         guard usesProjectRange else { return nil }
         guard let rawStart = rangeStartSeconds,
-              let rawEnd = rangeEndSeconds,
-              rawStart.isFinite,
-              rawEnd.isFinite else {
+            let rawEnd = rangeEndSeconds,
+            rawStart.isFinite,
+            rawEnd.isFinite
+        else {
             throw HardSubtitleVideoExportError.invalidExportRange
         }
         let start = min(max(rawStart, 0), maxDuration)

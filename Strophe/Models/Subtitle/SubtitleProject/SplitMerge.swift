@@ -14,8 +14,8 @@ extension SubtitleProject {
         case noBlock
         case overlapping
     }
-    
-    /// 校验当前播放游标位置是否可以执行切分操作
+
+    /// Validates that exactly one cue contains the playhead.
     func validateSplitAtPlayhead() -> SplitValidationResult {
         let overlapping = items.filter { item in
             guard let start = item.startTime, let end = item.endTime else { return false }
@@ -30,19 +30,21 @@ extension SubtitleProject {
             return .overlapping
         }
     }
-    
-    /// 切分字幕块：将指定字幕块在 splitTime 处拆分为两个独立字幕块
+
+    /// Splits one cue at a time and character boundary.
     func splitSubtitle(id: UUID, at splitTime: TimeInterval, leftText: String, rightText: String) {
         guard let index = items.firstIndex(where: { $0.id == id }),
-              let startTime = items[index].startTime,
-              let endTime = items[index].endTime,
-              !isLockedForEditing(items[index]),
-              splitTime > startTime && splitTime < endTime else { return }
-        
+            let startTime = items[index].startTime,
+            let endTime = items[index].endTime,
+            !isLockedForEditing(items[index]),
+            splitTime > startTime && splitTime < endTime
+        else { return }
+
+        let snappedSplit = snapToFrame(splitTime)
+        guard snappedSplit > startTime, snappedSplit < endTime else { return }
+
         let oldItems = items
         let oldSelectedIDs = selectedIDs
-        
-        let snappedSplit = snapToFrame(splitTime)
         var updated = items
         let splitKaraoke = updated[index].karaoke?.split(
             atCharacterOffset: Array(leftText).count,
@@ -51,12 +53,11 @@ extension SubtitleProject {
             leftText: leftText,
             rightText: rightText
         )
-        
-        // 修改原 item 为左半部分
+
         updated[index].text = leftText
         updated[index].endTime = snappedSplit
         updated[index].karaoke = splitKaraoke?.left
-        
+
         let rightItem = SubtitleItem(
             id: UUID(),
             text: rightText,
@@ -81,34 +82,37 @@ extension SubtitleProject {
         updated.insert(rightItem, at: index + 1)
         updated.sort(by: stableSubtitleSort)
         items = updated
+        clearKaraokeTimingPreview()
         autoUpdateCurrentIndex()
         selectedIDs = [leftID, rightItem.id]
         registerUndo(label: String(localized: "split_subtitles"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
     }
-    
-    /// 合并选中的连续字幕块，返回错误消息（nil 表示成功）
+
+    /// Merges consecutive selected cues, returning a localized validation error on failure.
     @discardableResult
     func mergeSelectedSubtitles() -> String? {
         guard selectedIDs.count >= 2 else {
             return String(localized: "please_select_at_least_two")
         }
-        
-        // 取出被选中且已有时间的 items，按 startTime 排序
-        let selectedItems = items
+
+        let selectedItems =
+            items
             .filter { selectedIDs.contains($0.id) }
             .sorted { ($0.startTime ?? .infinity) < ($1.startTime ?? .infinity) }
 
+        guard selectedItems.count == selectedIDs.count else {
+            return String(localized: "the_selected_subtitle_blocks_contain_1")
+        }
         guard selectedItems.allSatisfy({ !isLockedForEditing($0) }) else {
             return String(localized: "the_selected_subtitle_blocks_contain")
         }
-        
-        // 校验所有被选中的 item 都有时间信息
+
         guard selectedItems.allSatisfy({ $0.startTime != nil && $0.endTime != nil }) else {
             return String(localized: "the_selected_subtitle_blocks_contain_1")
         }
-        
-        // 连续性校验：检查选中项在 items 数组中的索引是否连续（中间没有未选中的 timed 字幕块）
+
+        // Untimed items do not interrupt adjacency on the timeline.
         let timedItems = items.filter { $0.startTime != nil && $0.endTime != nil }
         let selectedIDSet = selectedIDs
         var indicesInTimed: [Int] = []
@@ -118,7 +122,7 @@ extension SubtitleProject {
             }
         }
         indicesInTimed.sort()
-        
+
         if indicesInTimed.count >= 2 {
             for i in 1..<indicesInTimed.count {
                 if indicesInTimed[i] - indicesInTimed[i - 1] != 1 {
@@ -126,13 +130,16 @@ extension SubtitleProject {
                 }
             }
         }
-        
+
         let oldItems = items
         let oldSelectedIDs = self.selectedIDs
-        
-        // 合并数据
-        let mergedStartTime = selectedItems.compactMap { $0.startTime }.min()!
-        let mergedEndTime = selectedItems.compactMap { $0.endTime }.max()!
+
+        guard let mergedStartTime = selectedItems.compactMap(\.startTime).min(),
+            let mergedEndTime = selectedItems.compactMap(\.endTime).max(),
+            let firstID = selectedItems.first?.id
+        else {
+            return String(localized: "the_selected_subtitle_blocks_contain_1")
+        }
         let mergedText = selectedItems.map { $0.text }
             .joined(separator: "")
             .replacingOccurrences(of: "\n", with: "")
@@ -143,22 +150,22 @@ extension SubtitleProject {
             mergedStartTime: mergedStartTime,
             mergedEndTime: mergedEndTime
         )
-        
-        // 保留第一个 item，删除其余
-        let firstID = selectedItems[0].id
+
         let restIDs = Set(selectedItems.dropFirst().map { $0.id })
-        
-        if let firstIndex = items.firstIndex(where: { $0.id == firstID }) {
-            items[firstIndex].text = mergedText
-            items[firstIndex].startTime = mergedStartTime
-            items[firstIndex].endTime = mergedEndTime
-            items[firstIndex].karaoke = mergedKaraoke
+
+        var updated = items
+        if let firstIndex = updated.firstIndex(where: { $0.id == firstID }) {
+            updated[firstIndex].text = mergedText
+            updated[firstIndex].startTime = mergedStartTime
+            updated[firstIndex].endTime = mergedEndTime
+            updated[firstIndex].karaoke = mergedKaraoke
         }
-        
-        items.removeAll { restIDs.contains($0.id) }
-        
+        updated.removeAll { restIDs.contains($0.id) }
+        updated.sort(by: stableSubtitleSort)
+        items = updated
+
+        clearKaraokeTimingPreview()
         selectedIDs = [firstID]
-        sortItemsStable()
         registerUndo(label: String(localized: "merge_subtitles"), oldItems: oldItems, oldSelectedIDs: oldSelectedIDs)
         notifyChange()
         return nil

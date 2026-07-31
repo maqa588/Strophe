@@ -7,14 +7,14 @@
 
 import SwiftUI
 #if os(iOS)
-import UIKit
+    import UIKit
 #endif
 
 struct PlaybackControlsLegacy: View {
     let project: SubtitleProject
     let targetSpeed: Double
     let playbackRate: Double
-    
+
     var body: some View {
         HStack(spacing: 12) {
             Button(action: { project.undo() }) {
@@ -87,7 +87,7 @@ struct EditingModeControlsLegacy: View {
     let showHardSubtitles: Bool
     let editingMode: TimelineEditingMode
     let isEditingText: Bool
-    
+
     @Binding var showSoftSubtitlesTip: Bool
     @Binding var showHardSubtitlesTip: Bool
     @Binding var showSelectionTip: Bool
@@ -95,7 +95,7 @@ struct EditingModeControlsLegacy: View {
     @Binding var showSplitTip: Bool
     @Binding var showMergeTip: Bool
     @Binding var showKaraokeTip: Bool
-    
+
     @Binding var softSubtitlesHoverTask: Task<Void, Never>?
     @Binding var hardSubtitlesHoverTask: Task<Void, Never>?
     @Binding var selectionHoverTask: Task<Void, Never>?
@@ -103,10 +103,10 @@ struct EditingModeControlsLegacy: View {
     @Binding var splitHoverTask: Task<Void, Never>?
     @Binding var mergeHoverTask: Task<Void, Never>?
     @Binding var karaokeHoverTask: Task<Void, Never>?
-    
+
     var onSplit: () -> Void
     var onMerge: () -> Void
-    
+
     private func legacyButton<Content: View>(
         action: @escaping () -> Void,
         isActive: Bool,
@@ -135,10 +135,11 @@ struct EditingModeControlsLegacy: View {
             RichTooltipView(icon: tooltipIcon, title: tooltipTitle, message: tooltipMessage, shortcut: shortcutLabel)
         }
         #if os(iOS)
-        .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            tipBinding.wrappedValue = true
-        })
+            .highPriorityGesture(
+                LongPressGesture(minimumDuration: 0.3).onEnded { _ in
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    tipBinding.wrappedValue = true
+                })
         #endif
         .onHover { hovering in
             hoverTask.wrappedValue?.cancel()
@@ -147,11 +148,13 @@ struct EditingModeControlsLegacy: View {
                     try? await Task.sleep(nanoseconds: 500_000_000)
                     if !Task.isCancelled { tipBinding.wrappedValue = true }
                 }
-            } else { tipBinding.wrappedValue = false }
+            } else {
+                tipBinding.wrappedValue = false
+            }
         }
     }
-    
-    /// 用于切分/合并等非状态型操作按钮
+
+    /// Builds a momentary action button with the same tooltip behavior as toggle buttons.
     private func legacyActionButton<Content: View>(
         action: @escaping () -> Void,
         icon: String,
@@ -179,10 +182,11 @@ struct EditingModeControlsLegacy: View {
             RichTooltipView(icon: tooltipIcon, title: tooltipTitle, message: tooltipMessage, shortcut: shortcutLabel)
         }
         #if os(iOS)
-        .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            tipBinding.wrappedValue = true
-        })
+            .highPriorityGesture(
+                LongPressGesture(minimumDuration: 0.3).onEnded { _ in
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    tipBinding.wrappedValue = true
+                })
         #endif
         .onHover { hovering in
             hoverTask.wrappedValue?.cancel()
@@ -191,13 +195,14 @@ struct EditingModeControlsLegacy: View {
                     try? await Task.sleep(nanoseconds: 500_000_000)
                     if !Task.isCancelled { tipBinding.wrappedValue = true }
                 }
-            } else { tipBinding.wrappedValue = false }
+            } else {
+                tipBinding.wrappedValue = false
+            }
         }
     }
-    
+
     var body: some View {
         HStack(spacing: 4) {
-            // ── 切分按钮 ──
             legacyActionButton(
                 action: onSplit,
                 icon: "scissors",
@@ -213,8 +218,7 @@ struct EditingModeControlsLegacy: View {
                 Image(systemName: "scissors")
                     .font(.body.weight(.medium))
             }
-            
-            // ── 合并按钮 ──
+
             legacyActionButton(
                 action: onMerge,
                 icon: "arrow.down.right.and.arrow.up.left",
@@ -231,7 +235,6 @@ struct EditingModeControlsLegacy: View {
                     .font(.body.weight(.medium))
             }
 
-            // ── 软字幕预览按钮 ──
             legacyButton(
                 action: { project.showSoftSubtitles.toggle() },
                 isActive: showSoftSubtitles,
@@ -249,7 +252,6 @@ struct EditingModeControlsLegacy: View {
                     .font(.body.weight(.medium))
             }
 
-            // ── 硬字幕预览按钮 ──
             legacyButton(
                 action: { project.showHardSubtitles.toggle() },
                 isActive: showHardSubtitles,

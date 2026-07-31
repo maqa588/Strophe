@@ -58,9 +58,10 @@ final class KaraokeRenderingTests: XCTestCase {
         )
 
         XCTAssertEqual(asset.unitLayers.count, program.units.count)
-        XCTAssertTrue(asset.unitLayers.allSatisfy {
-            $0.unit.endOffset > $0.unit.startOffset
-        })
+        XCTAssertTrue(
+            asset.unitLayers.allSatisfy {
+                $0.unit.endOffset > $0.unit.startOffset
+            })
     }
 
     func testManyFramesReuseOneRasterizedAsset() throws {
@@ -110,6 +111,38 @@ final class KaraokeRenderingTests: XCTestCase {
         XCTAssertEqual(renderer.cacheStatistics().assetBuildCount, 2)
     }
 
+    func testCachedAssetEvaluatesLatestKaraokeTimingAfterCueStretch() throws {
+        let renderer = KaraokeFrameRenderer(device: nil)
+        let canvas = CGSize(width: 1280, height: 720)
+        let cue = try makeCue(template: .classicStep)
+        let presentationTime = cue.startTime + 0.6
+        let originalFrame = try XCTUnwrap(
+            renderer.makeCGImage(
+                cue: cue,
+                presentationTime: presentationTime,
+                canvasSize: canvas
+            )
+        )
+        XCTAssertEqual(renderer.cacheStatistics().assetBuildCount, 1)
+
+        var stretchedCue = cue
+        stretchedCue.endTime = cue.startTime + 3
+        stretchedCue.karaoke = cue.karaoke?.scalingOffsets(by: 1.5)
+        let stretchedFrame = try XCTUnwrap(
+            renderer.makeCGImage(
+                cue: stretchedCue,
+                presentationTime: presentationTime,
+                canvasSize: canvas
+            )
+        )
+
+        XCTAssertEqual(renderer.cacheStatistics().assetBuildCount, 1)
+        XCTAssertNotEqual(
+            pixelData(originalFrame),
+            pixelData(stretchedFrame)
+        )
+    }
+
     func testSweepChangesPixelsWhileKeepingStableMaximumBounds() throws {
         let renderer = KaraokeFrameRenderer(device: nil)
         let cue = try makeCue(template: .glow)
@@ -121,7 +154,7 @@ final class KaraokeRenderingTests: XCTestCase {
             cue.startTime,
             cue.startTime + 0.25,
             cue.startTime + 0.75,
-            cue.startTime + 1.75
+            cue.startTime + 1.75,
         ].map { time in
             try XCTUnwrap(
                 renderer.makeCGImage(
@@ -429,7 +462,8 @@ final class KaraokeRenderingTests: XCTestCase {
 
     private func pixelData(_ image: CGImage) -> Data {
         guard let provider = image.dataProvider,
-              let data = provider.data else {
+            let data = provider.data
+        else {
             return Data()
         }
         return data as Data

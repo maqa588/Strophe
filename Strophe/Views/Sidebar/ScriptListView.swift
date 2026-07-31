@@ -1,7 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 #if os(macOS)
-import AppKit
+    import AppKit
 #endif
 
 struct ScriptListView: View {
@@ -13,8 +13,7 @@ struct ScriptListView: View {
     @State private var isShowingFileImporter = false
     @State private var isShowingImportOptions = false
     @State private var quickSearchText = ""
-    
-    // 文字编辑控制
+
     @State private var isEditingText = false
     @State private var editingText = ""
     @State private var editingItem: SubtitleItem? = nil
@@ -35,7 +34,7 @@ struct ScriptListView: View {
     @State private var searchFocusTask: Task<Void, Never>?
     @FocusState private var isSearchFocused: Bool
     @ObservedObject private var store = StyleAndGroupStore.shared
-    
+
     /// Legacy compact-mode support (iOS 17 / macOS 14 fallback).
     /// When using the modern TabView path these default values are used.
     var isCompact: Bool = false
@@ -92,7 +91,9 @@ struct ScriptListView: View {
         .stropheOnChange(of: isEditingTime) { newValue in
             project.isEditingText = newValue
         }
-        .confirmationDialog(String(localized: "import_script"), isPresented: $isShowingImportOptions, titleVisibility: .visible) {
+        .confirmationDialog(
+            String(localized: "import_script"), isPresented: $isShowingImportOptions, titleVisibility: .visible
+        ) {
             Button(String(localized: "paste_script_text")) {
                 isShowingInput = true
             }
@@ -199,7 +200,7 @@ struct ScriptListView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Color.stropheAccent)
-                
+
                 Button("speech_recognition_1") {
                     isShowingAutoCaption = true
                 }
@@ -406,7 +407,7 @@ struct ScriptListView: View {
                     scheduleSearchFocus()
                 } onPullProgress: { progress in
                     #if os(macOS)
-                    updateMacSubtitlePullProgress(progress)
+                        updateMacSubtitlePullProgress(progress)
                     #endif
                 }
                 .scrollContentBackground(.hidden)
@@ -500,27 +501,27 @@ struct ScriptListView: View {
     private func revealSearch() {
         guard !isSearchRevealed else { return }
         #if os(macOS)
-        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.12)) {
-            subtitleListSearchOffset = searchReservedHeight
-        }
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.12)) {
+                subtitleListSearchOffset = searchReservedHeight
+            }
         #else
-        // The native rubber-band has already moved the rows roughly 24pt.
-        // Supply only the remaining distance until the gesture settles.
-        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.12)) {
-            subtitleListSearchOffset = searchReservedHeight - 24
-        }
+            // The native rubber-band has already moved the rows roughly 24pt.
+            // Supply only the remaining distance until the gesture settles.
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.12)) {
+                subtitleListSearchOffset = searchReservedHeight - 24
+            }
         #endif
         withAnimation(searchAnimation) {
             isSearchRevealed = true
         }
         #if os(macOS)
-        scheduleSearchFocus(delayNanoseconds: 180_000_000)
+            scheduleSearchFocus(delayNanoseconds: 180_000_000)
         #endif
     }
 
     private func settleSubtitleListBelowSearch() {
         guard isSearchRevealed,
-              subtitleListSearchOffset != searchReservedHeight
+            subtitleListSearchOffset != searchReservedHeight
         else { return }
         withAnimation(searchAnimation) {
             subtitleListSearchOffset = searchReservedHeight
@@ -528,22 +529,22 @@ struct ScriptListView: View {
     }
 
     #if os(macOS)
-    private func updateMacSubtitlePullProgress(_ progress: CGFloat) {
-        guard !isSearchRevealed else { return }
-        let clampedProgress = min(max(progress, 0), 1)
-        let targetOffset = searchReservedHeight * clampedProgress
-        guard abs(targetOffset - subtitleListSearchOffset) > 0.5 else { return }
+        private func updateMacSubtitlePullProgress(_ progress: CGFloat) {
+            guard !isSearchRevealed else { return }
+            let clampedProgress = min(max(progress, 0), 1)
+            let targetOffset = searchReservedHeight * clampedProgress
+            guard abs(targetOffset - subtitleListSearchOffset) > 0.5 else { return }
 
-        if clampedProgress == 0 {
-            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) {
-                subtitleListSearchOffset = 0
-            }
-        } else {
-            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.08)) {
-                subtitleListSearchOffset = targetOffset
+            if clampedProgress == 0 {
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) {
+                    subtitleListSearchOffset = 0
+                }
+            } else {
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.08)) {
+                    subtitleListSearchOffset = targetOffset
+                }
             }
         }
-    }
     #endif
 
     private func scheduleSearchFocus(delayNanoseconds: UInt64 = 200_000_000) {
@@ -583,8 +584,9 @@ struct ScriptListView: View {
 
     private func saveEditingTime() {
         guard let item = editingTimeItem,
-              let newStart = parseEditableTime(editingStartText),
-              let newEnd = parseEditableTime(editingEndText) else { return }
+            let newStart = parseEditableTime(editingStartText),
+            let newEnd = parseEditableTime(editingEndText)
+        else { return }
         project.updateSubtitleTime(id: item.id, newStartTime: newStart, newEndTime: newEnd)
         editingTimeItem = nil
     }
@@ -641,13 +643,13 @@ extension View {
     @ViewBuilder
     func onDeleteCommandIfSupported(perform action: (() -> Void)?) -> some View {
         #if os(macOS)
-        if let action = action {
-            self.onDeleteCommand(perform: action)
-        } else {
-            self
-        }
+            if let action = action {
+                self.onDeleteCommand(perform: action)
+            } else {
+                self
+            }
         #else
-        self
+            self
         #endif
     }
 
@@ -694,8 +696,8 @@ private extension View {
                 switch signal.intent {
                 case .revealSearch:
                     #if !os(macOS)
-                    onPullProgress(1)
-                    onPullDown()
+                        onPullProgress(1)
+                        onPullDown()
                     #endif
                 case .hideEmptySearch:
                     onScrollUp()
@@ -739,27 +741,27 @@ private extension View {
         onProgress: @escaping (CGFloat) -> Void
     ) -> some View {
         #if os(macOS)
-        background {
-            MacScrollWheelSearchTrigger(
-                isAtTop: isAtTop,
-                onTrigger: onTrigger,
-                onProgress: onProgress
-            )
-        }
+            background {
+                MacScrollWheelSearchTrigger(
+                    isAtTop: isAtTop,
+                    onTrigger: onTrigger,
+                    onProgress: onProgress
+                )
+            }
         #else
-        self
+            self
         #endif
     }
 
     @ViewBuilder
     func stropheStableSearchTextFieldLayout() -> some View {
         #if os(macOS)
-        frame(height: 22)
-            .transaction { transaction in
-                transaction.animation = nil
-            }
+            frame(height: 22)
+                .transaction { transaction in
+                    transaction.animation = nil
+                }
         #else
-        self
+            self
         #endif
     }
 
@@ -789,150 +791,150 @@ private struct ScriptListScrollSignal: Equatable {
 }
 
 #if os(macOS)
-private struct MacScrollWheelSearchTrigger: NSViewRepresentable {
-    let isAtTop: Bool
-    let onTrigger: () -> Void
-    let onProgress: (CGFloat) -> Void
+    private struct MacScrollWheelSearchTrigger: NSViewRepresentable {
+        let isAtTop: Bool
+        let onTrigger: () -> Void
+        let onProgress: (CGFloat) -> Void
 
-    func makeNSView(context: Context) -> MacScrollWheelMonitorView {
-        let view = MacScrollWheelMonitorView()
-        view.isAtTop = isAtTop
-        view.onTrigger = onTrigger
-        view.onProgress = onProgress
-        return view
-    }
+        func makeNSView(context: Context) -> MacScrollWheelMonitorView {
+            let view = MacScrollWheelMonitorView()
+            view.isAtTop = isAtTop
+            view.onTrigger = onTrigger
+            view.onProgress = onProgress
+            return view
+        }
 
-    func updateNSView(_ nsView: MacScrollWheelMonitorView, context: Context) {
-        nsView.isAtTop = isAtTop
-        nsView.onTrigger = onTrigger
-        nsView.onProgress = onProgress
-    }
+        func updateNSView(_ nsView: MacScrollWheelMonitorView, context: Context) {
+            nsView.isAtTop = isAtTop
+            nsView.onTrigger = onTrigger
+            nsView.onProgress = onProgress
+        }
 
-    static func dismantleNSView(_ nsView: MacScrollWheelMonitorView, coordinator: ()) {
-        nsView.removeEventMonitor()
-    }
-}
-
-private final class MacScrollWheelMonitorView: NSView {
-    var isAtTop = true
-    var onTrigger: () -> Void = {}
-    var onProgress: (CGFloat) -> Void = { _ in }
-
-    private var eventMonitor: Any?
-    private var accumulatedUpwardDelta: CGFloat = 0
-    private var lastEventTimestamp: TimeInterval = 0
-    private var lastTriggerTimestamp: TimeInterval = 0
-    private var resetWorkItem: DispatchWorkItem?
-    private var triggerWorkItem: DispatchWorkItem?
-    private var pendingProgress: CGFloat?
-    private var isProgressDispatchScheduled = false
-
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        nil
-    }
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        if window == nil {
-            removeEventMonitor()
-        } else {
-            installEventMonitorIfNeeded()
+        static func dismantleNSView(_ nsView: MacScrollWheelMonitorView, coordinator: ()) {
+            nsView.removeEventMonitor()
         }
     }
 
-    func removeEventMonitor() {
-        resetWorkItem?.cancel()
-        triggerWorkItem?.cancel()
-        if let eventMonitor {
-            NSEvent.removeMonitor(eventMonitor)
-            self.eventMonitor = nil
-        }
-    }
+    private final class MacScrollWheelMonitorView: NSView {
+        var isAtTop = true
+        var onTrigger: () -> Void = {}
+        var onProgress: (CGFloat) -> Void = { _ in }
 
-    private func installEventMonitorIfNeeded() {
-        guard eventMonitor == nil else { return }
-        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) {
-            [weak self] event in
-            self?.handleScrollWheel(event)
-            return event
-        }
-    }
+        private var eventMonitor: Any?
+        private var accumulatedUpwardDelta: CGFloat = 0
+        private var lastEventTimestamp: TimeInterval = 0
+        private var lastTriggerTimestamp: TimeInterval = 0
+        private var resetWorkItem: DispatchWorkItem?
+        private var triggerWorkItem: DispatchWorkItem?
+        private var pendingProgress: CGFloat?
+        private var isProgressDispatchScheduled = false
 
-    private func handleScrollWheel(_ event: NSEvent) {
-        guard isAtTop,
-              let window,
-              event.window === window,
-              bounds.insetBy(dx: 0, dy: -80)
-                  .contains(convert(event.locationInWindow, from: nil))
-        else {
-            resetPullProgress()
-            return
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            nil
         }
 
-        if event.timestamp - lastEventTimestamp > 0.4 {
-            resetPullProgress()
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if window == nil {
+                removeEventMonitor()
+            } else {
+                installEventMonitorIfNeeded()
+            }
         }
-        lastEventTimestamp = event.timestamp
 
-        guard event.scrollingDeltaY > 0 else {
-            resetPullProgress()
-            return
+        func removeEventMonitor() {
+            resetWorkItem?.cancel()
+            triggerWorkItem?.cancel()
+            if let eventMonitor {
+                NSEvent.removeMonitor(eventMonitor)
+                self.eventMonitor = nil
+            }
         }
 
-        resetWorkItem?.cancel()
-        accumulatedUpwardDelta += event.scrollingDeltaY
-        publishProgress(min(accumulatedUpwardDelta / 16, 1))
-        schedulePullProgressReset()
-        guard accumulatedUpwardDelta >= 16,
-              event.timestamp - lastTriggerTimestamp > 0.6,
-              triggerWorkItem == nil
-        else { return }
+        private func installEventMonitorIfNeeded() {
+            guard eventMonitor == nil else { return }
+            eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) {
+                [weak self] event in
+                self?.handleScrollWheel(event)
+                return event
+            }
+        }
 
-        lastTriggerTimestamp = event.timestamp
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.triggerWorkItem = nil
-            self.resetWorkItem?.cancel()
-            self.resetWorkItem = nil
-            guard self.isAtTop else {
-                self.resetPullProgress()
+        private func handleScrollWheel(_ event: NSEvent) {
+            guard isAtTop,
+                let window,
+                event.window === window,
+                bounds.insetBy(dx: 0, dy: -80)
+                    .contains(convert(event.locationInWindow, from: nil))
+            else {
+                resetPullProgress()
                 return
             }
-            self.accumulatedUpwardDelta = 0
-            self.onTrigger()
+
+            if event.timestamp - lastEventTimestamp > 0.4 {
+                resetPullProgress()
+            }
+            lastEventTimestamp = event.timestamp
+
+            guard event.scrollingDeltaY > 0 else {
+                resetPullProgress()
+                return
+            }
+
+            resetWorkItem?.cancel()
+            accumulatedUpwardDelta += event.scrollingDeltaY
+            publishProgress(min(accumulatedUpwardDelta / 16, 1))
+            schedulePullProgressReset()
+            guard accumulatedUpwardDelta >= 16,
+                event.timestamp - lastTriggerTimestamp > 0.6,
+                triggerWorkItem == nil
+            else { return }
+
+            lastTriggerTimestamp = event.timestamp
+            let workItem = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                self.triggerWorkItem = nil
+                self.resetWorkItem?.cancel()
+                self.resetWorkItem = nil
+                guard self.isAtTop else {
+                    self.resetPullProgress()
+                    return
+                }
+                self.accumulatedUpwardDelta = 0
+                self.onTrigger()
+            }
+            triggerWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: workItem)
         }
-        triggerWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: workItem)
-    }
 
-    private func resetPullProgress() {
-        accumulatedUpwardDelta = 0
-        triggerWorkItem?.cancel()
-        triggerWorkItem = nil
-        publishProgress(0)
-    }
-
-    private func schedulePullProgressReset() {
-        resetWorkItem?.cancel()
-        let workItem = DispatchWorkItem { [weak self] in
-            self?.resetPullProgress()
+        private func resetPullProgress() {
+            accumulatedUpwardDelta = 0
+            triggerWorkItem?.cancel()
+            triggerWorkItem = nil
+            publishProgress(0)
         }
-        resetWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28, execute: workItem)
-    }
 
-    private func publishProgress(_ progress: CGFloat) {
-        pendingProgress = progress
-        guard !isProgressDispatchScheduled else { return }
-        isProgressDispatchScheduled = true
+        private func schedulePullProgressReset() {
+            resetWorkItem?.cancel()
+            let workItem = DispatchWorkItem { [weak self] in
+                self?.resetPullProgress()
+            }
+            resetWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.28, execute: workItem)
+        }
 
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.isProgressDispatchScheduled = false
-            guard let progress = self.pendingProgress else { return }
-            self.pendingProgress = nil
-            self.onProgress(progress)
+        private func publishProgress(_ progress: CGFloat) {
+            pendingProgress = progress
+            guard !isProgressDispatchScheduled else { return }
+            isProgressDispatchScheduled = true
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.isProgressDispatchScheduled = false
+                guard let progress = self.pendingProgress else { return }
+                self.pendingProgress = nil
+                self.onProgress(progress)
+            }
         }
     }
-}
 #endif

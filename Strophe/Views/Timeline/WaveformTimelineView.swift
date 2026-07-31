@@ -12,38 +12,37 @@ private let timelineScrollCoordinateSpaceName = "timelineScrollCoordinateSpace"
 struct WaveformTimelineView: View {
     @ObservedObject var project: SubtitleProject
     @ObservedObject private var groupStore = StyleAndGroupStore.shared
-    
-    // 渲染参数
+
     @State private var pixelsPerSecond: Double = 50
-    /// 上一次 Canvas 实际绘制时使用的 PPS（缩放防抖用）
+    /// Scale used by the last committed Canvas redraw.
     @State private var renderedPPS: Double = 50
     @State private var playheadID = "playhead-anchor"
     @State private var isDraggingPlayhead = false
     @State private var dragStartTime: Double = 0
-    @State private var isUserInteracting = false // 是否正在手动操作
-    @State private var scrollPageStartTime: Double = 0 // 播放标尺视口分页起始时间
-    @State private var viewportStartTime: Double = 0 // 当前 ScrollView 实际可见起始时间
-    @State private var zoomDebounceTask: Task<Void, Never>? = nil // 缩放防抖任务
-    
+    @State private var isUserInteracting = false
+    @State private var scrollPageStartTime: Double = 0
+    @State private var viewportStartTime: Double = 0
+    @State private var zoomDebounceTask: Task<Void, Never>? = nil
+
     // Draw Subtitle State
     @State private var drawSubtitleStartLocation: CGFloat? = nil
     @State private var drawSubtitleCurrentLocation: CGFloat? = nil
-    
+
     // Real-time dynamic layout width state
     @State private var availableWidth: CGFloat = 800
     @State private var trackVerticalScale: CGFloat = 0.78
     @State private var trackVerticalOffset: CGFloat = 0
 
     #if os(iOS)
-    @State private var gestureZoomBasePPS: Double = 50.0
-    @State private var gestureZoomBaseTrackScale: CGFloat = 0.78
-    @State private var isTouchZooming = false
+        @State private var gestureZoomBasePPS: Double = 50.0
+        @State private var gestureZoomBaseTrackScale: CGFloat = 0.78
+        @State private var isTouchZooming = false
     #endif
-    
+
     private var isCompact: Bool {
         return availableWidth < 720
     }
-    
+
     var body: some View {
         let viewWidth = availableWidth.isFinite ? max(1, availableWidth) : 800
         let rawDuration = project.waveformData?.duration ?? 1
@@ -55,7 +54,7 @@ struct WaveformTimelineView: View {
             Rectangle()
                 .fill(Color.stropheTimelineDivider)
                 .frame(height: 1)
-            
+
             // MARK: - Extracted Timeline Toolbar
             TimelineToolbarView(project: project)
                 .fixedSize(horizontal: false, vertical: true)
@@ -85,7 +84,9 @@ struct WaveformTimelineView: View {
                     ZStack(alignment: .top) {
                         ScrollView(.horizontal, showsIndicators: true) {
                             ZStack(alignment: .topLeading) {
-                                scrollOffsetReader(pixelsPerSecond: safePPS, duration: timelineWorkspaceDuration, viewWidth: contentWidth)
+                                scrollOffsetReader(
+                                    pixelsPerSecond: safePPS, duration: timelineWorkspaceDuration,
+                                    viewWidth: contentWidth)
 
                                 WaveformTimelineContainer(
                                     project: project,
@@ -113,8 +114,8 @@ struct WaveformTimelineView: View {
                                 keepPlayheadInView(viewWidth: Double(contentWidth), duration: timelineWorkspaceDuration)
                             }
                         }
-                        // ── 宽度同步：内层 GR 永远在 NavigationSplitView 内容区域内部，
-                        // 读到的 contentWidth 一定不含侧栏，这里同步给 availableWidth ──
+                        // This inner geometry excludes the split-view sidebar,
+                        // so it is the authoritative editor viewport width.
                         .onAppear {
                             applyContentWidth(contentWidth, duration: data.duration)
                         }
@@ -132,32 +133,32 @@ struct WaveformTimelineView: View {
                                 }
                         )
                         #if os(iOS)
-                        .simultaneousGesture(
-                            MagnificationGesture()
-                                .onChanged { value in
-                                    if !isTouchZooming {
-                                        isTouchZooming = true
+                            .simultaneousGesture(
+                                MagnificationGesture()
+                                    .onChanged { value in
+                                        if !isTouchZooming {
+                                            isTouchZooming = true
+                                            gestureZoomBasePPS = pixelsPerSecond
+                                            gestureZoomBaseTrackScale = trackVerticalScale
+                                        }
+                                        let newPPS = gestureZoomBasePPS * Double(value)
+                                        pixelsPerSecond = min(maxPPS, max(minPPS, newPPS))
+                                        trackVerticalScale = SubtitleTimelineTrackMetrics.clampedScale(
+                                            gestureZoomBaseTrackScale * sqrt(CGFloat(value))
+                                        )
+                                        scheduleCanvasRedraw()
+                                    }
+                                    .onEnded { _ in
+                                        guard isTouchZooming else { return }
+                                        isTouchZooming = false
                                         gestureZoomBasePPS = pixelsPerSecond
                                         gestureZoomBaseTrackScale = trackVerticalScale
+                                        renderedPPS = pixelsPerSecond
                                     }
-                                    let newPPS = gestureZoomBasePPS * Double(value)
-                                    pixelsPerSecond = min(maxPPS, max(minPPS, newPPS))
-                                    trackVerticalScale = SubtitleTimelineTrackMetrics.clampedScale(
-                                        gestureZoomBaseTrackScale * sqrt(CGFloat(value))
-                                    )
-                                    scheduleCanvasRedraw()
-                                }
-                                .onEnded { _ in
-                                    guard isTouchZooming else { return }
-                                    isTouchZooming = false
-                                    gestureZoomBasePPS = pixelsPerSecond
-                                    gestureZoomBaseTrackScale = trackVerticalScale
-                                    renderedPPS = pixelsPerSecond
-                                }
-                        )
+                            )
                         #endif
                         #if os(macOS)
-                        .onContinuousHover { _ in }
+                            .onContinuousHover { _ in }
                         #endif
                         .background(
                             ScrollZoomModifier(
@@ -172,11 +173,11 @@ struct WaveformTimelineView: View {
                                 onCommit: scheduleCanvasRedraw
                             )
                         )
-                        
+
                         #if os(iOS)
-                        if project.editingMode == .creation {
-                            SlapButtonsOverlay(project: project)
-                        }
+                            if project.editingMode == .creation {
+                                SlapButtonsOverlay(project: project)
+                            }
                         #endif
                     }
                 }
@@ -194,7 +195,6 @@ struct WaveformTimelineView: View {
         }
         .stropheOnChange(of: project.waveformData?.duration) { duration in
             guard let duration, duration.isFinite else { return }
-            // 宽度在 applyContentWidth 里已经正确，这里只重置滚动状态
             scrollPageStartTime = 0
             viewportStartTime = 0
             let safeWidth = availableWidth.isFinite ? max(1, availableWidth) : 800
@@ -222,9 +222,9 @@ struct WaveformTimelineView: View {
 
     private var bottomScrollerClearance: CGFloat {
         #if os(macOS)
-        return 8
+            return 8
         #else
-        return 0
+            return 0
         #endif
     }
 
@@ -236,20 +236,25 @@ struct WaveformTimelineView: View {
         GeometryReader { proxy in
             Color.clear
                 .onAppear {
-                    updateVisibleScrollStart(proxy: proxy, pixelsPerSecond: pixelsPerSecond, duration: duration, viewWidth: viewWidth)
+                    updateVisibleScrollStart(
+                        proxy: proxy, pixelsPerSecond: pixelsPerSecond, duration: duration, viewWidth: viewWidth)
                 }
                 .stropheOnChange(of: proxy.frame(in: .named(timelineScrollCoordinateSpaceName)).minX) { _ in
-                    updateVisibleScrollStart(proxy: proxy, pixelsPerSecond: pixelsPerSecond, duration: duration, viewWidth: viewWidth)
+                    updateVisibleScrollStart(
+                        proxy: proxy, pixelsPerSecond: pixelsPerSecond, duration: duration, viewWidth: viewWidth)
                 }
                 .stropheOnChange(of: pixelsPerSecond) { _ in
-                    updateVisibleScrollStart(proxy: proxy, pixelsPerSecond: pixelsPerSecond, duration: duration, viewWidth: viewWidth)
+                    updateVisibleScrollStart(
+                        proxy: proxy, pixelsPerSecond: pixelsPerSecond, duration: duration, viewWidth: viewWidth)
                 }
         }
         .frame(width: 1, height: 1)
         .allowsHitTesting(false)
     }
 
-    private func updateVisibleScrollStart(proxy: GeometryProxy, pixelsPerSecond: Double, duration: Double, viewWidth: CGFloat) {
+    private func updateVisibleScrollStart(
+        proxy: GeometryProxy, pixelsPerSecond: Double, duration: Double, viewWidth: CGFloat
+    ) {
         let safePPS = pixelsPerSecond.isFinite ? max(0.001, pixelsPerSecond) : 50
         let safeDuration = duration.isFinite ? max(0, duration) : 0
         let safeViewWidth = viewWidth.isFinite ? max(1, viewWidth) : 1
@@ -263,7 +268,7 @@ struct WaveformTimelineView: View {
             viewportStartTime = visibleStart
         }
     }
-    
+
     private func keepPlayheadInView(viewWidth: Double, duration: Double) {
         let safeViewWidth = viewWidth.isFinite ? max(1, viewWidth) : 1
         let safePPS = pixelsPerSecond.isFinite ? max(0.001, pixelsPerSecond) : 50
@@ -281,19 +286,18 @@ struct WaveformTimelineView: View {
         let safeDuration = duration.isFinite ? max(0, duration) : 0
         let safeCurrentTime = project.currentTime.clampedFinite(to: 0...safeDuration)
         let visibleDuration = safeViewWidth / safePPS
-        
+
         let currentStart = viewportStartTime.isFinite ? viewportStartTime : 0
         let currentEnd = currentStart + visibleDuration
-        
+
         if safeCurrentTime < currentStart || safeCurrentTime > currentEnd {
             let newPageStart = max(0, safeCurrentTime - visibleDuration * 0.5)
             scrollPageStartTime = max(0, min(max(0, safeDuration - visibleDuration), newPageStart))
             viewportStartTime = scrollPageStartTime
         }
     }
-    
-    /// 防抖延迟提交 Canvas 重绘：150ms 内无新缩放事件则立即将 renderedPPS 对齐 pixelsPerSecond。
-    /// Canvas 用 GPU scaleEffect 展示过渡，结束后一次性重绘，分辨率完美。
+
+    /// Defers the expensive Canvas redraw while GPU scaling provides live zoom feedback.
     private func scheduleCanvasRedraw() {
         zoomDebounceTask?.cancel()
         zoomDebounceTask = Task { @MainActor in
@@ -302,24 +306,23 @@ struct WaveformTimelineView: View {
             renderedPPS = pixelsPerSecond
         }
     }
-    
-    /// 用内层 GeometryReader 测量到的真实内容区域宽度更新 availableWidth 和 pixelsPerSecond。
-    /// 这个宽度**永远正确**（已在 NavigationSplitView 内容区域内部），不含侧栏。
+
+    /// Updates the timeline scale from the editor viewport, excluding any sidebar.
     private func applyContentWidth(_ width: CGFloat, duration: Double) {
         guard width.isFinite, width > 0 else { return }
         let safeDuration = duration.isFinite ? max(1, duration) : 1
         let oldMin = availableWidth > 0 ? Double(availableWidth) / safeDuration : 0
         let wasAtMin = availableWidth <= 0 || pixelsPerSecond <= oldMin + 0.05 || pixelsPerSecond == 50.0
-        
+
         availableWidth = width
-        
+
         let newMin = Double(width) / safeDuration
         if wasAtMin || pixelsPerSecond < newMin {
             pixelsPerSecond = newMin
             renderedPPS = newMin
         }
     }
-    
+
     private var emptyPlaceholder: some View {
         VStack(spacing: 12) {
             Spacer()
@@ -351,11 +354,11 @@ extension Double {
 extension View {
     func cursor() -> some View {
         #if os(macOS)
-        self.onHover { inside in
-            if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
-        }
+            self.onHover { inside in
+                if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+            }
         #else
-        self
+            self
         #endif
     }
 }

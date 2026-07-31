@@ -27,38 +27,37 @@ extension SubtitleProcessor {
     }
 }
 
-// 时间格式化公共辅助工具（解耦核心算法）
 struct SubtitleTimeFormatter {
-    // 解析时间戳字符串为秒数 (例如 "01:23:45,678" -> 5025.678)
-    static func parseTimestamp(_ string: String, delimiter: String = ",", isLRC: Bool = false) -> TimeInterval {
-        let scanner = Scanner(string: string)
-        if isLRC {
-            // LRC 格式: [mm:ss.xx] 或 [mm:ss.xxx]
-            var minutes: Double = 0
-            var seconds: Double = 0
-            _ = scanner.scanString("[")
-            minutes = scanner.scanDouble() ?? 0
-            _ = scanner.scanString(":")
-            seconds = scanner.scanDouble() ?? 0
-            return (minutes * 60) + seconds
-        } else {
-            // SRT/ASS 格式: hh:mm:ss
-            var hours: Double = 0
-            var minutes: Double = 0
-            var seconds: Double = 0
-            hours = scanner.scanDouble() ?? 0
-            _ = scanner.scanString(":")
-            minutes = scanner.scanDouble() ?? 0
-            _ = scanner.scanString(":")
-            // 兼容 ASS 的点 '.' 和 SRT 的逗号 ','
-            let cleanedSecondsStr = string.components(separatedBy: ":").last?
-                .replacingOccurrences(of: ",", with: ".") ?? "0"
-            seconds = Double(cleanedSecondsStr) ?? 0
-            return (hours * 3600) + (minutes * 60) + seconds
+    /// Parses LRC, SRT, ASS, or WebVTT timestamps into seconds.
+    static func parseTimestamp(_ string: String, isLRC: Bool = false) -> TimeInterval {
+        let normalized =
+            string
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: isLRC ? "[]" : ""))
+            .replacingOccurrences(of: ",", with: ".")
+        let rawComponents = normalized.split(separator: ":", omittingEmptySubsequences: false)
+        let components = rawComponents.compactMap { component -> Double? in
+            guard let value = Double(component), value.isFinite, value.sign != .minus else { return nil }
+            return value
         }
+        guard components.count == rawComponents.count else { return 0 }
+
+        let result: TimeInterval
+        switch components.count {
+        case 1:
+            result = components[0]
+        case 2:
+            guard components[1] < 60 else { return 0 }
+            result = components[0] * 60 + components[1]
+        case 3:
+            guard components[1] < 60, components[2] < 60 else { return 0 }
+            result = components[0] * 3_600 + components[1] * 60 + components[2]
+        default:
+            return 0
+        }
+        return result.isFinite ? result : 0
     }
-    
-    // 秒数转字符串辅助
+
     static func format(seconds: TimeInterval, format: SubtitleFormat) -> String {
         let safeSeconds = max(0, seconds.isFinite ? seconds : 0)
 

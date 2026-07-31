@@ -23,17 +23,17 @@ nonisolated struct SendablePixelBuffer: @unchecked Sendable {
 
 enum FFmpegPlaybackTuning {
     #if os(iOS)
-    nonisolated static let normalQueueCapacity = 6
-    nonisolated static let highFPSQueueCapacity = 10
-    nonisolated static let codecThreads = "4"
-    nonisolated static let frameThreads = "1"
-    nonisolated static let tileThreads = "2"
+        nonisolated static let normalQueueCapacity = 6
+        nonisolated static let highFPSQueueCapacity = 10
+        nonisolated static let codecThreads = "4"
+        nonisolated static let frameThreads = "1"
+        nonisolated static let tileThreads = "2"
     #else
-    nonisolated static let normalQueueCapacity = 16
-    nonisolated static let highFPSQueueCapacity = 24
-    nonisolated static let codecThreads = "0"
-    nonisolated static let frameThreads = "0"
-    nonisolated static let tileThreads = "0"
+        nonisolated static let normalQueueCapacity = 16
+        nonisolated static let highFPSQueueCapacity = 24
+        nonisolated static let codecThreads = "0"
+        nonisolated static let frameThreads = "0"
+        nonisolated static let tileThreads = "0"
     #endif
 
     /// Keeps enough decoded video locally to absorb ordinary SMB latency while
@@ -54,16 +54,19 @@ enum FFmpegPlaybackTuning {
     }
 }
 
-// 用于向 FFmpeg 声明优先选择 VideoToolbox 硬件像素格式
-nonisolated(unsafe) let getFormatCallback: @convention(c) (UnsafeMutablePointer<AVCodecContext>?, UnsafePointer<AVPixelFormat>?) -> AVPixelFormat = { ctx, fmts in
-    guard let fmts = fmts else { return AV_PIX_FMT_NONE }
-    var i = 0
-    while fmts[i] != AV_PIX_FMT_NONE {
-        if fmts[i] == AV_PIX_FMT_VIDEOTOOLBOX {
+/// Selects VideoToolbox output when the decoder offers it, then falls back to software.
+nonisolated func ffmpegVideoToolboxFormatCallback(
+    _ codecContext: UnsafeMutablePointer<AVCodecContext>?,
+    _ formats: UnsafePointer<AVPixelFormat>?
+) -> AVPixelFormat {
+    _ = codecContext
+    guard let formats else { return AV_PIX_FMT_NONE }
+    var index = 0
+    while formats[index] != AV_PIX_FMT_NONE {
+        if formats[index] == AV_PIX_FMT_VIDEOTOOLBOX {
             return AV_PIX_FMT_VIDEOTOOLBOX
         }
-        i += 1
+        index += 1
     }
-    // 如果硬件不可用，降级使用列表中的第一个软件像素格式
-    return fmts[0]
+    return formats[0]
 }

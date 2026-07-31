@@ -6,6 +6,7 @@
 //
 
 import AVFoundation
+import CoreImage
 import Foundation
 import SwiftUI
 import VideoToolbox
@@ -21,6 +22,22 @@ nonisolated struct AudioPipe: @unchecked Sendable {
 nonisolated struct FFmpegAudioPipe: @unchecked Sendable {
     let reader: FFmpegVideoExportAudioReader
     let input: AVAssetWriterInput
+}
+
+/// Retains both IOSurfaces until Core Image's GPU fence completes. Frames are
+/// appended in presentation order even though several renders may be in flight.
+nonisolated struct PendingRenderedVideoFrame: @unchecked Sendable {
+    let sourcePixelBuffer: CVPixelBuffer
+    let outputPixelBuffer: CVPixelBuffer
+    let renderTask: CIRenderTask?
+    let presentationTime: CMTime
+    let progressSeconds: Double
+
+    func waitUntilRendered() throws {
+        if let renderTask {
+            _ = try renderTask.waitUntilCompleted()
+        }
+    }
 }
 
 nonisolated final class MediaWriteGroup: @unchecked Sendable {
@@ -112,7 +129,8 @@ nonisolated final class ExportProgressReporter: @unchecked Sendable {
         let now = CFAbsoluteTimeGetCurrent()
         let shouldReport = lock.withLock {
             guard value >= lastProgress,
-                  lastUpdateTime == 0 || now - lastUpdateTime >= minimumInterval else {
+                lastUpdateTime == 0 || now - lastUpdateTime >= minimumInterval
+            else {
                 return false
             }
             lastProgress = value
@@ -150,7 +168,8 @@ nonisolated final class SubtitleSceneCursor: @unchecked Sendable {
             lastTime = seconds
 
             while nextIndex < cues.count,
-                  cues[nextIndex].startTime <= seconds {
+                cues[nextIndex].startTime <= seconds
+            {
                 let cue = cues[nextIndex]
                 if cue.endTime > seconds {
                     active.append(cue)
@@ -166,6 +185,7 @@ nonisolated final class SubtitleSceneCursor: @unchecked Sendable {
 nonisolated final class FFmpegVideoWriteState: @unchecked Sendable {
     private let lock = NSLock()
     private var firstVideoPTS: Double?
+    private var lastScheduledPresentationTime = CMTime.invalid
     private var lastVideoPresentationTime = CMTime.invalid
 
     func basePTS(for framePTS: Double) -> Double {
@@ -178,16 +198,31 @@ nonisolated final class FFmpegVideoWriteState: @unchecked Sendable {
         }
     }
 
-    func adjustedSeconds(for framePTS: Double, basePTS: Double, frameDuration: CMTime) -> Double {
+    func reservePresentationTime(
+        for framePTS: Double,
+        basePTS: Double,
+        frameDuration: CMTime,
+        timescale: CMTimeScale
+    ) -> CMTime {
         lock.withLock {
             var seconds = max(0, framePTS - basePTS)
-            if lastVideoPresentationTime.isValid {
-                let minimumNextSeconds = CMTimeAdd(lastVideoPresentationTime, frameDuration).seconds
-                if minimumNextSeconds.isFinite, seconds <= lastVideoPresentationTime.seconds {
+            if lastScheduledPresentationTime.isValid {
+                let minimumNextSeconds = CMTimeAdd(
+                    lastScheduledPresentationTime,
+                    frameDuration
+                ).seconds
+                if minimumNextSeconds.isFinite,
+                    seconds <= lastScheduledPresentationTime.seconds
+                {
                     seconds = minimumNextSeconds
                 }
             }
-            return seconds
+            let presentationTime = CMTime(
+                seconds: seconds,
+                preferredTimescale: timescale
+            )
+            lastScheduledPresentationTime = presentationTime
+            return presentationTime
         }
     }
 
@@ -257,7 +292,9 @@ nonisolated final class FFmpegAudioWriteContext: @unchecked Sendable {
                         _ = try self.audioReader.consumePeekedSampleBuffer()
                         guard self.audioInput.append(sample) else {
                             self.audioInput.markAsFinished()
-                            self.group.fail(HardSubtitleVideoExportError.audioMuxFailed(self.writer.error?.localizedDescription ?? "Unknown error"), writer: self.writer)
+                            self.group.fail(
+                                HardSubtitleVideoExportError.audioMuxFailed(
+                                    self.writer.error?.localizedDescription ?? "Unknown error"), writer: self.writer)
                             return
                         }
 
@@ -288,8 +325,14 @@ nonisolated final class AVFoundationWriteContext: @unchecked Sendable {
     private let sourceDisplaySize: CGSize?
     private let timelineStartSeconds: Double
     private let durationSeconds: Double
+    private let allowsDirectFramePassThrough: Bool
+    private let directPassThroughPixelFormat: OSType
+    private let maxInFlightFrames: Int
     private let progressReporter: ExportProgressReporter
     private let group: MediaWriteGroup
+    private var pendingFrames: [PendingRenderedVideoFrame] = []
+    private var reachedVideoEnd = false
+    private var didFinishVideo = false
 
     init(
         reader: AVAssetReader,
@@ -307,6 +350,9 @@ nonisolated final class AVFoundationWriteContext: @unchecked Sendable {
         sourceDisplaySize: CGSize?,
         timelineStartSeconds: Double,
         durationSeconds: Double,
+        allowsDirectFramePassThrough: Bool,
+        directPassThroughPixelFormat: OSType,
+        maxInFlightFrames: Int,
         progress: @MainActor @Sendable @escaping (Double) -> Void,
         group: MediaWriteGroup
     ) {
@@ -325,17 +371,25 @@ nonisolated final class AVFoundationWriteContext: @unchecked Sendable {
         self.sourceDisplaySize = sourceDisplaySize
         self.timelineStartSeconds = timelineStartSeconds
         self.durationSeconds = durationSeconds
+        self.allowsDirectFramePassThrough = allowsDirectFramePassThrough
+        self.directPassThroughPixelFormat = directPassThroughPixelFormat
+        self.maxInFlightFrames = max(1, maxInFlightFrames)
         progressReporter = ExportProgressReporter(progress: progress)
         self.group = group
     }
 
-    func start(videoQueue: DispatchQueue, audioQueue: DispatchQueue) {
-        for pipe in audioPipes {
+    func start(
+        videoQueue: DispatchQueue,
+        audioQueues: [DispatchQueue]
+    ) {
+        for (pipe, audioQueue) in zip(audioPipes, audioQueues) {
             pipe.input.requestMediaDataWhenReady(on: audioQueue) { [self] in
                 while pipe.input.isReadyForMoreMediaData, !group.hasFailed {
                     if reader.status == .failed {
                         pipe.input.markAsFinished()
-                        group.fail(HardSubtitleVideoExportError.readerFailed(reader.error?.localizedDescription ?? "Unknown error"), writer: writer)
+                        group.fail(
+                            HardSubtitleVideoExportError.readerFailed(
+                                reader.error?.localizedDescription ?? "Unknown error"), writer: writer)
                         return
                     }
 
@@ -347,7 +401,9 @@ nonisolated final class AVFoundationWriteContext: @unchecked Sendable {
 
                     guard pipe.input.append(sample) else {
                         pipe.input.markAsFinished()
-                        group.fail(HardSubtitleVideoExportError.audioMuxFailed(writer.error?.localizedDescription ?? "Unknown error"), writer: writer)
+                        group.fail(
+                            HardSubtitleVideoExportError.audioMuxFailed(
+                                writer.error?.localizedDescription ?? "Unknown error"), writer: writer)
                         return
                     }
                 }
@@ -355,71 +411,149 @@ nonisolated final class AVFoundationWriteContext: @unchecked Sendable {
         }
 
         videoInput.requestMediaDataWhenReady(on: videoQueue) { [self] in
-            while videoInput.isReadyForMoreMediaData, !group.hasFailed {
-                if reader.status == .failed {
-                    videoInput.markAsFinished()
-                    group.fail(HardSubtitleVideoExportError.readerFailed(reader.error?.localizedDescription ?? "Unknown error"), writer: writer)
-                    return
-                }
-
-                guard let sample = videoOutput.copyNextSampleBuffer() else {
-                    videoInput.markAsFinished()
-                    group.finish()
-                    return
-                }
-
-                guard let sourceBuffer = CMSampleBufferGetImageBuffer(sample),
-                      let pool = adaptor.pixelBufferPool else {
-                    videoInput.markAsFinished()
-                    group.fail(SubtitleCompositorError.outputPoolUnavailable, writer: writer)
-                    return
-                }
-
-                var outputBuffer: CVPixelBuffer?
-                guard CVPixelBufferPoolCreatePixelBuffer(nil, pool, &outputBuffer) == kCVReturnSuccess,
-                      let outputBuffer else {
-                    videoInput.markAsFinished()
-                    group.fail(SubtitleCompositorError.pixelBufferCreationFailed, writer: writer)
-                    return
-                }
-
-                let presentationTime = CMSampleBufferGetPresentationTimeStamp(sample)
-                let seconds = presentationTime.seconds.isFinite ? presentationTime.seconds : 0
-                let activeCues = cueCursor.activeCues(at: seconds, cues: sortedCues)
-                let scene = compositor.makeFrameScene(
-                    cues: activeCues,
-                    at: seconds,
-                    renderSize: renderSize,
-                    collisionMode: collisionMode
-                )
-
+            while videoInput.isReadyForMoreMediaData,
+                !group.hasFailed,
+                !didFinishVideo
+            {
                 do {
-                    try compositor.render(
-                        sourcePixelBuffer: sourceBuffer,
-                        outputPixelBuffer: outputBuffer,
-                        scene: scene,
-                        renderSize: renderSize,
-                        preferredTransform: preferredTransform,
-                        sourceDisplaySize: sourceDisplaySize
-                    )
+                    while pendingFrames.count < maxInFlightFrames,
+                        !reachedVideoEnd
+                    {
+                        try enqueueNextFrame()
+                    }
+
+                    guard !pendingFrames.isEmpty else {
+                        finishVideoIfReady()
+                        return
+                    }
+
+                    try appendFirstPendingFrame()
+                    finishVideoIfReady()
                 } catch {
                     videoInput.markAsFinished()
                     group.fail(error, writer: writer)
                     return
                 }
-
-                guard adaptor.append(outputBuffer, withPresentationTime: presentationTime) else {
-                    videoInput.markAsFinished()
-                    group.fail(HardSubtitleVideoExportError.writerFailed(writer.error?.localizedDescription ?? "Unknown error"), writer: writer)
-                    return
-                }
-
-                let videoProgressScale = audioPipes.isEmpty ? 1.0 : 0.99
-                let elapsed = max(0, seconds - timelineStartSeconds)
-                let fraction = min(max(elapsed / durationSeconds, 0), 1) * videoProgressScale
-                progressReporter.report(fraction)
             }
         }
+    }
+
+    private func enqueueNextFrame() throws {
+        if reader.status == .failed {
+            throw HardSubtitleVideoExportError.readerFailed(
+                reader.error?.localizedDescription ?? "Unknown error"
+            )
+        }
+        guard let sample = videoOutput.copyNextSampleBuffer() else {
+            reachedVideoEnd = true
+            return
+        }
+        guard let sourceBuffer = CMSampleBufferGetImageBuffer(sample) else {
+            throw SubtitleCompositorError.outputPoolUnavailable
+        }
+
+        let presentationTime = CMSampleBufferGetPresentationTimeStamp(sample)
+        let seconds =
+            presentationTime.seconds.isFinite
+            ? presentationTime.seconds
+            : 0
+        let activeCues = cueCursor.activeCues(at: seconds, cues: sortedCues)
+        let scene = compositor.makeFrameScene(
+            cues: activeCues,
+            at: seconds,
+            renderSize: renderSize,
+            collisionMode: collisionMode
+        )
+        if canPassThrough(sourceBuffer, scene: scene) {
+            pendingFrames.append(
+                PendingRenderedVideoFrame(
+                    sourcePixelBuffer: sourceBuffer,
+                    outputPixelBuffer: sourceBuffer,
+                    renderTask: nil,
+                    presentationTime: presentationTime,
+                    progressSeconds: seconds
+                )
+            )
+            return
+        }
+
+        guard let pool = adaptor.pixelBufferPool else {
+            throw SubtitleCompositorError.outputPoolUnavailable
+        }
+        var outputBuffer: CVPixelBuffer?
+        guard
+            CVPixelBufferPoolCreatePixelBuffer(
+                nil,
+                pool,
+                &outputBuffer
+            ) == kCVReturnSuccess,
+            let outputBuffer
+        else {
+            throw SubtitleCompositorError.pixelBufferCreationFailed
+        }
+        let renderTask = try compositor.startRender(
+            sourcePixelBuffer: sourceBuffer,
+            outputPixelBuffer: outputBuffer,
+            scene: scene,
+            renderSize: renderSize,
+            preferredTransform: preferredTransform,
+            sourceDisplaySize: sourceDisplaySize
+        )
+        pendingFrames.append(
+            PendingRenderedVideoFrame(
+                sourcePixelBuffer: sourceBuffer,
+                outputPixelBuffer: outputBuffer,
+                renderTask: renderTask,
+                presentationTime: presentationTime,
+                progressSeconds: seconds
+            )
+        )
+    }
+
+    private func canPassThrough(
+        _ sourceBuffer: CVPixelBuffer,
+        scene: SubtitleFrameScene
+    ) -> Bool {
+        allowsDirectFramePassThrough
+            && scene.items.isEmpty
+            && CVPixelBufferGetPixelFormatType(sourceBuffer)
+                == directPassThroughPixelFormat
+            && CVPixelBufferGetWidth(sourceBuffer) == Int(renderSize.width)
+            && CVPixelBufferGetHeight(sourceBuffer) == Int(renderSize.height)
+    }
+
+    private func appendFirstPendingFrame() throws {
+        let pending = pendingFrames.removeFirst()
+        try pending.waitUntilRendered()
+        guard
+            adaptor.append(
+                pending.outputPixelBuffer,
+                withPresentationTime: pending.presentationTime
+            )
+        else {
+            throw HardSubtitleVideoExportError.writerFailed(
+                writer.error?.localizedDescription ?? "Unknown error"
+            )
+        }
+
+        let videoProgressScale = audioPipes.isEmpty ? 1.0 : 0.99
+        let elapsed = max(0, pending.progressSeconds - timelineStartSeconds)
+        let fraction =
+            min(max(elapsed / durationSeconds, 0), 1)
+            * videoProgressScale
+        progressReporter.report(fraction)
+    }
+
+    private func finishVideoIfReady() {
+        guard reachedVideoEnd,
+            pendingFrames.isEmpty,
+            !didFinishVideo
+        else {
+            return
+        }
+        didFinishVideo = true
+        videoInput.markAsFinished()
+        group.finish()
     }
 }
 
@@ -437,11 +571,17 @@ nonisolated final class FFmpegVideoWriteContext: @unchecked Sendable {
     private let frameDuration: CMTime
     private let sourceRange: Range<Double>?
     private let durationSeconds: Double
+    private let allowsDirectFramePassThrough: Bool
+    private let directPassThroughPixelFormat: OSType
+    private let maxInFlightFrames: Int
     private let progressReporter: ExportProgressReporter
     private let group: MediaWriteGroup
     private let videoState: FFmpegVideoWriteState
     private let hasAudio: Bool
     private let audioWriteContexts: [FFmpegAudioWriteContext]
+    private var pendingFrames: [PendingRenderedVideoFrame] = []
+    private var reachedVideoEnd = false
+    private var didFinishVideo = false
 
     init(
         videoReader: FFmpegVideoExportVideoReader,
@@ -457,6 +597,9 @@ nonisolated final class FFmpegVideoWriteContext: @unchecked Sendable {
         frameDuration: CMTime,
         sourceRange: Range<Double>?,
         durationSeconds: Double,
+        allowsDirectFramePassThrough: Bool,
+        directPassThroughPixelFormat: OSType,
+        maxInFlightFrames: Int,
         progress: @MainActor @Sendable @escaping (Double) -> Void,
         group: MediaWriteGroup,
         videoState: FFmpegVideoWriteState,
@@ -475,6 +618,9 @@ nonisolated final class FFmpegVideoWriteContext: @unchecked Sendable {
         self.frameDuration = frameDuration
         self.sourceRange = sourceRange
         self.durationSeconds = durationSeconds
+        self.allowsDirectFramePassThrough = allowsDirectFramePassThrough
+        self.directPassThroughPixelFormat = directPassThroughPixelFormat
+        self.maxInFlightFrames = max(1, maxInFlightFrames)
         progressReporter = ExportProgressReporter(progress: progress)
         self.group = group
         self.videoState = videoState
@@ -484,83 +630,24 @@ nonisolated final class FFmpegVideoWriteContext: @unchecked Sendable {
 
     func start(queue: DispatchQueue) {
         videoInput.requestMediaDataWhenReady(on: queue) { [self] in
-            while videoInput.isReadyForMoreMediaData, !group.hasFailed {
+            while videoInput.isReadyForMoreMediaData,
+                !group.hasFailed,
+                !didFinishVideo
+            {
                 do {
-                    guard let frame = try videoReader.nextFrame() else {
-                        videoInput.markAsFinished()
-                        if hasAudio {
-                            audioWriteContexts.forEach {
-                                $0.start(offset: sourceRange?.lowerBound ?? 0)
-                            }
-                        }
-                        group.finish()
+                    while pendingFrames.count < maxInFlightFrames,
+                        !reachedVideoEnd
+                    {
+                        try enqueueNextFrame()
+                    }
+
+                    guard !pendingFrames.isEmpty else {
+                        finishVideoIfReady()
                         return
                     }
 
-                    if let sourceRange,
-                       frame.pts < sourceRange.lowerBound {
-                        continue
-                    }
-                    if let sourceRange,
-                       frame.pts >= sourceRange.upperBound {
-                        videoInput.markAsFinished()
-                        audioWriteContexts.forEach {
-                            $0.start(offset: sourceRange.lowerBound)
-                        }
-                        group.finish()
-                        return
-                    }
-
-                    let basePTS = videoState.basePTS(for: frame.pts)
-                    let audioOffset = sourceRange?.lowerBound ?? basePTS
-                    audioWriteContexts.forEach { $0.start(offset: audioOffset) }
-                    let seconds = videoState.adjustedSeconds(for: frame.pts, basePTS: basePTS, frameDuration: frameDuration)
-
-                    guard let pool = adaptor.pixelBufferPool else {
-                        videoInput.markAsFinished()
-                        group.fail(SubtitleCompositorError.outputPoolUnavailable, writer: writer)
-                        return
-                    }
-
-                    var outputBuffer: CVPixelBuffer?
-                    guard CVPixelBufferPoolCreatePixelBuffer(nil, pool, &outputBuffer) == kCVReturnSuccess,
-                          let outputBuffer else {
-                        videoInput.markAsFinished()
-                        group.fail(SubtitleCompositorError.pixelBufferCreationFailed, writer: writer)
-                        return
-                    }
-
-                    let sourceSeconds = frame.pts
-                    let activeCues = cueCursor.activeCues(
-                        at: sourceSeconds,
-                        cues: sortedCues
-                    )
-                    let scene = compositor.makeFrameScene(
-                        cues: activeCues,
-                        at: sourceSeconds,
-                        renderSize: renderSize,
-                        collisionMode: collisionMode
-                    )
-                    try compositor.render(
-                        sourcePixelBuffer: frame.pixelBuffer,
-                        outputPixelBuffer: outputBuffer,
-                        scene: scene,
-                        renderSize: renderSize,
-                        preferredTransform: .identity,
-                        sourceDisplaySize: sourceDisplaySize
-                    )
-
-                    let presentationTime = CMTime(seconds: seconds, preferredTimescale: videoInput.mediaTimeScale)
-                    guard adaptor.append(outputBuffer, withPresentationTime: presentationTime) else {
-                        videoInput.markAsFinished()
-                        group.fail(HardSubtitleVideoExportError.writerFailed(writer.error?.localizedDescription ?? "Unknown error"), writer: writer)
-                        return
-                    }
-                    videoState.setLastVideoPresentationTime(presentationTime)
-
-                    let videoProgressScale = hasAudio ? 0.99 : 1.0
-                    let fraction = min(max(seconds / durationSeconds, 0), 1) * videoProgressScale
-                    progressReporter.report(fraction)
+                    try appendFirstPendingFrame()
+                    finishVideoIfReady()
                 } catch {
                     videoInput.markAsFinished()
                     group.fail(error, writer: writer)
@@ -568,6 +655,145 @@ nonisolated final class FFmpegVideoWriteContext: @unchecked Sendable {
                 }
             }
         }
+    }
+
+    private func enqueueNextFrame() throws {
+        while true {
+            guard let frame = try videoReader.nextFrame() else {
+                reachedVideoEnd = true
+                startAudioIfNeeded(fallbackOffset: sourceRange?.lowerBound ?? 0)
+                return
+            }
+
+            if let sourceRange, frame.pts < sourceRange.lowerBound {
+                continue
+            }
+            if let sourceRange, frame.pts >= sourceRange.upperBound {
+                reachedVideoEnd = true
+                startAudioIfNeeded(fallbackOffset: sourceRange.lowerBound)
+                return
+            }
+
+            let basePTS = videoState.basePTS(for: frame.pts)
+            let audioOffset = sourceRange?.lowerBound ?? basePTS
+            startAudioIfNeeded(fallbackOffset: audioOffset)
+            let presentationTime = videoState.reservePresentationTime(
+                for: frame.pts,
+                basePTS: basePTS,
+                frameDuration: frameDuration,
+                timescale: videoInput.mediaTimeScale
+            )
+
+            let activeCues = cueCursor.activeCues(
+                at: frame.pts,
+                cues: sortedCues
+            )
+            let scene = compositor.makeFrameScene(
+                cues: activeCues,
+                at: frame.pts,
+                renderSize: renderSize,
+                collisionMode: collisionMode
+            )
+            if canPassThrough(frame.pixelBuffer, scene: scene) {
+                pendingFrames.append(
+                    PendingRenderedVideoFrame(
+                        sourcePixelBuffer: frame.pixelBuffer,
+                        outputPixelBuffer: frame.pixelBuffer,
+                        renderTask: nil,
+                        presentationTime: presentationTime,
+                        progressSeconds: presentationTime.seconds
+                    )
+                )
+                return
+            }
+
+            guard let pool = adaptor.pixelBufferPool else {
+                throw SubtitleCompositorError.outputPoolUnavailable
+            }
+            var outputBuffer: CVPixelBuffer?
+            guard
+                CVPixelBufferPoolCreatePixelBuffer(
+                    nil,
+                    pool,
+                    &outputBuffer
+                ) == kCVReturnSuccess,
+                let outputBuffer
+            else {
+                throw SubtitleCompositorError.pixelBufferCreationFailed
+            }
+            let renderTask = try compositor.startRender(
+                sourcePixelBuffer: frame.pixelBuffer,
+                outputPixelBuffer: outputBuffer,
+                scene: scene,
+                renderSize: renderSize,
+                preferredTransform: .identity,
+                sourceDisplaySize: sourceDisplaySize
+            )
+            pendingFrames.append(
+                PendingRenderedVideoFrame(
+                    sourcePixelBuffer: frame.pixelBuffer,
+                    outputPixelBuffer: outputBuffer,
+                    renderTask: renderTask,
+                    presentationTime: presentationTime,
+                    progressSeconds: presentationTime.seconds
+                )
+            )
+            return
+        }
+    }
+
+    private func canPassThrough(
+        _ sourceBuffer: CVPixelBuffer,
+        scene: SubtitleFrameScene
+    ) -> Bool {
+        allowsDirectFramePassThrough
+            && scene.items.isEmpty
+            && CVPixelBufferGetPixelFormatType(sourceBuffer)
+                == directPassThroughPixelFormat
+            && CVPixelBufferGetWidth(sourceBuffer) == Int(renderSize.width)
+            && CVPixelBufferGetHeight(sourceBuffer) == Int(renderSize.height)
+    }
+
+    private func appendFirstPendingFrame() throws {
+        let pending = pendingFrames.removeFirst()
+        try pending.waitUntilRendered()
+        guard
+            adaptor.append(
+                pending.outputPixelBuffer,
+                withPresentationTime: pending.presentationTime
+            )
+        else {
+            throw HardSubtitleVideoExportError.writerFailed(
+                writer.error?.localizedDescription ?? "Unknown error"
+            )
+        }
+        videoState.setLastVideoPresentationTime(pending.presentationTime)
+
+        let videoProgressScale = hasAudio ? 0.99 : 1.0
+        let fraction =
+            min(
+                max(pending.progressSeconds / durationSeconds, 0),
+                1
+            ) * videoProgressScale
+        progressReporter.report(fraction)
+    }
+
+    private func startAudioIfNeeded(fallbackOffset: Double) {
+        guard hasAudio else { return }
+        audioWriteContexts.forEach { $0.start(offset: fallbackOffset) }
+    }
+
+    private func finishVideoIfReady() {
+        guard reachedVideoEnd,
+            pendingFrames.isEmpty,
+            !didFinishVideo
+        else {
+            return
+        }
+        didFinishVideo = true
+        videoInput.markAsFinished()
+        startAudioIfNeeded(fallbackOffset: sourceRange?.lowerBound ?? 0)
+        group.finish()
     }
 }
 

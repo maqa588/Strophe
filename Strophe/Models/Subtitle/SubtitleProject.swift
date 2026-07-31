@@ -66,17 +66,30 @@ class SubtitleProject: ObservableObject {
     /// Transient UI state. Karaoke data belongs to `SubtitleItem`, while this
     /// identifier only records which selected cue currently owns the editor.
     @Published var karaokeEditingItemID: UUID? = nil
+    /// A frame-snapped, non-persistent cue used while a timeline trim gesture
+    /// is in flight. It keeps the Karaoke editor and video overlay synchronized
+    /// without creating an undo entry or dirtying the document on every frame.
+    @Published var karaokeTimingPreviewItem: SubtitleItem? = nil
+    var karaokeTimingPreviewGeneration: UInt = 0
     @Published var karaokeEditorDismissedItemID: UUID? = nil
     @Published var isKaraokeEditorManuallyClosed: Bool = false
+    var selectionEditorSyncGeneration: UInt = 0
     @Published var selectedIDs: Set<UUID> = [] {
         didSet {
+            selectionEditorSyncGeneration &+= 1
+            let generation = selectionEditorSyncGeneration
+            let selection = selectedIDs
+            let selectionChanged = oldValue != selection
+            // A changed selection forgets a cue-specific dismissal, but that
+            // second @Published mutation must not happen inside this didSet.
+            let effectiveDismissedID =
+                selectionChanged
+                ? nil
+                : karaokeEditorDismissedItemID
             let targetID: UUID?
-            if selectedIDs.count == 1, let selectedID = selectedIDs.first {
-                if oldValue != selectedIDs {
-                    karaokeEditorDismissedItemID = nil
-                }
+            if selection.count == 1, let selectedID = selection.first {
                 // Enabled Karaoke cues reopen their editor whenever selected unless manually closed.
-                if isKaraokeEditorManuallyClosed || karaokeEditorDismissedItemID == selectedID {
+                if isKaraokeEditorManuallyClosed || effectiveDismissedID == selectedID {
                     targetID = nil
                 } else if items.first(where: { $0.id == selectedID })?.activeKaraoke != nil {
                     targetID = selectedID
@@ -89,9 +102,29 @@ class SubtitleProject: ObservableObject {
                 targetID = nil
             }
 
-            if karaokeEditingItemID != targetID {
-                Task { @MainActor [weak self] in
-                    self?.karaokeEditingItemID = targetID
+            let shouldClearDismissedID =
+                selectionChanged && karaokeEditorDismissedItemID != nil
+            guard shouldClearDismissedID || karaokeEditingItemID != targetID else {
+                return
+            }
+
+            // Publishing another property while @Published is delivering the
+            // selectedIDs change can enter SwiftUI's view-update transaction.
+            // Coalesce the dependent editor state onto the next MainActor turn.
+            Task { @MainActor [weak self] in
+                guard let self,
+                    self.selectionEditorSyncGeneration == generation,
+                    self.selectedIDs == selection
+                else {
+                    return
+                }
+                if shouldClearDismissedID,
+                    self.karaokeEditorDismissedItemID != nil
+                {
+                    self.karaokeEditorDismissedItemID = nil
+                }
+                if self.karaokeEditingItemID != targetID {
+                    self.karaokeEditingItemID = targetID
                 }
             }
         }
@@ -102,7 +135,7 @@ class SubtitleProject: ObservableObject {
     @Published var subtitleSourceDocuments: [SubtitleSourceDocument] = []
     @Published var lastSubtitleImportDiagnostics: [SubtitleParseDiagnostic] = []
     @Published var quickSearchText: String = ""
-    
+
     @Published var projectURL: URL?
     @Published private(set) var isDirty: Bool = false
     @Published private(set) var documentName: String = ""
@@ -116,19 +149,19 @@ class SubtitleProject: ObservableObject {
 
     var projectIdentifier = UUID()
     var projectCreatedAt = Date()
-    
+
     let undoManager = UndoManager()
-    
+
     var autoSaveTimer: Timer?
     var dirtyObserver: Any?
     var mediaAccessURL: URL?
     var mediaAccessGeneration: UInt = 0
     var projectURLBookmark: Data?
-    
+
     init() {
         setupDirtyTracking()
     }
-    
+
     private func setupDirtyTracking() {
         dirtyObserver = NotificationCenter.default.addObserver(
             forName: .subtitleProjectDidChange,
@@ -140,20 +173,20 @@ class SubtitleProject: ObservableObject {
             }
         }
     }
-    
+
     func notifyChange() {
         isDirty = true
         NotificationCenter.default.post(name: .subtitleProjectDidChange, object: nil)
     }
-    
+
     func markClean() {
         isDirty = false
     }
-    
+
     func setDocumentName(_ name: String) {
         documentName = name
     }
-    
+
     @Published var videoURL: URL? {
         willSet {
             if let oldURL = videoURL, oldURL.path.contains(NSTemporaryDirectory()) {
@@ -174,7 +207,7 @@ class SubtitleProject: ObservableObject {
                     notifyChange()
                     return
                 }
-                
+
                 if mediaAccessURL == url {
                     WaveformProcessor.shared.process(url: url) { data in
                         self.waveformData = data
@@ -182,12 +215,14 @@ class SubtitleProject: ObservableObject {
                     notifyChange()
                     return
                 }
-                
+
                 let tempDir = FileManager.default.temporaryDirectory
-                let uniqueSubdir = tempDir.appendingPathComponent(UUID().uuidString)
+                let uniqueSubdir = tempDir.appendingPathComponent(
+                    "strophe_media_\(UUID().uuidString)"
+                )
                 try? FileManager.default.createDirectory(at: uniqueSubdir, withIntermediateDirectories: true)
                 let tempURL = uniqueSubdir.appendingPathComponent(url.lastPathComponent)
-                
+
                 do {
                     try FileManager.default.createSymbolicLink(at: tempURL, withDestinationURL: url)
                     self.videoURL = tempURL
@@ -215,7 +250,7 @@ class SubtitleProject: ObservableObject {
             notifyChange()
         }
     }
-    
+
     private(set) var activeEngine: (any PlayerEngine)? = nil
     private(set) var activeEngineURL: URL? = nil
     private var playerEngineLoadTask: Task<(any PlayerEngine)?, Never>?
@@ -281,7 +316,7 @@ class SubtitleProject: ObservableObject {
         activeEngine = nil
         activeEngineURL = nil
     }
-    
+
     func snapToFrame(_ time: Double) -> Double {
         guard videoFrameRate > 0 else { return time }
         let frameDuration = 1.0 / videoFrameRate
@@ -292,7 +327,8 @@ class SubtitleProject: ObservableObject {
         var updated = items
         for index in updated.indices {
             if let start = updated[index].startTime,
-               let end = updated[index].endTime {
+                let end = updated[index].endTime
+            {
                 let snappedStart = snapToFrame(start)
                 let snappedEnd = snapToFrame(end)
                 updated[index].retimeKaraokeForCueChange(
@@ -309,7 +345,7 @@ class SubtitleProject: ObservableObject {
         if updated != items { items = updated }
         autoUpdateCurrentIndex()
     }
-    
+
     var currentTime: Double = 0 {
         didSet {
             guard currentTime.isFinite else {
@@ -347,21 +383,22 @@ class SubtitleProject: ObservableObject {
     @Published var targetSpeed: Double = 1.0
     var referenceTime: Double = 0
     var referenceDate: Date = .now
-    
+
     @Published var activeDragDelta: Double = 0
     @Published var activeDragItemID: UUID? = nil
-    
+
     @Published var activeSlapKey: String? = nil
     @Published var activeSlapSubtitleID: UUID? = nil
-    
+
     @Published var currentSubtitleText: String? = nil
     @Published var loadedPlayheadTime: Double? = nil
-    
+
     func subtitleText(at time: Double) -> String? {
         if let activeID = activeSlapSubtitleID,
-           let item = timelineIndex.item(id: activeID),
-           !item.isHidden,
-           subgroup(for: item)?.isOverlayEnabled != false {
+            let item = timelineIndex.item(id: activeID),
+            !item.isHidden,
+            subgroup(for: item)?.isOverlayEnabled != false
+        {
             return item.text
         }
 

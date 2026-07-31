@@ -78,14 +78,14 @@ nonisolated final class KaraokeFrameRenderer: @unchecked Sendable {
                 mtlDevice: device,
                 options: [
                     .workingColorSpace: CGColorSpaceCreateDeviceRGB(),
-                    .outputPremultiplied: true
+                    .outputPremultiplied: true,
                 ]
             )
         } else {
             context = CIContext(
                 options: [
                     .workingColorSpace: CGColorSpaceCreateDeviceRGB(),
-                    .outputPremultiplied: true
+                    .outputPremultiplied: true,
                 ]
             )
         }
@@ -105,8 +105,9 @@ nonisolated final class KaraokeFrameRenderer: @unchecked Sendable {
         canvasSize: CGSize
     ) -> CIImage? {
         guard let program = cue.karaoke,
-              program.isEnabled,
-              let asset = asset(for: cue, canvasSize: canvasSize) else {
+            program.isEnabled,
+            let asset = asset(for: cue, canvasSize: canvasSize)
+        else {
             return nil
         }
         let sourceBounds = CGRect(origin: .zero, size: asset.sourceSize)
@@ -126,16 +127,22 @@ nonisolated final class KaraokeFrameRenderer: @unchecked Sendable {
             .cropped(to: sourceBounds)
 
         let localTime = presentationTime - cue.startTime
+        let cueDuration = max(0.000_001, cue.endTime - cue.startTime)
+        let liveUnits =
+            program
+            .repairingInvalidTiming(cueDuration: cueDuration)
+            .validUnits(for: cue.text, cueDuration: cueDuration)
         let states = Dictionary(
             uniqueKeysWithValues: KaraokeFrameStateEvaluator.states(
-                units: asset.unitLayers.map(\.unit),
+                units: liveUnits,
                 cueLocalTime: localTime
             ).map { ($0.unitID, $0) }
         )
 
         for layer in asset.unitLayers {
             guard let state = states[layer.unit.id],
-                  state.phase != .upcoming else {
+                state.phase != .upcoming
+            else {
                 continue
             }
             let fullLayer = CIImage(cgImage: layer.image)
@@ -147,7 +154,8 @@ nonisolated final class KaraokeFrameRenderer: @unchecked Sendable {
                 let progress = CGFloat(min(max(state.progress, 0), 1))
                 let width = max(0, fullLayer.extent.width * progress)
                 guard width > 0 else { continue }
-                let x = layer.isRightToLeft
+                let x =
+                    layer.isRightToLeft
                     ? fullLayer.extent.maxX - width
                     : fullLayer.extent.minX
                 revealed = fullLayer.cropped(
@@ -184,9 +192,11 @@ nonisolated final class KaraokeFrameRenderer: @unchecked Sendable {
             }
 
             if state.phase == .active,
-               program.template.glowRadius > 0,
-               program.template.glowIntensity > 0 {
-                let glow = positioned
+                program.template.glowRadius > 0,
+                program.template.glowIntensity > 0
+            {
+                let glow =
+                    positioned
                     .applyingFilter(
                         "CIGaussianBlur",
                         parameters: [
@@ -207,12 +217,14 @@ nonisolated final class KaraokeFrameRenderer: @unchecked Sendable {
                     .cropped(to: sourceBounds)
                 output = glow.composited(over: output)
             }
-            output = positioned
+            output =
+                positioned
                 .cropped(to: sourceBounds)
                 .composited(over: output)
         }
 
-        var transformed = output
+        var transformed =
+            output
             .cropped(to: sourceBounds)
             .transformed(by: asset.sourceToOutputTransform)
         let extent = transformed.extent
@@ -232,7 +244,8 @@ nonisolated final class KaraokeFrameRenderer: @unchecked Sendable {
             color: CIColor(red: 0, green: 0, blue: 0, alpha: 0)
         )
         .cropped(to: outputBounds)
-        return transformed
+        return
+            transformed
             .cropped(to: outputBounds)
             .composited(over: transparentOutputCanvas)
             .cropped(to: outputBounds)
@@ -243,11 +256,13 @@ nonisolated final class KaraokeFrameRenderer: @unchecked Sendable {
         presentationTime: Double,
         canvasSize: CGSize
     ) -> CGImage? {
-        guard let image = makeCIImage(
-            cue: cue,
-            presentationTime: presentationTime,
-            canvasSize: canvasSize
-        ) else {
+        guard
+            let image = makeCIImage(
+                cue: cue,
+                presentationTime: presentationTime,
+                canvasSize: canvasSize
+            )
+        else {
             return nil
         }
         return context.createCGImage(
@@ -287,10 +302,12 @@ nonisolated final class KaraokeFrameRenderer: @unchecked Sendable {
         }
         lock.unlock()
 
-        guard let built = SubtitleBitmapRenderer.makeKaraokeAsset(
-            cue: cue,
-            canvasSize: canvasSize
-        ) else {
+        guard
+            let built = SubtitleBitmapRenderer.makeKaraokeAsset(
+                cue: cue,
+                canvasSize: canvasSize
+            )
+        else {
             return nil
         }
         lock.lock()
@@ -304,9 +321,10 @@ nonisolated final class KaraokeFrameRenderer: @unchecked Sendable {
             return cached.asset
         }
         if cache.count >= 32,
-           let leastRecentlyUsed = cache.min(
-               by: { $0.value.lastAccess < $1.value.lastAccess }
-           )?.key {
+            let leastRecentlyUsed = cache.min(
+                by: { $0.value.lastAccess < $1.value.lastAccess }
+            )?.key
+        {
             cache.removeValue(forKey: leastRecentlyUsed)
         }
         cache[key] = CacheEntry(
@@ -348,10 +366,12 @@ nonisolated final class KaraokeFrameRenderer: @unchecked Sendable {
         var height: Int
 
         init(cue: ResolvedSubtitleCue, canvasSize: CGSize) {
-            let program = cue.karaoke ?? KaraokeProgram(
-                textSnapshot: cue.text,
-                units: []
-            )
+            let program =
+                cue.karaoke
+                ?? KaraokeProgram(
+                    textSnapshot: cue.text,
+                    units: []
+                )
             let cueDuration = max(0, cue.endTime - cue.startTime)
             let renderProgram = program.repairingInvalidTiming(
                 cueDuration: cueDuration
@@ -359,7 +379,8 @@ nonisolated final class KaraokeFrameRenderer: @unchecked Sendable {
             text = cue.text
             style = cue.style
             anchor = cue.resolvedAnchor
-            units = renderProgram
+            units =
+                renderProgram
                 .validUnits(for: cue.text, cueDuration: cueDuration)
                 .map(UnitSignature.init)
             inactiveColorHex = program.template.inactiveColorHex

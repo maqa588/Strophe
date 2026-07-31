@@ -113,10 +113,11 @@ nonisolated struct KaraokeTemplateConfiguration: Codable, Sendable, Equatable, H
         maxUnitWidth: Double,
         maxUnitHeight: Double
     ) -> Double {
-        let halfMaximumDimension = max(
-            max(0, maxUnitWidth),
-            max(0, maxUnitHeight)
-        ) / 2
+        let halfMaximumDimension =
+            max(
+                max(0, maxUnitWidth),
+                max(0, maxUnitHeight)
+            ) / 2
         let popOutset = max(0, popScale - 1) * halfMaximumDimension
         let glowOutset = max(0, glowRadius) * 3
         return ceil(popOutset + glowOutset)
@@ -173,6 +174,59 @@ nonisolated struct KaraokeTimingUnit: Identifiable, Codable, Sendable, Equatable
     }
 }
 
+/// Converts authored word timing into adjacent editor cells while preserving
+/// the complete cue time domain. Leading/trailing silence belongs to the first
+/// and last visual cells, and silence between units is divided at its midpoint.
+/// Stored word timing is never changed by this layout-only calculation.
+nonisolated enum KaraokeTimelineLayout {
+    static func displaySpans(
+        for units: [KaraokeTimingUnit],
+        cueDuration: Double
+    ) -> [ClosedRange<Double>] {
+        guard !units.isEmpty,
+            cueDuration.isFinite,
+            cueDuration > 0
+        else {
+            return []
+        }
+        guard units.count > 1 else {
+            return [0...cueDuration]
+        }
+
+        let epsilon = min(
+            0.000_001,
+            cueDuration / Double(max(1, units.count * 4))
+        )
+        var boundaries = [0.0]
+        boundaries.reserveCapacity(units.count + 1)
+
+        for index in 0..<(units.count - 1) {
+            let rawMidpoint = (units[index].endOffset + units[index + 1].startOffset) / 2
+            guard let previousBoundary = boundaries.last else { return [] }
+            let lowerBound = previousBoundary + epsilon
+            let remainingIntervals = units.count - index - 1
+            let upperBound =
+                cueDuration
+                - Double(remainingIntervals) * epsilon
+            let finiteMidpoint =
+                rawMidpoint.isFinite
+                ? rawMidpoint
+                : lowerBound
+            boundaries.append(
+                min(
+                    max(finiteMidpoint, lowerBound),
+                    max(lowerBound, upperBound)
+                )
+            )
+        }
+        boundaries.append(cueDuration)
+
+        return units.indices.map {
+            boundaries[$0]...boundaries[$0 + 1]
+        }
+    }
+}
+
 nonisolated struct KaraokeProgram: Codable, Sendable, Equatable, Hashable {
     static let currentVersion = 2
 
@@ -208,21 +262,24 @@ nonisolated struct KaraokeProgram: Codable, Sendable, Equatable, Hashable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        version = try container.decodeIfPresent(
-            Int.self,
-            forKey: .version
-        ) ?? Self.currentVersion
+        version =
+            try container.decodeIfPresent(
+                Int.self,
+                forKey: .version
+            ) ?? Self.currentVersion
         textSnapshot = try container.decode(String.self, forKey: .textSnapshot)
         units = try container.decode([KaraokeTimingUnit].self, forKey: .units)
-        template = try container.decodeIfPresent(
-            KaraokeTemplateConfiguration.self,
-            forKey: .template
-        ) ?? .classicSweep
+        template =
+            try container.decodeIfPresent(
+                KaraokeTemplateConfiguration.self,
+                forKey: .template
+            ) ?? .classicSweep
         // Programs saved before presentation-state separation were active.
-        isEnabled = try container.decodeIfPresent(
-            Bool.self,
-            forKey: .isEnabled
-        ) ?? true
+        isEnabled =
+            try container.decodeIfPresent(
+                Bool.self,
+                forKey: .isEnabled
+            ) ?? true
     }
 
     func encode(to encoder: Encoder) throws {
@@ -255,11 +312,12 @@ nonisolated struct KaraokeProgram: Codable, Sendable, Equatable, Hashable {
             let visibleText = word.text.trimmingCharacters(in: .whitespacesAndNewlines)
             let wordCharacters = Array(visibleText)
             guard !wordCharacters.isEmpty,
-                  let range = find(
+                let range = find(
                     wordCharacters,
                     in: characters,
                     startingAt: searchStart
-                  ) else {
+                )
+            else {
                 continue
             }
 
@@ -288,11 +346,13 @@ nonisolated struct KaraokeProgram: Codable, Sendable, Equatable, Hashable {
             template: template,
             isEnabled: isEnabled
         )
-        let inferredDuration = mappedUnits
+        let inferredDuration =
+            mappedUnits
             .map(\.endOffset)
             .filter(\.isFinite)
             .max() ?? 0
-        let cueDuration = cueEndTime.map { $0 - cueStartTime }
+        let cueDuration =
+            cueEndTime.map { $0 - cueStartTime }
             .flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
             ?? inferredDuration
         return program.repairingInvalidTiming(cueDuration: cueDuration)
@@ -355,25 +415,25 @@ nonisolated struct KaraokeProgram: Codable, Sendable, Equatable, Hashable {
             let inferredEnd: Double
 
             if let precedingEnd, let followingStart,
-               followingStart > precedingEnd + 0.000_001 {
+                followingStart > precedingEnd + 0.000_001
+            {
                 // A genuine hole between aligned neighbours is the strongest
                 // evidence for where the omitted transcript grapheme belongs.
                 inferredStart = precedingEnd
                 inferredEnd = followingStart
-            } else if precedingIndex != nil {
+            } else if let precedingIndex {
                 // Adjacent/overlapping aligner output leaves no free interval.
                 // Split the tail of the preceding unit so the repaired program
                 // stays ordered and never introduces overlapping timing.
-                let index = precedingIndex!
-                let originalEnd = repaired[index].endOffset
+                let originalEnd = repaired[precedingIndex].endOffset
                 let duration = max(
                     0.000_001,
-                    originalEnd - repaired[index].startOffset
+                    originalEnd - repaired[precedingIndex].startOffset
                 )
                 let allocation = duration * Double(count) / Double(count + 1)
                 inferredEnd = originalEnd
                 inferredStart = originalEnd - allocation
-                repaired[index].endOffset = inferredStart
+                repaired[precedingIndex].endOffset = inferredStart
             } else if let followingIndex {
                 // Prefix omission: use available cue-leading time, or split the
                 // head of the first aligned unit when it starts at cue zero.
@@ -471,15 +531,17 @@ nonisolated struct KaraokeProgram: Codable, Sendable, Equatable, Hashable {
 
         let remappedUnits = units.compactMap { unit -> KaraokeTimingUnit? in
             guard unit.characterStart >= 0,
-                  unit.characterLength > 0,
-                  unit.characterEnd <= oldCharacters.count else {
+                unit.characterLength > 0,
+                unit.characterEnd <= oldCharacters.count
+            else {
                 return nil
             }
             let oldIndices = Array(unit.characterStart..<unit.characterEnd)
             let mapped = oldIndices.compactMap { mapping[$0] }
             guard mapped.count == oldIndices.count,
-                  zip(mapped, mapped.dropFirst()).allSatisfy({ $1 == $0 + 1 }),
-                  let first = mapped.first else {
+                zip(mapped, mapped.dropFirst()).allSatisfy({ $1 == $0 + 1 }),
+                let first = mapped.first
+            else {
                 return nil
             }
 
@@ -514,11 +576,13 @@ nonisolated struct KaraokeProgram: Codable, Sendable, Equatable, Hashable {
 
         var updated = remapped(to: cueText)
         if updated.units.isEmpty {
-            guard var fallback = Self.evenlyTimed(
-                text: cueText,
-                duration: cueDuration,
-                template: template
-            ) else {
+            guard
+                var fallback = Self.evenlyTimed(
+                    text: cueText,
+                    duration: cueDuration,
+                    template: template
+                )
+            else {
                 return nil
             }
             fallback.isEnabled = isEnabled
@@ -589,13 +653,15 @@ nonisolated struct KaraokeProgram: Codable, Sendable, Equatable, Hashable {
             let rightCount = unit.characterLength - leftCount
             guard leftCount > 0, rightCount > 0 else { continue }
             let duration = max(0, unit.endOffset - unit.startOffset)
-            let proportionalBoundary = unit.startOffset
+            let proportionalBoundary =
+                unit.startOffset
                 + duration * Double(leftCount) / Double(unit.characterLength)
             let boundary = min(
                 max(timeOffset, unit.startOffset),
                 unit.endOffset
             )
-            let resolvedBoundary = boundary > unit.startOffset && boundary < unit.endOffset
+            let resolvedBoundary =
+                boundary > unit.startOffset && boundary < unit.endOffset
                 ? boundary
                 : proportionalBoundary
 
@@ -648,7 +714,8 @@ nonisolated struct KaraokeProgram: Codable, Sendable, Equatable, Hashable {
         let extractedUnits = units.compactMap { unit -> KaraokeTimingUnit? in
             let unitRange = unit.characterStart..<unit.characterEnd
             guard characterRange.contains(unitRange.lowerBound),
-                  characterRange.contains(unitRange.upperBound - 1) else {
+                characterRange.contains(unitRange.upperBound - 1)
+            else {
                 return nil
             }
             var extracted = unit
@@ -694,7 +761,8 @@ nonisolated struct KaraokeProgram: Codable, Sendable, Equatable, Hashable {
         }
         var previousEnd = -Double.infinity
         let requiresRepair = ordered.contains { unit in
-            let invalid = !unit.startOffset.isFinite
+            let invalid =
+                !unit.startOffset.isFinite
                 || !unit.endOffset.isFinite
                 || unit.endOffset <= unit.startOffset
                 || unit.startOffset < 0
@@ -726,7 +794,8 @@ nonisolated struct KaraokeProgram: Codable, Sendable, Equatable, Hashable {
         // then enforce monotonicity in both directions.
         for index in centers.indices {
             let lower = minimumSpacing * (Double(index) + 0.5)
-            let upper = cueDuration
+            let upper =
+                cueDuration
                 - minimumSpacing * (Double(count - index) - 0.5)
             centers[index] = min(max(centers[index], lower), max(lower, upper))
             if index > 0 {
@@ -746,7 +815,8 @@ nonisolated struct KaraokeProgram: Codable, Sendable, Equatable, Hashable {
         }
 
         var boundaries = Array(repeating: 0.0, count: count + 1)
-        let rawFirstStart = ordered[0].startOffset.isFinite
+        let rawFirstStart =
+            ordered[0].startOffset.isFinite
             ? ordered[0].startOffset
             : 0
         boundaries[0] = max(
@@ -755,12 +825,11 @@ nonisolated struct KaraokeProgram: Codable, Sendable, Equatable, Hashable {
         )
         if count > 1 {
             for index in 1..<count {
-                boundaries[index] = (
-                    centers[index - 1] + centers[index]
-                ) / 2
+                boundaries[index] = (centers[index - 1] + centers[index]) / 2
             }
         }
-        let rawLastEnd = ordered[count - 1].endOffset.isFinite
+        let rawLastEnd =
+            ordered[count - 1].endOffset.isFinite
             ? ordered[count - 1].endOffset
             : cueDuration
         boundaries[count] = min(
@@ -808,7 +877,8 @@ nonisolated struct KaraokeProgram: Codable, Sendable, Equatable, Hashable {
         )
         for oldIndex in old.indices.reversed() {
             for newIndex in new.indices.reversed() {
-                lengths[oldIndex][newIndex] = old[oldIndex] == new[newIndex]
+                lengths[oldIndex][newIndex] =
+                    old[oldIndex] == new[newIndex]
                     ? lengths[oldIndex + 1][newIndex + 1] + 1
                     : max(
                         lengths[oldIndex + 1][newIndex],
@@ -888,8 +958,9 @@ nonisolated enum KaraokeTimingDiagnostics {
                 : $0.characterStart < $1.characterStart
         }) {
             guard unit.characterStart >= 0,
-                  unit.characterLength > 0,
-                  unit.characterEnd <= characters.count else {
+                unit.characterLength > 0,
+                unit.characterEnd <= characters.count
+            else {
                 diagnostics.append(
                     KaraokeDiagnostic(
                         code: .invalidCharacterRange,
@@ -917,7 +988,8 @@ nonisolated enum KaraokeTimingDiagnostics {
 
             if !unit.startOffset.isFinite
                 || !unit.endOffset.isFinite
-                || unit.endOffset <= unit.startOffset {
+                || unit.endOffset <= unit.startOffset
+            {
                 diagnostics.append(
                     KaraokeDiagnostic(
                         code: .invalidTime,
@@ -966,7 +1038,8 @@ nonisolated enum KaraokeTimingDiagnostics {
         var furthestEndingUnit: KaraokeTimingUnit?
         for unit in validTimedUnits {
             if let furthestEndingUnit,
-               unit.startOffset < furthestEndingUnit.endOffset - 0.000_001 {
+                unit.startOffset < furthestEndingUnit.endOffset - 0.000_001
+            {
                 diagnostics.append(
                     KaraokeDiagnostic(
                         code: .overlappingTime,
@@ -977,7 +1050,8 @@ nonisolated enum KaraokeTimingDiagnostics {
                 )
             }
             if furthestEndingUnit == nil
-                || unit.endOffset > (furthestEndingUnit?.endOffset ?? -.infinity) {
+                || unit.endOffset > (furthestEndingUnit?.endOffset ?? -.infinity)
+            {
                 furthestEndingUnit = unit
             }
         }

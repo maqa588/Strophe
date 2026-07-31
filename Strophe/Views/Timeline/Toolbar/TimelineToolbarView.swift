@@ -8,17 +8,16 @@
 import SwiftUI
 import Combine
 #if os(iOS)
-import UIKit
+    import UIKit
 #endif
 
-/// 时间轴上方独立的自定义功能工具栏
 struct TimelineToolbarView: View {
     let project: SubtitleProject
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
-    
+
     // Dynamic available width state to achieve fluid cross-platform responsiveness
     @State var availableWidth: CGFloat = 800
-    
+
     var isCompact: Bool {
         return availableWidth < 720
     }
@@ -26,7 +25,7 @@ struct TimelineToolbarView: View {
     var isVeryCompact: Bool {
         return availableWidth < 430
     }
-    
+
     // Local state variables for layout and rendering, keeping body evaluations isolated
     @State var targetSpeed: Double = 1.0
     @State var showSoftSubtitles: Bool = false
@@ -40,7 +39,7 @@ struct TimelineToolbarView: View {
     @State var isScrubbing: Bool = false
     @State var isSeeking: Bool = false
     @State var isEditingText: Bool = false
-    
+
     @State var showSoftSubtitlesTip = false
     @State var showHardSubtitlesTip = false
     @State var showSelectionTip = false
@@ -48,8 +47,8 @@ struct TimelineToolbarView: View {
     @State var showSplitTip = false
     @State var showMergeTip = false
     @State var showKaraokeTip = false
-    
-    // 用于 macOS 鼠标延时悬浮（0.5秒）的取消型 Task 实例
+
+    // Hover tasks are cancelled if the pointer leaves before the delay.
     @State var softSubtitlesHoverTask: Task<Void, Never>? = nil
     @State var hardSubtitlesHoverTask: Task<Void, Never>? = nil
     @State var selectionHoverTask: Task<Void, Never>? = nil
@@ -60,12 +59,11 @@ struct TimelineToolbarView: View {
     @State var canEditKaraoke = false
     @State var isKaraokeEditorActive = false
     @State var selectedSubtitleCount = 0
-    
-    // 切分/合并操作状态
+
     @State var splitRequest: SplitRequest? = nil
     @State var mergeErrorMessage: String? = nil
     @State var splitErrorMessage: String? = nil
-    
+
     var body: some View {
         VStack(spacing: isCompact ? 8 : 0) {
             if isCompact {
@@ -73,23 +71,23 @@ struct TimelineToolbarView: View {
                 if videoURL != nil {
                     HStack {
                         #if !os(watchOS)
-                        AirPlayRoutePicker()
-                            .frame(width: 24, height: 24)
+                            AirPlayRoutePicker()
+                                .frame(width: 24, height: 24)
                         #endif
-                        
+
                         Spacer()
-                        
+
                         playbackControls
-                        
+
                         Spacer()
-                        
-                        // Balance empty spacer to center the playback controls perfectly
+
+                        // Balance the leading controls so playback controls remain centered.
                         Spacer()
                             .frame(width: 24)
                     }
                     .padding(.bottom, 2)
                 }
-                
+
                 HStack(spacing: isVeryCompact ? 6 : 10) {
                     mediaInfoSection
                     Spacer(minLength: isVeryCompact ? 4 : 8)
@@ -100,23 +98,23 @@ struct TimelineToolbarView: View {
                 HStack {
                     HStack(spacing: 8) {
                         #if !os(watchOS)
-                        if videoURL != nil {
-                            AirPlayRoutePicker()
-                                .frame(width: 24, height: 24)
-                        }
+                            if videoURL != nil {
+                                AirPlayRoutePicker()
+                                    .frame(width: 24, height: 24)
+                            }
                         #endif
                         mediaInfoSection
                     }
                     .fixedSize(horizontal: true, vertical: false)
-                    
+
                     Spacer()
-                    
+
                     if videoURL != nil {
                         playbackControls
                     }
-                    
+
                     Spacer()
-                    
+
                     editingModeControls
                         .fixedSize(horizontal: true, vertical: false)
                 }
@@ -152,24 +150,30 @@ struct TimelineToolbarView: View {
                 onDismiss: { splitRequest = nil }
             )
         }
-        .alert(String(localized: "cannot_split"), isPresented: Binding(
-            get: { splitErrorMessage != nil },
-            set: { if !$0 { splitErrorMessage = nil } }
-        )) {
+        .alert(
+            String(localized: "cannot_split"),
+            isPresented: Binding(
+                get: { splitErrorMessage != nil },
+                set: { if !$0 { splitErrorMessage = nil } }
+            )
+        ) {
             Button(String(localized: "ok_1"), role: .cancel) { splitErrorMessage = nil }
         } message: {
             Text(splitErrorMessage ?? "")
         }
-        .alert(String(localized: "cannot_merge"), isPresented: Binding(
-            get: { mergeErrorMessage != nil },
-            set: { if !$0 { mergeErrorMessage = nil } }
-        )) {
+        .alert(
+            String(localized: "cannot_merge"),
+            isPresented: Binding(
+                get: { mergeErrorMessage != nil },
+                set: { if !$0 { mergeErrorMessage = nil } }
+            )
+        ) {
             Button(String(localized: "ok_1"), role: .cancel) { mergeErrorMessage = nil }
         } message: {
             Text(mergeErrorMessage ?? "")
         }
     }
-    
+
     func syncStateFromProject() {
         if targetSpeed != project.targetSpeed {
             targetSpeed = project.targetSpeed

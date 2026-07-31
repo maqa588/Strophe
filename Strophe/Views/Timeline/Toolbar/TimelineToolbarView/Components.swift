@@ -8,13 +8,12 @@
 import SwiftUI
 import Combine
 #if os(iOS)
-import UIKit
+    import UIKit
 #endif
 
-/// 时间轴上方独立的自定义功能工具栏
 extension TimelineToolbarView {
     // MARK: - Extracted Components
-    
+
     @ViewBuilder
     var mediaInfoSection: some View {
         HStack(spacing: 6) {
@@ -23,14 +22,14 @@ extension TimelineToolbarView {
                     .font(.caption.bold())
                     .foregroundStyle(.secondary)
             }
-            
+
             if videoURL != nil {
                 if isAudioOnly {
                     let sampleRate = waveformData?.sampleRate ?? 44100.0
                     let khz = sampleRate / 1000.0
                     let isWhole = abs(khz - khz.rounded()) < 0.001
                     let rateString = isWhole ? "\(Int(khz)) kHz" : String(format: "%.1f kHz", khz)
-                    
+
                     Text(rateString)
                         .timelineInfoBadge(isCompact: isVeryCompact)
                 } else {
@@ -47,7 +46,7 @@ extension TimelineToolbarView {
                             return isWhole ? "\(Int(displayFPS.rounded())) fps" : String(format: "%.3f fps", displayFPS)
                         }
                     }()
-                    
+
                     Text(fpsString)
                         .timelineInfoBadge(isCompact: isVeryCompact)
                 }
@@ -98,7 +97,7 @@ extension TimelineToolbarView {
         let hours = totalMinutes / 60
         return String(format: "%02d:%02d:%02d.%03d", hours, minutes, seconds, milliseconds)
     }
-    
+
     @ViewBuilder
     var playbackControls: some View {
         if #available(anyAppleOS 26.0, *) {
@@ -116,7 +115,7 @@ extension TimelineToolbarView {
 
                     BoundarySeekButton(icon: "gobackward", direction: .left, project: project)
                         .glassEffect(.regular.interactive())
-                    
+
                     Button(action: { project.togglePlayback() }) {
                         Image(systemName: playbackRate > 0 ? "pause.fill" : "play.fill")
                             .font(.body.weight(.bold))
@@ -165,13 +164,12 @@ extension TimelineToolbarView {
             )
         }
     }
-    
+
     @ViewBuilder
     var editingModeControls: some View {
         if #available(anyAppleOS 26.0, *) {
             GlassEffectContainer(spacing: 12) {
                 HStack(spacing: 0) {
-                    // ── 切分按钮 ──
                     Button(action: { handleSplitAction() }) {
                         Image(systemName: "scissors")
                             .font(.body.weight(.medium))
@@ -182,14 +180,18 @@ extension TimelineToolbarView {
                     .keyboardShortcutIf(!isEditingText, "x", modifiers: [.option])
                     .glassEffect(.regular.interactive())
                     .popover(isPresented: $showSplitTip, arrowEdge: .top) {
-                        RichTooltipView(icon: "scissors", title: String(localized: "split_subtitles"), message: String(localized: "use_the_playhead_as_the"), shortcut: "⌥X")
+                        RichTooltipView(
+                            icon: "scissors", title: String(localized: "split_subtitles"),
+                            message: String(localized: "use_the_playhead_as_the"), shortcut: "⌥X")
                     }
-                    .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
-                        #if os(iOS)
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        #endif
-                        showSplitTip = true
-                    })
+                    .highPriorityGesture(
+                        LongPressGesture(minimumDuration: 0.3).onEnded { _ in
+                            #if os(iOS)
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            #endif
+                            showSplitTip = true
+                        }
+                    )
                     .onHover { hovering in
                         splitHoverTask?.cancel()
                         if hovering {
@@ -197,10 +199,11 @@ extension TimelineToolbarView {
                                 try? await Task.sleep(nanoseconds: 500_000_000)
                                 if !Task.isCancelled { showSplitTip = true }
                             }
-                        } else { showSplitTip = false }
+                        } else {
+                            showSplitTip = false
+                        }
                     }
 
-                    // ── 合并按钮 ──
                     Button(action: { handleMergeAction() }) {
                         Image(systemName: "arrow.down.right.and.arrow.up.left")
                             .font(.body.weight(.medium))
@@ -211,14 +214,18 @@ extension TimelineToolbarView {
                     .keyboardShortcutIf(!isEditingText, "m", modifiers: [.option])
                     .glassEffect(.regular.interactive())
                     .popover(isPresented: $showMergeTip, arrowEdge: .top) {
-                        RichTooltipView(icon: "arrow.down.right.and.arrow.up.left", title: String(localized: "merge_subtitles"), message: String(localized: "merge_the_selected_consecutive_subtitle"), shortcut: "⌥M")
+                        RichTooltipView(
+                            icon: "arrow.down.right.and.arrow.up.left", title: String(localized: "merge_subtitles"),
+                            message: String(localized: "merge_the_selected_consecutive_subtitle"), shortcut: "⌥M")
                     }
-                    .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
-                        #if os(iOS)
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        #endif
-                        showMergeTip = true
-                    })
+                    .highPriorityGesture(
+                        LongPressGesture(minimumDuration: 0.3).onEnded { _ in
+                            #if os(iOS)
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            #endif
+                            showMergeTip = true
+                        }
+                    )
                     .onHover { hovering in
                         mergeHoverTask?.cancel()
                         if hovering {
@@ -226,10 +233,11 @@ extension TimelineToolbarView {
                                 try? await Task.sleep(nanoseconds: 500_000_000)
                                 if !Task.isCancelled { showMergeTip = true }
                             }
-                        } else { showMergeTip = false }
+                        } else {
+                            showMergeTip = false
+                        }
                     }
 
-                    // ── 软字幕预览按钮 ──
                     Button(action: { project.showSoftSubtitles.toggle() }) {
                         Image(systemName: showSoftSubtitles ? "captions.bubble.fill" : "captions.bubble")
                             .font(.body.weight(.medium))
@@ -240,14 +248,18 @@ extension TimelineToolbarView {
                     .keyboardShortcutIf(!isEditingText, "s", modifiers: [.option])
                     .glassEffect(.regular.interactive())
                     .popover(isPresented: $showSoftSubtitlesTip, arrowEdge: .top) {
-                        RichTooltipView(icon: "captions.bubble", title: String(localized: "soft_subtitle_preview"), message: String(localized: "click_to_toggle_real_time"), shortcut: "⌥S")
+                        RichTooltipView(
+                            icon: "captions.bubble", title: String(localized: "soft_subtitle_preview"),
+                            message: String(localized: "click_to_toggle_real_time"), shortcut: "⌥S")
                     }
-                    .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
-                        #if os(iOS)
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        #endif
-                        showSoftSubtitlesTip = true
-                    })
+                    .highPriorityGesture(
+                        LongPressGesture(minimumDuration: 0.3).onEnded { _ in
+                            #if os(iOS)
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            #endif
+                            showSoftSubtitlesTip = true
+                        }
+                    )
                     .onHover { hovering in
                         softSubtitlesHoverTask?.cancel()
                         if hovering {
@@ -255,10 +267,11 @@ extension TimelineToolbarView {
                                 try? await Task.sleep(nanoseconds: 500_000_000)
                                 if !Task.isCancelled { showSoftSubtitlesTip = true }
                             }
-                        } else { showSoftSubtitlesTip = false }
+                        } else {
+                            showSoftSubtitlesTip = false
+                        }
                     }
 
-                    // ── 硬字幕预览按钮 ──
                     Button(action: { project.showHardSubtitles.toggle() }) {
                         Image(systemName: "list.and.film")
                             .font(.body.weight(.medium))
@@ -269,14 +282,18 @@ extension TimelineToolbarView {
                     .keyboardShortcutIf(!isEditingText, "h", modifiers: [.option])
                     .glassEffect(.regular.interactive())
                     .popover(isPresented: $showHardSubtitlesTip, arrowEdge: .top) {
-                        RichTooltipView(icon: "list.and.film", title: String(localized: "hard_subtitle_preview"), message: String(localized: "click_to_turn_onoff_the"), shortcut: "⌥H")
+                        RichTooltipView(
+                            icon: "list.and.film", title: String(localized: "hard_subtitle_preview"),
+                            message: String(localized: "click_to_turn_onoff_the"), shortcut: "⌥H")
                     }
-                    .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
-                        #if os(iOS)
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        #endif
-                        showHardSubtitlesTip = true
-                    })
+                    .highPriorityGesture(
+                        LongPressGesture(minimumDuration: 0.3).onEnded { _ in
+                            #if os(iOS)
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            #endif
+                            showHardSubtitlesTip = true
+                        }
+                    )
                     .onHover { hovering in
                         hardSubtitlesHoverTask?.cancel()
                         if hovering {
@@ -284,10 +301,11 @@ extension TimelineToolbarView {
                                 try? await Task.sleep(nanoseconds: 500_000_000)
                                 if !Task.isCancelled { showHardSubtitlesTip = true }
                             }
-                        } else { showHardSubtitlesTip = false }
+                        } else {
+                            showHardSubtitlesTip = false
+                        }
                     }
 
-                    // ── 卡拉 OK 编辑按钮 ──
                     Button(action: { project.toggleKaraokeEditorForSelection() }) {
                         Image(systemName: "music.note.list")
                             .font(.body.weight(.medium))
@@ -311,12 +329,14 @@ extension TimelineToolbarView {
                         )
                         .accessibilityIdentifier("karaokeModeTooltip")
                     }
-                    .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
-                        #if os(iOS)
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        #endif
-                        showKaraokeTip = true
-                    })
+                    .highPriorityGesture(
+                        LongPressGesture(minimumDuration: 0.3).onEnded { _ in
+                            #if os(iOS)
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            #endif
+                            showKaraokeTip = true
+                        }
+                    )
                     .onHover { hovering in
                         karaokeHoverTask?.cancel()
                         if hovering {
@@ -324,7 +344,9 @@ extension TimelineToolbarView {
                                 try? await Task.sleep(nanoseconds: 500_000_000)
                                 if !Task.isCancelled { showKaraokeTip = true }
                             }
-                        } else { showKaraokeTip = false }
+                        } else {
+                            showKaraokeTip = false
+                        }
                     }
 
                     Button(action: { project.editingMode = .selection }) {
@@ -337,14 +359,18 @@ extension TimelineToolbarView {
                     .keyboardShortcutIf(!isEditingText, "v", modifiers: [])
                     .glassEffect(.regular.interactive())
                     .popover(isPresented: $showSelectionTip, arrowEdge: .top) {
-                        RichTooltipView(icon: "cursorarrow", title: String(localized: "selection_tool"), message: String(localized: "edit_script_text_drag_timeline"), shortcut: "V")
+                        RichTooltipView(
+                            icon: "cursorarrow", title: String(localized: "selection_tool"),
+                            message: String(localized: "edit_script_text_drag_timeline"), shortcut: "V")
                     }
-                    .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
-                        #if os(iOS)
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        #endif
-                        showSelectionTip = true
-                    })
+                    .highPriorityGesture(
+                        LongPressGesture(minimumDuration: 0.3).onEnded { _ in
+                            #if os(iOS)
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            #endif
+                            showSelectionTip = true
+                        }
+                    )
                     .onHover { hovering in
                         selectionHoverTask?.cancel()
                         if hovering {
@@ -352,7 +378,9 @@ extension TimelineToolbarView {
                                 try? await Task.sleep(nanoseconds: 500_000_000)
                                 if !Task.isCancelled { showSelectionTip = true }
                             }
-                        } else { showSelectionTip = false }
+                        } else {
+                            showSelectionTip = false
+                        }
                     }
 
                     Button(action: { project.editingMode = .creation }) {
@@ -365,14 +393,18 @@ extension TimelineToolbarView {
                     .keyboardShortcutIf(!isEditingText, "d", modifiers: [])
                     .glassEffect(.regular.interactive())
                     .popover(isPresented: $showCreationTip, arrowEdge: .top) {
-                        RichTooltipView(icon: "hand.draw", title: String(localized: "quick_creation_slap_tool"), message: String(localized: "drag_timeline_to_create_subtitle"), shortcut: "D")
+                        RichTooltipView(
+                            icon: "hand.draw", title: String(localized: "quick_creation_slap_tool"),
+                            message: String(localized: "drag_timeline_to_create_subtitle"), shortcut: "D")
                     }
-                    .highPriorityGesture(LongPressGesture(minimumDuration: 0.3).onEnded { _ in
-                        #if os(iOS)
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        #endif
-                        showCreationTip = true
-                    })
+                    .highPriorityGesture(
+                        LongPressGesture(minimumDuration: 0.3).onEnded { _ in
+                            #if os(iOS)
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            #endif
+                            showCreationTip = true
+                        }
+                    )
                     .onHover { hovering in
                         creationHoverTask?.cancel()
                         if hovering {
@@ -380,7 +412,9 @@ extension TimelineToolbarView {
                                 try? await Task.sleep(nanoseconds: 500_000_000)
                                 if !Task.isCancelled { showCreationTip = true }
                             }
-                        } else { showCreationTip = false }
+                        } else {
+                            showCreationTip = false
+                        }
                     }
                 }
             }
@@ -410,5 +444,5 @@ extension TimelineToolbarView {
             )
         }
     }
-    
+
 }

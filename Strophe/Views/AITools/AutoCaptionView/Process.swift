@@ -8,43 +8,43 @@
 import SwiftUI
 
 extension AutoCaptionView {
-    
+
     @ViewBuilder
     var runningStateView: some View {
         VStack(spacing: 32) {
             Spacer()
-            
+
             // Modern floating processing circle
             ZStack {
                 Circle()
                     .stroke(Color.stropheBorder, lineWidth: 8)
                     .frame(width: 140, height: 140)
-                
+
                 Circle()
                     .trim(from: 0, to: CGFloat(stepProgress))
                     .stroke(
-                        AngularGradient(colors: [Color.stropheAccent, Color.stropheAccent.opacity(0.3)], center: .center),
+                        AngularGradient(
+                            colors: [Color.stropheAccent, Color.stropheAccent.opacity(0.3)], center: .center),
                         style: StrokeStyle(lineWidth: 8, lineCap: .round)
                     )
                     .rotationEffect(.degrees(-90))
                     .frame(width: 140, height: 140)
                     .animation(.easeInOut, value: stepProgress)
-                
+
                 VStack(spacing: 4) {
                     Text(stepProgress, format: .percent.precision(.fractionLength(0)))
                         .font(.system(size: 28, weight: .bold, design: .rounded))
                         .foregroundStyle(Color.stropheText)
-                    
+
                     Text("progress_label")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
             }
-            
-            // Steps layout - 对应本地 Golden Pipeline 或云端识别流程
+
             VStack(alignment: .leading, spacing: 14) {
                 let stepTitles = runningStepTitles
-                
+
                 ForEach(stepTitles.indices, id: \.self) { index in
                     HStack(spacing: 12) {
                         ZStack {
@@ -61,7 +61,7 @@ extension AutoCaptionView {
                             }
                         }
                         .frame(width: 20, height: 20)
-                        
+
                         Text(stepTitles[index])
                             .font(.subheadline)
                             .foregroundStyle(currentStep == index ? Color.stropheText : .secondary)
@@ -71,14 +71,14 @@ extension AutoCaptionView {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 36)
-            
+
             // Status Info
             Text(statusMessage)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
-            
+
             Spacer()
         }
         .padding(.vertical, 24)
@@ -113,7 +113,7 @@ extension AutoCaptionView {
                 step(1, localized("process_extract_16k_audio")),
                 step(2, localized("process_cloud_upload")),
                 step(3, cloudRecognition),
-                step(4, localized("process_write_timeline"))
+                step(4, localized("process_write_timeline")),
             ]
         case .local:
             let preprocessingTitle: String = {
@@ -127,7 +127,7 @@ extension AutoCaptionView {
                 return [
                     preprocessingTitle,
                     modelStep(2),
-                    step(3, localized("process_subtitle_output"))
+                    step(3, localized("process_subtitle_output")),
                 ]
             }
             if enableDiarization {
@@ -135,18 +135,18 @@ extension AutoCaptionView {
                     preprocessingTitle,
                     modelStep(2),
                     step(3, localized("process_forced_alignment")),
-                    step(4, localized("process_speaker_diarization"))
+                    step(4, localized("process_speaker_diarization")),
                 ]
             }
             return [
                 preprocessingTitle,
                 modelStep(2),
                 step(3, localized("process_forced_alignment")),
-                step(4, localized("process_subtitle_output"))
+                step(4, localized("process_subtitle_output")),
             ]
         }
     }
-    
+
     // Execution methods are in Process+Execution.swift
 
     func subtitleItems(
@@ -156,14 +156,14 @@ extension AutoCaptionView {
         results.enumerated().compactMap { index, seg -> SubtitleItem? in
             let cleaned = cleanSubtitleText(seg.text)
 
-            // 去除可能存在的说话人标签后再检查是否为空
+            // A speaker prefix alone is not a meaningful subtitle cue.
             var textWithoutSpeaker = cleaned
             if textWithoutSpeaker.hasPrefix("["), let endBracket = textWithoutSpeaker.firstIndex(of: "]") {
                 let startIndex = textWithoutSpeaker.index(after: endBracket)
-                textWithoutSpeaker = String(textWithoutSpeaker[startIndex...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                textWithoutSpeaker = String(textWithoutSpeaker[startIndex...]).trimmingCharacters(
+                    in: .whitespacesAndNewlines)
             }
 
-            // 如果字幕块最终只有“嗯啊呃”或标点符号（即剥离说话人标签后为空），则丢弃该字幕块
             if textWithoutSpeaker.isEmpty {
                 return nil
             }
@@ -175,7 +175,8 @@ extension AutoCaptionView {
                 cueEndTime: seg.endTime,
                 isEnabled: karaokeEnabled
             )
-            let karaoke = alignedKaraoke
+            let karaoke =
+                alignedKaraoke
                 ?? (karaokeEnabled
                     ? KaraokeProgram.evenlyTimed(
                         text: cleaned,

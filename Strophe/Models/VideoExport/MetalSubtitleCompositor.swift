@@ -39,10 +39,13 @@ nonisolated final class MetalSubtitleCompositor: @unchecked Sendable {
         self.overlays = overlays
         let options: [CIContextOption: Any] = [
             .workingColorSpace: outputColorProfile.workingColorSpace,
-            .outputPremultiplied: true
+            .outputPremultiplied: true,
         ]
-        if let device {
-            context = CIContext(mtlDevice: device, options: options)
+        if let device, let commandQueue = device.makeCommandQueue() {
+            commandQueue.label = "com.strophe.export.core-image"
+            // A queue-backed context lets startTask enqueue GPU work and return
+            // while the CPU prepares the following frame.
+            context = CIContext(mtlCommandQueue: commandQueue, options: options)
         } else {
             context = CIContext(options: options)
         }
@@ -56,6 +59,28 @@ nonisolated final class MetalSubtitleCompositor: @unchecked Sendable {
         preferredTransform: CGAffineTransform,
         sourceDisplaySize: CGSize? = nil
     ) throws {
+        let task = try startRender(
+            sourcePixelBuffer: sourcePixelBuffer,
+            outputPixelBuffer: outputPixelBuffer,
+            scene: scene,
+            renderSize: renderSize,
+            preferredTransform: preferredTransform,
+            sourceDisplaySize: sourceDisplaySize
+        )
+        _ = try task.waitUntilCompleted()
+    }
+
+    /// Enqueues composition on the Metal-backed Core Image context without
+    /// blocking the caller. The returned task is the GPU fence that must finish
+    /// before the destination is appended to AVAssetWriter.
+    func startRender(
+        sourcePixelBuffer: CVPixelBuffer,
+        outputPixelBuffer: CVPixelBuffer,
+        scene: SubtitleFrameScene,
+        renderSize: CGSize,
+        preferredTransform: CGAffineTransform,
+        sourceDisplaySize: CGSize? = nil
+    ) throws -> CIRenderTask {
         let bounds = CGRect(origin: .zero, size: renderSize)
         var output: CIImage
         if rendersTransparentBackground {
@@ -64,7 +89,8 @@ nonisolated final class MetalSubtitleCompositor: @unchecked Sendable {
             ).cropped(to: bounds)
         } else {
             let sourceProfile = VideoColorProfile.detect(in: sourcePixelBuffer)
-            let imageOptions: [CIImageOption: Any] = outputColorProfile.isHDR
+            let imageOptions: [CIImageOption: Any] =
+                outputColorProfile.isHDR
                 ? [:]
                 : [.toneMapHDRtoSDR: sourceProfile.isHDR]
             var image = CIImage(cvPixelBuffer: sourcePixelBuffer, options: imageOptions)
@@ -74,10 +100,11 @@ nonisolated final class MetalSubtitleCompositor: @unchecked Sendable {
             }
 
             if let sourceDisplaySize,
-               sourceDisplaySize.width > 0,
-               sourceDisplaySize.height > 0,
-               image.extent.width > 0,
-               image.extent.height > 0 {
+                sourceDisplaySize.width > 0,
+                sourceDisplaySize.height > 0,
+                image.extent.width > 0,
+                image.extent.height > 0
+            {
                 let scaleX = sourceDisplaySize.width / image.extent.width
                 let scaleY = sourceDisplaySize.height / image.extent.height
                 image = image.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
@@ -91,11 +118,13 @@ nonisolated final class MetalSubtitleCompositor: @unchecked Sendable {
         }
 
         for item in scene.items {
-            guard var overlay = subtitleCIImage(
-                for: item.cue,
-                presentationTime: scene.presentationTime,
-                canvasSize: renderSize
-            ) else {
+            guard
+                var overlay = subtitleCIImage(
+                    for: item.cue,
+                    presentationTime: scene.presentationTime,
+                    canvasSize: renderSize
+                )
+            else {
                 continue
             }
 
@@ -121,16 +150,13 @@ nonisolated final class MetalSubtitleCompositor: @unchecked Sendable {
             output = overlay.composited(over: output)
         }
 
-        context.render(
-            output,
-            to: outputPixelBuffer,
-            bounds: bounds,
-            colorSpace: outputColorProfile.outputColorSpace
-        )
         outputColorProfile.attachColorMetadata(
             to: outputPixelBuffer,
             copyingStaticHDRMetadataFrom: sourcePixelBuffer
         )
+        let destination = CIRenderDestination(pixelBuffer: outputPixelBuffer)
+        destination.colorSpace = outputColorProfile.outputColorSpace
+        return try context.startTask(toRender: output, to: destination)
     }
 
     func makeFrameScene(
@@ -161,7 +187,11 @@ nonisolated final class MetalSubtitleCompositor: @unchecked Sendable {
         if !overlays.watermarkText.isEmpty {
             cues.append(
                 ResolvedSubtitleCue(
-                    id: UUID(uuid: (0x53, 0x54, 0x52, 0x4F, 0x50, 0x48, 0x45, 0x57, 0x41, 0x54, 0x45, 0x52, 0x4D, 0x41, 0x52, 0x4B)),
+                    id: UUID(
+                        uuid: (
+                            0x53, 0x54, 0x52, 0x4F, 0x50, 0x48, 0x45, 0x57, 0x41, 0x54, 0x45, 0x52, 0x4D, 0x41, 0x52,
+                            0x4B
+                        )),
                     text: overlays.watermarkText,
                     startTime: -.greatestFiniteMagnitude,
                     endTime: .greatestFiniteMagnitude,
@@ -174,12 +204,17 @@ nonisolated final class MetalSubtitleCompositor: @unchecked Sendable {
             )
         }
         if overlays.burnsTimecode {
-            let time = overlays.timecodeStartsAtZero
+            let time =
+                overlays.timecodeStartsAtZero
                 ? max(0, presentationTime - overlays.timelineStartSeconds)
                 : max(0, presentationTime)
             cues.append(
                 ResolvedSubtitleCue(
-                    id: UUID(uuid: (0x53, 0x54, 0x52, 0x4F, 0x50, 0x48, 0x45, 0x54, 0x49, 0x4D, 0x45, 0x43, 0x4F, 0x44, 0x45, 0x31)),
+                    id: UUID(
+                        uuid: (
+                            0x53, 0x54, 0x52, 0x4F, 0x50, 0x48, 0x45, 0x54, 0x49, 0x4D, 0x45, 0x43, 0x4F, 0x44, 0x45,
+                            0x31
+                        )),
                     text: timecode(seconds: time, frameRate: overlays.frameRate),
                     startTime: -.greatestFiniteMagnitude,
                     endTime: .greatestFiniteMagnitude,
@@ -379,12 +414,14 @@ nonisolated enum SubtitleBitmapRenderer {
         anchor: SubtitleStyle.Alignment,
         canvasSize: CGSize
     ) -> RenderedBitmap? {
-        guard let layout = makeLayout(
-            text: text,
-            style: style,
-            anchor: anchor,
-            canvasSize: canvasSize
-        ) else {
+        guard
+            let layout = makeLayout(
+                text: text,
+                style: style,
+                anchor: anchor,
+                canvasSize: canvasSize
+            )
+        else {
             return nil
         }
 
@@ -421,21 +458,25 @@ nonisolated enum SubtitleBitmapRenderer {
         ) {
             inactiveStyle.textColor = inactive
         }
-        guard let layout = makeLayout(
-            text: cue.text,
-            style: inactiveStyle,
-            anchor: cue.resolvedAnchor,
-            canvasSize: canvasSize
-        ), let baseImage = makeBaseImage(
-            layout: layout,
-            style: inactiveStyle
-        ) else {
+        guard
+            let layout = makeLayout(
+                text: cue.text,
+                style: inactiveStyle,
+                anchor: cue.resolvedAnchor,
+                canvasSize: canvasSize
+            ),
+            let baseImage = makeBaseImage(
+                layout: layout,
+                style: inactiveStyle
+            )
+        else {
             return nil
         }
 
-        let activeColor = ResolvedRGBAColor(
-            hex: renderProgram.template.activeColorHex
-        ) ?? cue.style.textColor
+        let activeColor =
+            ResolvedRGBAColor(
+                hex: renderProgram.template.activeColorHex
+            ) ?? cue.style.textColor
         let rawLayers = units.compactMap {
             makeKaraokeUnitLayer(
                 unit: $0,
@@ -450,12 +491,14 @@ nonisolated enum SubtitleBitmapRenderer {
         // Pop scales a complete timing unit, so its maximum excursion depends
         // on the actual shaped word width—not merely the font size. Glow is
         // applied after Pop and therefore its blur support must be added.
-        let maxUnitWidth = rawLayers.map {
-            Double($0.image.width)
-        }.max() ?? 0
-        let maxUnitHeight = rawLayers.map {
-            Double($0.image.height)
-        }.max() ?? 0
+        let maxUnitWidth =
+            rawLayers.map {
+                Double($0.image.width)
+            }.max() ?? 0
+        let maxUnitHeight =
+            rawLayers.map {
+                Double($0.image.height)
+            }.max() ?? 0
         let effectPadding = CGFloat(
             renderProgram.template.maximumOutset(
                 maxUnitWidth: maxUnitWidth,
@@ -505,7 +548,8 @@ nonisolated enum SubtitleBitmapRenderer {
         let width = Int(layout.baseSize.width)
         let height = Int(layout.baseSize.height)
         guard width > 0, height > 0,
-              let context = makeBitmapContext(width: width, height: height) else {
+            let context = makeBitmapContext(width: width, height: height)
+        else {
             return nil
         }
 
@@ -594,11 +638,13 @@ nonisolated enum SubtitleBitmapRenderer {
         activeColor: ResolvedRGBAColor,
         effectPadding: CGFloat
     ) -> KaraokeUnitLayer? {
-        guard let utf16Range = utf16Range(
-            characterStart: unit.characterStart,
-            characterLength: unit.characterLength,
-            in: text
-        ) else {
+        guard
+            let utf16Range = utf16Range(
+                characterStart: unit.characterStart,
+                characterLength: unit.characterLength,
+                in: text
+            )
+        else {
             return nil
         }
         let geometry = karaokeGeometry(
@@ -611,14 +657,16 @@ nonisolated enum SubtitleBitmapRenderer {
         let rawBounds = geometry.rects.reduce(CGRect.null) {
             $0.union($1)
         }
-        let bounds = rawBounds
+        let bounds =
+            rawBounds
             .insetBy(dx: -2, dy: -2)
             .intersection(CGRect(origin: .zero, size: layout.baseSize))
             .integral
         let width = Int(bounds.width)
         let height = Int(bounds.height)
         guard width > 0, height > 0,
-              let context = makeBitmapContext(width: width, height: height) else {
+            let context = makeBitmapContext(width: width, height: height)
+        else {
             return nil
         }
 
@@ -715,7 +763,7 @@ nonisolated enum SubtitleBitmapRenderer {
                 primaryStart,
                 secondaryStart,
                 primaryEnd,
-                secondaryEnd
+                secondaryEnd,
             ]
             let minX = offsets.min() ?? primaryStart
             let maxX = offsets.max() ?? primaryEnd
@@ -765,8 +813,9 @@ nonisolated enum SubtitleBitmapRenderer {
     ) -> NSRange? {
         let characters = Array(text)
         guard characterStart >= 0,
-              characterLength > 0,
-              characterStart + characterLength <= characters.count else {
+            characterLength > 0,
+            characterStart + characterLength <= characters.count
+        else {
             return nil
         }
         let prefix = String(characters.prefix(characterStart))
@@ -815,7 +864,7 @@ nonisolated enum SubtitleBitmapRenderer {
             .font: font,
             .foregroundColor: style.textColor.cgColor,
             .paragraphStyle: paragraph,
-            .kern: style.characterSpacing * scale
+            .kern: style.characterSpacing * scale,
         ]
         if style.isUnderline {
             attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
@@ -893,15 +942,17 @@ nonisolated enum SubtitleBitmapRenderer {
         let outputWidth = Int(geometry.metrics.size.width)
         let outputHeight = Int(geometry.metrics.size.height)
 
-        guard let context = CGContext(
-            data: nil,
-            width: outputWidth,
-            height: outputHeight,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else {
+        guard
+            let context = CGContext(
+                data: nil,
+                width: outputWidth,
+                height: outputHeight,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
+        else {
             return nil
         }
 
@@ -955,17 +1006,19 @@ nonisolated enum SubtitleBitmapRenderer {
         anchor: SubtitleStyle.Alignment,
         explicitSourceAnchor: CGPoint? = nil
     ) -> TransformedGeometry {
-        let anchorSource = explicitSourceAnchor ?? sourceAnchor(
-            for: anchor,
-            sourceSize: sourceSize
-        )
+        let anchorSource =
+            explicitSourceAnchor
+            ?? sourceAnchor(
+                for: anchor,
+                sourceSize: sourceSize
+            )
         let cosine = cos(radians)
         let sine = sin(radians)
         let corners = [
             CGPoint(x: 0, y: 0),
             CGPoint(x: sourceSize.width, y: 0),
             CGPoint(x: 0, y: sourceSize.height),
-            CGPoint(x: sourceSize.width, y: sourceSize.height)
+            CGPoint(x: sourceSize.width, y: sourceSize.height),
         ].map { point -> CGPoint in
             let scaledX = (point.x - anchorSource.x) * scaleX
             let scaledY = (point.y - anchorSource.y) * scaleY
@@ -1042,7 +1095,8 @@ nonisolated enum SubtitleBitmapRenderer {
         if let fontName = style.fontName, !fontName.isEmpty {
             base = CTFontCreateWithName(fontName as CFString, size, nil)
         } else {
-            base = CTFontCreateUIFontForLanguage(style.isBold ? .emphasizedSystem : .system, size, nil)
+            base =
+                CTFontCreateUIFontForLanguage(style.isBold ? .emphasizedSystem : .system, size, nil)
                 ?? CTFontCreateWithName("Helvetica" as CFString, size, nil)
         }
 
@@ -1083,7 +1137,7 @@ nonisolated enum SubtitleBitmapRenderer {
             CGPoint(x: -radius * 0.72, y: -radius * 0.72),
             CGPoint(x: radius * 0.72, y: -radius * 0.72),
             CGPoint(x: -radius * 0.72, y: radius * 0.72),
-            CGPoint(x: radius * 0.72, y: radius * 0.72)
+            CGPoint(x: radius * 0.72, y: radius * 0.72),
         ]
 
         for offset in offsets {

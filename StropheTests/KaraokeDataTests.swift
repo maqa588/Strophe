@@ -21,18 +21,18 @@ final class KaraokeDataTests: XCTestCase {
     @MainActor
     func testCloudSentenceSegmentsRetainWordTimestamps() throws {
         let json = """
-        {
-          "status": "success",
-          "model": "qwen3-asr-1.7b",
-          "timestamps_sentence": [
-            {"start": 10.0, "end": 11.0, "text": "君の"}
-          ],
-          "timestamps_word": [
-            {"start": 10.1, "end": 10.4, "text": "君"},
-            {"start": 10.4, "end": 10.8, "text": "の"}
-          ]
-        }
-        """
+            {
+              "status": "success",
+              "model": "qwen3-asr-1.7b",
+              "timestamps_sentence": [
+                {"start": 10.0, "end": 11.0, "text": "君の"}
+              ],
+              "timestamps_word": [
+                {"start": 10.1, "end": 10.4, "text": "君"},
+                {"start": 10.4, "end": 10.8, "text": "の"}
+              ]
+            }
+            """
         let payload = try JSONDecoder().decode(
             AIBackendClient.CloudTranscriptionPayload.self,
             from: Data(json.utf8)
@@ -46,7 +46,7 @@ final class KaraokeDataTests: XCTestCase {
     func testSegmentationRetainsForcedAlignmentWords() {
         let words = [
             SubtitleWordTiming(text: "君", startTime: 10.1, endTime: 10.4),
-            SubtitleWordTiming(text: "の", startTime: 10.4, endTime: 10.7)
+            SubtitleWordTiming(text: "の", startTime: 10.4, endTime: 10.7),
         ]
 
         let segments = SubtitleSegmentation.makeSegments(words: words)
@@ -59,7 +59,7 @@ final class KaraokeDataTests: XCTestCase {
         let words = [
             SubtitleWordTiming(text: "君", startTime: 10.1, endTime: 10.4),
             SubtitleWordTiming(text: "の", startTime: 10.4, endTime: 10.7),
-            SubtitleWordTiming(text: "こと", startTime: 10.7, endTime: 11.2)
+            SubtitleWordTiming(text: "こと", startTime: 10.7, endTime: 11.2),
         ]
 
         let program = try XCTUnwrap(
@@ -76,6 +76,32 @@ final class KaraokeDataTests: XCTestCase {
         XCTAssertEqual(program.units[2].endOffset, 1.2, accuracy: 0.000_001)
     }
 
+    func testKaraokeTimelineLayoutAlwaysCoversCompleteCueDuration() throws {
+        let base = try XCTUnwrap(
+            KaraokeProgram.evenlyTimed(text: "唱歌", duration: 1)
+        )
+        let unitsWithSilence = base.shiftingOffsets(by: 0.5).units
+        let spans = KaraokeTimelineLayout.displaySpans(
+            for: unitsWithSilence,
+            cueDuration: 2
+        )
+
+        XCTAssertEqual(spans.count, unitsWithSilence.count)
+        XCTAssertEqual(spans.first?.lowerBound, 0)
+        XCTAssertEqual(spans.last?.upperBound, 2)
+        XCTAssertEqual(
+            spans[0].upperBound,
+            spans[1].lowerBound,
+            accuracy: 0.000_001
+        )
+
+        let singleSpan = KaraokeTimelineLayout.displaySpans(
+            for: [unitsWithSilence[0]],
+            cueDuration: 3
+        )
+        XCTAssertEqual(singleSpan, [0...3])
+    }
+
     func testMissingForcedAlignmentCharacterIsInsertedBetweenNeighbours() throws {
         let program = try XCTUnwrap(
             KaraokeProgram.fromAlignedWords(
@@ -89,7 +115,7 @@ final class KaraokeDataTests: XCTestCase {
                         text: "的",
                         startTime: 12.8,
                         endTime: 13.1
-                    )
+                    ),
                 ],
                 cueText: "才有的",
                 cueStartTime: 10
@@ -129,7 +155,7 @@ final class KaraokeDataTests: XCTestCase {
                         text: "错",
                         startTime: 12.2,
                         endTime: 12.2
-                    )
+                    ),
                 ],
                 cueText: "偶尔出错",
                 cueStartTime: 10,
@@ -143,11 +169,12 @@ final class KaraokeDataTests: XCTestCase {
                 $0.endOffset <= $1.startOffset + 0.000_001
             }
         )
-        XCTAssertTrue(program.units.allSatisfy {
-            $0.endOffset > $0.startOffset
-                && $0.startOffset >= 0
-                && $0.endOffset <= 2
-        })
+        XCTAssertTrue(
+            program.units.allSatisfy {
+                $0.endOffset > $0.startOffset
+                    && $0.startOffset >= 0
+                    && $0.endOffset <= 2
+            })
 
         let diagnostics = KaraokeTimingDiagnostics.validate(
             program: program,
@@ -241,11 +268,12 @@ final class KaraokeDataTests: XCTestCase {
         )
         let trimmed = try XCTUnwrap(moved.karaoke)
         XCTAssertEqual(trimmed.units[0].startOffset, 0, accuracy: 0.000_001)
-        XCTAssertTrue(trimmed.units.allSatisfy {
-            $0.startOffset >= 0
-                && $0.endOffset > $0.startOffset
-                && $0.endOffset <= 1.5
-        })
+        XCTAssertTrue(
+            trimmed.units.allSatisfy {
+                $0.startOffset >= 0
+                    && $0.endOffset > $0.startOffset
+                    && $0.endOffset <= 1.5
+            })
         XCTAssertFalse(
             KaraokeTimingDiagnostics.validate(
                 program: trimmed,
@@ -274,7 +302,7 @@ final class KaraokeDataTests: XCTestCase {
                     startOffset: 0.5,
                     endOffset: 1.5,
                     source: .manual
-                )
+                ),
             ]
         )
 
@@ -315,11 +343,48 @@ final class KaraokeDataTests: XCTestCase {
             project.items[1].karaoke?.units.first?.startOffset
         )
         XCTAssertEqual(rightStart, 0, accuracy: 0.000_001)
+        for cue in project.items {
+            let program = try XCTUnwrap(cue.karaoke)
+            let duration =
+                try XCTUnwrap(cue.endTime)
+                - (cue.startTime ?? 0)
+            let spans = KaraokeTimelineLayout.displaySpans(
+                for: program.units,
+                cueDuration: duration
+            )
+            XCTAssertEqual(spans.first?.lowerBound, 0)
+            XCTAssertEqual(
+                try XCTUnwrap(spans.last?.upperBound),
+                duration,
+                accuracy: 0.000_001
+            )
+        }
 
         project.selectedIDs = Set(project.items.map(\.id))
+        var mergeItemPublications = 0
+        let mergeObservation = project.$items
+            .dropFirst()
+            .sink { _ in mergeItemPublications += 1 }
         XCTAssertNil(project.mergeSelectedSubtitles())
+        XCTAssertEqual(mergeItemPublications, 1)
+        withExtendedLifetime(mergeObservation) {}
         XCTAssertEqual(project.items.count, 1)
         XCTAssertEqual(project.items[0].karaoke?.units.count, 4)
+        let merged = try XCTUnwrap(project.items.first)
+        let mergedProgram = try XCTUnwrap(merged.karaoke)
+        let mergedDuration =
+            try XCTUnwrap(merged.endTime)
+            - (merged.startTime ?? 0)
+        let mergedSpans = KaraokeTimelineLayout.displaySpans(
+            for: mergedProgram.units,
+            cueDuration: mergedDuration
+        )
+        XCTAssertEqual(mergedSpans.first?.lowerBound, 0)
+        XCTAssertEqual(
+            try XCTUnwrap(mergedSpans.last?.upperBound),
+            mergedDuration,
+            accuracy: 0.000_001
+        )
     }
 
     @MainActor
@@ -352,15 +417,51 @@ final class KaraokeDataTests: XCTestCase {
                 program.units.map(\.text).joined(),
                 cue.text
             )
-            XCTAssertTrue(program.units.allSatisfy {
-                $0.startOffset >= 0
-                    && $0.endOffset > $0.startOffset
-                    && $0.endOffset <= duration + 0.000_001
-            })
+            XCTAssertTrue(
+                program.units.allSatisfy {
+                    $0.startOffset >= 0
+                        && $0.endOffset > $0.startOffset
+                        && $0.endOffset <= duration + 0.000_001
+                })
             XCTAssertFalse(
                 cue.karaokeDiagnostics.contains { $0.severity == .error }
             )
         }
+    }
+
+    @MainActor
+    func testSplitRejectsTimesThatSnapOntoCueEdges() {
+        let item = SubtitleItem(text: "edge", startTime: 0, endTime: 1)
+        let project = SubtitleProject()
+        project.videoFrameRate = 30
+        project.items = [item]
+
+        project.splitSubtitle(
+            id: item.id,
+            at: 0.001,
+            leftText: "ed",
+            rightText: "ge"
+        )
+        project.splitSubtitle(
+            id: item.id,
+            at: 0.999,
+            leftText: "ed",
+            rightText: "ge"
+        )
+
+        XCTAssertEqual(project.items, [item])
+    }
+
+    @MainActor
+    func testMergeRejectsStaleSelectionIDs() {
+        let first = SubtitleItem(text: "first", startTime: 0, endTime: 1)
+        let second = SubtitleItem(text: "second", startTime: 1, endTime: 2)
+        let project = SubtitleProject()
+        project.items = [first, second]
+        project.selectedIDs = [first.id, UUID()]
+
+        XCTAssertNotNil(project.mergeSelectedSubtitles())
+        XCTAssertEqual(project.items, [first, second])
     }
 
     @MainActor
@@ -432,14 +533,179 @@ final class KaraokeDataTests: XCTestCase {
         let program = try XCTUnwrap(updated.karaoke)
         let duration = try XCTUnwrap(updated.endTime) - (updated.startTime ?? 0)
         XCTAssertEqual(program.units.map(\.text).joined(), updated.text)
-        XCTAssertTrue(program.units.allSatisfy {
-            $0.startOffset >= 0
-                && $0.endOffset > $0.startOffset
-                && $0.endOffset <= duration + 0.000_001
-        })
+        XCTAssertTrue(
+            program.units.allSatisfy {
+                $0.startOffset >= 0
+                    && $0.endOffset > $0.startOffset
+                    && $0.endOffset <= duration + 0.000_001
+            })
         XCTAssertFalse(
             updated.karaokeDiagnostics.contains { $0.severity == .error }
         )
+        let spans = KaraokeTimelineLayout.displaySpans(
+            for: program.units,
+            cueDuration: duration
+        )
+        XCTAssertEqual(spans.first?.lowerBound, 0)
+        XCTAssertEqual(
+            try XCTUnwrap(spans.last?.upperBound),
+            duration,
+            accuracy: 0.000_001
+        )
+    }
+
+    @MainActor
+    func testKaraokeTrimPreviewUpdatesEditorAndOverlayBeforeCommit() throws {
+        let item = SubtitleItem(
+            text: "实时更新",
+            startTime: 10,
+            endTime: 12,
+            karaoke: try XCTUnwrap(
+                KaraokeProgram.evenlyTimed(text: "实时更新", duration: 2)
+            )
+        )
+        let project = SubtitleProject()
+        project.videoFrameRate = 30
+        project.items = [item]
+        project.selectedIDs = [item.id]
+        project.karaokeEditingItemID = item.id
+
+        project.previewKaraokeCueTiming(
+            id: item.id,
+            newStartTime: 10,
+            newEndTime: 14
+        )
+
+        XCTAssertEqual(project.items.first, item)
+        let preview = try XCTUnwrap(project.karaokeTimingPreviewItem)
+        XCTAssertEqual(project.karaokeEditorItem, preview)
+        XCTAssertEqual(preview.endTime, 14)
+        XCTAssertEqual(
+            project.resolvedSubtitleCue(at: 13)?.endTime,
+            14
+        )
+
+        project.updateSubtitleTime(
+            id: item.id,
+            newStartTime: 10,
+            newEndTime: 14
+        )
+
+        XCTAssertNil(project.karaokeTimingPreviewItem)
+        XCTAssertEqual(project.items.first, preview)
+    }
+
+    @MainActor
+    func testScheduledKaraokeTrimPreviewCoalescesAndCannotOverwriteCommit() async throws {
+        let item = SubtitleItem(
+            text: "最后一帧",
+            startTime: 10,
+            endTime: 12,
+            karaoke: try XCTUnwrap(
+                KaraokeProgram.evenlyTimed(text: "最后一帧", duration: 2)
+            )
+        )
+        let project = SubtitleProject()
+        project.items = [item]
+
+        project.scheduleKaraokeCueTimingPreview(
+            id: item.id,
+            newStartTime: 10,
+            newEndTime: 14
+        )
+        project.scheduleKaraokeCueTimingPreview(
+            id: item.id,
+            newStartTime: 10,
+            newEndTime: 16
+        )
+        await Task.yield()
+
+        XCTAssertEqual(project.karaokeTimingPreviewItem?.endTime, 16)
+
+        project.scheduleKaraokeCueTimingPreview(
+            id: item.id,
+            newStartTime: 10,
+            newEndTime: 18
+        )
+        project.updateSubtitleTime(
+            id: item.id,
+            newStartTime: 10,
+            newEndTime: 15
+        )
+        await Task.yield()
+
+        XCTAssertNil(project.karaokeTimingPreviewItem)
+        XCTAssertEqual(project.items.first?.endTime, 15)
+    }
+
+    @MainActor
+    func testBatchStretchScalesKaraokeAndRefreshesFullCueLayout() throws {
+        let item = SubtitleItem(
+            text: "同步拉伸",
+            startTime: 1,
+            endTime: 3,
+            karaoke: try XCTUnwrap(
+                KaraokeProgram.evenlyTimed(text: "同步拉伸", duration: 2)
+            )
+        )
+        let project = SubtitleProject()
+        project.videoFrameRate = 30
+        project.items = [item]
+
+        project.stretchSubtitles(
+            ids: [item.id],
+            factor: 1.5,
+            anchor: 0
+        )
+
+        let stretched = try XCTUnwrap(project.items.first)
+        let program = try XCTUnwrap(stretched.karaoke)
+        let duration =
+            try XCTUnwrap(stretched.endTime)
+            - (stretched.startTime ?? 0)
+        XCTAssertEqual(stretched.startTime, 1.5)
+        XCTAssertEqual(stretched.endTime, 4.5)
+        XCTAssertEqual(program.units.last?.endOffset, 3)
+        let spans = KaraokeTimelineLayout.displaySpans(
+            for: program.units,
+            cueDuration: duration
+        )
+        XCTAssertEqual(spans.first?.lowerBound, 0)
+        XCTAssertEqual(spans.last?.upperBound, 3)
+    }
+
+    @MainActor
+    func testBatchKaraokeRecognitionPublishesItemsOnlyOnce() throws {
+        let first = SubtitleItem(
+            text: "批量",
+            startTime: 0,
+            endTime: 1
+        )
+        let second = SubtitleItem(
+            text: "识别",
+            startTime: 1,
+            endTime: 2
+        )
+        let project = SubtitleProject()
+        project.items = [first, second]
+        let programs = [
+            first.id: try XCTUnwrap(
+                KaraokeProgram.evenlyTimed(text: first.text, duration: 1)
+            ),
+            second.id: try XCTUnwrap(
+                KaraokeProgram.evenlyTimed(text: second.text, duration: 1)
+            ),
+        ]
+        var itemPublications = 0
+        let observation = project.$items
+            .dropFirst()
+            .sink { _ in itemPublications += 1 }
+
+        project.applyBatchKaraokePrograms(programs)
+
+        XCTAssertEqual(itemPublications, 1)
+        XCTAssertTrue(project.items.allSatisfy { $0.karaoke != nil })
+        withExtendedLifetime(observation) {}
     }
 
     @MainActor
@@ -509,7 +775,7 @@ final class KaraokeDataTests: XCTestCase {
                         startTime: 10.7,
                         endTime: 11.4,
                         confidence: 0.97
-                    )
+                    ),
                 ],
                 cueText: "唱歌",
                 cueStartTime: 10
@@ -617,6 +883,36 @@ final class KaraokeDataTests: XCTestCase {
         project.selectedIDs = [ordinary.id]
         await Task.yield()
         XCTAssertNil(project.karaokeEditorItem)
+    }
+
+    @MainActor
+    func testRapidSelectionChangesCoalesceKaraokeEditorPublication() async throws {
+        let first = SubtitleItem(
+            text: "第一句",
+            startTime: 1,
+            endTime: 2,
+            karaoke: try XCTUnwrap(
+                KaraokeProgram.evenlyTimed(text: "第一句", duration: 1)
+            )
+        )
+        let second = SubtitleItem(
+            text: "第二句",
+            startTime: 2,
+            endTime: 3,
+            karaoke: try XCTUnwrap(
+                KaraokeProgram.evenlyTimed(text: "第二句", duration: 1)
+            )
+        )
+        let project = SubtitleProject()
+        project.items = [first, second]
+        project.karaokeEditorDismissedItemID = first.id
+
+        project.selectedIDs = [first.id]
+        project.selectedIDs = [second.id]
+        await Task.yield()
+
+        XCTAssertNil(project.karaokeEditorDismissedItemID)
+        XCTAssertEqual(project.karaokeEditingItemID, second.id)
     }
 
     @MainActor

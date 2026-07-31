@@ -4,9 +4,9 @@ import Combine
 import MetalKit
 
 #if os(macOS)
-import AppKit
+    import AppKit
 #else
-import UIKit
+    import UIKit
 #endif
 
 // MARK: - FrameQueue
@@ -39,7 +39,7 @@ final class FrameQueue: @unchecked Sendable {
     ) -> (frame: VideoFrame?, consumedCount: Int) {
         lock.lock()
         defer { lock.unlock() }
-        
+
         guard let lastReadyIdx = frames.lastIndex(where: { $0.pts <= pts }) else {
             return (nil, 0)
         }
@@ -69,19 +69,19 @@ final class FrameQueue: @unchecked Sendable {
 }
 
 // MARK: - FFmpegEngine
-// High-performance, `@MainActor`-isolated engine conforming perfectly to `PlayerEngine`.
+// Main-actor playback engine backed by FFmpeg decoding.
 @MainActor final class FFmpegEngine: NSObject, PlayerEngine {
     #if os(iOS)
-    private static let frameQueueCapacity = 10
+        private static let frameQueueCapacity = 10
     #else
-    private static let frameQueueCapacity = 32
+        private static let frameQueueCapacity = 32
     #endif
 
     let playerView: NativeView
     let metalRenderer: MetalVideoRenderer
     private let audioPlayer: AudioPlayer
     let core: FFmpegDecoderCore
-    
+
     // Cached playback state updated via core.onStateChanged callback
     private var cachedDuration: Double = 0.0
     var cachedFPS: Double = 30.0
@@ -94,12 +94,12 @@ final class FrameQueue: @unchecked Sendable {
     private var isPlaybackStartedPending: Bool = false
     private var isRemoteSource = false
     private var isRemoteSeekPrerolling = false
-    
+
     // State conservation for scrubbing
     private var isScrubbingActive = false
     private var wasPlayingBeforeScrub = false
     private var rateBeforeScrub: Double = 0.0
-    
+
     let frameQueue = FrameQueue(capacity: FFmpegEngine.frameQueueCapacity)
     var lastSeekTime: CFTimeInterval = 0
     private var seekGeneration: UInt = 0
@@ -118,36 +118,33 @@ final class FrameQueue: @unchecked Sendable {
     // Seek generation — incremented on every seek/load to discard stale pre-seek frames
     var currentFrameGeneration: Int = 0
 
-
     #if os(macOS)
-    nonisolated(unsafe) var displayTimer: Timer? = nil
-    nonisolated(unsafe) var displayLinkStorage: AnyObject? = nil
+        nonisolated(unsafe) var displayTimer: Timer? = nil
+        nonisolated(unsafe) var displayLinkStorage: AnyObject? = nil
     #else
-    nonisolated(unsafe) var displayLink: CADisplayLink? = nil
+        nonisolated(unsafe) var displayLink: CADisplayLink? = nil
     #endif
-    
+
     override init() {
         let renderer = MetalVideoRenderer()
         self.metalRenderer = renderer
         self.playerView = renderer
-        
+
         let coreInstance = FFmpegDecoderCore()
         self.core = coreInstance
-        
+
         let ap = AudioPlayer()
         self.audioPlayer = ap
-        
+
         super.init()
-        
+
         // Register callbacks safely on FFmpegDecoderCore actor asynchronously
         Task { [coreInstance, weak self, weak ap] in
             await coreInstance.registerCallbacks(
                 onFrameReady: { [weak self] sendableBuffer, pts in
                     guard let self = self else { return }
 
-                    // ── Stale-frame guard ──────────────────────────────────────────
-                    // If the generation stamp doesn't match, this callback was queued
-                    // BEFORE the most recent seek/load. We simply discard it.
+                    // Discard callbacks queued before the most recent seek or load.
                     guard sendableBuffer.generation == self.currentFrameGeneration else {
                         Task {
                             await coreInstance.acknowledgeVideoFrames(
@@ -169,11 +166,6 @@ final class FrameQueue: @unchecked Sendable {
                             )
                         }
                     } else {
-                        // Log PTS vs clock mismatch when enqueueing
-                        // let clock = self.currentTime
-                        // if pts > clock + 2.0 {
-                        //     print("⚠️ Frame PTS \(String(format: "%.3f", pts)) is \(String(format: "%.1f", pts - clock))s AHEAD of clock \(String(format: "%.3f", clock)) — queue may stall")
-                        // }
                         let frame = VideoFrame(
                             pixelBuffer: sendableBuffer.buffer,
                             pts: pts,
@@ -208,37 +200,36 @@ final class FrameQueue: @unchecked Sendable {
                 }
             )
         }
-        
+
     }
-    
+
     deinit {
         diagTimer?.invalidate()
         diagTimer = nil
         #if os(macOS)
-        displayTimer?.invalidate()
-        displayTimer = nil
-        if #available(macOS 14.0, *) {
-            (displayLinkStorage as? CADisplayLink)?.invalidate()
-            displayLinkStorage = nil
-        }
+            displayTimer?.invalidate()
+            displayTimer = nil
+            if #available(macOS 14.0, *) {
+                (displayLinkStorage as? CADisplayLink)?.invalidate()
+                displayLinkStorage = nil
+            }
         #else
-        displayLink?.invalidate()
-        displayLink = nil
+            displayLink?.invalidate()
+            displayLink = nil
         #endif
     }
-    
+
     // MARK: - PlayerEngine Protocol
-    
+
     var currentTime: Double {
         if cachedAudioStreamIndex >= 0 {
             let apTime = audioPlayer.currentTime
             if isPlaybackStartedPending && audioPlayer.isPlayingAndRendering {
-                // The audio engine has finally started rendering to hardware!
-                // Reset the master clock baseline to exactly now.
+                // Reset the master clock when hardware audio rendering actually begins.
                 cachedStartSystemTime = CACurrentMediaTime()
                 cachedStartPlaybackTime = apTime
                 isPlaybackStartedPending = false
-                
+
                 let captureSystemTime = cachedStartSystemTime
                 let capturePlaybackTime = apTime
                 let coreInstance = core
@@ -254,33 +245,33 @@ final class FrameQueue: @unchecked Sendable {
         }
         return systemClockTime
     }
-    
+
     private var systemClockTime: Double {
         guard cachedIsPlaying else { return cachedStartPlaybackTime }
         let elapsed = CACurrentMediaTime() - cachedStartSystemTime
         return cachedStartPlaybackTime + elapsed * cachedRate
     }
-    
+
     var duration: Double {
         return cachedDuration
     }
-    
+
     var isRenderingAndPlaying: Bool {
         return cachedAudioStreamIndex < 0 || audioPlayer.isPlayingAndRendering
     }
-    
+
     var fps: Double {
         get async {
             return cachedFPS
         }
     }
-    
+
     var videoSize: CGSize {
         get async {
             return cachedVideoSize
         }
     }
-    
+
     var rate: Double {
         get {
             return cachedRate
@@ -332,7 +323,7 @@ final class FrameQueue: @unchecked Sendable {
         transportCommandGeneration &+= 1
         applyLocalTransportRate(0)
     }
-    
+
     @discardableResult
     func load(url: URL) async -> Bool {
         isRemoteSource = FormatDetector.isRemoteNetworkVolume(url)
@@ -342,36 +333,36 @@ final class FrameQueue: @unchecked Sendable {
         // session are immediately discarded by the stale-frame guard.
         currentFrameGeneration += 1
         await core.seekClearAndNewGeneration(generation: currentFrameGeneration)
-        
+
         guard await core.loadSession(url: url), !Task.isCancelled else {
             rate = 0
             return false
         }
-        
+
         if cachedAudioStreamIndex >= 0 {
             audioPlayer.seek(to: 0.0)
         }
-        
+
         await core.startDecodeLoop()
-        
+
         // Initialize clock baseline BEFORE setting rate
         cachedStartSystemTime = CACurrentMediaTime()
         cachedStartPlaybackTime = 0.0
         await core.setStartSystemTime(cachedStartSystemTime)
         await core.setStartPlaybackTime(0.0)
-        
+
         rate = 0.0
         return true
     }
-    
+
     func play() {
         rate = 1.0
     }
-    
+
     func pause() {
         rate = 0.0
     }
-    
+
     @discardableResult
     func seek(to time: Double) async -> Bool {
         await performSeek(to: time, exact: true)
@@ -426,9 +417,10 @@ final class FrameQueue: @unchecked Sendable {
                 let deadline = CACurrentMediaTime() + 0.65
                 let targetFrames = min(8, max(4, Int(cachedFPS / 4)))
                 while operation == seekGeneration,
-                      !Task.isCancelled,
-                      frameQueue.count < targetFrames,
-                      CACurrentMediaTime() < deadline {
+                    !Task.isCancelled,
+                    frameQueue.count < targetFrames,
+                    CACurrentMediaTime() < deadline
+                {
                     try? await Task.sleep(nanoseconds: 10_000_000)
                 }
                 if operation == seekGeneration {
@@ -445,7 +437,7 @@ final class FrameQueue: @unchecked Sendable {
         }
         return operation == seekGeneration
     }
-    
+
     @discardableResult
     func seekVideoFrameOnly(to time: Double) async -> Bool {
         // Capture playback state immediately before the sleep phase to ensure we capture
@@ -476,26 +468,26 @@ final class FrameQueue: @unchecked Sendable {
         lastSeekTime = cachedStartSystemTime
         return true
     }
-    
+
     func stop() {
         // Invalidate diagnostic timer to break retain cycle
         diagTimer?.invalidate()
         diagTimer = nil
-        
+
         rate = 0.0
         stopDisplayLink()
-        
+
         invalidateDisplayLink()
-        
+
         Task {
             await core.stopDecodeLoop()
             await core.clearFrameQueueCount()
             await core.closeFFmpeg()
         }
-        
+
         audioPlayer.stop()
         frameQueue.removeAll()
     }
-    
+
     // Display link and rendering methods are in FFmpegEngine+DisplayLink.swift
 }

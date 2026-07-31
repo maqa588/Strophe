@@ -8,10 +8,9 @@
 import SwiftUI
 import Combine
 #if os(iOS)
-import UIKit
+    import UIKit
 #endif
 
-/// 时间轴上方独立的自定义功能工具栏
 // MARK: - SplitRequest: Identifiable wrapper for .sheet(item:) API
 struct SplitRequest: Identifiable {
     let id = UUID()
@@ -25,14 +24,14 @@ struct RichTooltipView: View {
     let title: String
     let message: String
     var shortcut: String? = nil
-    
+
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: icon)
                 .font(.body)
                 .foregroundColor(Color.accentColor)
                 .padding(.top, 1)
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
                     Text(title)
@@ -97,28 +96,28 @@ extension View {
 
 // MARK: - AirPlayRoutePicker ViewRepresentable
 #if os(macOS)
-import AppKit
-import AVKit
+    import AppKit
+    import AVKit
 
-struct AirPlayRoutePicker: NSViewRepresentable {
-    func makeNSView(context: Context) -> AVRoutePickerView {
-        let picker = AVRoutePickerView()
-        picker.isRoutePickerButtonBordered = false
-        return picker
+    struct AirPlayRoutePicker: NSViewRepresentable {
+        func makeNSView(context: Context) -> AVRoutePickerView {
+            let picker = AVRoutePickerView()
+            picker.isRoutePickerButtonBordered = false
+            return picker
+        }
+        func updateNSView(_ nsView: AVRoutePickerView, context: Context) {}
     }
-    func updateNSView(_ nsView: AVRoutePickerView, context: Context) {}
-}
 #elseif os(iOS)
-import UIKit
-import AVKit
+    import UIKit
+    import AVKit
 
-struct AirPlayRoutePicker: UIViewRepresentable {
-    func makeUIView(context: Context) -> AVRoutePickerView {
-        let picker = AVRoutePickerView()
-        return picker
+    struct AirPlayRoutePicker: UIViewRepresentable {
+        func makeUIView(context: Context) -> AVRoutePickerView {
+            let picker = AVRoutePickerView()
+            return picker
+        }
+        func updateUIView(_ uiView: AVRoutePickerView, context: Context) {}
     }
-    func updateUIView(_ uiView: AVRoutePickerView, context: Context) {}
-}
 #endif
 
 // MARK: - BoundarySeekButton for Hold-to-Seek Subtitle Edges
@@ -126,17 +125,20 @@ struct BoundarySeekButton: View {
     let icon: String
     let direction: SubtitleProject.SubtitleBoundaryDirection
     let project: SubtitleProject
-    
+
     @State private var timerTask: Task<Void, Never>? = nil
     @State private var isHolding = false
-    
+
     var body: some View {
         Image(systemName: icon)
             .font(.body.weight(.medium))
             .frame(width: 32, height: 28)
             .foregroundColor(.primary)
             .contentShape(Rectangle())
-            .help(direction == .left ? String(localized: "align_subtitle_block_left") : String(localized: "align_subtitle_block_right"))
+            .help(
+                direction == .left
+                    ? String(localized: "align_subtitle_block_left") : String(localized: "align_subtitle_block_right")
+            )
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in
@@ -150,7 +152,7 @@ struct BoundarySeekButton: View {
                     }
             )
     }
-    
+
     private func startScanning() {
         timerTask?.cancel()
         timerTask = Task { @MainActor in
@@ -158,20 +160,20 @@ struct BoundarySeekButton: View {
 
             try? await Task.sleep(nanoseconds: 350_000_000)
             guard !Task.isCancelled else { return }
-            
+
             #if os(iOS)
-            let generator = UIImpactFeedbackGenerator(style: .light)
-            generator.prepare()
-            generator.impactOccurred()
+                let generator = UIImpactFeedbackGenerator(style: .light)
+                generator.prepare()
+                generator.impactOccurred()
             #endif
-            
+
             while !Task.isCancelled {
                 project.seekToSubtitleBoundary(direction)
                 try? await Task.sleep(nanoseconds: 120_000_000)
             }
         }
     }
-    
+
     private func stopScanning() {
         timerTask?.cancel()
         timerTask = nil

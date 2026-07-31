@@ -23,7 +23,7 @@ struct AutoCaptionView: View {
     @ObservedObject var project: SubtitleProject
     @StateObject var modelManager = LocalModelManager.shared
     @Environment(\.dismiss) var dismiss
-    
+
     // Config states
     @State var selectedModel: String = LocalModelManager.coreMLASRAccelerationModelName
     @State var enableCoreMLASRAcceleration: Bool = true
@@ -31,7 +31,7 @@ struct AutoCaptionView: View {
     @State var enableAlignment: Bool = true
     @State var selectedLanguage: String = "auto"
     @State var enableDiarization: Bool = false
-    @State var speakerCountOption: String = "auto" // "auto" or "custom"
+    @State var speakerCountOption: String = "auto"  // "auto" or "custom"
     @State var customSpeakerCount: Int = 2
     @State var prefixSpeakerName: Bool = false
     @State var vocalPreprocessing: String = "none"
@@ -42,7 +42,7 @@ struct AutoCaptionView: View {
     @AppStorage(AIBackendClient.cloudBaseURLDefaultsKey)
     var cloudBaseURLString: String = AIBackendClient.defaultCloudBaseURL.absoluteString
     @State var cloudConnectionTestState: CloudConnectionTestState = .idle
-    
+
     // UI steps & running state
     @State var selectedGenerationMode: CaptionGenerationMode? = nil
     @State var isRunning: Bool = false
@@ -67,73 +67,73 @@ struct AutoCaptionView: View {
                 : "auto"
         )
     }
-    
+
     let languages = [
-        ("auto",  "auto_detect"),
-        ("zh",    "recognition_language_simplified_chinese"),
+        ("auto", "auto_detect"),
+        ("zh", "recognition_language_simplified_chinese"),
         ("zh-TW", "recognition_language_traditional_chinese"),
-        ("en",    "recognition_language_english"),
-        ("ja",    "recognition_language_japanese"),
-        ("ko",    "recognition_language_korean"),
-        ("fr",    "recognition_language_french"),
-        ("de",    "recognition_language_german"),
-        ("es",    "recognition_language_spanish"),
-        ("ru",    "recognition_language_russian")
+        ("en", "recognition_language_english"),
+        ("ja", "recognition_language_japanese"),
+        ("ko", "recognition_language_korean"),
+        ("fr", "recognition_language_french"),
+        ("de", "recognition_language_german"),
+        ("es", "recognition_language_spanish"),
+        ("ru", "recognition_language_russian"),
     ]
-    
+
     var body: some View {
         #if os(macOS)
-        mainContent
-            .frame(width: 480, height: 600)
-            .background(VisualEffectView(material: .sheet, blendingMode: .behindWindow))
-            .alert(AIBackendClient.unsupportedDeviceMessage, isPresented: $showUnsupportedLocalAIAlert) {
-                Button("ok", role: .cancel) {}
-            } message: {
-                Text(AIBackendClient.cloudComingSoonMessage)
-            }
-            .alert("generation_failed", isPresented: $showGenerationErrorAlert) {
-                Button("ok", role: .cancel) {}
-            } message: {
-                Text(generationErrorMessage)
-            }
-            .stropheOnChange(of: selectedModel) { modelName in
-                if LocalModelManager.isParakeetJA(modelName) {
-                    selectedLanguage = "ja"
+            mainContent
+                .frame(width: 480, height: 600)
+                .background(VisualEffectView(material: .sheet, blendingMode: .behindWindow))
+                .alert(AIBackendClient.unsupportedDeviceMessage, isPresented: $showUnsupportedLocalAIAlert) {
+                    Button("ok", role: .cancel) {}
+                } message: {
+                    Text(AIBackendClient.cloudComingSoonMessage)
                 }
-            }
-            .stropheOnChange(of: selectedCloudModel) { model in
-                if model == .parakeetJA {
-                    selectedLanguage = "ja"
+                .alert("generation_failed", isPresented: $showGenerationErrorAlert) {
+                    Button("ok", role: .cancel) {}
+                } message: {
+                    Text(generationErrorMessage)
                 }
-            }
-            .stropheOnChange(of: selectedLanguage) { language in
-                updateRecommendedCloudModel(for: language)
-            }
+                .stropheOnChange(of: selectedModel) { modelName in
+                    if LocalModelManager.isParakeetJA(modelName) {
+                        selectedLanguage = "ja"
+                    }
+                }
+                .stropheOnChange(of: selectedCloudModel) { model in
+                    if model == .parakeetJA {
+                        selectedLanguage = "ja"
+                    }
+                }
+                .stropheOnChange(of: selectedLanguage) { language in
+                    updateRecommendedCloudModel(for: language)
+                }
         #else
-        simpleIOSBody
-            .alert(AIBackendClient.unsupportedDeviceMessage, isPresented: $showUnsupportedLocalAIAlert) {
-                Button("ok", role: .cancel) {}
-            } message: {
-                Text(AIBackendClient.cloudComingSoonMessage)
-            }
-            .alert("generation_failed", isPresented: $showGenerationErrorAlert) {
-                Button("ok", role: .cancel) {}
-            } message: {
-                Text(generationErrorMessage)
-            }
-            .stropheOnChange(of: selectedModel) { modelName in
-                if LocalModelManager.isParakeetJA(modelName) {
-                    selectedLanguage = "ja"
+            simpleIOSBody
+                .alert(AIBackendClient.unsupportedDeviceMessage, isPresented: $showUnsupportedLocalAIAlert) {
+                    Button("ok", role: .cancel) {}
+                } message: {
+                    Text(AIBackendClient.cloudComingSoonMessage)
                 }
-            }
-            .stropheOnChange(of: selectedCloudModel) { model in
-                if model == .parakeetJA {
-                    selectedLanguage = "ja"
+                .alert("generation_failed", isPresented: $showGenerationErrorAlert) {
+                    Button("ok", role: .cancel) {}
+                } message: {
+                    Text(generationErrorMessage)
                 }
-            }
-            .stropheOnChange(of: selectedLanguage) { language in
-                updateRecommendedCloudModel(for: language)
-            }
+                .stropheOnChange(of: selectedModel) { modelName in
+                    if LocalModelManager.isParakeetJA(modelName) {
+                        selectedLanguage = "ja"
+                    }
+                }
+                .stropheOnChange(of: selectedCloudModel) { model in
+                    if model == .parakeetJA {
+                        selectedLanguage = "ja"
+                    }
+                }
+                .stropheOnChange(of: selectedLanguage) { language in
+                    updateRecommendedCloudModel(for: language)
+                }
         #endif
     }
 
@@ -146,11 +146,13 @@ struct AutoCaptionView: View {
     }
 
     var canStartLocalCaptioning: Bool {
-        isLocalAIIncludedInBuild && isLocalAISupported && areRequiredLocalModelsDownloaded && project.videoURL != nil && !isRunning
+        isLocalAIIncludedInBuild && isLocalAISupported && areRequiredLocalModelsDownloaded && project.videoURL != nil
+            && !isRunning
     }
 
     var areRequiredLocalModelsDownloaded: Bool {
-        let needsAligner = (enableAlignment || enableDiarization || generateKaraoke)
+        let needsAligner =
+            (enableAlignment || enableDiarization || generateKaraoke)
             && !LocalModelManager.usesNativeTimestamps(selectedModel)
         return modelManager.downloadedWhisperModels.contains(selectedModel)
             && (!needsAligner
@@ -183,7 +185,8 @@ struct AutoCaptionView: View {
         let downloadState = localizedModelDownloadState(
             downloaded: modelManager.downloadedWhisperModels.contains(model.name)
         )
-        let recommendation = model.name == LocalModelManager.recommendedASRModelName()
+        let recommendation =
+            model.name == LocalModelManager.recommendedASRModelName()
             ? " · " + NSLocalizedString("recommended_model", comment: "Recommended model")
             : ""
         return "\(model.name) (\(model.localizedSize))\(recommendation) [\(downloadState)]"
@@ -268,13 +271,15 @@ struct AutoCaptionView: View {
             "spanish": "es",
             "russian": "ru",
         ]
-        let code = aliases[normalized]
+        let code =
+            aliases[normalized]
             ?? languages.first(where: {
                 normalized == $0.0.lowercased()
                     || normalized.hasPrefix($0.0.lowercased() + "-")
             })?.0
         guard let code,
-              let key = languages.first(where: { $0.0 == code })?.1 else {
+            let key = languages.first(where: { $0.0 == code })?.1
+        else {
             return identifier
         }
         return localizedAIText(key)
@@ -293,7 +298,8 @@ struct AutoCaptionView: View {
     }
 
     func cloudModelPickerTitle(_ model: AICloudASRModel) -> String {
-        let recommendation = model == AICloudASRModel.recommended()
+        let recommendation =
+            model == AICloudASRModel.recommended()
             ? " · " + NSLocalizedString("recommended_model", comment: "Recommended model")
             : ""
         return model.displayName + recommendation
@@ -351,7 +357,8 @@ struct AutoCaptionView: View {
                     baseURL: baseURL,
                     model: selectedCloudModel
                 )
-                cloudConnectionTestState = check.isReady
+                cloudConnectionTestState =
+                    check.isReady
                     ? .succeeded(check.message)
                     : .failed(check.message)
             } catch {
@@ -360,38 +367,24 @@ struct AutoCaptionView: View {
             }
         }
     }
-    
+
     func cleanSubtitleText(_ text: String) -> String {
-        var result = text
-        
-        // 剔除 Qwen ASR3 经常生成的卡顿字
-        let hesitationWords = ["嗯", "啊", "呃"]
-        for word in hesitationWords {
-            result = result.replacingOccurrences(of: word, with: "")
-        }
-        
-        // Remove periods, semicolons, and question marks (both Chinese and English)
-        let toRemove = ["。", ".", "；", ";", "？", "?"]
-        for char in toRemove {
-            result = result.replacingOccurrences(of: char, with: "")
-        }
-        
-        // Replace commas with spaces (both Chinese and English)
-        let toReplaceWithSpace = ["，", ","]
-        for char in toReplaceWithSpace {
-            result = result.replacingOccurrences(of: char, with: " ")
-        }
-
-        // 剔除 Qwen3-ASR 偶发泄漏的 prompt 指令 "language None"
-        result = result.replacingOccurrences(of: "language None", with: "", options: .caseInsensitive)
-
-        // Collapse multiple spaces into one
-        while result.contains("  ") {
-            result = result.replacingOccurrences(of: "  ", with: " ")
-        }
-        
-        // Trim leading and trailing spaces
-        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+        let discardedCharacters: Set<Character> = ["嗯", "啊", "呃", "。", ".", "；", ";", "？", "?"]
+        let commaCharacters: Set<Character> = ["，", ","]
+        let filtered = String(
+            text.compactMap { character -> Character? in
+                if discardedCharacters.contains(character) { return nil }
+                return commaCharacters.contains(character) ? " " : character
+            })
+        let withoutPromptLeak = filtered.replacingOccurrences(
+            of: "language None",
+            with: "",
+            options: .caseInsensitive
+        )
+        return
+            withoutPromptLeak
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
     }
 }
 
