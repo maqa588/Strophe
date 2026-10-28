@@ -11,6 +11,7 @@ struct StylePlaceholderView: View {
     @ObservedObject var project: SubtitleProject
     @ObservedObject var store = StyleAndGroupStore.shared
     @State private var selectedStyleId: UUID? = nil
+    @Environment(\.openWindow) private var openWindow
 
     @State private var showingAddSheet = false
     @State private var showingEditSheet = false
@@ -74,6 +75,17 @@ struct StylePlaceholderView: View {
                         Label("edit_style", systemImage: "pencil")
                     }
                     .disabled(selectedStyleId == nil)
+
+                    #if os(visionOS)
+                        Button {
+                            if let id = selectedStyleId {
+                                openWindow(id: SpatialWindowID.style, value: id)
+                            }
+                        } label: {
+                            Label("vp_open_style_window", systemImage: "macwindow.on.rectangle")
+                        }
+                        .disabled(selectedStyleId == nil)
+                    #endif
 
                     Button {
                         if let id = selectedStyleId,

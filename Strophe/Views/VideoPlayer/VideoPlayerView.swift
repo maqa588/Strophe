@@ -23,6 +23,9 @@ struct VideoPlayerView: View {
     @State private var isShowingReplaceMedia = false
 
     var onImportMedia: () -> Void
+    /// Set to false when another scene (for example the visionOS video window)
+    /// keeps using the shared engine after this host goes away.
+    var suspendsPlaybackOnDisappear: Bool = true
 
     var body: some View {
         ZStack {
@@ -120,7 +123,9 @@ struct VideoPlayerView: View {
             setupPlayer(url: project.videoURL)
         }
         .onDisappear {
-            suspendPlayerObservers()
+            if suspendsPlaybackOnDisappear {
+                suspendPlayerObservers()
+            }
         }
         .stropheOnChange(of: project.videoURL) { newURL in
             setupPlayer(url: newURL)
@@ -347,10 +352,44 @@ struct NativePlayerView: NSViewRepresentable {
 struct NativePlayerView: UIViewRepresentable {
     let engine: PlayerEngine
 
-    func makeUIView(context: Context) -> UIView {
-        return engine.playerView
+    func makeUIView(context: Context) -> PlayerSurfaceContainer {
+        PlayerSurfaceContainer(innerView: engine.playerView)
     }
 
-    func updateUIView(_ uiView: UIView, context: Context) {}
+    func updateUIView(_ uiView: PlayerSurfaceContainer, context: Context) {}
+}
+
+/// Hosts the engine's single player view inside a container this SwiftUI view
+/// owns. This is required on visionOS: the embedded editor and the detached
+/// video window can both mount the same `PlayerEngine.playerView`, and a
+/// representable that returned the shared view directly would have it removed
+/// again when the previous host is dismantled.
+final class PlayerSurfaceContainer: UIView {
+    let innerView: UIView
+
+    init(innerView: UIView) {
+        self.innerView = innerView
+        super.init(frame: .zero)
+        backgroundColor = .clear
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        innerView.frame = bounds
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        guard window != nil, innerView.superview !== self else { return }
+        innerView.removeFromSuperview()
+        innerView.frame = bounds
+        addSubview(innerView)
+        setNeedsLayout()
+    }
 }
 #endif

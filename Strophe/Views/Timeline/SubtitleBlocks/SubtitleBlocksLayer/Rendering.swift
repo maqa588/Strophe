@@ -199,7 +199,11 @@ extension SubtitleBlocksLayer {
             onLongPressChanged: updateLongPressInteraction,
             onLongPressEnded: endLongPressInteraction,
             onSingleTap: handleTap,
-            onDoubleTap: handleMobileDoubleTap
+            onDoubleTap: handleMobileDoubleTap,
+            onHover: { location in
+                let newID = location.flatMap { hitTest(at: $0)?.item.id }
+                if hoveredItemID != newID { hoveredItemID = newID }
+            }
         )
         #endif
     }

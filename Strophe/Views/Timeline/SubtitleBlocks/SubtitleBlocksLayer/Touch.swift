@@ -13,7 +13,7 @@ import SwiftUI
 #endif
 
 extension SubtitleBlocksLayer {
-    #if os(iOS)
+    #if os(iOS) || os(visionOS)
         func beginLongPressInteraction(at location: CGPoint) {
             guard renderModel.editingMode == .selection else { return }
             if hitTest(at: location) != nil {

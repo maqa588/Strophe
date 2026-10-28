@@ -37,6 +37,8 @@ struct ContentView: View {
     @ObservedObject var project: SubtitleProject
     var embedsCompactEditorInNavigationStack = true
     @Environment(\.horizontalSizeClass) var sizeClass
+    @Environment(\.verticalSizeClass) var verticalSizeClass
+    @Environment(\.scenePhase) private var scenePhase
 
     @State var selectedTab: StropheTab = .editor
     @State var settingsPath: [SettingsRoute] = []
@@ -86,10 +88,21 @@ struct ContentView: View {
         if #available(anyAppleOS 26.0, *) { true } else { false }
     }
 
+    private var usesCompactLayout: Bool {
+        #if os(iOS)
+            if sizeClass == .regular && verticalSizeClass == .regular {
+                return false
+            }
+            return true
+        #else
+            return sizeClass == .compact
+        #endif
+    }
+
     @ViewBuilder
     private var editorLayout: some View {
         Group {
-            if sizeClass == .compact {
+            if usesCompactLayout {
                 compactLayout  // iPhone
             } else {
                 wideLayout  // iPad / macOS
@@ -363,6 +376,10 @@ struct ContentView: View {
                 DispatchQueue.main.async {
                     settingsPath = [route]
                 }
+            }
+            .stropheOnChange(of: scenePhase) { newPhase in
+                guard newPhase == .background else { return }
+                Task { await project.saveScenePhaseSnapshot() }
             }
     }
 }

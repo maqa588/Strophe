@@ -14,31 +14,98 @@ extension ContentView {
     // remains the editor unless a settings route is pushed over it.
 
     var wideLayout: some View {
-        NavigationSplitView {
-            StropheSidebarContainer(project: project, selectedTab: $selectedTab, settingsPath: $settingsPath)
-                .navigationSplitViewColumnWidth(300)
-                .ignoresSafeArea(.container, edges: [.top, .bottom])
-        } detail: {
-            NavigationStack(path: $settingsPath) {
-                MainContentView(
-                    project: project,
-                    selectedTab: $selectedTab,
-                    onSaveProject: saveProject,
-                    onSaveProjectAs: saveProjectAs
-                )
-                .navigationDestination(for: SettingsRoute.self) { route in
-                    SettingsDetailView(route: route, project: project)
+        #if os(visionOS)
+            visionOSWideLayout
+        #else
+            NavigationSplitView {
+                StropheSidebarContainer(project: project, selectedTab: $selectedTab, settingsPath: $settingsPath)
+                    .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 360)
+            } detail: {
+                NavigationStack(path: $settingsPath) {
+                    MainContentView(
+                        project: project,
+                        selectedTab: $selectedTab,
+                        onSaveProject: saveProject,
+                        onSaveProjectAs: saveProjectAs
+                    )
+                    .navigationDestination(for: SettingsRoute.self) { route in
+                        SettingsDetailView(route: route, project: project)
+                    }
+                }
+            }
+            .navigationSplitViewStyle(.balanced)
+            .background(Color.stropheBackground)
+            .stropheOnChange(of: selectedTab) { newValue in
+                if newValue != .settings {
+                    settingsPath.removeAll()
+                }
+            }
+        #endif
+    }
+
+    #if os(visionOS)
+        // visionOS renders the tab bar as a vertical ornament on the front edge
+        // of the window, so top-level navigation moves into a native TabView.
+        private var visionOSWideLayout: some View {
+            TabView(selection: $selectedTab) {
+                Tab(value: StropheTab.editor) {
+                    NavigationSplitView {
+                        StropheSidebarContainer(
+                            project: project,
+                            selectedTab: $selectedTab,
+                            settingsPath: $settingsPath
+                        )
+                        .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 360)
+                    } detail: {
+                        MainContentView(
+                            project: project,
+                            selectedTab: $selectedTab,
+                            onSaveProject: saveProject,
+                            onSaveProjectAs: saveProjectAs
+                        )
+                    }
+                    .navigationSplitViewStyle(.balanced)
+                } label: {
+                    Label(StropheTab.editor.title, systemImage: StropheTab.editor.systemImage)
+                }
+
+                Tab(value: StropheTab.styleManager) {
+                    NavigationStack {
+                        StylePlaceholderView(project: project)
+                            .navigationTitle(String(localized: "style"))
+                    }
+                } label: {
+                    Label(StropheTab.styleManager.title, systemImage: StropheTab.styleManager.systemImage)
+                }
+
+                Tab(value: StropheTab.subGroup) {
+                    NavigationStack {
+                        SubGroupPlaceholderView(project: project)
+                            .navigationTitle(String(localized: "group"))
+                    }
+                } label: {
+                    Label(StropheTab.subGroup.title, systemImage: StropheTab.subGroup.systemImage)
+                }
+
+                Tab(value: StropheTab.settings) {
+                    NavigationStack(path: $settingsPath) {
+                        SettingsPlaceholderView(settingsPath: $settingsPath)
+                            .navigationTitle(String(localized: "settings"))
+                            .navigationDestination(for: SettingsRoute.self) { route in
+                                SettingsDetailView(route: route, project: project)
+                            }
+                    }
+                } label: {
+                    Label(StropheTab.settings.title, systemImage: StropheTab.settings.systemImage)
+                }
+            }
+            .stropheOnChange(of: selectedTab) { newValue in
+                if newValue != .settings {
+                    settingsPath.removeAll()
                 }
             }
         }
-        .navigationSplitViewStyle(.balanced)
-        .background(Color.stropheBackground)
-        .stropheOnChange(of: selectedTab) { newValue in
-            if newValue != .settings {
-                settingsPath.removeAll()
-            }
-        }
-    }
+    #endif
 
     // MARK: - Compact Layout (iPhone)
     //

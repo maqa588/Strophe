@@ -73,6 +73,11 @@ nonisolated enum HardSubtitleVideoCodec: String, CaseIterable, Identifiable, Sen
     case proRes422LT
     case proRes422Proxy
 
+    #if os(visionOS)
+        // ProRes encoders are unavailable on visionOS.
+        static var allCases: [HardSubtitleVideoCodec] { [.h264, .h265] }
+    #endif
+
     var id: String { rawValue }
 
     var displayName: String {
@@ -91,11 +96,16 @@ nonisolated enum HardSubtitleVideoCodec: String, CaseIterable, Identifiable, Sen
         switch self {
         case .h264: return .h264
         case .h265: return .hevc
-        case .proRes4444: return .proRes4444
-        case .proRes422HQ: return .proRes422HQ
-        case .proRes422: return .proRes422
-        case .proRes422LT: return .proRes422LT
-        case .proRes422Proxy: return .proRes422Proxy
+        #if os(visionOS)
+            // ProRes is unavailable on visionOS; fall back to HEVC.
+            case .proRes4444, .proRes422HQ, .proRes422, .proRes422LT, .proRes422Proxy: return .hevc
+        #else
+            case .proRes4444: return .proRes4444
+            case .proRes422HQ: return .proRes422HQ
+            case .proRes422: return .proRes422
+            case .proRes422LT: return .proRes422LT
+            case .proRes422Proxy: return .proRes422Proxy
+        #endif
         }
     }
 
@@ -124,15 +134,23 @@ nonisolated enum HardSubtitleVideoCodec: String, CaseIterable, Identifiable, Sen
     }
 
     var isProRes: Bool {
-        switch self {
-        case .proRes4444, .proRes422HQ, .proRes422, .proRes422LT, .proRes422Proxy:
-            return true
-        default: return false
-        }
+        #if os(visionOS)
+            return false
+        #else
+            switch self {
+            case .proRes4444, .proRes422HQ, .proRes422, .proRes422LT, .proRes422Proxy:
+                return true
+            default: return false
+            }
+        #endif
     }
 
     var supportsAlpha: Bool {
-        self == .proRes4444
+        #if os(visionOS)
+            return false
+        #else
+            return self == .proRes4444
+        #endif
     }
 
     var supportsHDR: Bool {
@@ -195,7 +213,7 @@ nonisolated enum HardSubtitleVideoCodec: String, CaseIterable, Identifiable, Sen
             }
             switch exportSettings.rateControlMode {
             case .constantQuality:
-                if #available(macOS 27.0, iOS 27.0, *),
+                if #available(macOS 27.0, iOS 27.0, visionOS 27.0, *),
                     supports(kVTCompressionPropertyKey_ConstantQualityFactor)
                 {
                     compressionProperties[kVTCompressionPropertyKey_ConstantQualityFactor as String] =

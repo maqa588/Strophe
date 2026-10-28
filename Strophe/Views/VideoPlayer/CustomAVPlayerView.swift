@@ -19,7 +19,7 @@ struct CustomAVPlayerView: NSViewRepresentable {
         view.layer?.backgroundColor = NSColor.black.cgColor
         
         let playerLayer = AVPlayerLayer(player: player)
-        playerLayer.videoGravity = .resizeAspectFill
+        playerLayer.videoGravity = .resizeAspect
         playerLayer.frame = view.bounds
         playerLayer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
         
@@ -43,7 +43,7 @@ class PlayerContainerView: UIView {
         self.playerLayer = AVPlayerLayer(player: player)
         super.init(frame: .zero)
         self.backgroundColor = .black
-        playerLayer.videoGravity = .resizeAspectFill
+        playerLayer.videoGravity = .resizeAspect
         self.layer.addSublayer(playerLayer)
     }
     

@@ -1075,3 +1075,42 @@ Spencer Maqa 保留不時修改本協議的權利。重大變更將透過應用�
 "export_ebu_stl_latin" = "歐洲廣播·拉丁文字（EBU STL）";
 "export_other_subtitle_formats" = "其他字幕格式";
 "export_data_reports" = "資料與報表";
+
+/* MARK: - visionOS Spatial */
+
+"vp_workspace_menu" = "工作台";
+"vp_window_section" = "視窗";
+"vp_layout_section" = "版面";
+"vp_style_section" = "樣式";
+"vp_window_video" = "影片";
+"vp_window_timeline" = "時間軸";
+"vp_window_teleprompter" = "提詞機";
+"vp_window_style" = "樣式";
+"vp_window_cinema" = "影院";
+"vp_window_volume" = "空間預覽";
+"vp_open_style_window" = "在新視窗開啟樣式";
+"vp_immersive_enter" = "進入沉浸影院";
+
+"vp_mode_combined" = "聚合";
+"vp_mode_review" = "審片";
+"vp_mode_workbench" = "空間工作台";
+"vp_mode_style_lab" = "樣式實驗室";
+
+"vp_video_detached_title" = "影片已在獨立視窗播放";
+"vp_video_detached_message" = "關閉影片視窗即可把畫面拉回編輯器。";
+"vp_timeline_detached_title" = "時間軸已獨立成窗";
+"vp_timeline_detached_message" = "關閉時間軸視窗即可回到編輯器。";
+"vp_bring_back" = "拉回主視窗";
+"vp_video_return_embedded" = "把影片拉回編輯器";
+
+"vp_seek_back_5" = "後退 5 秒";
+"vp_seek_forward_5" = "前進 5 秒";
+"vp_play" = "播放";
+"vp_pause" = "暫停";
+"vp_close_window" = "關閉視窗";
+"vp_toggle_mute" = "靜音或取消靜音";
+"vp_font_smaller" = "縮小字級";
+"vp_font_larger" = "放大字級";
+"vp_teleprompter_next" = "下一句";
+"vp_style_unavailable" = "此樣式已被刪除。";
+"vp_cinema_no_media" = "請先在編輯器中載入影片，再使用影院模式。";

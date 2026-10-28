@@ -110,7 +110,14 @@ final class MetalTimelineTextAtlas {
     }
 
     private func renderBitmap(_ string: String) -> (pixels: [UInt8], width: Int, height: Int)? {
-        let fontSize = 11.5 * displayScale
+        // Text sits farther from the eye in a visionOS window, so the point size
+        // is increased to stay legible.
+        #if os(visionOS)
+        let baseFontSize: CGFloat = 14
+        #else
+        let baseFontSize: CGFloat = 11.5
+        #endif
+        let fontSize = baseFontSize * displayScale
         let font = CTFontCreateUIFontForLanguage(.system, fontSize, nil)
             ?? CTFontCreateWithName("Helvetica" as CFString, fontSize, nil)
         let attributes: [NSAttributedString.Key: Any] = [

@@ -683,6 +683,31 @@ extension SubtitleProject {
         }
     }
 
+    /// visionOS users can close windows or leave the app at any moment, so the
+    /// scene phase transition is used as an extra save point.
+    func saveScenePhaseSnapshot() async {
+        if projectURL != nil {
+            await performAutoSave()
+        } else {
+            await archiveRecoverySnapshot()
+        }
+    }
+
+    private func archiveRecoverySnapshot() async {
+        guard isDirty else { return }
+        let projectID = projectIdentifier
+        let data = stropheDocument.data
+        do {
+            let encoded = try JSONEncoder().encode(data)
+            let snapshotURL = URL(fileURLWithPath: "Untitled.strophe")
+            await Task.detached(priority: .utility) {
+                ProjectBackupStore.archive(encoded, projectID: projectID, sourceURL: snapshotURL)
+            }.value
+        } catch {
+            print("⚠️ Recovery snapshot failed: \(error.localizedDescription)")
+        }
+    }
+
     private func writeProjectData(_ encoded: Data, to url: URL) async throws {
         let projectID = projectIdentifier
         try await Task.detached(priority: .utility) {

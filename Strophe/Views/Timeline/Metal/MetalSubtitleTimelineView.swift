@@ -146,6 +146,13 @@ final class MetalSubtitleTimelineRenderer: MTKView {
         super.layoutSubviews()
         synchronizeDrawableSize()
     }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        guard previousTraitCollection?.displayScale != traitCollection.displayScale else { return }
+        lastDrawableLogicalSize = .zero
+        synchronizeDrawableSize()
+    }
     #endif
 
     private func synchronizeDrawableSize() {
@@ -156,7 +163,8 @@ final class MetalSubtitleTimelineRenderer: MTKView {
         #if os(macOS)
         let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1
         #else
-        let scale = window?.screen.scale ?? UIScreen.main.scale
+        // UIScreen is unavailable on visionOS; the view's display scale works everywhere.
+        let scale = traitCollection.displayScale > 0 ? traitCollection.displayScale : 2
         #endif
         drawableSize = CGSize(width: logicalSize.width * scale, height: logicalSize.height * scale)
         requestDisplay()

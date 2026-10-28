@@ -95,6 +95,25 @@ final class AVPlayerHostView: UIView {
         super.layoutSubviews()
         playerLayer.frame = bounds
     }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        refreshContentsScale()
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        guard previousTraitCollection?.displayScale != traitCollection.displayScale else { return }
+        refreshContentsScale()
+    }
+
+    /// moving between the embedded editor and a visionOS window can change the
+    /// backing scale, which otherwise leaves the video slightly blurry.
+    private func refreshContentsScale() {
+        let scale = traitCollection.displayScale > 0 ? traitCollection.displayScale : 2
+        layer.contentsScale = scale
+        playerLayer.contentsScale = scale
+    }
 }
 #endif
 

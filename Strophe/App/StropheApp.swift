@@ -71,6 +71,8 @@ struct StropheApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     #elseif os(iOS)
     @UIApplicationDelegateAdaptor(StropheIOSAppDelegate.self) var appDelegate
+    #elseif os(visionOS)
+    @StateObject private var workspace = SpatialWorkspaceModel()
     #endif
     
     init() {
@@ -83,13 +85,16 @@ struct StropheApp: App {
 
         #if os(iOS)
         IOSStderrRedirector.install()
+        #endif
+
+        #if os(iOS) || os(visionOS)
         StropheAudioSession.configureForPlayback()
         #endif
         
         TempCleanupHelper.performStartupCleanupIfNeeded()
         TempCleanupHelper.registerForTerminationCleanup()
     }
-    
+
     var body: some Scene {
         #if os(macOS)
         Window("title_welcome", id: "welcome") {
@@ -134,6 +139,85 @@ struct StropheApp: App {
         .commands {
             StropheNavBarCommands(project: project)
         }
+        #elseif os(visionOS)
+        WindowGroup("Strophe", id: SpatialWindowID.editor) {
+            WelcomeRouterView(project: project)
+                .environmentObject(workspace)
+                .frame(minWidth: 900, minHeight: 600)
+        }
+        .defaultSize(width: 1280, height: 800)
+        .windowResizability(.contentMinSize)
+
+        WindowGroup("vp_window_video", id: SpatialWindowID.video) {
+            VideoWindowRoot(project: project)
+                .environmentObject(workspace)
+                .frame(minWidth: 640, minHeight: 360)
+        }
+        .defaultSize(width: 960, height: 540)
+        .windowResizability(.contentMinSize)
+        .defaultWindowPlacement { _, context in
+            guard let editor = context.windows.first(where: { $0.id == SpatialWindowID.editor }) else {
+                return WindowPlacement()
+            }
+            return WindowPlacement(.trailing(editor))
+        }
+
+        WindowGroup("vp_window_timeline", id: SpatialWindowID.timeline) {
+            TimelineWindowRoot(project: project)
+                .environmentObject(workspace)
+                .frame(minWidth: 900, minHeight: 320)
+        }
+        .defaultSize(width: 1200, height: 420)
+        .windowResizability(.contentMinSize)
+        .defaultWindowPlacement { _, context in
+            guard let editor = context.windows.first(where: { $0.id == SpatialWindowID.editor }) else {
+                return WindowPlacement()
+            }
+            return WindowPlacement(.below(editor))
+        }
+
+        WindowGroup("vp_window_teleprompter", id: SpatialWindowID.teleprompter) {
+            TeleprompterWindowRoot(project: project)
+                .environmentObject(workspace)
+                .frame(minWidth: 640, minHeight: 400)
+        }
+        .defaultSize(width: 760, height: 480)
+        .windowResizability(.contentMinSize)
+        .defaultWindowPlacement { _, _ in
+            WindowPlacement(.utilityPanel)
+        }
+
+        WindowGroup("vp_window_style", id: SpatialWindowID.style, for: UUID.self) { $styleID in
+            if let styleID {
+                StyleWindowRoot(project: project, styleID: styleID)
+                    .frame(minWidth: 400, minHeight: 560)
+            }
+        }
+        .defaultSize(width: 460, height: 720)
+        .windowResizability(.contentMinSize)
+        .defaultWindowPlacement { _, _ in
+            WindowPlacement(.utilityPanel)
+        }
+
+        WindowGroup("vp_window_cinema", id: SpatialWindowID.cinema) {
+            CinemaWindowRoot(project: project)
+                .environmentObject(workspace)
+                .frame(minWidth: 720, minHeight: 405)
+        }
+        .defaultSize(width: 1280, height: 720)
+        .windowResizability(.contentMinSize)
+
+        WindowGroup("vp_window_volume", id: SpatialWindowID.volume) {
+            VolumePreviewRoot(project: project)
+                .environmentObject(workspace)
+        }
+        .windowStyle(.volumetric)
+        .defaultSize(width: 0.9, height: 0.6, depth: 0.12, in: .meters)
+
+        ImmersiveSpace(id: SpatialWindowID.immersive) {
+            ImmersiveCinemaView(project: project)
+        }
+        .immersionStyle(selection: .constant(.mixed), in: .mixed)
         #else
         WindowGroup {
             WelcomeRouterView(project: project)
@@ -143,7 +227,7 @@ struct StropheApp: App {
     }
 }
 
-#if os(iOS)
+#if os(iOS) || os(visionOS)
 private enum StropheAudioSession {
     static func configureForPlayback() {
         let session = AVAudioSession.sharedInstance()
@@ -175,6 +259,9 @@ private enum StropheAudioSession {
     }
 }
 
+#endif
+
+#if os(iOS)
 private enum IOSStderrRedirector {
     static func install() {
         guard let cachesURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {

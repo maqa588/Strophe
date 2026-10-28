@@ -11,21 +11,11 @@ import UIKit
 
 extension SubtitleBlocksLayer {
     func triggerHapticFeedback() {
-        #if os(macOS)
-        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
-        #elseif os(iOS)
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        #endif
+        StropheHaptics.perform(.light)
     }
 
     func triggerLiftHapticFeedback() {
-        #if os(macOS)
-        NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
-        #elseif os(iOS)
-        let generator = UIImpactFeedbackGenerator(style: .rigid)
-        generator.prepare()
-        generator.impactOccurred(intensity: 1)
-        #endif
+        StropheHaptics.perform(.rigid)
     }
 
     func updateTimelineCursor(isOverTrimHandle: Bool) {

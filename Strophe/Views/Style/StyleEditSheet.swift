@@ -16,7 +16,10 @@ struct StyleEditSheet: View {
     @Binding var isPresented: Bool
     @Binding var selectedStyleId: UUID?
     @ObservedObject var project: SubtitleProject
-    
+    /// visionOS style windows apply every edit immediately instead of waiting
+    /// for an explicit save.
+    var appliesChangesLive: Bool = false
+
     @ObservedObject var store = StyleAndGroupStore.shared
     
     @State var name: String = ""
@@ -99,6 +102,70 @@ struct StyleEditSheet: View {
         }
     }
     
+    private struct StyleDraftSnapshot: Equatable {
+        var name: String
+        var description: String
+        var textColor: Color
+        var fontName: String
+        var fontSize: Double
+        var isBold: Bool
+        var isItalic: Bool
+        var isUnderline: Bool
+        var isStrikethrough: Bool
+        var outlineColor: Color
+        var outlineWidth: Double
+        var shadowColor: Color
+        var shadowRadius: Double
+        var backgroundColor: Color
+        var backgroundAlpha: Double
+        var dropShadowColor: Color
+        var dropShadowOffset: Double
+        var dropShadowAlpha: Double
+        var dropShadowAngle: Double
+        var isGlowing: Bool
+        var alignment: SubtitleStyle.Alignment
+        var marginLeftPercent: Double
+        var marginRightPercent: Double
+        var marginVerticalPercent: Double
+        var scaleX: Double
+        var scaleY: Double
+        var characterSpacing: Double
+        var rotationDegrees: Double
+    }
+
+    private var draftSnapshot: StyleDraftSnapshot {
+        StyleDraftSnapshot(
+            name: name,
+            description: description,
+            textColor: textColor,
+            fontName: fontName,
+            fontSize: fontSize,
+            isBold: isBold,
+            isItalic: isItalic,
+            isUnderline: isUnderline,
+            isStrikethrough: isStrikethrough,
+            outlineColor: outlineColor,
+            outlineWidth: outlineWidth,
+            shadowColor: shadowColor,
+            shadowRadius: shadowRadius,
+            backgroundColor: backgroundColor,
+            backgroundAlpha: backgroundAlpha,
+            dropShadowColor: dropShadowColor,
+            dropShadowOffset: dropShadowOffset,
+            dropShadowAlpha: dropShadowAlpha,
+            dropShadowAngle: dropShadowAngle,
+            isGlowing: isGlowing,
+            alignment: alignment,
+            marginLeftPercent: marginLeftPercent,
+            marginRightPercent: marginRightPercent,
+            marginVerticalPercent: marginVerticalPercent,
+            scaleX: scaleX,
+            scaleY: scaleY,
+            characterSpacing: characterSpacing,
+            rotationDegrees: rotationDegrees
+        )
+    }
+
     var body: some View {
         #if os(macOS)
         mainContent
@@ -107,17 +174,32 @@ struct StyleEditSheet: View {
         #else
         NavigationStack {
             mainContent
-                .background(Color.stropheBackground)
+                #if os(visionOS)
+                    .background(.clear)
+                #else
+                    .background(Color.stropheBackground)
+                #endif
                 .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("cancel") { isPresented = false }
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("save") { saveStyle() }
-                            .fontWeight(.bold)
-                            .disabled(name.isEmpty)
+                    if appliesChangesLive {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("done") { isPresented = false }
+                                .fontWeight(.bold)
+                        }
+                    } else {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("cancel") { isPresented = false }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("save") { saveStyle() }
+                                .fontWeight(.bold)
+                                .disabled(name.isEmpty)
+                        }
                     }
                 }
+        }
+        .stropheOnChange(of: draftSnapshot) { _ in
+            guard appliesChangesLive else { return }
+            saveStyleDraft()
         }
         #endif
     }

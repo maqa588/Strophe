@@ -510,8 +510,10 @@ struct SubtitleTranslationAssistantView: View {
         #if os(macOS)
         referenceDefinition = AppleDictionaryService.definition(for: term)
         referenceMessage = referenceDefinition == nil ? "Apple 词典中没有找到“\(term)”的释义。" : ""
-        #else
+        #elseif os(iOS)
         dictionarySheetTerm = DictionaryTerm(value: term)
+        #else
+        referenceMessage = "Apple 词典在 visionOS 上不可用。"
         #endif
     }
 

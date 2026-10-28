@@ -12,6 +12,15 @@ private let timelineScrollCoordinateSpaceName = "timelineScrollCoordinateSpace"
 struct WaveformTimelineView: View {
     @ObservedObject var project: SubtitleProject
     @ObservedObject private var groupStore = StyleAndGroupStore.shared
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+
+    private var isCompactLandscape: Bool {
+        #if os(iOS)
+            return verticalSizeClass == .compact
+        #else
+            return false
+        #endif
+    }
 
     @State private var pixelsPerSecond: Double = 50
     /// Scale used by the last committed Canvas redraw.
@@ -32,6 +41,9 @@ struct WaveformTimelineView: View {
     @State private var availableWidth: CGFloat = 800
     @State private var trackVerticalScale: CGFloat = 0.78
     @State private var trackVerticalOffset: CGFloat = 0
+    /// Restores zoom and scroll once per view instance so a rebuilt editor view
+    /// tree (folding, split view, window resize) keeps the user's viewport.
+    @State private var hasRestoredViewport = false
 
     #if os(iOS)
         @State private var gestureZoomBasePPS: Double = 50.0
@@ -56,8 +68,10 @@ struct WaveformTimelineView: View {
                 .frame(height: 1)
 
             // MARK: - Extracted Timeline Toolbar
-            TimelineToolbarView(project: project)
-                .fixedSize(horizontal: false, vertical: true)
+            if !isCompactLandscape {
+                TimelineToolbarView(project: project)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             // MARK: - Karaoke Unit Editor
             KaraokeEditorPanel(project: project)
@@ -187,11 +201,13 @@ struct WaveformTimelineView: View {
                 emptyPlaceholder
             }
         }
-        .padding(.bottom, 12)
+        .padding(.bottom, isCompactLandscape ? 4 : 12)
         .environment(\.layoutDirection, .leftToRight)
         .stropheOnChange(of: project.videoURL) { _ in
             scrollPageStartTime = 0
             viewportStartTime = 0
+            project.timelineViewportSnapshot = nil
+            hasRestoredViewport = false
         }
         .stropheOnChange(of: project.waveformData?.duration) { duration in
             guard let duration, duration.isFinite else { return }
@@ -209,8 +225,12 @@ struct WaveformTimelineView: View {
             let duration = rawDuration.isFinite ? max(1, rawDuration) : 1
             centerPlayheadIfNeeded(viewWidth: Double(availableWidth), duration: duration)
         }
+        .stropheOnChange(of: pixelsPerSecond) { _ in storeTimelineViewport() }
+        .stropheOnChange(of: trackVerticalScale) { _ in storeTimelineViewport() }
+        .stropheOnChange(of: trackVerticalOffset) { _ in storeTimelineViewport() }
+        .stropheOnChange(of: scrollPageStartTime) { _ in storeTimelineViewport() }
         .frame(
-            height: (isCompact ? 236 : 200)
+            height: (isCompactLandscape ? 155 : (isCompact ? 236 : 200))
                 + KaraokeEditorPanel.preferredHeight(
                     for: project.karaokeEditorItem
                 )
@@ -311,6 +331,25 @@ struct WaveformTimelineView: View {
     private func applyContentWidth(_ width: CGFloat, duration: Double) {
         guard width.isFinite, width > 0 else { return }
         let safeDuration = duration.isFinite ? max(1, duration) : 1
+
+        if !hasRestoredViewport {
+            hasRestoredViewport = true
+            if let snapshot = project.timelineViewportSnapshot,
+                snapshot.pixelsPerSecond.isFinite,
+                snapshot.pixelsPerSecond > 0
+            {
+                // Keep the user's zoom, but never below the width-fitting minimum.
+                availableWidth = width
+                pixelsPerSecond = max(snapshot.pixelsPerSecond, Double(width) / safeDuration)
+                renderedPPS = pixelsPerSecond
+                trackVerticalScale = SubtitleTimelineTrackMetrics.clampedScale(snapshot.trackVerticalScale)
+                trackVerticalOffset = snapshot.trackVerticalOffset
+                scrollPageStartTime = snapshot.scrollPageStartTime
+                viewportStartTime = snapshot.scrollPageStartTime
+                return
+            }
+        }
+
         let oldMin = availableWidth > 0 ? Double(availableWidth) / safeDuration : 0
         let wasAtMin = availableWidth <= 0 || pixelsPerSecond <= oldMin + 0.05 || pixelsPerSecond == 50.0
 
@@ -321,6 +360,16 @@ struct WaveformTimelineView: View {
             pixelsPerSecond = newMin
             renderedPPS = newMin
         }
+    }
+
+    private func storeTimelineViewport() {
+        guard hasRestoredViewport, pixelsPerSecond.isFinite, pixelsPerSecond > 0 else { return }
+        project.timelineViewportSnapshot = .init(
+            pixelsPerSecond: pixelsPerSecond,
+            trackVerticalScale: trackVerticalScale,
+            trackVerticalOffset: trackVerticalOffset,
+            scrollPageStartTime: scrollPageStartTime
+        )
     }
 
     private var emptyPlaceholder: some View {

@@ -767,15 +767,23 @@ private extension View {
 
     @ViewBuilder
     func stropheSearchGlass(reduceTransparency: Bool) -> some View {
-        if #available(anyAppleOS 26.0, *), !reduceTransparency {
-            glassEffect(.regular.interactive(), in: .capsule)
-        } else {
-            background(.regularMaterial, in: Capsule())
-                .overlay {
-                    Capsule()
-                        .stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
-                }
-        }
+        #if os(visionOS)
+            searchGlassFallback
+        #else
+            if #available(anyAppleOS 26.0, *), !reduceTransparency {
+                glassEffect(.regular.interactive(), in: .capsule)
+            } else {
+                searchGlassFallback
+            }
+        #endif
+    }
+
+    private var searchGlassFallback: some View {
+        background(.regularMaterial, in: Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
+            }
     }
 }
 

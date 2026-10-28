@@ -12,7 +12,7 @@ import UIKit
 import GameController
 #endif
 
-#if os(iOS)
+#if os(iOS) || os(visionOS)
 enum TimelineTouchPanIntent {
     case horizontal
     case vertical
@@ -33,6 +33,8 @@ struct TimelineTouchInteractionSurface: UIViewRepresentable {
     var onLongPressEnded: (Bool) -> Void
     var onSingleTap: (CGPoint) -> Void
     var onDoubleTap: (CGPoint) -> Void
+    /// visionOS eye tracking produces hover events before a pinched selection.
+    var onHover: ((CGPoint?) -> Void)? = nil
 
     func makeUIView(context _: Context) -> TimelineTouchRoutingView {
         TimelineTouchRoutingView()
@@ -50,6 +52,9 @@ struct TimelineTouchInteractionSurface: UIViewRepresentable {
         view.onLongPressEnded = onLongPressEnded
         view.onSingleTap = onSingleTap
         view.onDoubleTap = onDoubleTap
+        #if os(visionOS)
+        view.onHover = onHover
+        #endif
     }
 }
 
@@ -65,6 +70,10 @@ final class TimelineTouchRoutingView: UIView, UIGestureRecognizerDelegate {
     var onLongPressEnded: (Bool) -> Void = { _ in }
     var onSingleTap: (CGPoint) -> Void = { _ in }
     var onDoubleTap: (CGPoint) -> Void = { _ in }
+    #if os(visionOS)
+    var onHover: ((CGPoint?) -> Void)?
+    private lazy var hoverRecognizer = UIHoverGestureRecognizer(target: self, action: #selector(handleHover))
+    #endif
 
     private(set) lazy var blockPanRecognizer = UIPanGestureRecognizer(target: self, action: #selector(handlePan))
     private(set) lazy var longPressRecognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress))
@@ -96,6 +105,9 @@ final class TimelineTouchRoutingView: UIView, UIGestureRecognizerDelegate {
         addGestureRecognizer(longPressRecognizer)
         addGestureRecognizer(singleTapRecognizer)
         addGestureRecognizer(doubleTapRecognizer)
+        #if os(visionOS)
+        addGestureRecognizer(hoverRecognizer)
+        #endif
     }
 
     required init?(coder: NSCoder) { nil }
@@ -185,5 +197,16 @@ final class TimelineTouchRoutingView: UIView, UIGestureRecognizerDelegate {
     @objc private func handleDoubleTap(_ recognizer: UITapGestureRecognizer) {
         onDoubleTap(recognizer.location(in: self))
     }
+
+    #if os(visionOS)
+    @objc private func handleHover(_ recognizer: UIHoverGestureRecognizer) {
+        switch recognizer.state {
+        case .began, .changed:
+            onHover?(recognizer.location(in: self))
+        default:
+            onHover?(nil)
+        }
+    }
+    #endif
 }
 #endif

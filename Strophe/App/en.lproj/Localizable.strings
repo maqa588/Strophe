@@ -1077,3 +1077,42 @@ Spencer Maqa reserves the right to modify this Agreement from time to time. Mate
 "export_ebu_stl_latin" = "European Broadcast, Latin Script (EBU STL)";
 "export_other_subtitle_formats" = "Other Subtitle Formats";
 "export_data_reports" = "Data and Reports";
+
+/* MARK: - visionOS Spatial */
+
+"vp_workspace_menu" = "Workspace";
+"vp_window_section" = "Windows";
+"vp_layout_section" = "Layouts";
+"vp_style_section" = "Styles";
+"vp_window_video" = "Video";
+"vp_window_timeline" = "Timeline";
+"vp_window_teleprompter" = "Teleprompter";
+"vp_window_style" = "Style";
+"vp_window_cinema" = "Cinema";
+"vp_window_volume" = "Spatial Preview";
+"vp_open_style_window" = "Open Style in New Window";
+"vp_immersive_enter" = "Enter Immersive Cinema";
+
+"vp_mode_combined" = "Combined";
+"vp_mode_review" = "Review";
+"vp_mode_workbench" = "Spatial Workbench";
+"vp_mode_style_lab" = "Style Lab";
+
+"vp_video_detached_title" = "Video is playing in its own window";
+"vp_video_detached_message" = "Close the video window to bring playback back into the editor.";
+"vp_timeline_detached_title" = "Timeline is open in its own window";
+"vp_timeline_detached_message" = "Close the timeline window to return it to the editor.";
+"vp_bring_back" = "Bring Back";
+"vp_video_return_embedded" = "Return Video to Editor";
+
+"vp_seek_back_5" = "Back 5 seconds";
+"vp_seek_forward_5" = "Forward 5 seconds";
+"vp_play" = "Play";
+"vp_pause" = "Pause";
+"vp_close_window" = "Close Window";
+"vp_toggle_mute" = "Mute or Unmute";
+"vp_font_smaller" = "Smaller Text";
+"vp_font_larger" = "Larger Text";
+"vp_teleprompter_next" = "Next";
+"vp_style_unavailable" = "This style was deleted.";
+"vp_cinema_no_media" = "Load a video in the editor to use cinema mode.";

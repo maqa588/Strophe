@@ -118,6 +118,11 @@ extension View {
         }
         func updateUIView(_ uiView: AVRoutePickerView, context: Context) {}
     }
+#elseif os(visionOS)
+    // AVRoutePickerView is unavailable on visionOS.
+    struct AirPlayRoutePicker: View {
+        var body: some View { EmptyView() }
+    }
 #endif
 
 // MARK: - BoundarySeekButton for Hold-to-Seek Subtitle Edges

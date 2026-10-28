@@ -14,30 +14,35 @@ import SwiftUI
         @State private var isKPressed = false
 
         var body: some View {
-            let isPad = UIDevice.current.userInterfaceIdiom == .pad
+            GeometryReader { proxy in
+                // Size from the available width instead of the device idiom so
+                // iPhone Duo's inner screen and resizable windows behave correctly.
+                let isWide = proxy.size.width >= 700
 
-            HStack(spacing: 0) {
-                SlapTouchButton(
-                    key: "j", label: String(localized: "slap_j_key"),
-                    subtitle: String(localized: "hold_start_release_end"), isPressed: $isJPressed, project: project
-                )
-                .frame(width: isPad ? 180 : nil)
-                .frame(maxWidth: isPad ? nil : .infinity)
+                HStack(spacing: 0) {
+                    SlapTouchButton(
+                        key: "j", label: String(localized: "slap_j_key"),
+                        subtitle: String(localized: "hold_start_release_end"), isPressed: $isJPressed, project: project
+                    )
+                    .frame(width: isWide ? 180 : nil)
+                    .frame(maxWidth: isWide ? nil : .infinity)
 
-                // Preserve the center ruler and playhead hit area on compact layouts.
-                Spacer(minLength: isPad ? nil : 20)
+                    // Preserve the center ruler and playhead hit area on compact layouts.
+                    Spacer(minLength: isWide ? nil : 20)
 
-                SlapTouchButton(
-                    key: "k", label: String(localized: "slap_k_key"),
-                    subtitle: String(localized: "hold_start_release_end"), isPressed: $isKPressed, project: project
-                )
-                .frame(width: isPad ? 180 : nil)
-                .frame(maxWidth: isPad ? nil : .infinity)
+                    SlapTouchButton(
+                        key: "k", label: String(localized: "slap_k_key"),
+                        subtitle: String(localized: "hold_start_release_end"), isPressed: $isKPressed, project: project
+                    )
+                    .frame(width: isWide ? 180 : nil)
+                    .frame(maxWidth: isWide ? nil : .infinity)
+                }
+                .frame(height: 38)
+                .padding(.horizontal, isWide ? 24 : 8)
+                .allowsHitTesting(true)
             }
             .frame(height: 38)
-            .padding(.horizontal, isPad ? 24 : 8)
             .padding(.top, 2)
-            .allowsHitTesting(true)
         }
     }
 
@@ -72,15 +77,13 @@ import SwiftUI
                     .onChanged { _ in
                         if !isPressed {
                             isPressed = true
-                            let generator = UIImpactFeedbackGenerator(style: .medium)
-                            generator.impactOccurred()
+                            StropheHaptics.perform(.medium)
                             project.handleSlapKeyDown(key: key)
                         }
                     }
                     .onEnded { _ in
                         isPressed = false
-                        let generator = UIImpactFeedbackGenerator(style: .light)
-                        generator.impactOccurred()
+                        StropheHaptics.perform(.light)
                         project.handleSlapKeyUp(key: key)
                     }
             )

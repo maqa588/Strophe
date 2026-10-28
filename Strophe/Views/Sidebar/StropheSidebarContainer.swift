@@ -22,6 +22,12 @@ struct StropheSidebarContainer: View {
             sidebarContent
                 .background(VisualEffectView(material: .sidebar, blendingMode: .behindWindow))
                 .hideSidebarSystemNavigationBar()
+        #elseif os(visionOS)
+            // visionOS provides its own window glass; keep the sidebar free of
+            // opaque backgrounds so the system material shows through.
+            sidebarContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .hideSidebarSystemNavigationBar()
         #else
             if #available(anyAppleOS 26.0, *) {
                 sidebarContent
@@ -44,6 +50,12 @@ struct StropheSidebarContainer: View {
     @ViewBuilder
     private var sidebarContent: some View {
         Group {
+            #if os(visionOS)
+            // Top-level navigation lives in the window's native TabView, so the
+            // custom bottom tab bar is redundant here.
+            sidebarPrimaryContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            #else
             if usesLiquidGlassNavigation {
                 ZStack(alignment: .bottom) {
                     sidebarPrimaryContent
@@ -65,6 +77,7 @@ struct StropheSidebarContainer: View {
                         .padding(.top, 12)
                 }
             }
+            #endif
         }
         // System toolbar: on macOS this is auto-paired with the sidebar toggle button.
         // On iPadOS, the navbar is now visible (we only hide its background via
@@ -89,11 +102,6 @@ struct StropheSidebarContainer: View {
             }
         }
         .frame(maxHeight: .infinity)
-        #if os(macOS)
-            .padding(.top, 52)
-        #else
-            .padding(.top, UIDevice.current.userInterfaceIdiom == .pad ? 72 : 16)
-        #endif
     }
 }
 

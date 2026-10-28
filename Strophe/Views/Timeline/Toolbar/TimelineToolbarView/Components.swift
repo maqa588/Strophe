@@ -100,7 +100,14 @@ extension TimelineToolbarView {
 
     @ViewBuilder
     var playbackControls: some View {
-        if #available(anyAppleOS 26.0, *) {
+        #if os(visionOS)
+            PlaybackControlsLegacy(
+                project: project,
+                targetSpeed: targetSpeed,
+                playbackRate: playbackRate
+            )
+        #else
+            if #available(anyAppleOS 26.0, *) {
             GlassEffectContainer(spacing: 12) {
                 HStack(spacing: 0) {
                     Button(action: { project.undo() }) {
@@ -156,18 +163,44 @@ extension TimelineToolbarView {
                     .glassEffect(.regular.interactive(), in: .capsule)
                 }
             }
-        } else {
-            PlaybackControlsLegacy(
-                project: project,
-                targetSpeed: targetSpeed,
-                playbackRate: playbackRate
-            )
-        }
+            } else {
+                PlaybackControlsLegacy(
+                    project: project,
+                    targetSpeed: targetSpeed,
+                    playbackRate: playbackRate
+                )
+            }
+        #endif
     }
 
     @ViewBuilder
     var editingModeControls: some View {
-        if #available(anyAppleOS 26.0, *) {
+        #if os(visionOS)
+            EditingModeControlsLegacy(
+                project: project,
+                showSoftSubtitles: showSoftSubtitles,
+                showHardSubtitles: showHardSubtitles,
+                editingMode: editingMode,
+                isEditingText: isEditingText,
+                showSoftSubtitlesTip: $showSoftSubtitlesTip,
+                showHardSubtitlesTip: $showHardSubtitlesTip,
+                showSelectionTip: $showSelectionTip,
+                showCreationTip: $showCreationTip,
+                showSplitTip: $showSplitTip,
+                showMergeTip: $showMergeTip,
+                showKaraokeTip: $showKaraokeTip,
+                softSubtitlesHoverTask: $softSubtitlesHoverTask,
+                hardSubtitlesHoverTask: $hardSubtitlesHoverTask,
+                selectionHoverTask: $selectionHoverTask,
+                creationHoverTask: $creationHoverTask,
+                splitHoverTask: $splitHoverTask,
+                mergeHoverTask: $mergeHoverTask,
+                karaokeHoverTask: $karaokeHoverTask,
+                onSplit: { handleSplitAction() },
+                onMerge: { handleMergeAction() }
+            )
+        #else
+            if #available(anyAppleOS 26.0, *) {
             GlassEffectContainer(spacing: 12) {
                 HStack(spacing: 0) {
                     Button(action: { handleSplitAction() }) {
@@ -443,6 +476,7 @@ extension TimelineToolbarView {
                 onMerge: { handleMergeAction() }
             )
         }
+        #endif
     }
 
 }

@@ -47,6 +47,13 @@ extension StyleEditSheet {
     }
 
     func saveStyle() {
+        saveStyleDraft()
+        isPresented = false
+    }
+
+    /// Writes the current editor state back to the store without dismissing.
+    /// Used by visionOS style windows for live preview.
+    func saveStyleDraft() {
         if let id = selectedStyleId,
            let index = store.styles.firstIndex(where: { $0.id == id }) {
             store.styles[index].name = name.isEmpty ? "Style" : name
@@ -78,6 +85,5 @@ extension StyleEditSheet {
             store.styles[index].characterSpacing = characterSpacing
             store.styles[index].rotationDegrees = rotationDegrees
         }
-        isPresented = false
     }
 }

@@ -80,22 +80,40 @@ struct WelcomeView: View {
     }
 
     private var background: some View {
-        ZStack {
-            Color.stropheBackground
-            LinearGradient(
-                colors: [
-                    Color.stropheAccent.opacity(0.18),
-                    Color.stropheSecondaryBackground.opacity(0.55),
-                    Color.stropheBackground
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .opacity(0.8)
-            Rectangle()
-                .fill(.regularMaterial)
-        }
-        .ignoresSafeArea()
+        #if os(visionOS)
+            // Let the system window glass show through instead of covering the
+            // room with an opaque panel.
+            ZStack {
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                LinearGradient(
+                    colors: [
+                        Color.stropheAccent.opacity(0.16),
+                        .clear
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+            .ignoresSafeArea()
+        #else
+            ZStack {
+                Color.stropheBackground
+                LinearGradient(
+                    colors: [
+                        Color.stropheAccent.opacity(0.18),
+                        Color.stropheSecondaryBackground.opacity(0.55),
+                        Color.stropheBackground
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .opacity(0.8)
+                Rectangle()
+                    .fill(.regularMaterial)
+            }
+            .ignoresSafeArea()
+        #endif
     }
 
     private var openingOverlay: some View {

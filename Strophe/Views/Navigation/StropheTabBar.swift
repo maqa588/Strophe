@@ -57,15 +57,21 @@ struct StropheTabBar: View {
     #endif
 
     var body: some View {
-        if #available(anyAppleOS 26.0, *) {
-            advancedLiquidGlassTabBar
-        } else {
+        #if os(visionOS)
+            // Liquid Glass is unavailable on visionOS; use the plain bar.
             ordinaryTabBar
-        }
+        #else
+            if #available(anyAppleOS 26.0, *) {
+                advancedLiquidGlassTabBar
+            } else {
+                ordinaryTabBar
+            }
+        #endif
     }
 
-    @available(anyAppleOS 26.0, *)
-    private var advancedLiquidGlassTabBar: some View {
+    #if !os(visionOS)
+        @available(anyAppleOS 26.0, *)
+        private var advancedLiquidGlassTabBar: some View {
         GlassEffectContainer(spacing: 8) {
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
@@ -212,6 +218,7 @@ struct StropheTabBar: View {
             isDragging = false
         }
     }
+    #endif
 
     private var ordinaryTabBar: some View {
         HStack(spacing: 0) {
@@ -241,6 +248,7 @@ struct StropheTabBar: View {
     }
 }
 
+#if !os(visionOS)
 private extension View {
     @available(anyAppleOS 26.0, *)
     @ViewBuilder
@@ -254,3 +262,4 @@ private extension View {
         }
     }
 }
+#endif

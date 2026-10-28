@@ -74,6 +74,17 @@ class SubtitleProject: ObservableObject {
     @Published var karaokeEditorDismissedItemID: UUID? = nil
     @Published var isKaraokeEditorManuallyClosed: Bool = false
     var selectionEditorSyncGeneration: UInt = 0
+
+    /// Transient timeline viewport state. The editor's view tree is rebuilt when
+    /// the size class changes (iPhone Duo folding/unfolding, split view, window
+    /// resizing), so zoom and scroll live on the project to survive the rebuild.
+    struct TimelineViewportSnapshot {
+        var pixelsPerSecond: Double
+        var trackVerticalScale: CGFloat
+        var trackVerticalOffset: CGFloat
+        var scrollPageStartTime: Double
+    }
+    var timelineViewportSnapshot: TimelineViewportSnapshot? = nil
     @Published var selectedIDs: Set<UUID> = [] {
         didSet {
             selectionEditorSyncGeneration &+= 1

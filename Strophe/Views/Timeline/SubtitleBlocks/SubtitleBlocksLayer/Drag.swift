@@ -397,7 +397,7 @@ extension SubtitleBlocksLayer {
         beginEditingText(item)
     }
 
-    #if os(iOS)
+    #if os(iOS) || os(visionOS)
         func handleMobileDoubleTap(at location: CGPoint) {
             let targetItem = hitTest(at: location)?.item ?? anyBlockHitTest(at: location)
             guard let item = targetItem else { return }

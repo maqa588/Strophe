@@ -15,6 +15,27 @@ import GameController
 extension SubtitleBlocksLayer {
     // MARK: Centralized hit testing and gestures
 
+    /// Touch/eye targets should be at least 60 pt tall on visionOS, which is
+    /// taller than a subtitle block, so the slop is derived from the block height.
+    var fingerVerticalTouchSlop: CGFloat {
+        #if os(visionOS)
+        let blockHeight = SubtitleTimelineTrackMetrics.scaledBlockHeight(trackVerticalScale)
+        return max(0, (60 - blockHeight) / 2)
+        #elseif os(iOS)
+        return 10
+        #else
+        return 0
+        #endif
+    }
+
+    var fingerHorizontalTouchSlop: CGFloat {
+        #if os(iOS) || os(visionOS)
+        return 22
+        #else
+        return 4
+        #endif
+    }
+
     func isPointInsideTimeline(_ location: CGPoint) -> Bool {
         location.x.isFinite
             && location.y.isFinite
@@ -29,13 +50,8 @@ extension SubtitleBlocksLayer {
 
     func hitTest(at location: CGPoint) -> BlockHit? {
         let blockHeight = SubtitleTimelineTrackMetrics.scaledBlockHeight(trackVerticalScale)
-        #if os(iOS)
-        let verticalTouchSlop: CGFloat = 10
-        let horizontalTouchSlop: CGFloat = 22
-        #else
-        let verticalTouchSlop: CGFloat = 0
-        let horizontalTouchSlop: CGFloat = 4
-        #endif
+        let verticalTouchSlop = fingerVerticalTouchSlop
+        let horizontalTouchSlop = fingerHorizontalTouchSlop
         guard location.y >= activeTrackBlockY - verticalTouchSlop,
               location.y <= activeTrackBlockY + blockHeight + verticalTouchSlop else { return nil }
         let time = Double(location.x) / pixelsPerSecond
@@ -58,7 +74,7 @@ extension SubtitleBlocksLayer {
             )
             let canTrim = trimHandleItemIDs.contains(item.id)
             let edge: TimelineInteractionLayer.Edge?
-            #if os(iOS)
+            #if os(iOS) || os(visionOS)
             // Handles stay visually compact, while their finger targets extend
             // outside the block and 14 pt inward. Nearest-edge arbitration keeps
             // very short subtitles from always resolving to the left handle.
@@ -94,14 +110,9 @@ extension SubtitleBlocksLayer {
 
     func anyBlockHitTest(at location: CGPoint) -> SubtitleItem? {
         let blockHeight = SubtitleTimelineTrackMetrics.scaledBlockHeight(trackVerticalScale)
-        #if os(iOS)
-        let verticalTouchSlop: CGFloat = 10
-        let horizontalTouchSlop: CGFloat = 22
-        #else
-        let verticalTouchSlop: CGFloat = 0
-        let horizontalTouchSlop: CGFloat = 4
-        #endif
-        
+        let verticalTouchSlop = fingerVerticalTouchSlop
+        let horizontalTouchSlop = fingerHorizontalTouchSlop
+
         let time = Double(location.x) / pixelsPerSecond
         let visualTolerance = Double(horizontalTouchSlop) / pixelsPerSecond
         let candidates = renderModel.visibleItems(
@@ -123,7 +134,7 @@ extension SubtitleBlocksLayer {
                 height: blockHeight
             )
             
-            #if os(iOS)
+            #if os(iOS) || os(visionOS)
             let expandedRect = rect.insetBy(dx: -horizontalTouchSlop, dy: -verticalTouchSlop)
             if expandedRect.contains(location) {
                 return item
